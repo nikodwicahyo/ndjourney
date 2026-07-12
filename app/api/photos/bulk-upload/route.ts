@@ -16,12 +16,13 @@ const bulkUploadSchema = z.object({
         takenAt: z.string().datetime().optional(),
         width: z.number().int().positive().optional(),
         height: z.number().int().positive().optional(),
+        fileSize: z.number().int().positive().optional(),
         isVideo: z.boolean().default(false),
         albumId: z.string().cuid().optional(),
       }),
     )
     .min(1)
-    .max(10),
+    .max(30),
 });
 
 export async function POST(request: Request) {
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
 
     for (const p of parsed.data.photos) {
       insertValues.push(
-        `($${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++})`,
+        `($${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++})`,
       );
       const now = new Date();
       flatParams.push(
@@ -61,6 +62,7 @@ export async function POST(request: Request) {
         p.takenAt ? new Date(p.takenAt) : null,
         p.width ?? null,
         p.height ?? null,
+        p.fileSize ?? null,
         p.isVideo,
         p.albumId ?? null,
         session.user.id,
@@ -69,7 +71,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const query = `INSERT INTO "Photo" ("id", "url", "publicId", "thumbnailUrl", "caption", "takenAt", "width", "height", "isVideo", "albumId", "uploadedById", "createdAt", "updatedAt") VALUES ${insertValues.join(", ")} RETURNING *`;
+    const query = `INSERT INTO "Photo" ("id", "url", "publicId", "thumbnailUrl", "caption", "takenAt", "width", "height", "fileSize", "isVideo", "albumId", "uploadedById", "createdAt", "updatedAt") VALUES ${insertValues.join(", ")} RETURNING *`;
 
     const photos = await prisma.$queryRawUnsafe<Photo[]>(query, ...flatParams);
 

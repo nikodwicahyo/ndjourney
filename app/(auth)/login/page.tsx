@@ -28,7 +28,7 @@ export default async function LoginPage({ searchParams }: Props) {
           <div className="mb-4">
             <span className="inline-block text-5xl">💕</span>
           </div>
-          <h1 className="font-heading text-3xl text-foreground">
+          <h1 className="font-heading text-2xl text-foreground sm:text-3xl break-words">
             NDjourney
           </h1>
           <p className="text-sm text-muted-foreground">

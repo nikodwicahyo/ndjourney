@@ -96,7 +96,7 @@ const tasks = [
   "Bilang 'You're my favorite person'",
   "Bikin video compilasi momen-momen lucu kalian",
   "Tanya 'Apa hal paling random yang kamu pikirkan hari ini?'",
-  "Kirim tantangan 'Truth or Dare' versi kalian",
+  "Kirim Dare 'Truth or Dare' versi kalian",
   "Bikin scrapbook digital kecil-kecilan",
   "Sebut 1 kebiasaan pasangan yang kamu suka",
   "Ajak belajar hal baru bareng (skill/online course)",
@@ -438,7 +438,7 @@ export default function DailyLoveTask() {
             <Heart className={done ? "h-4 w-4 fill-primary text-primary" : "h-4 w-4 text-primary"} />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
+            <p className="text-sm font-sm uppercase tracking-wider text-muted-foreground">
               Tugas hari ini:
             </p>
             <p className={`mt-1 text-sm leading-relaxed ${done ? "text-muted-foreground" : "text-foreground font-medium"}`}>

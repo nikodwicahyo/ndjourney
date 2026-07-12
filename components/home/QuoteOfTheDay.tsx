@@ -39,9 +39,9 @@ export default function QuoteOfTheDay() {
       transition={{ duration: 0.5, ease: "easeOut" }}
       className=""
     >
-      <div className="relative rounded-2xl border border-border bg-card p-6 text-center shadow-sm">
+      <div className="relative rounded-2xl border border-border bg-card p-6 text-center shadow-sm overflow-hidden">
         <Quote className="absolute top-4 left-4 h-8 w-8 text-primary/20" />
-        <p className="font-heading text-lg italic leading-relaxed text-foreground md:text-xl">
+        <p className="font-heading text-base italic leading-relaxed text-foreground sm:text-lg md:text-xl break-words">
           &ldquo;{quote}&rdquo;
         </p>
         <p className="mt-4 text-xs text-muted-foreground">Quote of the Day</p>

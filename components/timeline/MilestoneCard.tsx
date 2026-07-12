@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useRef } from "react";
 import Image from "next/image";
 import { motion, useInView } from "framer-motion";
 import { MapPin, Edit3, Trash2, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/utils";
-import { Button } from "@/components/ui";
+import { showDeleteConfirm } from "@/lib/swal";
 import type { MilestoneWithRelations } from "@/hooks/useMilestones";
 
 type MilestoneCardProps = {
@@ -28,7 +28,6 @@ function MilestoneCard({
 }: MilestoneCardProps) {
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-60px" });
-  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const isLeft = index % 2 === 0;
   const cardColor = milestone.color || "#F43F5E";
@@ -159,37 +158,19 @@ function MilestoneCard({
                   >
                     <Edit3 className="h-3.5 w-3.5" />
                   </button>
-                  {confirmDelete ? (
-                    <div className="flex gap-1">
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        className="h-7 px-2 text-xs"
-                        onClick={() => {
-                          onDelete?.(milestone.id);
-                          setConfirmDelete(false);
-                        }}
-                      >
-                        Hapus
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-2 text-xs"
-                        onClick={() => setConfirmDelete(false)}
-                      >
-                        Batal
-                      </Button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => setConfirmDelete(true)}
-                      className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                      aria-label="Delete milestone"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  )}
+                  <button
+                    onClick={async () => {
+                      const confirmed = await showDeleteConfirm({
+                        title: "Hapus Milestone",
+                        text: `Apakah Anda yakin ingin menghapus "${milestone.title}"?`,
+                      });
+                      if (confirmed) onDelete?.(milestone.id);
+                    }}
+                    className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                    aria-label="Delete milestone"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
                 </div>
               )}
             </div>

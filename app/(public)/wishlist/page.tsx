@@ -8,7 +8,7 @@ export default async function WishlistPage() {
   return (
     <>
       <div className="mb-8">
-        <h1 className="font-heading text-3xl">Wish List 🎯</h1>
+          <h1 className="font-heading text-xl sm:text-2xl lg:text-3xl break-words">Wish List 🎯</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Impian dan keinginan yang ingin diwujudkan bersama
         </p>

@@ -31,7 +31,7 @@ export default function StorageUsageBar({
   compact = false,
 }: Props) {
   const ratio = limit > 0 ? used / limit : 0;
-  const percent = limit > 0 ? Math.min(Math.round(ratio * 100), 100) : 0;
+  const percent = limit > 0 ? Math.min(Math.round(ratio * 10000) / 100, 100) : 0;
   const threshold = getThreshold(ratio);
 
   const avgFileSize = resourcesCount > 0 ? used / resourcesCount : 0;
@@ -98,13 +98,7 @@ export default function StorageUsageBar({
 
           <div className="flex items-center justify-between text-xs">
             <span className="text-muted-foreground">
-              <span
-                className={cn(
-                  "inline-block h-2 w-2 rounded-full",
-                  threshold.color,
-                )}
-              />{" "}
-              {threshold.label} - {percent}% terpakai
+              {percent === 0 || percent >= 1 ? `${Math.round(percent)}` : percent.toFixed(2)}% terpakai
             </span>
             <span className="font-medium text-muted-foreground">
               {formatBytes(remainingBytes)} tersisa
@@ -113,7 +107,7 @@ export default function StorageUsageBar({
 
           {resourcesCount > 0 && estimatedRemainingFiles > 0 && (
             <p className="mt-2 text-xs text-muted-foreground">
-              ~{estimatedRemainingFiles.toLocaleString("id-ID")} file lagi
+              Estimasi bisa untuk ~{estimatedRemainingFiles.toLocaleString("id-ID")} file lagi
             </p>
           )}
         </>

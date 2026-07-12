@@ -33,10 +33,10 @@ const TruthOrDare = dynamic(() => import("./TruthOrDare"), {
 });
 
 const gameLabels: Record<GameType, string> = {
-  WOULD_YOU_RATHER: "Lebih Suka Mana",
-  TRIVIA: "Kuis Cinta",
-  SPIN_THE_WHEEL: "Roda Keberuntungan",
-  TRUTH_OR_DARE: "Jujur atau Tantangan",
+  WOULD_YOU_RATHER: "Would You Rather?",
+  TRIVIA: "Love Quiz",
+  SPIN_THE_WHEEL: "Spin The Wheel",
+  TRUTH_OR_DARE: "Truth or Dare",
 };
 
 type GameClientProps = {

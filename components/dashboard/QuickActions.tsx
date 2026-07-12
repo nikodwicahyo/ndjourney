@@ -44,7 +44,7 @@ const actions = [
 
 export default function QuickActions() {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
       {actions.map(({ href, label, icon: Icon, color, bgColor }, i) => (
         <motion.div
           key={href}
@@ -54,15 +54,15 @@ export default function QuickActions() {
         >
           <Link
             href={href}
-            className="flex flex-col items-center gap-2 rounded-2xl border border-border bg-card p-5 text-center transition-all duration-300 hover:scale-[1.02] hover:shadow-lg"
+            className="flex flex-col items-center gap-2 rounded-2xl border border-border bg-card p-5 text-center transition-all duration-300 hover:scale-[1.02] hover:shadow-lg overflow-hidden"
           >
             <div
-              className="flex h-12 w-12 items-center justify-center rounded-xl"
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
               style={{ backgroundColor: bgColor }}
             >
-              <Icon className="h-5 w-5" style={{ color }} />
+              <Icon className="h-5 w-5 shrink-0" style={{ color }} />
             </div>
-            <span className="text-sm font-medium">{label}</span>
+            <span className="text-sm font-medium truncate w-full">{label}</span>
           </Link>
         </motion.div>
       ))}

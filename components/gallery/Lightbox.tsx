@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Heart,
   Download,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/utils";
@@ -28,6 +29,7 @@ type LightboxProps = {
   onClose: () => void;
   onNavigate: (index: number) => void;
   onFavoriteToggle?: (id: string, isFavorite: boolean) => void;
+  onDelete?: (id: string) => void;
   showAlbumMove?: boolean;
 };
 
@@ -38,6 +40,7 @@ export default function Lightbox({
   onClose,
   onNavigate,
   onFavoriteToggle,
+  onDelete,
   showAlbumMove = false,
 }: LightboxProps) {
   const [loaded, setLoaded] = useState(false);
@@ -184,62 +187,86 @@ export default function Lightbox({
             >
               <Download className="h-5 w-5" />
             </button>
+            {onDelete && (
+              <button
+                onClick={() => onDelete(photo.id)}
+                className="rounded-full p-2 text-white/80 transition-colors hover:bg-white/10 hover:text-destructive"
+                aria-label="Hapus media"
+              >
+                <Trash2 className="h-5 w-5" />
+              </button>
+            )}
           </div>
         </div>
 
-        <div className="flex flex-1 items-center justify-center overflow-hidden px-4">
+        <div className="flex flex-1 overflow-hidden">
+          {/* Left backdrop — click prev */}
           {!isFirst && (
-            <button
+            <div
               onClick={handlePrev}
-              className="absolute left-2 z-20 hidden rounded-full bg-white/10 p-2 text-white/80 transition-colors hover:bg-white/20 md:block"
-              aria-label="Previous"
+              className="flex cursor-pointer items-center justify-start pl-1 sm:pl-2"
+              style={{ flex: "1 1 0" }}
             >
-              <ChevronLeft className="h-6 w-6" />
-            </button>
-          )}
-
-          {photo.isVideo ? (
-            <video
-              ref={videoRef}
-              src={photo.url}
-              controls
-              className="max-h-full max-w-full rounded-lg"
-              autoPlay
-              onPlay={() => dispatchBgEvent("pause")}
-              onPause={() => dispatchBgEvent("resume")}
-              onEnded={() => dispatchBgEvent("resume")}
-            />
-          ) : (
-            <div className="relative flex max-h-[80vh] max-w-full items-center justify-center">
-              {!loaded && (
-                <div className="absolute h-8 w-8 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-              )}
-              <Image
-                src={photo.url}
-                alt={photo.caption ?? "Photo"}
-                width={photo.width || 1200}
-                height={photo.height || 800}
-                onLoad={() => setLoaded(true)}
-                unoptimized
-                placeholder={blurDataUrl ? "blur" : "empty"}
-                blurDataURL={blurDataUrl}
-                className={cn(
-                  "max-h-[80vh] w-auto rounded-lg object-contain transition-opacity duration-300",
-                  loaded ? "opacity-100" : "opacity-0",
-                )}
-                style={{ maxWidth: "100%", height: "auto" }}
-              />
+              <button
+                className="rounded-full bg-black/40 p-1.5 text-white/80 transition-colors hover:bg-black/60 hover:text-white sm:p-2"
+                aria-label="Previous"
+              >
+                <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />
+              </button>
             </div>
           )}
 
+          {/* Media container */}
+          <div className="flex shrink-0 items-center justify-center" style={{ maxWidth: "85%" }}>
+            {photo.isVideo ? (
+              <video
+                ref={videoRef}
+                src={photo.url}
+                controls
+                className="max-h-full max-w-full rounded-lg"
+                autoPlay
+                onPlay={() => dispatchBgEvent("pause")}
+                onPause={() => dispatchBgEvent("resume")}
+                onEnded={() => dispatchBgEvent("resume")}
+              />
+            ) : (
+              <div className="relative flex max-h-[80vh] max-w-full items-center justify-center">
+                {!loaded && (
+                  <div className="absolute h-8 w-8 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                )}
+                <Image
+                  src={photo.url}
+                  alt={photo.caption ?? "Photo"}
+                  width={photo.width || 1200}
+                  height={photo.height || 800}
+                  onLoad={() => setLoaded(true)}
+                  unoptimized
+                  placeholder={blurDataUrl ? "blur" : "empty"}
+                  blurDataURL={blurDataUrl}
+                  className={cn(
+                    "max-h-[80vh] w-auto rounded-lg object-contain transition-opacity duration-300",
+                    loaded ? "opacity-100" : "opacity-0",
+                  )}
+                  style={{ maxWidth: "100%", height: "auto" }}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Right backdrop — click next */}
           {!isLast && (
-            <button
+            <div
               onClick={handleNext}
-              className="absolute right-2 z-20 hidden rounded-full bg-white/10 p-2 text-white/80 transition-colors hover:bg-white/20 md:block"
-              aria-label="Next"
+              className="flex cursor-pointer items-center justify-end pr-1 sm:pr-2"
+              style={{ flex: "1 1 0" }}
             >
-              <ChevronRight className="h-6 w-6" />
-            </button>
+              <button
+                className="rounded-full bg-black/40 p-1.5 text-white/80 transition-colors hover:bg-black/60 hover:text-white sm:p-2"
+                aria-label="Next"
+              >
+                <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />
+              </button>
+            </div>
           )}
         </div>
 
@@ -256,31 +283,6 @@ export default function Lightbox({
                 </span>
               )}
             </div>
-          </div>
-
-          <div className="flex gap-4 md:hidden">
-            <button
-              onClick={handlePrev}
-              disabled={isFirst}
-              className={cn(
-                "rounded-full bg-white/10 p-2 text-white/80",
-                isFirst && "opacity-30",
-              )}
-              aria-label="Previous"
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </button>
-            <button
-              onClick={handleNext}
-              disabled={isLast}
-              className={cn(
-                "rounded-full bg-white/10 p-2 text-white/80",
-                isLast && "opacity-30",
-              )}
-              aria-label="Next"
-            >
-              <ChevronRight className="h-5 w-5" />
-            </button>
           </div>
         </div>
       </motion.div>

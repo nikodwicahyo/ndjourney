@@ -7,6 +7,7 @@ import MilestoneCard from "@/components/timeline/MilestoneCard";
 import { Button, Skeleton } from "@/components/ui";
 import { Plus, Heart } from "lucide-react";
 import { toast } from "sonner";
+import { showDeleteConfirm } from "@/lib/swal";
 
 const AddMilestoneForm = dynamic(() => import("@/components/timeline/AddMilestoneForm"), {
   loading: () => <div className="h-48 animate-pulse rounded-2xl bg-muted" />,
@@ -24,8 +25,12 @@ export default function TimelineManager() {
   }, []);
 
   const handleDelete = useCallback(
-    (id: string) => {
-      if (confirm("Hapus milestone ini?")) {
+    async (id: string) => {
+      const confirmed = await showDeleteConfirm({
+        title: "Hapus Milestone",
+        text: "Apakah Anda yakin ingin menghapus milestone ini?",
+      });
+      if (confirmed) {
         deleteMilestone.mutate(id, {
           onSuccess: () => toast.success("Milestone dihapus"),
           onError: () => toast.error("Gagal menghapus milestone"),

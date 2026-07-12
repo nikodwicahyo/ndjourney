@@ -9,6 +9,7 @@ import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { showDeleteConfirm } from "@/lib/swal";
 
 const TABS: { key: "inbox" | "sent"; label: string; icon: typeof Inbox }[] = [
   { key: "inbox", label: "Pesan Masuk", icon: Inbox },
@@ -133,8 +134,12 @@ export default function LetterList() {
               <LetterCard letter={letter} type={tab} index={i} />
               {tab === "sent" && (
                 <button
-                  onClick={() => {
-                    if (confirm("Hapus surat ini?")) {
+                  onClick={async () => {
+                    const confirmed = await showDeleteConfirm({
+                      title: "Hapus Surat",
+                      text: "Apakah Anda yakin ingin menghapus surat ini?",
+                    });
+                    if (confirmed) {
                       deleteLetter.mutate(letter.id, {
                         onSuccess: () => toast.success("Surat dihapus"),
                         onError: () => toast.error("Gagal menghapus surat"),

@@ -29,10 +29,10 @@ export default function TimelinePreview({
         href="/timeline"
         className="group relative block overflow-hidden rounded-3xl px-4"
       >
-        <div className="rounded-2xl border border-border/60 bg-card/50 p-5 shadow-sm transition-shadow duration-300 group-hover:shadow-md">
+        <div className="rounded-2xl border border-border/60 bg-card/50 p-5 shadow-sm transition-shadow duration-300 group-hover:shadow-md overflow-hidden">
           <div className="flex items-center gap-2">
-            <CalendarDays className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium">Timeline</span>
+            <CalendarDays className="h-4 w-4 shrink-0 text-primary" />
+            <span className="text-sm font-medium truncate">Timeline</span>
             <span className="text-xs text-muted-foreground">
               {formatNumber(milestoneCount)} kenangan
             </span>

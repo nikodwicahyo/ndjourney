@@ -1,24 +1,45 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
-import { usePhotos, useUploadPhotos, useDeletePhoto, useAlbums } from "@/hooks/usePhotos";
+import { usePhotos, useUploadPhotos, useDeletePhoto, useAlbums, useUpdatePhoto } from "@/hooks/usePhotos";
 import { useStorageUsage } from "@/hooks/useStorage";
 import AlbumManager from "./AlbumManager";
 import { Button, Skeleton, StorageUsageBar } from "@/components/ui";
 import { Upload, Trash2, ImagePlus, Loader2, ChevronDown, X, FileVideo, FileWarning, Play, Image as ImageIcon, Video, ArrowUpDown } from "lucide-react";
-import { toast } from "sonner";
 import Image from "next/image";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { showDeleteConfirm } from "@/lib/swal";
 import dynamic from "next/dynamic";
 import type { Photo } from "@/types";
+import PhotoCard from "@/components/gallery/PhotoCard";
 
 const Lightbox = dynamic(() => import("../gallery/Lightbox"), {
   ssr: false,
 });
 
-const MAX_FILES = 10;
+const MAX_FILES = 30;
 const MAX_SIZE_MB = 200;
 const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
+
+const ALLOWED_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "video/mp4",
+  "video/quicktime",
+  "video/webm",
+  "video/x-msvideo",
+  "video/x-matroska",
+  "video/ogg",
+  "video/mpeg",
+  "audio/mpeg",
+]);
+
+const SUPPORTED_FORMATS_LABEL = "JPG, PNG, WEBP, HEIC, MP4, MOV, WEBM, AVI, MKV, OGG, MPEG";
+
+const ACCEPT_STRING = "image/jpeg,image/png,image/webp,image/heic,video/mp4,video/quicktime,video/webm,video/x-msvideo,video/x-matroska,video/ogg,video/mpeg,audio/mpeg";
 
 function hasVideoFiles(files: File[]): boolean {
   return files.some((f) => f.type.startsWith("video/"));
@@ -41,6 +62,7 @@ export default function GalleryManager() {
   const { data: storage } = useStorageUsage();
   const uploadPhotos = useUploadPhotos();
   const deletePhoto = useDeletePhoto();
+  const updatePhoto = useUpdatePhoto();
   const [showUploader, setShowUploader] = useState(false);
   const [selectedAlbumId, setSelectedAlbumId] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -71,9 +93,7 @@ export default function GalleryManager() {
       const errors: string[] = [];
 
       for (const file of Array.from(fileList)) {
-        const isImage = file.type.startsWith("image/");
-        const isVideo = file.type.startsWith("video/");
-        if (!isImage && !isVideo) {
+        if (!ALLOWED_MIME_TYPES.has(file.type)) {
           errors.push(`${file.name}: Format tidak didukung`);
           continue;
         }
@@ -133,8 +153,12 @@ export default function GalleryManager() {
   }, [selectedFiles, selectedAlbumId, uploadPhotos]);
 
   const handleDelete = useCallback(
-    (id: string) => {
-      if (confirm("Hapus media ini?")) {
+    async (id: string) => {
+      const confirmed = await showDeleteConfirm({
+        title: "Hapus Media",
+        text: "Apakah Anda yakin ingin menghapus media ini?",
+      });
+      if (confirmed) {
         deletePhoto.mutate(id, {
           onSuccess: () => toast.success("Media dihapus"),
           onError: () => toast.error("Gagal menghapus media"),
@@ -191,7 +215,7 @@ export default function GalleryManager() {
             <input
               ref={inputRef}
               type="file"
-              accept="image/*,video/*"
+              accept={ACCEPT_STRING}
               multiple
               onChange={handleFilesSelected}
               disabled={uploadPhotos.isPending}
@@ -220,7 +244,7 @@ export default function GalleryManager() {
                     : "Klik untuk pilih media"}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  JPG, PNG, WEBP, HEIC, MP4, MOV max {MAX_SIZE_MB}MB (maks {MAX_FILES} file)
+                  {SUPPORTED_FORMATS_LABEL} max {MAX_SIZE_MB}MB (maks {MAX_FILES} file per upload)
                 </p>
               </div>
             </label>
@@ -318,11 +342,11 @@ export default function GalleryManager() {
       </section>
 
       <section>
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="font-heading text-lg font-semibold">
             Semua Media ({photos.length})
           </h2>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {/* Media type tabs */}
             <div className="flex items-center gap-1 rounded-full border border-border p-0.5">
               {MEDIA_TABS.map(({ key, label, icon: Icon }) => (
@@ -361,9 +385,9 @@ export default function GalleryManager() {
         </div>
 
         {isLoading ? (
-          <div className="columns-2 gap-3 md:columns-3 lg:columns-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="mb-3 aspect-[3/4] animate-pulse rounded-2xl bg-muted" />
+              <div key={i} className="aspect-[3/4] animate-pulse rounded-2xl bg-muted" />
             ))}
           </div>
         ) : photos.length === 0 ? (
@@ -371,64 +395,41 @@ export default function GalleryManager() {
             <ImagePlus className="h-10 w-10 text-muted-foreground" />
             <p className="text-sm text-muted-foreground">Belum ada media</p>
           </div>
-        ) : (
-          <>
-            <div className="columns-2 gap-3 md:columns-3 lg:columns-4">
-              {photos.map((photo, index) => (
-                <div key={photo.id} className="group relative mb-3 break-inside-avoid">
-                  <div
-                    onClick={() => handlePhotoClick(photos, index)}
-                    className="relative overflow-hidden rounded-2xl cursor-pointer"
-                  >
-                    <Image
-                      src={photo.thumbnailUrl || photo.url}
-                      alt={photo.caption || (photo.isVideo ? "Video" : "Foto")}
-                      width={photo.width || 400}
-                      height={photo.height || 300}
-                      sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                      className="h-auto w-full object-cover"
+) : (
+            <>
+              <div className="columns-2 gap-3 md:columns-3 lg:columns-4">
+                {photos.map((photo, index) => (
+                  <div key={photo.id} className="mb-3 break-inside-avoid">
+                    <PhotoCard
+                      photo={photo}
+                      onClick={(p) => handlePhotoClick(photos, index)}
+                      onFavoriteToggle={(id, isFavorite) =>
+                        updatePhoto.mutate({ id, isFavorite })}
+                      isPrioritized={index < 8}
                     />
-                    {photo.isVideo && (
-                      <div className="absolute top-3 left-3 rounded-full bg-black/50 p-1.5">
-                        <Play className="h-3.5 w-3.5 fill-white text-white" />
-                      </div>
-                    )}
-                    <div className="absolute inset-0 flex items-end justify-center bg-black/0 p-3 opacity-0 transition-all group-hover:bg-black/30 group-hover:opacity-100">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDelete(photo.id);
-                        }}
-                        className="rounded-full bg-destructive p-2 text-white transition-transform hover:scale-110"
-                        aria-label="Hapus media"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-
-            {hasNextPage && (
-              <div className="mt-6 flex justify-center">
-                <Button
-                  variant="outline"
-                  onClick={() => fetchNextPage()}
-                  disabled={isFetchingNextPage}
-                  className="gap-2"
-                >
-                  {isFetchingNextPage ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4" />
-                  )}
-                  Muat lebih banyak
-                </Button>
+                ))}
               </div>
-            )}
-          </>
-        )}
+
+              {hasNextPage && (
+                <div className="mt-6 flex justify-center">
+                  <Button
+                    variant="outline"
+                    onClick={() => fetchNextPage()}
+                    disabled={isFetchingNextPage}
+                    className="gap-2"
+                  >
+                    {isFetchingNextPage ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4" />
+                    )}
+                    Muat lebih banyak
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
       </section>
 
       <Lightbox
@@ -437,6 +438,7 @@ export default function GalleryManager() {
         isOpen={lightboxIndex >= 0}
         onClose={() => setLightboxIndex(-1)}
         onNavigate={setLightboxIndex}
+        onDelete={handleDelete}
         showAlbumMove={true}
       />
     </div>

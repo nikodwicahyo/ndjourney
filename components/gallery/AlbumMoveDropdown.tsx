@@ -84,7 +84,14 @@ export default function AlbumMoveDropdown({
                     }`}
                   />
                   <Folder className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="flex-1 text-left">{album.name}</span>
+                  <span className="flex-1 text-left">
+                    <span className="block truncate">{album.name}</span>
+                    {album.description && (
+                      <span className="block truncate text-[10px] font-normal text-muted-foreground">
+                        {album.description}
+                      </span>
+                    )}
+                  </span>
                 </button>
               ))
             )}

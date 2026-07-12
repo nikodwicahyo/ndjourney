@@ -36,6 +36,7 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
   const [direction, setDirection] = useState(1);
   const [isPaused, setIsPaused] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const goNextRef = useRef<() => void>(() => {});
   const length = displayPhotos.length;
   const hasPhotos = length > 0;
   const photo = displayPhotos[currentIndex];
@@ -53,13 +54,15 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
 
   const goNext = useCallback(() => {
     if (length === 0) return;
-    const nextIndex = (currentIndex + 1) % length;
-    if (nextIndex === 0) {
-      shuffle();
-    }
+    setCurrentIndex((prev) => {
+      const next = (prev + 1) % length;
+      if (next === 0) shuffle();
+      return next;
+    });
     setDirection(1);
-    setCurrentIndex(nextIndex);
-  }, [length, currentIndex, shuffle]);
+  }, [length, shuffle]);
+
+  goNextRef.current = goNext;
 
   const goPrev = useCallback(() => {
     if (length === 0) return;
@@ -75,11 +78,11 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
 
   useEffect(() => {
     if (isPaused || !hasPhotos) return;
-    intervalRef.current = setInterval(goNext, 5000);
+    intervalRef.current = setInterval(() => goNextRef.current(), 5000);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [isPaused, hasPhotos, goNext]);
+  }, [isPaused, hasPhotos]);
 
   const variants = {
     enter: (dir: number) => ({ x: dir > 0 ? 300 : -300, opacity: 0 }),
@@ -106,8 +109,9 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
   return (
     <div
       className="px-4"
-      onMouseEnter={() => setIsPaused(true)}
-      onMouseLeave={() => setIsPaused(false)}
+      onPointerEnter={() => setIsPaused(true)}
+      onPointerLeave={() => setIsPaused(false)}
+      onPointerCancel={() => setIsPaused(false)}
     >
       <div className="group relative overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
         <div className="relative aspect-[4/3] overflow-hidden">
@@ -179,20 +183,20 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
           </button>
         </div>
 
-        <div className="flex items-center justify-between px-4 py-3">
-          <span className="text-xs font-medium text-muted-foreground">
+        <div className="flex items-center gap-3 px-4 py-3">
+          <span className="shrink-0 text-xs font-medium text-muted-foreground">
             {currentIndex + 1} / {length}
           </span>
-          <div className="flex items-center gap-1.5">
+          <div className="flex min-w-0 flex-1 items-center justify-center gap-1.5 overflow-hidden">
             {displayPhotos.map((_, i) => (
               <button
                 key={i}
                 onClick={() => goTo(i)}
                 className={cn(
-                  "h-1.5 rounded-full transition-all duration-300",
+                  "shrink-0 rounded-full transition-all duration-300",
                   i === currentIndex
-                    ? "w-5 bg-primary"
-                    : "w-1.5 bg-muted-foreground/30 hover:bg-muted-foreground/50",
+                    ? "h-2 w-5 bg-primary"
+                    : "h-1.5 w-1.5 bg-muted-foreground/30 hover:bg-muted-foreground/50",
                 )}
                 aria-label={`Go to slide ${i + 1}`}
               />

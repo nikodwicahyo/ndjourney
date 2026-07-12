@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button, Skeleton } from "@/components/ui";
 import { Plus, Loader2, X, Trash2, Pencil, Check } from "lucide-react";
 import { toast } from "sonner";
+import { showDeleteConfirm } from "@/lib/swal";
 import type { AlbumWithCount } from "@/types";
 
 export default function AlbumManager() {
@@ -102,7 +103,7 @@ export default function AlbumManager() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="font-medium">Album</h3>
+        <h2 className="font-medium text-lg">Album</h2>
         <Button
           size="sm"
           onClick={() => setShowForm(!showForm)}
@@ -211,6 +212,11 @@ export default function AlbumManager() {
                         ? `${album._count.photos} foto`
                         : "—"}
                     </p>
+                    {album.description && (
+                      <p className="mt-0.5 truncate text-[11px] text-muted-foreground/70">
+                        {album.description}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-1">
                     <button
@@ -220,8 +226,12 @@ export default function AlbumManager() {
                       <Pencil className="h-4 w-4" />
                     </button>
                     <button
-                      onClick={() => {
-                        if (confirm(`Hapus album "${album.name}"?`)) {
+                      onClick={async () => {
+                        const confirmed = await showDeleteConfirm({
+                          title: "Hapus Album",
+                          text: `Apakah Anda yakin ingin menghapus album "${album.name}"?`,
+                        });
+                        if (confirmed) {
                           deleteAlbum.mutate(album.id);
                         }
                       }}

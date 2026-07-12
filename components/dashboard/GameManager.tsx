@@ -1,19 +1,20 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button, Skeleton } from "@/components/ui";
 import { Plus, Loader2, X, Shuffle, Brain, Cherry, Sparkles, Trash2, ChevronDown, ChevronUp, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { showDeleteConfirm } from "@/lib/swal";
 import { formatInJakarta } from "@/lib/date";
 import type { GameType } from "@/types";
 
 const GAME_TYPES: { value: GameType; label: string; icon: typeof Shuffle }[] = [
-  { value: "WOULD_YOU_RATHER", label: "Lebih Suka Mana", icon: Shuffle },
-  { value: "TRIVIA", label: "Kuis Cinta", icon: Brain },
-  { value: "SPIN_THE_WHEEL", label: "Roda Keberuntungan", icon: Cherry },
-  { value: "TRUTH_OR_DARE", label: "Jujur atau Tantangan", icon: Sparkles },
+  { value: "WOULD_YOU_RATHER", label: "Would You Rather?", icon: Shuffle },
+  { value: "TRIVIA", label: "Love Quiz", icon: Brain },
+  { value: "SPIN_THE_WHEEL", label: "Spin The Wheel", icon: Cherry },
+  { value: "TRUTH_OR_DARE", label: "Truth or Dare", icon: Sparkles },
 ];
 
 type Question = {
@@ -41,10 +42,10 @@ export default function GameManager() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
 
-  const { data: questions, isLoading } = useQuery({
-    queryKey: ["games", "questions", activeTab, sortOrder, "all"],
+  const { data: allQuestions, isLoading } = useQuery({
+    queryKey: ["games", "questions", "all", sortOrder],
     queryFn: async () => {
-      const res = await fetch(`/api/games/questions?type=${activeTab}&limit=100&sort=${sortOrder}`, {
+      const res = await fetch(`/api/games/questions?limit=2000&sort=${sortOrder}`, {
         cache: "no-cache",
       });
       const json = await res.json();
@@ -52,6 +53,20 @@ export default function GameManager() {
     },
     staleTime: 30_000,
   });
+
+  const questions = useMemo(
+    () => allQuestions?.filter((q) => q.type === activeTab) ?? [],
+    [allQuestions, activeTab],
+  );
+
+  const countByType = useMemo(() => {
+    const counts: Record<string, number> = {};
+    if (!allQuestions) return counts;
+    for (const q of allQuestions) {
+      counts[q.type] = (counts[q.type] || 0) + 1;
+    }
+    return counts;
+  }, [allQuestions]);
 
   const createQuestion = useMutation({
     mutationFn: async (data: {
@@ -221,66 +236,44 @@ export default function GameManager() {
 
   const isWYR = type === "WOULD_YOU_RATHER";
   const isTOD = type === "TRUTH_OR_DARE";
-  const filteredCount = questions?.length ?? 0;
   const isEditing = !!editingId;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap gap-2">
+    <div className="w-full max-w-full space-y-6 overflow-hidden">
+      <div className="flex flex-wrap gap-1.5">
         {GAME_TYPES.map(({ value, label, icon: Icon }) => (
           <button
             key={value}
             onClick={() => setActiveTab(value)}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all",
+              "inline-flex items-center justify-center gap-1 rounded-full border px-3 py-1.5 text-xs font-medium transition-all",
               activeTab === value
                 ? "border-primary bg-primary/10 text-primary shadow-sm"
                 : "border-border text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground",
             )}
           >
-            <Icon className="h-3.5 w-3.5" />
-            {label}
-            {!isLoading && (
-              <span className="ml-0.5 rounded-full bg-muted-foreground/10 px-1.5 py-0.5 text-[10px] tabular-nums">
-                {filteredCount}
-              </span>
-            )}
+            <Icon className="h-3.5 w-3.5 shrink-0" />
+            <span className="text-xs sm:text-sm">{label}</span>
+            <span className="shrink-0 rounded-full bg-muted-foreground/10 px-1.5 text-[10px] tabular-nums">
+              {countByType[value] ?? 0}
+            </span>
           </button>
         ))}
       </div>
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="font-medium">
           Pertanyaan {GAME_TYPES.find((t) => t.value === activeTab)?.label}
         </h3>
-        <div className="flex items-center gap-2">
-          <div className="flex overflow-hidden rounded-full border border-border">
-            <button
-              type="button"
-              onClick={() => setSortOrder("desc")}
-              className={cn(
-                "px-3 py-1 text-xs font-medium transition-colors",
-                sortOrder === "desc"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-transparent text-muted-foreground hover:text-foreground",
-              )}
-            >
-              Terbaru ↓
-            </button>
-            <button
-              type="button"
-              onClick={() => setSortOrder("asc")}
-              className={cn(
-                "px-3 py-1 text-xs font-medium transition-colors",
-                sortOrder === "asc"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-transparent text-muted-foreground hover:text-foreground",
-              )}
-            >
-              Terlama ↑
-            </button>
-          </div>
-          <Button size="sm" onClick={startNew} className="gap-2">
+        <div className="flex flex-row items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setSortOrder(sortOrder === "desc" ? "asc" : "desc")}
+            className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary bg-primary/10 px-3 py-1 text-xs font-medium text-primary shadow-sm transition-colors"
+          >
+            {sortOrder === "desc" ? "Terbaru ↓" : "Terlama ↑"}
+          </button>
+          <Button size="sm" onClick={startNew} className="shrink-0 gap-2">
             <Plus className="h-4 w-4" />
             Tambah
           </Button>
@@ -292,9 +285,9 @@ export default function GameManager() {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
           onClick={(e) => { if (e.target === e.currentTarget) cancelEdit(); }}
         >
-          <div className="mx-4 max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-xl">
+          <div className="mx-4 max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-xl sm:p-6">
             <div className="mb-5 flex items-center justify-between">
-              <h2 className="font-heading text-lg font-semibold">{isEditing ? "Edit Pertanyaan" : "Pertanyaan Baru"}</h2>
+              <h2 className="font-heading text-base font-semibold sm:text-lg">{isEditing ? "Edit Pertanyaan" : "Pertanyaan Baru"}</h2>
               <button
                 type="button"
                 onClick={cancelEdit}
@@ -414,7 +407,7 @@ export default function GameManager() {
                             : "border-border text-muted-foreground hover:bg-accent",
                         )}
                       >
-                        {cat === "Truth" ? "😇 Jujur" : "😈 Tantangan"}
+                        {cat === "Truth" ? "😇 Truth" : "😈 Dare"}
                       </button>
                     ))}
                   </div>
@@ -458,11 +451,11 @@ export default function GameManager() {
           </p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="w-full max-w-full space-y-2">
           {questions.map((q) => (
             <div
               key={q.id}
-              className="rounded-xl border border-border bg-card transition-colors"
+              className="w-full max-w-full overflow-hidden rounded-xl border border-border bg-card transition-colors"
             >
               <div
                 role="button"
@@ -476,17 +469,17 @@ export default function GameManager() {
                     setExpandedId(expandedId === q.id ? null : q.id);
                   }
                 }}
-                className="flex w-full cursor-pointer items-center justify-between gap-3 px-4 py-3 text-left"
+                className="grid w-full cursor-pointer grid-cols-[1fr_auto] items-center gap-2 px-3 py-2.5 text-left sm:gap-3 sm:px-4 sm:py-3"
               >
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium truncate">
+                <div className="min-w-0 overflow-hidden">
+                  <p className="truncate text-sm font-medium">
                     {q.question}
                   </p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
                     {q.category ?? "Tanpa kategori"} · {formatInJakarta(q.createdAt, { dateStyle: "medium" })}
                   </p>
                 </div>
-                <div className="flex items-center gap-1 shrink-0">
+                <div className="flex items-center gap-0.5 sm:gap-1">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -498,9 +491,13 @@ export default function GameManager() {
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
                   <button
-                    onClick={(e) => {
+                    onClick={async (e) => {
                       e.stopPropagation();
-                      if (confirm("Hapus pertanyaan ini?")) {
+                      const confirmed = await showDeleteConfirm({
+                        title: "Hapus Pertanyaan",
+                        text: "Apakah Anda yakin ingin menghapus pertanyaan ini?",
+                      });
+                      if (confirmed) {
                         deleteQuestion.mutate(q.id);
                       }
                     }}
@@ -518,19 +515,19 @@ export default function GameManager() {
               </div>
 
               {expandedId === q.id && (
-                <div className="border-t border-border px-4 py-3 space-y-1.5">
+                <div className="border-t border-border px-3 py-2.5 space-y-1.5 sm:px-4 sm:py-3">
                   {q.optionA && (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="truncate text-xs text-muted-foreground">
                       <span className="font-medium text-foreground">A:</span> {q.optionA}
                     </p>
                   )}
                   {q.optionB && (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="truncate text-xs text-muted-foreground">
                       <span className="font-medium text-foreground">B:</span> {q.optionB}
                     </p>
                   )}
                   {q.answer && q.type === "WOULD_YOU_RATHER" && (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="truncate text-xs text-muted-foreground">
                       <span className="font-medium text-foreground">Jawaban:</span>{" "}
                       {q.answer === "A" ? q.optionA : q.answer === "B" ? q.optionB : q.answer}
                       {q.answer === "A" && " (Opsi A)"}
@@ -538,7 +535,7 @@ export default function GameManager() {
                     </p>
                   )}
                   {q.answer && q.type !== "WOULD_YOU_RATHER" && (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="truncate text-xs text-muted-foreground">
                       <span className="font-medium text-foreground">Jawaban:</span> {q.answer}
                     </p>
                   )}

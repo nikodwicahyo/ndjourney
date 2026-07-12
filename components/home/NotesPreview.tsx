@@ -26,24 +26,24 @@ export default function NotesPreview({ noteCount, latestNote }: NotesPreviewProp
         href="/notes"
         className="group relative block overflow-hidden rounded-3xl px-4"
       >
-        <div className="rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/[0.06] to-primary/[0.02] p-5 shadow-sm transition-shadow duration-300 group-hover:shadow-md">
+        <div className="rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/[0.06] to-primary/[0.02] p-5 shadow-sm transition-shadow duration-300 group-hover:shadow-md overflow-hidden">
           <div className="flex items-center gap-2">
-            <StickyNote className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium">Daily Note</span>
+            <StickyNote className="h-4 w-4 shrink-0 text-primary" />
+            <span className="text-sm font-medium truncate">Daily Note</span>
             <span className="text-xs text-muted-foreground">
               {formatNumber(noteCount)} catatan
             </span>
           </div>
 
           {latestNote ? (
-            <div className="relative mt-4 rounded-xl bg-card/80 px-4 py-3 shadow-sm">
+            <div className="relative mt-4 rounded-xl bg-card/80 px-4 py-3 shadow-sm overflow-hidden">
               <div className="absolute -top-2 left-6 h-4 w-4 rotate-45 bg-card/80" />
-              <p className="text-sm leading-relaxed text-muted-foreground italic">
+              <p className="text-sm leading-relaxed text-muted-foreground italic break-words">
                 &ldquo;{truncate(latestNote.content, 150)}&rdquo;
               </p>
               <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Heart className="h-3 w-3 fill-primary/40 text-primary/40" />
-                <span>{latestNote.authorName}</span>
+                <Heart className="h-3 w-3 shrink-0 fill-primary/40 text-primary/40" />
+                <span className="truncate">{latestNote.authorName}</span>
               </div>
             </div>
           ) : (

@@ -98,8 +98,7 @@ export default function Navbar() {
             className="flex items-center gap-2 font-heading text-lg font-semibold text-foreground shrink-0"
           >
             <Heart className="h-5 w-5 fill-primary text-primary" />
-            <span className="hidden sm:inline">NDjourney</span>
-            <span className="inline sm:hidden">ND</span>
+            <span className="text-sm sm:text-lg">NDjourney</span>
           </Link>
 
           <nav className="hidden items-center gap-1 lg:flex">
@@ -174,22 +173,20 @@ export default function Navbar() {
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/" })}>
                       <LogOut className="h-4 w-4" />
-                      Keluar
+                      Logout
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
             ) : (
-              <div suppressHydrationWarning className="hidden items-center gap-2 lg:flex">
-                <Link
-                  href="/login"
-                  prefetch={true}
-                  suppressHydrationWarning
-                  className="inline-flex h-9 items-center justify-center rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-                >
-                  Login
-                </Link>
-              </div>
+              <Link
+                href="/login"
+                prefetch={true}
+                suppressHydrationWarning
+                className="inline-flex h-9 items-center justify-center rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+              >
+                Login
+              </Link>
             )}
 
             {isDashboard && (

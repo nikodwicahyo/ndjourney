@@ -29,10 +29,10 @@ export default function WishlistPreview({ total, done }: WishlistPreviewProps) {
         href="/wishlist"
         className="group relative block overflow-hidden rounded-3xl px-4"
       >
-        <div className="rounded-2xl border border-yellow-400/20 bg-gradient-to-br from-yellow-50/[0.06] to-yellow-500/[0.03] p-5 shadow-sm transition-shadow duration-300 group-hover:shadow-md">
+        <div className="rounded-2xl border border-yellow-400/20 bg-gradient-to-br from-yellow-50/[0.06] to-yellow-500/[0.03] p-5 shadow-sm transition-shadow duration-300 group-hover:shadow-md overflow-hidden">
           <div className="flex items-center gap-2">
-            <Gift className="h-4 w-4 text-yellow-500" />
-            <span className="text-sm font-medium">Wish List</span>
+            <Gift className="h-4 w-4 shrink-0 text-yellow-500" />
+            <span className="text-sm font-medium truncate">Wish List</span>
             <span className="text-xs text-muted-foreground">
               {formatNumber(done)}/{formatNumber(total)} tercapai
             </span>

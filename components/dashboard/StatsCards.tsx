@@ -8,7 +8,6 @@ import {
   MessageCircleHeart,
   Flag,
   Heart,
-  Mail,
   Cake,
   HardDrive,
 } from "lucide-react";
@@ -72,13 +71,6 @@ export default function StatsCards() {
         bgColor: "#F97316",
       },
       {
-        key: "unreadLetterCount" as const,
-        label: "Surat Belum Dibaca",
-        icon: Mail,
-        color: "#14B8A6",
-        bgColor: "#14B8A6",
-      },
-      {
         key: "storageUsed" as const,
         label: "Penyimpanan terpakai",
         icon: HardDrive,
@@ -96,8 +88,8 @@ export default function StatsCards() {
 
   if (statsLoading || configLoading) {
     return (
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
-        {Array.from({ length: 6 }).map((_, i) => (
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {Array.from({ length: 8 }).map((_, i) => (
           <Skeleton key={i} className="h-28 rounded-2xl" />
         ))}
       </div>
@@ -108,16 +100,17 @@ export default function StatsCards() {
     return null;
   }
 
-  return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
+return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {statConfig.map(({ key, label, icon: Icon, color, bgColor }, i) => {
         const value = stats[key];
         const isBirthday =
           key === "daysUntilBirthday1" || key === "daysUntilBirthday2";
         const isStorage = key === "storageUsed";
+        const isLetter = key === "letterCount";
 
         const storagePercent = isStorage && stats.storageLimit > 0
-          ? Math.min(Math.round((stats.storageUsed / stats.storageLimit) * 100), 100)
+          ? Math.min(Math.round(((stats.storageUsed / stats.storageLimit) * 100) * 100) / 100, 100)
           : -1;
 
         return (
@@ -126,35 +119,42 @@ export default function StatsCards() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: i * 0.05 }}
-            className="rounded-2xl border border-border bg-card p-4 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg"
+            className="rounded-2xl border border-border bg-card p-4 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg overflow-hidden"
           >
             <div
-              className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl"
+              className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl shrink-0"
               style={{
                 backgroundColor: bgColor + "15",
               }}
             >
               <Icon
-                className="h-4 w-4"
+                className="h-4 w-4 shrink-0"
                 style={{ color }}
               />
             </div>
-            <p className="font-heading text-xl font-bold">
+            <p className="font-heading text-xl font-bold truncate">
               {isBirthday
                 ? value === 0
                   ? "🎉"
                   : `${value}`
                 : isStorage
                   ? storagePercent >= 0
-                    ? `${storagePercent}%`
+                    ? storagePercent === 0 || storagePercent >= 1
+                      ? `${Math.round(storagePercent)}%`
+                      : `${storagePercent.toFixed(2)}%`
                     : formatNumber(value)
                   : formatNumber(value)}
             </p>
-            <p className="mt-0.5 text-xs text-muted-foreground">{label}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground truncate">{label}</p>
+            {isLetter && stats.unreadLetterCount > 0 && (
+              <p className="text-[10px] text-muted-foreground truncate">
+                {stats.unreadLetterCount} belum dibaca
+              </p>
+            )}
             {isStorage && (
               <>
                 {stats.storageLimit > 0 && (
-                  <p className="text-[10px] text-muted-foreground">
+                  <p className="text-[10px] text-muted-foreground truncate">
                     {formatBytes(stats.storageUsed)} / {formatBytes(stats.storageLimit)}
                   </p>
                 )}

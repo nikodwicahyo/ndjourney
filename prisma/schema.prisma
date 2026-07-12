@@ -134,6 +134,7 @@ model Photo {
   takenAt      DateTime?
   width        Int?
   height       Int?
+  fileSize     Int?
   isVideo      Boolean  @default(false)
   isFavorite   Boolean  @default(false)
   isMilestoneOnly Boolean @default(false)

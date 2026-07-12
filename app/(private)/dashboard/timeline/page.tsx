@@ -11,7 +11,7 @@ export default function TimelineManagerPage() {
     <PageTransition>
       <div>
         <div className="mb-8">
-          <h1 className="font-heading text-3xl">Kelola Timeline</h1>
+          <h1 className="font-heading text-xl sm:text-2xl lg:text-3xl break-words">Kelola Timeline</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Tambah, edit, dan hapus milestone
           </p>

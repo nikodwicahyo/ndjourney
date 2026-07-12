@@ -10,6 +10,7 @@ import { getJakartaToday } from "@/lib/date";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { showDeleteConfirm } from "@/lib/swal";
 
 export default function NotesManager() {
   const today = getJakartaToday();
@@ -19,7 +20,6 @@ export default function NotesManager() {
   const [content, setContent] = useState("");
   const [selectedDate, setSelectedDate] = useState(today);
   const [viewMode, setViewMode] = useState<"all" | "date">("date");
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const { data: selectedNotes, isLoading, error } = useDailyNotes(
     viewMode === "all" ? undefined : selectedDate,
   );
@@ -38,10 +38,15 @@ export default function NotesManager() {
   }
 
   async function handleDelete(id: string) {
+    const confirmed = await showDeleteConfirm({
+      title: "Hapus Catatan",
+      text: "Apakah Anda yakin ingin menghapus catatan ini?",
+    });
+    if (!confirmed) return;
+
     try {
       await deleteNote.mutateAsync(id);
       toast.success("Catatan berhasil dihapus");
-      setConfirmDeleteId(null);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal menghapus catatan");
     }
@@ -77,9 +82,9 @@ export default function NotesManager() {
       </section>
 
       <section>
-        <div className="mb-4 flex items-center justify-between gap-2">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="font-heading text-lg font-semibold">Riwayat Catatan</h2>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <div className="flex overflow-hidden rounded-lg border border-input">
               <button
                 onClick={() => setViewMode("all")}
@@ -172,35 +177,13 @@ export default function NotesManager() {
                         {formatRelativeTime(note.createdAt)}
                       </span>
                       {isAuthor && (
-                        confirmDeleteId === note.id ? (
-                          <div className="flex gap-1">
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              className="h-7 px-2 text-xs"
-                              onClick={() => handleDelete(note.id)}
-                              disabled={deleteNote.isPending}
-                            >
-                              Hapus
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 px-2 text-xs"
-                              onClick={() => setConfirmDeleteId(null)}
-                            >
-                              Batal
-                            </Button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setConfirmDeleteId(note.id)}
-                            className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                            aria-label="Hapus catatan"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        )
+                        <button
+                          onClick={() => handleDelete(note.id)}
+                          className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                          aria-label="Hapus catatan"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
                       )}
                     </div>
                   </div>

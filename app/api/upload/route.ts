@@ -93,7 +93,11 @@ export async function POST(request: Request) {
     const result = await uploadBufferToCloudinary(buffer);
 
     return NextResponse.json({
-      data: { ...result, isVideo: file.type.startsWith("video/") },
+      data: {
+        ...result,
+        isVideo: file.type.startsWith("video/"),
+        fileSize: file.size,
+      },
       rateLimit: { remaining },
     });
   } catch (error) {

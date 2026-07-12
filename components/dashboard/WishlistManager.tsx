@@ -34,7 +34,7 @@ export default function WishlistManager() {
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {Array.from({ length: 6 }).map((_, i) => (
           <Skeleton key={i} className="h-28 w-full rounded-2xl" />
         ))}
@@ -84,7 +84,7 @@ export default function WishlistManager() {
         </motion.div>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap gap-1.5">
           {CATEGORIES.map((cat) => (
             <button
@@ -103,7 +103,7 @@ export default function WishlistManager() {
           ))}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setShowDone(!showDone)}
             className={cn(
@@ -140,7 +140,7 @@ export default function WishlistManager() {
           </div>
         </div>
       ) : (
-        <motion.div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <motion.div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filtered.map((wish) => (
             <WishCard key={wish.id} wish={wish} onEdit={setEditingWish} />
           ))}

@@ -83,7 +83,7 @@ export default function TruthOrDare() {
                   😇
                 </div>
                 <span className="font-heading text-lg font-semibold">
-                  Jujur
+                  Truth
                 </span>
                 <span className="text-xs text-muted-foreground">
                   {truths.length} pertanyaan
@@ -98,10 +98,10 @@ export default function TruthOrDare() {
                   😈
                 </div>
                 <span className="font-heading text-lg font-semibold">
-                  Tantangan
+                  Dare
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  {dares.length} tantangan
+                  {dares.length} Dare
                 </span>
               </button>
             </div>
@@ -126,7 +126,7 @@ export default function TruthOrDare() {
                 {currentCard.category === "Truth" ? "😇" : "😈"}
               </span>
               <p className="mt-4 font-heading text-lg font-semibold">
-                {currentCard.category === "Truth" ? "JUJUR" : "TANTANGAN"}
+                {currentCard.category === "Truth" ? "Truth" : "Dare"}
               </p>
               <p className="mt-4 text-base leading-relaxed">
                 {currentCard.question}

@@ -427,8 +427,8 @@ export default function BottleLetter() {
         transition={{ duration: 0.5, ease: "easeOut" }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className="rounded-2xl border border-border bg-card p-6 shadow-sm transition-shadow hover:shadow-md"
-      >
+      className="rounded-2xl border border-border bg-card p-6 shadow-sm transition-shadow hover:shadow-md overflow-hidden"
+    >
         <div className="mb-2 flex items-center gap-2">
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
             <Heart className="h-3.5 w-3.5 fill-primary text-primary" />

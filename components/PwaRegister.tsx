@@ -1,48 +1,63 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
+const SW_URL = "/sw.js";
+const SW_SCOPE = "/";
+
 export default function PwaRegister() {
-  const [registered, setRegistered] = useState(false);
+  const registered = useRef(false);
 
   useEffect(() => {
     if (process.env.NODE_ENV === "development") return;
+    if (!("serviceWorker" in navigator)) return;
+    if (registered.current) return;
 
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker
-        .getRegistrations()
-        .then((regs) => {
-          for (const reg of regs) {
-            reg.unregister();
-          }
+    registered.current = true;
+
+    const registerSW = async () => {
+      try {
+        const existing = await navigator.serviceWorker.getRegistration(SW_SCOPE);
+
+        if (existing && existing.active) {
+          await existing.update();
+          return;
+        }
+
+        const registration = await navigator.serviceWorker.register(SW_URL, {
+          scope: SW_SCOPE,
+          updateViaCache: "none",
         });
 
-      navigator.serviceWorker
-        .register("/sw.js")
-        .then((registration) => {
-          setRegistered(true);
+        registration.addEventListener("updatefound", () => {
+          const installing = registration.installing;
+          if (!installing) return;
 
-          registration.addEventListener("updatefound", () => {
-            const installing = registration.installing;
-            if (installing) {
-              installing.addEventListener("statechange", () => {
-                if (
-                  installing.state === "installed" &&
-                  navigator.serviceWorker.controller
-                ) {
-                  toast.success("Aplikasi siap digunakan offline! 💕", {
-                    duration: 5000,
-                  });
-                }
+          installing.addEventListener("statechange", () => {
+            if (
+              installing.state === "installed" &&
+              navigator.serviceWorker.controller
+            ) {
+              toast.success("Aplikasi siap digunakan offline! 💕", {
+                duration: 5000,
               });
             }
           });
-        })
-        .catch(() => {
-          // Silently ignore — service worker is non-critical
         });
-    }
+      } catch {
+        // Silently ignore — service worker is non-critical
+      }
+    };
+
+    registerSW();
+
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (refreshing) return;
+      refreshing = true;
+      window.location.reload();
+    });
   }, []);
 
   return null;

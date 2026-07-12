@@ -10,10 +10,10 @@ export const metadata: Metadata = { title: "Games" };
 export default function GamesManagerPage() {
   return (
     <PageTransition>
-      <div className="space-y-8">
+      <div className="w-full max-w-full space-y-8">
         <div>
           <div className="mb-8">
-            <h1 className="font-heading text-3xl">Kelola Games</h1>
+            <h1 className="font-heading text-xl sm:text-2xl lg:text-3xl break-words">Kelola Games</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               Atur pertanyaan dan lihat leaderboard
             </p>

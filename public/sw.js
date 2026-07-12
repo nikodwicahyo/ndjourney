@@ -1,24 +1,34 @@
-const CACHE_NAME = "ndjourney-v6";
-const API_CACHE_NAME = "ndjourney-api-v6";
-const IMAGE_CACHE_NAME = "ndjourney-images-v6";
+const CACHE_NAME = "ndjourney-v7";
+const API_CACHE_NAME = "ndjourney-api-v7";
+const IMAGE_CACHE_NAME = "ndjourney-images-v7";
 
 const PRECACHE_URLS = [
   "/",
   "/manifest.json",
   "/offline.html",
   "/icons/icon.svg",
+  "/icons/icon-48x48.png",
+  "/icons/icon-72x72.png",
+  "/icons/icon-96x96.png",
+  "/icons/icon-128x128.png",
+  "/icons/icon-144x144.png",
+  "/icons/icon-152x152.png",
   "/icons/icon-192x192.png",
+  "/icons/icon-384x384.png",
   "/icons/icon-512x512.png",
   "/favicon.svg",
 ];
 
 const STATIC_EXT = /\.(png|jpg|jpeg|gif|svg|webp|ico|css|js|woff2?)$/i;
 const CLOUDINARY_RE = /res\.cloudinary\.com/;
+const IMAGE_EXT = /\.(png|jpg|jpeg|gif|svg|webp|avif|ico)$/i;
 
 const PUBLIC_API_PATHS = [
   "/api/couple",
   "/api/games/questions",
 ];
+
+const MAX_IMAGE_CACHE = 100;
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -56,6 +66,7 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
 
   if (CLOUDINARY_RE.test(url.hostname)) {
+    event.respondWith(cacheFirst(request, IMAGE_CACHE_NAME, MAX_IMAGE_CACHE));
     return;
   }
 
@@ -75,10 +86,18 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  if (
+    url.origin === location.origin &&
+    IMAGE_EXT.test(url.pathname)
+  ) {
+    event.respondWith(cacheFirst(request, IMAGE_CACHE_NAME));
+    return;
+  }
+
   event.respondWith(networkFirst(request));
 });
 
-async function cacheFirst(request, cacheName = CACHE_NAME) {
+async function cacheFirst(request, cacheName = CACHE_NAME, maxItems = 0) {
   const cached = await caches.match(request);
   if (cached) return cached;
 
@@ -88,10 +107,17 @@ async function cacheFirst(request, cacheName = CACHE_NAME) {
       const clone = response.clone();
       const cache = await caches.open(cacheName);
       cache.put(request, clone);
+    } else if (response.ok && response.type === "opaque") {
+      const clone = response.clone();
+      const cache = await caches.open(cacheName);
+      cache.put(request, clone);
     }
     return response;
   } catch {
-    return caches.match("/offline.html");
+    if (request.mode === "navigate") {
+      return caches.match("/offline.html");
+    }
+    return new Response("", { status: 408, statusText: "Offline" });
   }
 }
 

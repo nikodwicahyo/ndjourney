@@ -26,15 +26,15 @@ const nextAuthErrors: Record<string, { title: string; description: string }> = {
   OAuthAccountNotLinked: {
     title: "Akun Tidak Terhubung",
     description:
-      "Email ini sudah terdaftar dengan metode masuk lain. Silakan login menggunakan email dan password.",
+      "Email ini sudah terdaftar dengan metode login lain. Silakan login menggunakan email dan password.",
   },
   OAuthSignin: {
-    title: "Gagal Masuk dengan Google",
+    title: "Gagal Login dengan Google",
     description:
-      "Terjadi kesalahan saat mencoba masuk dengan Google. Silakan coba lagi atau gunakan email dan password.",
+      "Terjadi kesalahan saat mencoba login dengan Google. Silakan coba lagi atau gunakan email dan password.",
   },
   OAuthCallback: {
-    title: "Gagal Masuk dengan Google",
+    title: "Gagal Login dengan Google",
     description:
       "Terjadi kesalahan saat memproses login Google. Silakan coba lagi.",
   },
@@ -49,7 +49,7 @@ const nextAuthErrors: Record<string, { title: string; description: string }> = {
       "Terjadi kesalahan konfigurasi server. Silakan hubungi pengembang.",
   },
   CallbackRouteError: {
-    title: "Gagal Masuk",
+    title: "Gagal Login",
     description:
       "Terjadi kesalahan saat memproses login. Silakan coba lagi.",
   },
@@ -118,13 +118,13 @@ export default async function AuthErrorPage({ searchParams }: Props) {
         <div className="absolute -top-40 -right-40 h-80 w-80 rounded-full bg-primary/10 blur-3xl" />
         <div className="absolute -bottom-40 -left-40 h-80 w-80 rounded-full bg-secondary/20 blur-3xl" />
 
-        <div className="relative z-10 w-full max-w-sm">
-          <div className="rounded-2xl border border-border bg-card p-8 shadow-sm">
+         <div className="relative z-10 w-full max-w-sm px-4">
+          <div className="rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8">
             <div className="flex flex-col items-center text-center">
-              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-destructive/10">
-                <Icon className="h-8 w-8 text-destructive" />
+              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10 sm:h-16 sm:w-16">
+                <Icon className="h-7 w-7 text-destructive sm:h-8 sm:w-8" />
               </div>
-              <h1 className="font-heading text-xl text-foreground">
+              <h1 className="font-heading text-xl text-foreground break-words">
                 {info.title}
               </h1>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
@@ -137,7 +137,7 @@ export default async function AuthErrorPage({ searchParams }: Props) {
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
                 >
                   <LogIn className="h-4 w-4" />
-                  Masuk
+                  Login
                 </Link>
                 <Link
                   href="/"

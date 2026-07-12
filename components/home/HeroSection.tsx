@@ -112,7 +112,7 @@ export default function HeroSection({
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
-          className="font-heading text-4xl leading-tight md:text-7xl"
+          className="font-heading text-2xl leading-tight sm:text-4xl md:text-7xl break-words"
         >
           <span className="text-foreground">{displayedName1}</span>
           {showCursor1 && (
@@ -130,7 +130,7 @@ export default function HeroSection({
             initial={{ opacity: 0 }}
             animate={typingDone ? { opacity: 1 } : {}}
             transition={{ duration: 0.8, delay: 0.3 }}
-            className="mt-4 text-lg text-muted-foreground md:text-xl"
+            className="mt-4 text-sm text-muted-foreground sm:text-lg md:text-xl"
           >
             {tagline}
           </motion.p>
@@ -141,7 +141,7 @@ export default function HeroSection({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.8, delay: 0.3 }}
-            className="mt-4 text-lg text-muted-foreground md:text-xl"
+            className="mt-4 text-sm text-muted-foreground sm:text-lg md:text-xl"
           >
             Tempat semua cerita kita tersimpan selamanya.
           </motion.p>

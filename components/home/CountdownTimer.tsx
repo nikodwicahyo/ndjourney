@@ -92,7 +92,7 @@ export default function CountdownTimer({
     >
       <div className="mb-3 flex items-center justify-center gap-2">
         <Heart className="h-4 w-4 fill-primary text-primary" />
-        <span className="text-sm font-medium text-muted-foreground">
+        <span className="text-xs font-medium text-muted-foreground sm:text-sm">
           {name1 && name2 ? `${name1} & ${name2}` : "Bersama"}
         </span>
         <Heart className="h-4 w-4 fill-primary text-primary" />
@@ -106,20 +106,20 @@ export default function CountdownTimer({
           >
             <Sparkles className="mx-auto h-8 w-8 text-primary" />
           </motion.div>
-          <p className="mt-2 font-heading text-2xl font-bold text-primary">
+          <p className="mt-2 font-heading text-xl font-bold text-primary sm:text-2xl break-words">
             🎉 Selamat Anniversary ke-{yearsSince} tahun! 🎉
           </p>
         </div>
       ) : (
         <>
-          <p className="mb-3 mt-1 font-heading text-xl font-semibold">
+          <p className="mb-3 mt-1 font-heading text-lg font-semibold sm:text-xl">
             Hari ke-{days.toLocaleString("id-ID")} bersama
           </p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs text-muted-foreground sm:text-sm">
             {elapsed.years} tahun {elapsed.months} bulan {elapsed.days} hari
           </p>
 
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <AnimatedNumber value={days} label="Hari" />
             <AnimatedNumber value={hours} label="Jam" />
             <AnimatedNumber value={minutes} label="Menit" />

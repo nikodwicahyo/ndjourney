@@ -10,7 +10,7 @@ export default function NotesManagerPage() {
     <PageTransition>
       <div>
         <div className="mb-8">
-          <h1 className="font-heading text-3xl">Kelola Daily Note</h1>
+          <h1 className="font-heading text-xl sm:text-2xl lg:text-3xl break-words">Kelola Daily Note</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Tulis dan lihat riwayat catatan harian
           </p>

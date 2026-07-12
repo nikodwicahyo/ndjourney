@@ -163,23 +163,23 @@ export default function SettingsForm() {
   }
 
   return (
-    <form onSubmit={handleSave} className="max-w-xl space-y-5">
+    <form onSubmit={handleSave} className="w-full max-w-xl space-y-5">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
+        <div className="space-y-2 min-w-0">
           <label className="text-sm font-medium">Nama Pasangan 1</label>
           <input
             value={name1}
             onChange={(e) => setName1(e.target.value)}
-            className="flex h-10 w-full rounded-xl border border-input bg-background px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex h-10 w-full min-w-0 rounded-xl border border-input bg-background px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             placeholder="Nama kamu"
           />
         </div>
-        <div className="space-y-2">
+        <div className="space-y-2 min-w-0">
           <label className="text-sm font-medium">Nama Pasangan 2</label>
           <input
             value={name2}
             onChange={(e) => setName2(e.target.value)}
-            className="flex h-10 w-full rounded-xl border border-input bg-background px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex h-10 w-full min-w-0 rounded-xl border border-input bg-background px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             placeholder="Nama pasangan"
           />
         </div>
@@ -196,10 +196,10 @@ export default function SettingsForm() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
+        <div className="space-y-2 min-w-0">
           <label className="flex items-center gap-1.5 text-sm font-medium">
-            <Cake className="h-3.5 w-3.5 text-secondary" />
-            Tanggal Lahir {name1 || "Pasangan 1"}
+            <Cake className="h-3.5 w-3.5 shrink-0 text-secondary" />
+            <span className="truncate">Tanggal Lahir {name1 || "Pasangan 1"}</span>
           </label>
           <input
             type="date"
@@ -208,10 +208,10 @@ export default function SettingsForm() {
             className="flex h-10 w-full rounded-xl border border-input bg-background px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </div>
-        <div className="space-y-2">
+        <div className="space-y-2 min-w-0">
           <label className="flex items-center gap-1.5 text-sm font-medium">
-            <Cake className="h-3.5 w-3.5 text-secondary" />
-            Tanggal Lahir {name2 || "Pasangan 2"}
+            <Cake className="h-3.5 w-3.5 shrink-0 text-secondary" />
+            <span className="truncate">Tanggal Lahir {name2 || "Pasangan 2"}</span>
           </label>
           <input
             type="date"
@@ -257,14 +257,14 @@ export default function SettingsForm() {
             type="button"
             onClick={() => heroInputRef.current?.click()}
             disabled={uploadingHero}
-            className="flex h-40 w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-input bg-muted/50 transition-colors hover:bg-muted"
+            className="flex h-40 w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-input bg-muted/50 transition-colors hover:bg-muted overflow-hidden px-4"
           >
             {uploadingHero ? (
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <Loader2 className="h-6 w-6 animate-spin shrink-0 text-muted-foreground" />
             ) : (
               <>
-                <Upload className="h-6 w-6 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">
+                <Upload className="h-6 w-6 shrink-0 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground text-center">
                   Klik untuk upload foto pada beranda (jpg, png, webp)
                 </span>
               </>
@@ -297,14 +297,14 @@ export default function SettingsForm() {
       <div className="space-y-2">
         <label className="text-sm font-medium">Background Music (MP3)</label>
         {backgroundMusicUrl ? (
-          <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3">
-            <audio controls className="h-9 flex-1">
+          <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 overflow-hidden">
+            <audio controls className="h-9 min-w-0 flex-1">
               <source src={backgroundMusicUrl} type="audio/mpeg" />
             </audio>
             <button
               type="button"
               onClick={() => setBackgroundMusicUrl("")}
-              className="rounded-full p-1 transition-colors hover:bg-muted"
+              className="shrink-0 rounded-full p-1 transition-colors hover:bg-muted"
             >
               <X className="h-4 w-4" />
             </button>
@@ -314,14 +314,14 @@ export default function SettingsForm() {
             type="button"
             onClick={() => musicInputRef.current?.click()}
             disabled={uploadingMusic}
-            className="flex h-20 w-full cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-input bg-muted/50 transition-colors hover:bg-muted"
+            className="flex h-20 w-full cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-input bg-muted/50 transition-colors hover:bg-muted overflow-hidden px-4"
           >
             {uploadingMusic ? (
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              <Loader2 className="h-5 w-5 animate-spin shrink-0 text-muted-foreground" />
             ) : (
               <>
-                <Upload className="h-5 w-5 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">
+                <Upload className="h-5 w-5 shrink-0 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground text-center">
                   Upload file MP3 (max 20MB)
                 </span>
               </>
@@ -347,12 +347,12 @@ export default function SettingsForm() {
       <Button type="submit" className="w-full gap-2 sm:w-auto" disabled={saving}>
         {saving ? (
           <>
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin shrink-0" />
             Menyimpan...
           </>
         ) : (
           <>
-            <Save className="h-4 w-4" />
+            <Save className="h-4 w-4 shrink-0" />
             Simpan Pengaturan
           </>
         )}

@@ -17,12 +17,10 @@ export default async function PrivateLayout({
   return (
     <>
       <Navbar />
-      <div className="flex min-h-screen pt-16">
+      <div className="flex min-h-screen pt-16 overflow-x-hidden">
         <Sidebar />
-        <main className="flex-1 px-4 py-6 pb-24 sm:px-6 lg:px-8 lg:pb-6 xl:px-10">
-          <div className="mx-auto max-w-7xl">
-            <LayoutTransition>{children}</LayoutTransition>
-          </div>
+        <main className="flex-1 w-0 min-w-0 px-4 py-6 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] sm:px-6 lg:px-8 lg:pb-6 xl:px-10">
+          <LayoutTransition>{children}</LayoutTransition>
         </main>
       </div>
       <BottomNav />

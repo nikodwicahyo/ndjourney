@@ -6,6 +6,7 @@ import { useCreateWish, useUpdateWish, useDeleteWish } from "@/hooks/useWishes";
 import { Button } from "@/components/ui";
 import { Plus, Loader2, X, ImagePlus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { showDeleteConfirm } from "@/lib/swal";
 import type { WishItem } from "@/types";
 
 const CATEGORIES = [
@@ -120,7 +121,12 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
 
   async function handleDelete() {
     if (!editingWish) return;
-    if (!confirm(`Hapus wish "${editingWish.title}"?`)) return;
+
+    const confirmed = await showDeleteConfirm({
+      title: "Hapus Wish",
+      text: `Apakah Anda yakin ingin menghapus "${editingWish.title}"?`,
+    });
+    if (!confirmed) return;
 
     setDeleting(true);
     try {

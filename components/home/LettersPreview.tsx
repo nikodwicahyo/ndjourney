@@ -25,10 +25,10 @@ export default function LettersPreview({ totalCount }: LettersPreviewProps) {
         href="/letters"
         className="group relative block overflow-hidden rounded-3xl px-4"
       >
-        <div className="rounded-2xl border border-pink-300/20 bg-gradient-to-br from-pink-50/[0.06] to-rose-500/[0.03] p-5 shadow-sm transition-shadow duration-300 group-hover:shadow-md">
+        <div className="rounded-2xl border border-pink-300/20 bg-gradient-to-br from-pink-50/[0.06] to-rose-500/[0.03] p-5 shadow-sm transition-shadow duration-300 group-hover:shadow-md overflow-hidden">
           <div className="flex items-center gap-2">
-            <MessageCircleHeart className="h-4 w-4 text-pink-500" />
-            <span className="text-sm font-medium">Love Letters</span>
+            <MessageCircleHeart className="h-4 w-4 shrink-0 text-pink-500" />
+            <span className="text-sm font-medium truncate">Love Letters</span>
           </div>
 
           {totalCount > 0 ? (

@@ -92,7 +92,7 @@ export default function AlbumSelector({
           <option value="">Semua Album</option>
           {isLoading && <option disabled>Memuat...</option>}
           {albums?.map((album) => (
-            <option key={album.id} value={album.id}>
+            <option key={album.id} value={album.id} title={album.description || album.name}>
               {album.name} ({album._count.photos})
             </option>
           ))}

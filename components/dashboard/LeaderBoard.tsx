@@ -49,7 +49,7 @@ export default function LeaderBoard() {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 overflow-hidden">
       {data.map((entry, i) => {
         const isFirst = i === 0;
         const isSecond = i === 1;
@@ -60,46 +60,46 @@ export default function LeaderBoard() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
-            className={`rounded-2xl border p-4 ${
+            className={`rounded-2xl border p-4 overflow-hidden ${
               isFirst
                 ? "border-yellow-500/30 bg-yellow-500/[0.03]"
                 : "border-border bg-card"
             }`}
           >
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center sm:h-12 sm:w-12">
                 {isFirst ? (
-                  <Trophy className="h-8 w-8 text-yellow-500" />
+                  <Trophy className="h-7 w-7 text-yellow-500 sm:h-8 sm:w-8" />
                 ) : isSecond ? (
-                  <Medal className="h-8 w-8 text-gray-400" />
+                  <Medal className="h-7 w-7 text-gray-400 sm:h-8 sm:w-8" />
                 ) : (
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-bold text-muted-foreground">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-muted text-xs font-bold text-muted-foreground sm:h-8 sm:w-8 sm:text-sm">
                     {i + 1}
                   </div>
                 )}
               </div>
 
-              <div className="min-w-0 flex-1">
-                <p className="font-medium">
+              <div className="min-w-0 flex-1 overflow-hidden">
+                <p className="truncate font-medium text-sm sm:text-base">
                   {entry.playerName || entry.user?.name || "Pasangan"}
                   {isFirst && (
-                    <span className="ml-2 text-xs text-yellow-600 dark:text-yellow-400">
+                    <span className="ml-1.5 text-[11px] text-yellow-600 dark:text-yellow-400 sm:ml-2 sm:text-xs">
                       Peringkat 1
                     </span>
                   )}
                 </p>
-                <div className="mt-1 flex items-center gap-4 text-xs text-muted-foreground">
-                  <span className="inline-flex items-center gap-1">
-                    <Target className="h-3 w-3" />
+                <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground sm:text-xs">
+                  <span className="inline-flex shrink-0 items-center gap-1">
+                    <Target className="h-3 w-3 shrink-0" />
                     {entry.totalCorrect}/{entry.totalPlayed} benar
                   </span>
-                  <span>Akurasi {entry.accuracy}%</span>
+                  <span className="shrink-0">Akurasi {entry.accuracy}%</span>
                 </div>
               </div>
 
               {isFirst && (
-                <div className="text-right">
-                  <p className="text-lg font-bold text-yellow-600 dark:text-yellow-400">
+                <div className="shrink-0 text-right">
+                  <p className="text-base font-bold text-yellow-600 dark:text-yellow-400 sm:text-lg">
                     {entry.accuracy}%
                   </p>
                   <p className="text-[10px] text-muted-foreground">akurasi</p>

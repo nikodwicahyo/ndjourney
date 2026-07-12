@@ -13,28 +13,28 @@ const gameTypes: {
 }[] = [
   {
     type: "WOULD_YOU_RATHER",
-    label: "Lebih Suka Mana",
+    label: "Would You Rather?",
     description: "Pilih antara dua pilihan seru",
     icon: Shuffle,
     color: "#6366F1",
   },
   {
     type: "TRIVIA",
-    label: "Kuis Cinta",
+    label: "Love Quiz",
     description: "Tes seberapa dalam kamu tahu pasangan",
     icon: Brain,
     color: "#F43F5E",
   },
   {
     type: "SPIN_THE_WHEEL",
-    label: "Roda Keberuntungan",
+    label: "Spin The Wheel",
     description: "Putar roda dan dapatkan ide kencan",
     icon: Cherry,
     color: "#22C55E",
   },
   {
     type: "TRUTH_OR_DARE",
-    label: "Jujur atau Tantangan",
+    label: "Truth or Dare",
     description: "Permainan Truth or Dare untuk pasangan",
     icon: Sparkles,
     color: "#F97316",

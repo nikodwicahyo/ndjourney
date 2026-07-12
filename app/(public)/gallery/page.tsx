@@ -12,7 +12,7 @@ export default function GalleryPage() {
     <PageTransition>
       <Suspense
         fallback={
-          <div className="space-y-6">
+          <div className="space-y-6 overflow-hidden">
             <div className="h-8 w-48 animate-pulse rounded-full bg-muted" />
             <div className="h-6 w-64 animate-pulse rounded-full bg-muted" />
             <div className="columns-2 gap-3 md:columns-3 lg:columns-4">

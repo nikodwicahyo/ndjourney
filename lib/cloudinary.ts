@@ -121,6 +121,10 @@ function getThumbnailUrl(publicId: string, format: string): string {
     return url;
 }
 
+const UPLOAD_TRANSFORMS = [
+  { quality: "auto:good", fetch_format: "auto", flags: "lossy" },
+];
+
 export async function uploadToCloudinary(
   file: string,
   folder = "ndjourney-web",
@@ -128,9 +132,7 @@ export async function uploadToCloudinary(
   const result = await cloudinary.uploader.upload(file, {
     folder,
     resource_type: "auto",
-    transformation: [
-      { quality: "auto", fetch_format: "auto" },
-    ],
+    transformation: UPLOAD_TRANSFORMS,
   });
 
   return {
@@ -154,9 +156,7 @@ export async function uploadStreamToCloudinary(
       {
         folder,
         resource_type: "auto",
-        transformation: [
-          { quality: "auto", fetch_format: "auto" },
-        ],
+        transformation: UPLOAD_TRANSFORMS,
       },
       (error, result) => {
         if (error || !result) {
@@ -179,9 +179,7 @@ export async function uploadBufferToCloudinary(
       {
         folder,
         resource_type: "auto",
-        transformation: [
-          { quality: "auto", fetch_format: "auto" },
-        ],
+        transformation: UPLOAD_TRANSFORMS,
       },
       (error, result) => {
         if (error || !result) {

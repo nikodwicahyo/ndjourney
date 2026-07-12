@@ -112,7 +112,7 @@ export default function BirthdayCountdown({
           >
             <Sparkles className="mx-auto h-8 w-8 text-primary" />
           </motion.div>
-          <p className="mt-2 font-heading text-2xl font-bold text-primary">
+          <p className="mt-2 font-heading text-xl font-bold text-primary sm:text-2xl break-words">
             🎉 Selamat Ulang Tahun {name}! 🎉
           </p>
           <p className="mt-2 text-sm text-muted-foreground">
@@ -130,7 +130,7 @@ export default function BirthdayCountdown({
             Menuju ulang tahun {name} (usia ke-{age + 1} tahun)
           </p>
 
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <AnimatedNumber value={days} label="Hari" />
             <AnimatedNumber value={hours} label="Jam" />
             <AnimatedNumber value={minutes} label="Menit" />

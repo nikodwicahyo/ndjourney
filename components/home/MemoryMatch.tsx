@@ -194,7 +194,7 @@ export default function MemoryMatch({ photos }: MemoryMatchProps) {
       initial={{ opacity: 0, y: 24 }}
       animate={isInView ? { opacity: 1, y: 0 } : {}}
       transition={{ duration: 0.5, ease: "easeOut" }}
-      className="rounded-2xl border border-border bg-card p-6 shadow-sm transition-shadow hover:shadow-md"
+      className="rounded-2xl border border-border bg-card p-6 shadow-sm transition-shadow hover:shadow-md overflow-hidden"
     >
       <div className="mb-3 flex items-start justify-between gap-2">
         <div>
@@ -238,7 +238,7 @@ export default function MemoryMatch({ photos }: MemoryMatchProps) {
 
   if (!mounted) {
     return (
-      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm overflow-hidden">
         <div className="mb-3 flex items-start justify-between gap-2">
           <div className="flex items-center gap-2">
             <div className="h-7 w-7 rounded-lg bg-primary/10" />

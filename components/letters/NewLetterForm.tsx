@@ -237,17 +237,18 @@ export default function NewLetterForm({ onClose }: { onClose?: () => void }) {
       </div>
 
       <div className="flex gap-3">
-        {onClose && (
-          <Button
-            type="button"
-            variant="outline"
-            className="flex-1"
-            onClick={onClose}
-            disabled={loading}
-          >
-            Batal
-          </Button>
-        )}
+        <Button
+          type="button"
+          variant="outline"
+          className="flex-1"
+          onClick={() => {
+            if (onClose) onClose();
+            else router.push("/dashboard/letters");
+          }}
+          disabled={loading}
+        >
+          Batal
+        </Button>
         <Button
           type="submit"
           className="flex-1 gap-2"

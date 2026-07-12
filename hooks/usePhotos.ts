@@ -188,6 +188,7 @@ type UploadFileResult = {
   thumbnailUrl?: string;
   width?: number;
   height?: number;
+  fileSize?: number;
   isVideo?: boolean;
 };
 
@@ -196,18 +197,39 @@ type UploadResult = {
   failed: { name: string; error: string }[];
 };
 
-async function uploadSingleFile(file: File): Promise<UploadFileResult> {
+async function parseResponseBody(res: Response): Promise<string> {
+  const contentType = res.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    try {
+      const json = await res.json();
+      return json.error || json.message || res.statusText;
+    } catch {
+      return res.statusText || "Upload failed";
+    }
+  }
+  const text = await res.text();
+  const cleaned = text.replace(/<[^>]*>/g, "").trim().substring(0, 200);
+  return cleaned || res.statusText || "Upload failed";
+}
+
+const UPLOAD_CONCURRENCY = 3;
+
+async function uploadSingleFile(
+  file: File,
+  signal?: AbortSignal,
+): Promise<UploadFileResult> {
   const formData = new FormData();
   formData.append("file", file);
 
   const res = await fetch("/api/upload", {
     method: "POST",
     body: formData,
+    signal,
   });
 
   if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || "Upload failed");
+    const errorMessage = await parseResponseBody(res);
+    throw new Error(errorMessage);
   }
 
   const data: { data: UploadFileResult } = await res.json();
@@ -225,20 +247,45 @@ export function useUploadPhotos() {
       files: File[];
       albumId?: string;
     }): Promise<UploadResult> => {
-      const uploadedFiles: UploadFileResult[] = [];
-      const failed: { name: string; error: string }[] = [];
+      const ac = new AbortController();
+      const batches: File[][] = [];
+      for (let i = 0; i < files.length; i += UPLOAD_CONCURRENCY) {
+        batches.push(files.slice(i, i + UPLOAD_CONCURRENCY));
+      }
 
-      for (const file of files) {
-        try {
-          const result = await uploadSingleFile(file);
-          uploadedFiles.push(result);
-        } catch (err) {
-          failed.push({
-            name: file.name,
-            error: err instanceof Error ? err.message : "Upload failed",
-          });
+      const allResults: { name: string; result?: UploadFileResult; error?: string }[] = [];
+
+      for (const batch of batches) {
+        const settled = await Promise.allSettled(
+          batch.map((file) =>
+            uploadSingleFile(file, ac.signal).then(
+              (result) => ({ name: file.name, result }),
+              (err: unknown) => ({
+                name: file.name,
+                error: err instanceof Error ? err.message : "Upload failed",
+              }),
+            ),
+          ),
+        );
+
+        for (const s of settled) {
+          if (s.status === "fulfilled") {
+            allResults.push(s.value);
+          } else {
+            allResults.push({
+              name: "unknown",
+              error: s.reason instanceof Error ? s.reason.message : "Upload failed",
+            });
+          }
         }
       }
+
+      const uploadedFiles = allResults.filter(
+        (r): r is { name: string; result: UploadFileResult } => !!r.result,
+      );
+      const failed = allResults
+        .filter((r): r is { name: string; error: string } => !!r.error)
+        .map((r) => ({ name: r.name, error: r.error }));
 
       if (uploadedFiles.length === 0) {
         return { uploaded: [], failed };
@@ -249,20 +296,21 @@ export function useUploadPhotos() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           photos: uploadedFiles.map((f) => ({
-            url: f.url,
-            publicId: f.publicId,
-            thumbnailUrl: f.thumbnailUrl,
-            width: f.width,
-            height: f.height,
-            isVideo: f.isVideo ?? false,
+            url: f.result.url,
+            publicId: f.result.publicId,
+            thumbnailUrl: f.result.thumbnailUrl,
+            width: f.result.width,
+            height: f.result.height,
+            fileSize: f.result.fileSize,
+            isVideo: f.result.isVideo ?? false,
             albumId,
           })),
         }),
       });
 
       if (!photoRes.ok) {
-        const err = await photoRes.json();
-        throw new Error(err.error || "Bulk upload failed");
+        const errorMessage = await parseResponseBody(photoRes);
+        throw new Error(errorMessage);
       }
 
       const photoData: { data: Photo[] } = await photoRes.json();

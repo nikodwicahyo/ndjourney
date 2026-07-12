@@ -15,6 +15,7 @@ const AddMilestoneForm = dynamic(() => import("./AddMilestoneForm"), {
 import { Button, Skeleton } from "@/components/ui";
 import { Heart, Plus, Filter } from "lucide-react";
 import { toast } from "sonner";
+import { showDeleteConfirm } from "@/lib/swal";
 import type { MilestoneWithRelations } from "@/hooks/useMilestones";
 
 export default function TimelineList() {
@@ -33,7 +34,12 @@ export default function TimelineList() {
   }, []);
 
   const handleDelete = useCallback(
-    (id: string) => {
+    async (id: string) => {
+      const confirmed = await showDeleteConfirm({
+        title: "Hapus Milestone",
+        text: "Apakah Anda yakin ingin menghapus milestone ini?",
+      });
+      if (!confirmed) return;
       deleteMilestone.mutate(id, {
         onSuccess: () => toast.success("Milestone dihapus"),
         onError: () => toast.error("Gagal menghapus milestone"),

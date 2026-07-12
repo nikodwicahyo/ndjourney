@@ -147,8 +147,8 @@ export default function LoveMeter({
         <Sparkles className="h-4 w-4 text-primary/60" />
       </div>
 
-      <div className="relative mx-auto flex items-center justify-center py-2">
-        <svg width="190" height="190" className="-rotate-90">
+      <div className="relative mx-auto flex items-center justify-center py-2 max-w-[190px] w-full">
+        <svg viewBox="0 0 190 190" className="w-full h-auto -rotate-90">
           <defs>
             <linearGradient id="loveGradient" x1="0%" y1="0%" x2="100%" y2="0%">
               <stop offset="0%" stopColor="#F43F5E" />
@@ -226,7 +226,7 @@ export default function LoveMeter({
                 ? { duration: 0.6, repeat: Infinity, ease: "easeInOut" }
                 : { duration: 0.3 }
             }
-            className="font-heading text-4xl font-bold tabular-nums"
+            className="font-heading text-2xl font-bold tabular-nums sm:text-4xl"
             style={{ color }}
           >
             {displayPercent}%
@@ -243,28 +243,28 @@ export default function LoveMeter({
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-3 gap-3">
-        <div className="rounded-xl bg-muted/40 px-4 py-3 text-center transition-colors hover:bg-muted/60">
-          <span className="text-base">📅</span>
-          <p className="mt-1 text-base font-bold text-foreground">{daysTogether}</p>
-          <p className="text-sm text-muted-foreground">Hari Bersama</p>
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <div className="rounded-xl bg-muted/40 px-3 py-2.5 text-center transition-colors hover:bg-muted/60 sm:px-4 sm:py-3">
+          <span className="text-sm sm:text-base">📅</span>
+          <p className="mt-1 text-sm font-bold text-foreground sm:text-base">{daysTogether}</p>
+          <p className="text-xs text-muted-foreground sm:text-sm">Hari Bersama</p>
         </div>
         {quantityMetrics.map((m) => (
           <div
             key={m.key}
-            className="rounded-xl bg-muted/40 px-4 py-3 text-center transition-colors hover:bg-muted/60"
+            className="rounded-xl bg-muted/40 px-3 py-2.5 text-center transition-colors hover:bg-muted/60 sm:px-4 sm:py-3"
           >
-            <span className="text-base">{m.icon}</span>
-            <p className="mt-1 text-base font-bold text-foreground">{m.value}</p>
-            <p className="text-sm text-muted-foreground">{m.label}</p>
+            <span className="text-sm sm:text-base">{m.icon}</span>
+            <p className="mt-1 text-sm font-bold text-foreground sm:text-base">{m.value}</p>
+            <p className="text-xs text-muted-foreground sm:text-sm">{m.label}</p>
           </div>
         ))}
-        <div className="rounded-xl bg-muted/40 px-4 py-3 text-center transition-colors hover:bg-muted/60">
-          <span className="text-base">✨</span>
-          <p className="mt-1 text-base font-bold text-foreground">
+        <div className="rounded-xl bg-muted/40 px-3 py-2.5 text-center transition-colors hover:bg-muted/60 sm:px-4 sm:py-3">
+          <span className="text-sm sm:text-base">✨</span>
+          <p className="mt-1 text-sm font-bold text-foreground sm:text-base">
             {wishDone}
           </p>
-          <p className="text-sm text-muted-foreground">Wish List Tercapai</p>
+          <p className="text-xs text-muted-foreground sm:text-sm">Wish List Tercapai</p>
         </div>
       </div>
 

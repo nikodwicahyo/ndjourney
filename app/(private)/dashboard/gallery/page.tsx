@@ -11,7 +11,7 @@ export default function GalleryManagerPage() {
     <PageTransition>
       <div>
         <div className="mb-8">
-          <h1 className="font-heading text-3xl">Kelola Gallery</h1>
+          <h1 className="font-heading text-xl sm:text-2xl lg:text-3xl break-words">Kelola Gallery</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Upload dan kelola media, dan album
           </p>
@@ -21,9 +21,9 @@ export default function GalleryManagerPage() {
           fallback={
             <div className="space-y-6">
               <Skeleton className="h-10 w-32" />
-              <div className="columns-2 gap-3 md:columns-3 lg:columns-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {Array.from({ length: 8 }).map((_, i) => (
-                  <div key={i} className="mb-3 aspect-[3/4] animate-pulse rounded-2xl bg-muted" />
+                  <div key={i} className="aspect-[3/4] animate-pulse rounded-2xl bg-muted" />
                 ))}
               </div>
             </div>

@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useAllQuestions } from "@/hooks/useGames";
 import { Button, Skeleton } from "@/components/ui";
 import { motion } from "framer-motion";
-import { Heart, RotateCcw } from "lucide-react";
+import { Heart, RotateCcw, RefreshCw } from "lucide-react";
 
 const MAX_WHEEL_SEGMENTS = 15;
+const SPIN_DURATION_MS = 3800;
 
 const COLORS = [
   "#F43F5E",
@@ -35,26 +36,21 @@ export default function SpinTheWheel() {
   const [rotation, setRotation] = useState(0);
   const [history, setHistory] = useState<string[]>([]);
   const [seenIds, setSeenIds] = useState<Set<string>>(new Set());
+  const [resetCount, setResetCount] = useState(0);
+
+  const spinTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const allExhausted = useMemo(() => {
+    if (!ideas || ideas.length === 0) return false;
+    return seenIds.size >= ideas.length;
+  }, [ideas, seenIds]);
 
   const segments = useMemo(() => {
     if (!ideas || ideas.length === 0) return [];
-
     const unseen = ideas.filter(q => !seenIds.has(q.id));
-
-    if (unseen.length === 0) {
-      setSeenIds(new Set());
-      const all = shuffle(ideas);
-      return all.slice(0, Math.min(MAX_WHEEL_SEGMENTS, all.length));
-    }
-
-    if (unseen.length >= MAX_WHEEL_SEGMENTS) {
-      return shuffle(unseen).slice(0, MAX_WHEEL_SEGMENTS);
-    }
-
-    const shuffledUnseen = shuffle(unseen);
-    const seen = ideas.filter(q => seenIds.has(q.id));
-    const fill = shuffle(seen).slice(0, MAX_WHEEL_SEGMENTS - shuffledUnseen.length);
-    return [...shuffledUnseen, ...fill];
+    if (unseen.length === 0) return [];
+    const count = Math.min(unseen.length, MAX_WHEEL_SEGMENTS);
+    return shuffle(unseen).slice(0, count);
   }, [ideas, seenIds]);
 
   const segmentAngle = segments.length > 0 ? 360 / segments.length : 0;
@@ -62,6 +58,42 @@ export default function SpinTheWheel() {
   const fontSize = isManySegments ? "text-[10px]" : "text-xs";
   const labelMaxWidth = isManySegments ? "50px" : "65px";
   const labelTruncateLen = isManySegments ? 10 : 14;
+
+  const spin = useCallback(() => {
+    if (spinning || segments.length === 0) return;
+    setSpinning(true);
+    setResult(null);
+
+    const extraSpins = 4 + Math.floor(Math.random() * 4);
+    const targetSegment = Math.floor(Math.random() * segments.length);
+    const offset = Math.random() * segmentAngle;
+    const r = (90 - targetSegment * segmentAngle - offset + 360) % 360;
+    const newRotation = rotation - (rotation % 360) + extraSpins * 360 + r;
+
+    setRotation(newRotation);
+
+    spinTimeoutRef.current = setTimeout(() => {
+      const idea = segments[targetSegment];
+      setResult(idea.question);
+      setHistory(prev => [idea.question, ...prev].slice(0, 10));
+      setSeenIds(prev => new Set(prev).add(idea.id));
+      setSpinning(false);
+    }, SPIN_DURATION_MS);
+  }, [spinning, segments, segmentAngle, rotation]);
+
+  const resetAll = useCallback(() => {
+    setSeenIds(new Set());
+    setHistory([]);
+    setResetCount(n => n + 1);
+    setResult(null);
+    setRotation(0);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (spinTimeoutRef.current) clearTimeout(spinTimeoutRef.current);
+    };
+  }, []);
 
   if (isLoading) {
     return (
@@ -78,28 +110,6 @@ export default function SpinTheWheel() {
         <Button onClick={() => refetch()}>Muat Ulang</Button>
       </div>
     );
-  }
-
-  function spin() {
-    if (spinning || segments.length === 0) return;
-    setSpinning(true);
-    setResult(null);
-
-    const extraSpins = 4 + Math.floor(Math.random() * 4);
-    const targetSegment = Math.floor(Math.random() * segments.length);
-    const offset = Math.random() * segmentAngle;
-    const r = (90 - targetSegment * segmentAngle - offset + 360) % 360;
-    const newRotation = rotation - (rotation % 360) + extraSpins * 360 + r;
-
-    setRotation(newRotation);
-
-    setTimeout(() => {
-      const idea = segments[targetSegment];
-      setResult(idea.question);
-      setHistory((prev) => [idea.question, ...prev].slice(0, 10));
-      setSeenIds((prev) => new Set(prev).add(idea.id));
-      setSpinning(false);
-    }, 3800);
   }
 
   return (
@@ -162,21 +172,34 @@ export default function SpinTheWheel() {
         </motion.div>
       </div>
 
-      <Button
-        size="lg"
-        onClick={spin}
-        disabled={spinning}
-        className="gap-2"
-      >
-        {spinning ? (
-          "Memutar..."
-        ) : (
-          <>
-            <RotateCcw className="h-4 w-4" />
-            Putar Roda
-          </>
-        )}
-      </Button>
+      {allExhausted ? (
+        <Button size="lg" onClick={resetAll} className="gap-2">
+          <RefreshCw className="h-4 w-4" />
+          Kocok Ulang Semua 🎲
+        </Button>
+      ) : (
+        <Button
+          size="lg"
+          onClick={spin}
+          disabled={spinning || segments.length === 0}
+          className="gap-2"
+        >
+          {spinning ? (
+            "Memutar..."
+          ) : (
+            <>
+              <RotateCcw className="h-4 w-4" />
+              Putar Roda
+            </>
+          )}
+        </Button>
+      )}
+
+      {segments.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          Sisa {ideas.length - seenIds.size} dari {ideas.length} ide kencan
+        </p>
+      )}
 
       {result && (
         <motion.div
@@ -195,7 +218,7 @@ export default function SpinTheWheel() {
             Riwayat
           </p>
           {history.map((h, i) => (
-            <p key={i} className="text-sm text-muted-foreground">
+            <p key={`${h}-${i}`} className="text-sm text-muted-foreground">
               {i + 1}. {h}
             </p>
           ))}

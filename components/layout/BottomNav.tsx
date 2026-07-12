@@ -14,6 +14,7 @@ import {
   Gift,
   MessageCircleHeart,
   LayoutDashboard,
+  LogIn,
 } from "lucide-react";
 
 const navItems = [
@@ -25,6 +26,7 @@ const navItems = [
   { href: "/wishlist", label: "Wish List", short: "Wish", icon: Gift },
   { href: "/letters", label: "Letters", short: "Letters", icon: MessageCircleHeart },
   { href: "/dashboard", label: "Dashboard", short: "Dash", icon: LayoutDashboard, auth: true },
+  { href: "/login", label: "Login", short: "Login", icon: LogIn, guest: true },
 ];
 
 export default function BottomNav() {
@@ -33,7 +35,8 @@ export default function BottomNav() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const items = navItems.filter((item) => {
-    if (item.auth) return !!session?.user;
+    if ("auth" in item && item.auth) return !!session?.user;
+    if ("guest" in item && item.guest) return !session?.user;
     return true;
   });
 

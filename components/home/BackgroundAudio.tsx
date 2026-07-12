@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef } from "react";
 
 type BackgroundAudioProps = {
   src?: string | null;
@@ -11,19 +11,40 @@ export default function BackgroundAudio({ src, spotifyPlaying }: BackgroundAudio
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const startedRef = useRef(false);
   const pausedByVideoRef = useRef(false);
-
-  const resume = useCallback(() => {
-    const audio = audioRef.current;
-    if (!audio || !startedRef.current) return;
-    if (spotifyPlaying) return;
-    audio.play().catch(() => {});
-  }, [spotifyPlaying]);
-
-  const resumeRef = useRef(resume);
-  resumeRef.current = resume;
+  const currentSrcRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!src || startedRef.current) return;
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (!startedRef.current) return;
+
+    if (spotifyPlaying) {
+      audio.pause();
+    } else if (!pausedByVideoRef.current && audio.paused) {
+      audio.play().catch(() => {});
+    }
+  }, [spotifyPlaying]);
+
+  useEffect(() => {
+    const prevSrc = currentSrcRef.current;
+    currentSrcRef.current = src ?? null;
+
+    if (!src) {
+      const audio = audioRef.current;
+      if (audio) {
+        audio.pause();
+        audio.src = "";
+        audioRef.current = null;
+      }
+      startedRef.current = false;
+      pausedByVideoRef.current = false;
+      return;
+    }
+
+    if (src === prevSrc && startedRef.current) return;
+
+    startedRef.current = false;
+    pausedByVideoRef.current = false;
 
     const audio = new Audio(src);
     audio.loop = true;
@@ -49,13 +70,20 @@ export default function BackgroundAudio({ src, spotifyPlaying }: BackgroundAudio
     function handleResumeBg() {
       if (pausedByVideoRef.current) {
         pausedByVideoRef.current = false;
-        resumeRef.current();
+        const a = audioRef.current;
+        if (a && !startedRef.current) {
+          a.play().then(() => {
+            startedRef.current = true;
+          }).catch(() => {});
+        } else if (a) {
+          a.play().catch(() => {});
+        }
       }
     }
 
-    document.addEventListener("pointerdown", tryPlay, { once: true });
-    document.addEventListener("touchstart", tryPlay, { once: true, passive: true });
-    document.addEventListener("wheel", tryPlay, { once: true, passive: true });
+    document.addEventListener("pointerdown", tryPlay);
+    document.addEventListener("touchstart", tryPlay, { passive: true });
+    document.addEventListener("wheel", tryPlay, { passive: true });
     window.addEventListener("media:pause-bg-audio", handlePauseBg);
     window.addEventListener("media:resume-bg-audio", handleResumeBg);
 
@@ -71,17 +99,6 @@ export default function BackgroundAudio({ src, spotifyPlaying }: BackgroundAudio
       audio.src = "";
     };
   }, [src]);
-
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio || !startedRef.current) return;
-
-    if (spotifyPlaying) {
-      audio.pause();
-    } else if (!pausedByVideoRef.current) {
-      audio.play().catch(() => {});
-    }
-  }, [spotifyPlaying]);
 
   return null;
 }

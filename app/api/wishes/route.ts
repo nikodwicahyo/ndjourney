@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { createWishSchema } from "@/lib/validations/wish";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { getCached, setCached, invalidateCache, cacheKey } from "@/lib/redis";
@@ -22,11 +21,6 @@ const wishSelect = {
 
 export async function GET(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "50");

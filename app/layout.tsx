@@ -35,7 +35,10 @@ export const metadata: Metadata = {
     title: "NDjourney",
   },
   icons: {
-    icon: "/favicon.svg",
+    icon: [
+      { url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
     apple: "/icons/apple-touch-icon.png",
   },
 };

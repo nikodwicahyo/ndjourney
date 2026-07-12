@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { getCached, setCached, invalidateCache, cacheKey } from "@/lib/redis";
 import { updateCoupleSchema } from "@/lib/validations/couple";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
@@ -10,11 +9,6 @@ const CACHE_TTL = 300;
 
 export async function GET() {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const cached = await getCached<unknown>(cacheKey("couple", "config"));
     if (cached) {
       return NextResponse.json({ data: cached }, {

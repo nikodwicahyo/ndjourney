@@ -1,6 +1,6 @@
-const CACHE_NAME = "ndjourney-v5";
-const API_CACHE_NAME = "ndjourney-api-v5";
-const IMAGE_CACHE_NAME = "ndjourney-images-v5";
+const CACHE_NAME = "ndjourney-v6";
+const API_CACHE_NAME = "ndjourney-api-v6";
+const IMAGE_CACHE_NAME = "ndjourney-images-v6";
 
 const PRECACHE_URLS = [
   "/",
@@ -56,7 +56,6 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
 
   if (CLOUDINARY_RE.test(url.hostname)) {
-    event.respondWith(cacheFirst(request, IMAGE_CACHE_NAME));
     return;
   }
 

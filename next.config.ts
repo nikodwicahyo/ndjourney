@@ -34,7 +34,7 @@ let config: NextConfig = {
             "default-src 'self'",
             "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-            "font-src 'self' data: https://fonts.gstatic.com",
+            "font-src 'self' data: https://res.cloudinary.com https://fonts.gstatic.com",
             "img-src 'self' data: blob: https://res.cloudinary.com https://*.googleusercontent.com https://avatars.githubusercontent.com",
             "media-src 'self' https://res.cloudinary.com",
             "frame-src https://open.spotify.com",

@@ -1,0 +1,334 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────
+// AUTH
+// ─────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  role          Role      @default(PARTNER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts          Account[]
+  sessions          Session[]
+  photos            Photo[]
+  letters           Letter[]        @relation("LetterAuthor")
+  receivedLetters   Letter[]        @relation("LetterRecipient")
+  milestones        Milestone[]
+  dailyNotes        DailyNote[]
+  gameScores        GameScore[]
+  coupleMembers     CoupleMember[]
+}
+
+enum Role {
+  PARTNER
+  ADMIN
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────────────────────
+// COUPLE / TENANCY
+// ─────────────────────────────────────────
+
+model Couple {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members     CoupleMember[]
+  photos      Photo[]
+  letters     Letter[]
+  milestones  Milestone[]
+  dailyNotes  DailyNote[]
+  wishes      WishItem[]
+}
+
+model CoupleMember {
+  id       String @id @default(cuid())
+  coupleId String
+  userId   String
+
+  couple Couple @relation(fields: [coupleId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId])
+  @@unique([coupleId, userId])
+}
+
+// ─────────────────────────────────────────
+// COUPLE CONFIG
+// ─────────────────────────────────────────
+
+model CoupleConfig {
+  id                String   @id @default(cuid())
+  name1             String
+  name2             String
+  anniversaryDate   DateTime
+  birthDate1        DateTime?
+  birthDate2        DateTime?
+  tagline           String?
+  heroPhotoUrl      String?
+  spotifyPlaylistUrl String?
+  backgroundMusicUrl String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────
+// GALLERY
+// ─────────────────────────────────────────
+
+model Photo {
+  id           String   @id @default(cuid())
+  url          String
+  publicId     String
+  thumbnailUrl String?
+  caption      String?
+  takenAt      DateTime?
+  width        Int?
+  height       Int?
+  isVideo      Boolean  @default(false)
+  isFavorite   Boolean  @default(false)
+  isMilestoneOnly Boolean @default(false)
+  albumId      String?
+  uploadedById String
+  coupleId     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  album      Album?           @relation(fields: [albumId], references: [id])
+  uploadedBy User             @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
+  couple     Couple?          @relation(fields: [coupleId], references: [id], onDelete: SetNull)
+  milestones MilestonePhoto[]
+
+  @@index([albumId])
+  @@index([uploadedById])
+  @@index([createdAt])
+  @@index([takenAt])
+  @@index([isFavorite])
+  @@index([albumId, createdAt])
+  @@index([uploadedById, createdAt])
+  @@index([isFavorite, createdAt])
+}
+
+model Album {
+  id            String   @id @default(cuid())
+  name          String
+  description   String?
+  coverPhotoUrl String?
+  isPublic      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  photos Photo[]
+
+  @@index([createdAt])
+}
+
+// ─────────────────────────────────────────
+// TIMELINE / MILESTONES
+// ─────────────────────────────────────────
+
+model Milestone {
+  id          String   @id @default(cuid())
+  title       String
+  description String?  @db.Text
+  date        DateTime
+  icon        String?
+  color       String?
+  location    String?
+  isPublic    Boolean  @default(true)
+  createdById String
+  coupleId    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy User             @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  couple    Couple?          @relation(fields: [coupleId], references: [id], onDelete: SetNull)
+  photos    MilestonePhoto[]
+
+  @@index([createdById])
+  @@index([date])
+  @@index([createdAt])
+  @@index([date, createdById])
+  @@index([isPublic, date])
+}
+
+model MilestonePhoto {
+  milestoneId String
+  photoId     String
+
+  milestone Milestone @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  photo     Photo     @relation(fields: [photoId], references: [id], onDelete: Cascade)
+
+  @@id([milestoneId, photoId])
+}
+
+// ─────────────────────────────────────────
+// LOVE LETTERS
+// ─────────────────────────────────────────
+
+model Letter {
+  id                 String      @id @default(cuid())
+  title              String
+  content            String      @db.Text
+  authorId           String
+  recipientId        String
+  isTimeCapsule      Boolean     @default(false)
+  unlockAt           DateTime?
+  isOpened           Boolean     @default(false)
+  openedAt           DateTime?
+  notificationSentAt DateTime?
+  mood               LetterMood  @default(LOVE)
+  isPublic           Boolean     @default(false)
+  coupleId           String?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  author    User    @relation("LetterAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  recipient User    @relation("LetterRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  couple    Couple? @relation(fields: [coupleId], references: [id], onDelete: SetNull)
+
+  @@index([authorId])
+  @@index([recipientId])
+  @@index([createdAt])
+  @@index([recipientId, isOpened, createdAt])
+  @@index([authorId, createdAt])
+  @@index([isTimeCapsule, isOpened, unlockAt])
+}
+
+enum LetterMood {
+  LOVE
+  GRATEFUL
+  MISSING
+  HAPPY
+  APOLOGY
+  SURPRISE
+}
+
+// ─────────────────────────────────────────
+// DAILY NOTES
+// ─────────────────────────────────────────
+
+model DailyNote {
+  id        String   @id @default(cuid())
+  content   String   @db.Text
+  authorId  String
+  coupleId  String?
+  date      DateTime @default(now()) @db.Date
+  createdAt DateTime @default(now())
+
+  author User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  couple Couple? @relation(fields: [coupleId], references: [id], onDelete: SetNull)
+
+  @@index([authorId])
+  @@index([date])
+  @@index([date, authorId])
+}
+
+// ─────────────────────────────────────────
+// GAMES
+// ─────────────────────────────────────────
+
+model GameQuestion {
+  id        String       @id @default(cuid())
+  type      GameType
+  question  String       @db.Text
+  optionA   String?
+  optionB   String?
+  answer    String?
+  category  String?
+  createdAt DateTime     @default(now())
+
+  scores GameScore[]
+
+  @@index([type])
+}
+
+model GameScore {
+  id         String   @id @default(cuid())
+  userId     String?
+  playerName String?
+  questionId String
+  isCorrect  Boolean
+  playedAt   DateTime @default(now())
+
+  user     User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  question GameQuestion @relation(fields: [questionId], references: [id])
+
+  @@index([userId])
+  @@index([questionId])
+  @@index([userId, isCorrect])
+  @@index([playerName])
+}
+
+enum GameType {
+  WOULD_YOU_RATHER
+  TRIVIA
+  SPIN_THE_WHEEL
+  TRUTH_OR_DARE
+}
+
+// ─────────────────────────────────────────
+// WISH LIST
+// ─────────────────────────────────────────
+
+model WishItem {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  imageUrl    String?
+  link        String?
+  category    String?
+  isDone      Boolean   @default(false)
+  doneAt      DateTime?
+  coupleId    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  couple Couple? @relation(fields: [coupleId], references: [id], onDelete: SetNull)
+
+  @@index([category])
+  @@index([isDone])
+  @@index([isDone, createdAt])
+  @@index([category, isDone])
+}

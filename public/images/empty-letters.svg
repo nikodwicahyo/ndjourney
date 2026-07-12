@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300">
+  <defs>
+    <linearGradient id="lg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F43F5E"/>
+      <stop offset="100%" stop-color="#FDA4AF"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(200,110)" fill="none" stroke="url(#lg)" stroke-width="2" opacity="0.3">
+    <rect x="-70" y="-45" width="140" height="90" rx="4"/>
+    <path d="M-70 -30 L0 5 L70 -30" stroke-dasharray="3 2"/>
+    <circle cx="0" cy="-5" r="8" opacity="0.2"/>
+  </g>
+  <g transform="translate(200,200)" text-anchor="middle" font-family="sans-serif">
+    <text x="0" y="0" font-size="14" fill="#A1A1AA" opacity="0.6">Belum ada surat</text>
+  </g>
+</svg>

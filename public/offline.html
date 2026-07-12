@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Offline — Niko & Dzikria</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh; padding: 2rem;
+      background: #FFF1F2; color: #1A0A0E;
+    }
+    .container { text-align: center; max-width: 400px; }
+    .heart { font-size: 4rem; display: block; margin-bottom: 1.5rem; animation: pulse 2s ease-in-out infinite; }
+    h1 { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem; font-family: 'Playfair Display', Georgia, serif; }
+    p { font-size: 0.875rem; color: #666; line-height: 1.6; }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+    @media (prefers-color-scheme: dark) {
+      body { background: #1A0A0E; color: #FDF2F8; }
+      p { color: #A1A1AA; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <span class="heart">💕</span>
+    <h1>Kamu sedang offline</h1>
+    <p>Cerita cinta kalian tetap menunggumu.<br />Koneksikan kembali saat sudah online ya 💕</p>
+  </div>
+</body>
+</html>

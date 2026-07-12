@@ -1,0 +1,13 @@
+export { default as DashboardClient } from "./DashboardClient";
+export { default as StatsCards } from "./StatsCards";
+export { default as QuickActions } from "./QuickActions";
+export { default as RecentActivity } from "./RecentActivity";
+export { default as SettingsForm } from "./SettingsForm";
+export { default as AlbumManager } from "./AlbumManager";
+export { default as GameManager } from "./GameManager";
+export { default as LeaderBoard } from "./LeaderBoard";
+export { default as GalleryManager } from "./GalleryManager";
+export { default as TimelineManager } from "./TimelineManager";
+export { default as NotesManager } from "./NotesManager";
+export { default as WishlistManager } from "./WishlistManager";
+export { default as ProfileContent } from "./ProfileContent";

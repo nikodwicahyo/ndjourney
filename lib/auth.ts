@@ -135,6 +135,7 @@ if (originalDeleteSession) {
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   adapter: prismaAdapter,
+  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
   session: { strategy: "database", maxAge: 24 * 60 * 60 },
   trustHost: true,
   pages: {

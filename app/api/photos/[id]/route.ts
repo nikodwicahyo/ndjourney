@@ -1,10 +1,9 @@
-import { prisma, sql } from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { updatePhotoSchema } from "@/lib/validations/photo";
 import { deleteFromCloudinary } from "@/lib/cloudinary";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { getCached, setCached, invalidateCache, cacheKey } from "@/lib/redis";
-import { auth } from "@/lib/auth";
 
 const CACHE_TTL = 120;
 

@@ -78,6 +78,18 @@ export async function PUT(
     const session = rateCheck.session;
 
     const { id } = await params;
+
+    const existingMilestone = await prisma.milestone.findUnique({
+      where: { id },
+      select: { createdById: true },
+    });
+    if (!existingMilestone) {
+      return NextResponse.json({ error: "Milestone not found" }, { status: 404 });
+    }
+    if (existingMilestone.createdById !== session.user.id) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const body = await request.json();
     const parsed = updateMilestoneSchema.safeParse(body);
 
@@ -194,6 +206,18 @@ export async function DELETE(
     }
 
     const { id } = await params;
+    const userId = rateCheck.session.user.id;
+
+    const existingMilestone = await prisma.milestone.findUnique({
+      where: { id },
+      select: { createdById: true },
+    });
+    if (!existingMilestone) {
+      return NextResponse.json({ error: "Milestone not found" }, { status: 404 });
+    }
+    if (existingMilestone.createdById !== userId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     await prisma.milestone.delete({ where: { id } });
 

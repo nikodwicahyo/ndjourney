@@ -19,6 +19,9 @@ export default function BackgroundAudio({ src, spotifyPlaying }: BackgroundAudio
     audio.play().catch(() => {});
   }, [spotifyPlaying]);
 
+  const resumeRef = useRef(resume);
+  resumeRef.current = resume;
+
   useEffect(() => {
     if (!src || startedRef.current) return;
 
@@ -46,24 +49,28 @@ export default function BackgroundAudio({ src, spotifyPlaying }: BackgroundAudio
     function handleResumeBg() {
       if (pausedByVideoRef.current) {
         pausedByVideoRef.current = false;
-        resume();
+        resumeRef.current();
       }
     }
 
-    document.addEventListener("pointerdown", tryPlay);
-    document.addEventListener("wheel", tryPlay, { passive: true });
+    document.addEventListener("pointerdown", tryPlay, { once: true });
+    document.addEventListener("touchstart", tryPlay, { once: true, passive: true });
+    document.addEventListener("wheel", tryPlay, { once: true, passive: true });
     window.addEventListener("media:pause-bg-audio", handlePauseBg);
     window.addEventListener("media:resume-bg-audio", handleResumeBg);
 
+    tryPlay();
+
     return () => {
       document.removeEventListener("pointerdown", tryPlay);
+      document.removeEventListener("touchstart", tryPlay);
       document.removeEventListener("wheel", tryPlay);
       window.removeEventListener("media:pause-bg-audio", handlePauseBg);
       window.removeEventListener("media:resume-bg-audio", handleResumeBg);
       audio.pause();
       audio.src = "";
     };
-  }, [src, resume]);
+  }, [src]);
 
   useEffect(() => {
     const audio = audioRef.current;

@@ -124,6 +124,7 @@ export async function withRateLimit(
 
 export const rateLimitConfigs = {
   upload: { maxRequests: 20, windowSeconds: 3600, keyPrefix: "upload" },
+  bulkUpload: { maxRequests: 30, windowSeconds: 3600, keyPrefix: "upload:bulk" },
   note: { maxRequests: 100, windowSeconds: 86400, keyPrefix: "note" },
   letter: { maxRequests: 30, windowSeconds: 3600, keyPrefix: "letter" },
   register: { maxRequests: 3, windowSeconds: 3600, keyPrefix: "register" },

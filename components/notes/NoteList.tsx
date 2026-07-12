@@ -1,7 +1,7 @@
 "use client";
 
 import { useDailyNotes } from "@/hooks/useNotes";
-import { Skeleton, Button } from "@/components/ui";
+import { Skeleton, Button, Avatar, AvatarImage, AvatarFallback } from "@/components/ui";
 import { motion } from "framer-motion";
 import { Heart, MessageCircle, Calendar } from "lucide-react";
 import { formatDate, formatRelativeTime } from "@/lib/utils";
@@ -63,9 +63,10 @@ export default function NoteList() {
         >
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary">
-                {note.author.name?.charAt(0) || "P"}
-              </div>
+              <Avatar className="h-7 w-7">
+                <AvatarImage src={note.author.image ?? undefined} alt={note.author.name ?? "Author"} />
+                <AvatarFallback>{note.author.name?.charAt(0) || "P"}</AvatarFallback>
+              </Avatar>
               <span className="text-sm font-medium">
                 {note.author.name || "Pasangan"}
               </span>

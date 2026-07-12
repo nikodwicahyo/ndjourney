@@ -13,7 +13,7 @@ export type HomeSummaries = {
   };
   notes: {
     noteCount: number;
-    latestNote: { content: string; authorName: string } | null;
+    latestNote: { content: string; authorName: string; authorImage: string | null } | null;
   };
   games: {
     questionCount: number;

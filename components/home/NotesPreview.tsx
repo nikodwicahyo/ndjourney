@@ -5,10 +5,11 @@ import Link from "next/link";
 import { motion, useInView } from "framer-motion";
 import { StickyNote, ChevronRight, Heart } from "lucide-react";
 import { truncate, formatNumber } from "@/lib/utils";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui";
 
 type NotesPreviewProps = {
   noteCount: number;
-  latestNote: { content: string; authorName: string } | null;
+  latestNote: { content: string; authorName: string; authorImage: string | null } | null;
 };
 
 export default function NotesPreview({ noteCount, latestNote }: NotesPreviewProps) {
@@ -43,6 +44,10 @@ export default function NotesPreview({ noteCount, latestNote }: NotesPreviewProp
               </p>
               <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Heart className="h-3 w-3 shrink-0 fill-primary/40 text-primary/40" />
+                <Avatar className="h-4 w-4 shrink-0">
+                  <AvatarImage src={latestNote.authorImage ?? undefined} alt={latestNote.authorName} />
+                  <AvatarFallback>{latestNote.authorName?.charAt(0) || "P"}</AvatarFallback>
+                </Avatar>
                 <span className="truncate">{latestNote.authorName}</span>
               </div>
             </div>

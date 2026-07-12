@@ -22,7 +22,7 @@ const bulkUploadSchema = z.object({
       }),
     )
     .min(1)
-    .max(30),
+    .max(50),
 });
 
 export async function POST(request: Request) {

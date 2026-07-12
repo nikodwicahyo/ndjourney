@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Skeleton } from "@/components/ui";
+import { Skeleton, Avatar, AvatarImage, AvatarFallback } from "@/components/ui";
 import { motion } from "framer-motion";
 import { Trophy, Medal, Target, Gamepad2 } from "lucide-react";
 
@@ -80,14 +80,18 @@ export default function LeaderBoard() {
               </div>
 
               <div className="min-w-0 flex-1 overflow-hidden">
-                <p className="truncate font-medium text-sm sm:text-base">
-                  {entry.playerName || entry.user?.name || "Pasangan"}
+                <div className="flex items-center gap-2 truncate font-medium text-sm sm:text-base">
+                  <Avatar className="h-6 w-6 inline-flex shrink-0 mr-2">
+                    <AvatarImage src={entry.user?.image ?? undefined} alt={entry.user?.name ?? entry.playerName ?? "Player"} />
+                    <AvatarFallback>{(entry.user?.name ?? entry.playerName ?? "P").charAt(0)}</AvatarFallback>
+                  </Avatar>
+                  <span className="truncate">{entry.playerName || entry.user?.name || "Pasangan"}</span>
                   {isFirst && (
-                    <span className="ml-1.5 text-[11px] text-yellow-600 dark:text-yellow-400 sm:ml-2 sm:text-xs">
+                    <span className="ml-1.5 text-[11px] text-yellow-600 dark:text-yellow-400 sm:ml-2 sm:text-xs shrink-0">
                       Peringkat 1
                     </span>
                   )}
-                </p>
+                </div>
                 <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground sm:text-xs">
                   <span className="inline-flex shrink-0 items-center gap-1">
                     <Target className="h-3 w-3 shrink-0" />

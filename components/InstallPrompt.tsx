@@ -1,14 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import {
-  X,
-  Heart,
-  Download,
-  Share2,
-  Smartphone,
-  Monitor,
-} from "lucide-react";
+import { X, Heart, Download, Share2, Smartphone, Monitor, Globe } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 type BeforeInstallPromptEvent = Event & {
@@ -28,6 +21,7 @@ type BrowserType =
 type PlatformType =
   | "android"
   | "ios"
+  | "ipados"
   | "windows"
   | "macos"
   | "linux"
@@ -36,74 +30,120 @@ type PlatformType =
 type InstallMethod =
   | "beforeinstallprompt"
   | "ios-add-to-home-screen"
+  | "ipados-add-to-home-screen"
   | "firefox-android"
   | "safari-desktop"
   | "firefox-desktop"
+  | "chrome-desktop"
+  | "edge-desktop"
   | "manual"
-  | "installed";
+  | "installed"
+  | "unsupported";
 
 const VISIT_KEY = "ndjourney-visit-count";
-const MIN_VISITS = 1;
-const SHOW_DELAY_MS = 3000;
-const BIP_TIMEOUT_MS = 8000;
+const MAX_DISMISSES = 3;
+const DISMISS_KEY = "ndjourney-install-dismiss-count";
 
-function detectBrowser(): { browser: BrowserType; platform: PlatformType } {
-  if (typeof window === "undefined") {
-    return { browser: "unknown", platform: "unknown" };
-  }
+function detectPlatform(): PlatformType {
+  if (typeof window === "undefined") return "unknown";
 
-  const ua = navigator.userAgent;
-  const uaLower = ua.toLowerCase();
+  const ua = navigator.userAgent.toLowerCase();
   const pf = (navigator.platform || "").toLowerCase();
 
-  let platform: PlatformType;
-  const isIphone = /iphone/.test(uaLower) || pf === "iphone";
-  const isIpad = /ipad/.test(uaLower) || (pf === "macintel" && navigator.maxTouchPoints > 1);
-  const isIpod = /ipod/.test(uaLower) || pf === "ipod";
+  const isIphone = /iphone/.test(ua) || pf === "iphone";
+  const isIpad = /ipad/.test(ua) || (pf === "macintel" && navigator.maxTouchPoints > 1);
+  const isIpod = /ipod/.test(ua) || pf === "ipod";
 
-  if (isIphone || isIpad || isIpod) {
-    platform = "ios";
-  } else if (/android/.test(uaLower)) {
-    platform = "android";
-  } else if (/win/.test(pf) || /windows/.test(uaLower)) {
-    platform = "windows";
-  } else if (/mac/.test(uaLower) || /mac/.test(pf)) {
-    platform = "macos";
-  } else if (/linux/.test(pf) || /linux/.test(uaLower)) {
-    platform = "linux";
-  } else {
-    platform = "unknown";
-  }
+  if (isIphone || isIpod) return "ios";
+  if (isIpad) return "ipados";
+  if (/android/.test(ua)) return "android";
+  if (/win/.test(pf) || /windows/.test(ua)) return "windows";
+  if (/mac/.test(ua) || /mac/.test(pf)) return "macos";
+  if (/linux/.test(pf) || /linux/.test(ua)) return "linux";
 
-  let browser: BrowserType;
-  if (/edg\/|edga\/|edgios\//.test(uaLower)) {
-    browser = "edge";
-  } else if (/opr\/|opera/.test(uaLower)) {
-    browser = "opera";
-  } else if (/samsungbrowser/.test(uaLower)) {
-    browser = "samsung";
-  } else if (/firefox/.test(uaLower) && !/seamonkey/.test(uaLower)) {
-    browser = "firefox";
-  } else if (/crios\/|chrome\/|chromium/.test(uaLower)) {
-    browser = "chrome";
-  } else if (/safari\//.test(uaLower) && !/chrome/.test(uaLower)) {
-    browser = "safari";
-  } else {
-    browser = "unknown";
-  }
+  return "unknown";
+}
 
-  return { browser, platform };
+function detectBrowser(): BrowserType {
+  if (typeof window === "undefined") return "unknown";
+
+  const ua = navigator.userAgent.toLowerCase();
+
+  if (/edg\/|edga\/|edgios\//.test(ua)) return "edge";
+  if (/opr\/|opera/.test(ua)) return "opera";
+  if (/samsungbrowser/.test(ua)) return "samsung";
+  if (/firefox/.test(ua) && !/seamonkey/.test(ua)) return "firefox";
+  if (/crios\/|chrome\/|chromium/.test(ua)) return "chrome";
+  if (/safari\//.test(ua) && !/chrome/.test(ua)) return "safari";
+
+  return "unknown";
+}
+
+function isStandalone(): boolean {
+  if (typeof window === "undefined") return false;
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    (window.navigator as { standalone?: boolean }).standalone === true
+  );
+}
+
+function isIOS(): boolean {
+  return /iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase());
+}
+
+function isIPadOS(): boolean {
+  const ua = navigator.userAgent.toLowerCase();
+  const pf = (navigator.platform || "").toLowerCase();
+  return /ipad/.test(ua) || (pf === "macintel" && navigator.maxTouchPoints > 1);
+}
+
+function isAndroid(): boolean {
+  return /android/.test(navigator.userAgent.toLowerCase());
+}
+
+function isFirefox(): boolean {
+  return /firefox/.test(navigator.userAgent.toLowerCase()) && !/seamonkey/.test(navigator.userAgent.toLowerCase());
+}
+
+function isSafari(): boolean {
+  const ua = navigator.userAgent.toLowerCase();
+  return /safari\//.test(ua) && !/chrome/.test(ua);
+}
+
+function getDismissCount(): number {
+  return parseInt(localStorage.getItem(DISMISS_KEY) || "0", 10);
+}
+
+function incrementDismissCount(): void {
+  const count = getDismissCount() + 1;
+  localStorage.setItem(DISMISS_KEY, String(count));
+}
+
+function resetDismissCount(): void {
+  localStorage.removeItem(DISMISS_KEY);
 }
 
 function getInstallMethod(
   browser: BrowserType,
   platform: PlatformType,
+  hasBeforeInstallPrompt: boolean,
 ): InstallMethod {
+  // Check iOS/iPadOS first - these platforms never use beforeinstallprompt
   if (platform === "ios") return "ios-add-to-home-screen";
+  if (platform === "ipados") return "ipados-add-to-home-screen";
+
+  // Firefox on Android supports beforeinstallprompt, desktop Firefox doesn't
   if (browser === "firefox" && platform === "android") return "firefox-android";
   if (browser === "firefox" && platform !== "android") return "firefox-desktop";
-  if (browser === "safari") return "safari-desktop";
 
+  // Safari on desktop (macOS) doesn't support PWA installation
+  if (browser === "safari" && (platform === "macos" || platform === "windows" || platform === "linux" || platform === "unknown")) return "safari-desktop";
+
+  // Chrome/Edge on desktop
+  if (browser === "chrome" && (platform === "windows" || platform === "macos" || platform === "linux")) return "chrome-desktop";
+  if (browser === "edge" && (platform === "windows" || platform === "macos" || platform === "linux")) return "edge-desktop";
+
+  // For other browsers on Android/desktop, check for beforeinstallprompt
   if (
     browser === "chrome" ||
     browser === "edge" ||
@@ -111,106 +151,99 @@ function getInstallMethod(
     browser === "samsung" ||
     browser === "unknown"
   ) {
-    return "beforeinstallprompt";
+    return hasBeforeInstallPrompt ? "beforeinstallprompt" : "manual";
   }
 
   return "manual";
 }
 
+function shouldShowPrompt(method: InstallMethod, dismissCount: number): boolean {
+  if (method === "installed" || method === "unsupported") return false;
+  if (dismissCount >= MAX_DISMISSES) return false;
+  return true;
+}
+
 export default function InstallPrompt() {
   const [mounted, setMounted] = useState(false);
-  const [deferredPrompt, setDeferredPrompt] =
-    useState<BeforeInstallPromptEvent | null>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
   const [installed, setInstalled] = useState(false);
-  const [installMethod, setInstallMethod] =
-    useState<InstallMethod>("beforeinstallprompt");
-  const [bipReceived, setBipReceived] = useState(false);
+  const [installMethod, setInstallMethod] = useState<InstallMethod>("manual");
+  const [hasBeforeInstallPrompt, setHasBeforeInstallPrompt] = useState(false);
+  const [isStandaloneMode, setIsStandaloneMode] = useState(false);
+  const [dismissCount, setDismissCount] = useState(0);
 
-  const bipTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const showTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bipHandlerRef = useRef<((e: Event) => void) | null>(null);
   const doneRef = useRef(false);
+
+  const checkAndUpdateStandalone = useCallback(() => {
+    const standalone = isStandalone();
+    setIsStandaloneMode(standalone);
+    return standalone;
+  }, []);
 
   useEffect(() => {
     setMounted(true);
-
-    localStorage.removeItem("ndjourney-install-dismissed");
-    localStorage.removeItem("ndjourney-install-acknowledged");
-  }, []);
-
-  const checkStandalone = useCallback((): boolean => {
-    if (typeof window === "undefined") return false;
-    return (
-      window.matchMedia("(display-mode: standalone)").matches ||
-      (window.navigator as { standalone?: boolean }).standalone === true
-    );
+    setIsStandaloneMode(isStandalone());
+    setDismissCount(getDismissCount());
   }, []);
 
   useEffect(() => {
     if (doneRef.current) return;
 
-    if (checkStandalone()) {
+    if (checkAndUpdateStandalone()) {
       setInstalled(true);
       setInstallMethod("installed");
       doneRef.current = true;
       return;
     }
 
-    const { browser, platform } = detectBrowser();
-    const method = getInstallMethod(browser, platform);
+    const platform = detectPlatform();
+    const browser = detectBrowser();
+
+    const supportsBeforeInstallPrompt =
+      "onbeforeinstallprompt" in window &&
+      (browser === "chrome" ||
+        browser === "edge" ||
+        browser === "opera" ||
+        browser === "samsung");
+
+    const method = getInstallMethod(browser, platform, supportsBeforeInstallPrompt);
     setInstallMethod(method);
 
     const visits = parseInt(localStorage.getItem(VISIT_KEY) || "0", 10);
     localStorage.setItem(VISIT_KEY, String(visits + 1));
 
-    if (visits < MIN_VISITS - 1) {
+    if (!shouldShowPrompt(method, dismissCount)) {
       doneRef.current = true;
       return;
     }
 
-    if (method === "beforeinstallprompt") {
+    if (method === "beforeinstallprompt" && supportsBeforeInstallPrompt) {
       const handler = (e: Event) => {
         e.preventDefault();
         setDeferredPrompt(e as BeforeInstallPromptEvent);
-        setBipReceived(true);
-        if (bipTimeoutRef.current) {
-          clearTimeout(bipTimeoutRef.current);
-          bipTimeoutRef.current = null;
-        }
-        showTimeoutRef.current = setTimeout(() => {
-          setShowPrompt(true);
-          doneRef.current = true;
-        }, SHOW_DELAY_MS);
+        setHasBeforeInstallPrompt(true);
+        setShowPrompt(true);
+        doneRef.current = true;
       };
 
+      bipHandlerRef.current = handler;
       window.addEventListener("beforeinstallprompt", handler);
 
-      bipTimeoutRef.current = setTimeout(() => {
-        if (!bipReceived) {
-          setInstallMethod("manual");
-          showTimeoutRef.current = setTimeout(() => {
-            setShowPrompt(true);
-            doneRef.current = true;
-          }, SHOW_DELAY_MS);
-        }
-      }, BIP_TIMEOUT_MS);
-
       return () => {
-        window.removeEventListener("beforeinstallprompt", handler);
-        if (bipTimeoutRef.current) clearTimeout(bipTimeoutRef.current);
-        if (showTimeoutRef.current) clearTimeout(showTimeoutRef.current);
+        if (bipHandlerRef.current) {
+          window.removeEventListener("beforeinstallprompt", bipHandlerRef.current);
+          bipHandlerRef.current = null;
+        }
       };
     }
 
-    showTimeoutRef.current = setTimeout(() => {
-      setShowPrompt(true);
-      doneRef.current = true;
-    }, SHOW_DELAY_MS);
+    setShowPrompt(true);
+    doneRef.current = true;
 
-    return () => {
-      if (showTimeoutRef.current) clearTimeout(showTimeoutRef.current);
-    };
-  }, [checkStandalone, bipReceived]);
+    return () => {};
+  }, [checkAndUpdateStandalone, dismissCount]);
 
   useEffect(() => {
     const handleAppInstalled = () => {
@@ -218,10 +251,10 @@ export default function InstallPrompt() {
       setInstallMethod("installed");
       setShowPrompt(false);
       setDeferredPrompt(null);
+      resetDismissCount();
     };
     window.addEventListener("appinstalled", handleAppInstalled);
-    return () =>
-      window.removeEventListener("appinstalled", handleAppInstalled);
+    return () => window.removeEventListener("appinstalled", handleAppInstalled);
   }, []);
 
   const handleInstall = useCallback(async () => {
@@ -241,6 +274,8 @@ export default function InstallPrompt() {
   }, [deferredPrompt]);
 
   const handleDismiss = useCallback(() => {
+    incrementDismissCount();
+    setDismissCount(getDismissCount());
     setShowPrompt(false);
   }, []);
 
@@ -248,7 +283,8 @@ export default function InstallPrompt() {
     setShowPrompt(false);
   }, []);
 
-  if (!mounted || installed || !showPrompt) return null;
+  if (!mounted || installed || isStandaloneMode || !showPrompt) return null;
+  if (!shouldShowPrompt(installMethod, dismissCount)) return null;
 
   return (
     <AnimatePresence>
@@ -260,6 +296,8 @@ export default function InstallPrompt() {
           onDismiss={handleDismiss}
           onAcknowledge={handleAcknowledge}
           hasDeferredPrompt={!!deferredPrompt}
+          platform={detectPlatform()}
+          browser={detectBrowser()}
         />
       )}
     </AnimatePresence>
@@ -272,14 +310,18 @@ function InstallPromptContent({
   onDismiss,
   onAcknowledge,
   hasDeferredPrompt,
+  platform,
+  browser,
 }: {
   method: InstallMethod;
   onInstall: () => void;
   onDismiss: () => void;
   onAcknowledge: () => void;
   hasDeferredPrompt: boolean;
+  platform: PlatformType;
+  browser: BrowserType;
 }) {
-  const content = getPromptContent(method);
+  const content = getPromptContent(method, platform, browser, hasDeferredPrompt);
 
   return (
     <motion.div
@@ -342,7 +384,12 @@ function InstallPromptContent({
   );
 }
 
-function getPromptContent(method: InstallMethod): {
+function getPromptContent(
+  method: InstallMethod,
+  platform: PlatformType,
+  browser: BrowserType,
+  hasDeferredPrompt: boolean,
+): {
   icon: React.ReactNode;
   title: string;
   description: string;
@@ -350,13 +397,17 @@ function getPromptContent(method: InstallMethod): {
   dismissLabel: string;
   illustration?: React.ReactNode;
 } {
+  const isMobile = platform === "android" || platform === "ios" || platform === "ipados";
+  const isDesktop = platform === "windows" || platform === "macos" || platform === "linux";
+
   switch (method) {
     case "beforeinstallprompt":
       return {
         icon: <Heart className="h-5 w-5 fill-primary text-primary" />,
-        title: "Install ndjourney",
-        description:
-          "Pasang aplikasi untuk akses cepat ke cerita cinta kalian",
+        title: isMobile ? "Pasang ndjourney" : "Install ndjourney",
+        description: isMobile
+          ? "Pasang aplikasi untuk akses cepat ke cerita cinta kalian"
+          : "Install aplikasi untuk akses cepat dan penggunaan offline",
         primaryLabel: "Install",
         dismissLabel: "Nanti",
       };
@@ -364,20 +415,31 @@ function getPromptContent(method: InstallMethod): {
     case "ios-add-to-home-screen":
       return {
         icon: <Share2 className="h-5 w-5 fill-primary text-primary" />,
-        title: "Install ndjourney",
+        title: "Pasang ndjourney di iPhone",
         description:
-          "Tekan tombol Share di Safari, lalu pilih \"Add to Home Screen\".",
+          "Tekan tombol Share (📤) di Safari, gulir ke bawah, lalu pilih \"Tambah ke Layar Utama\".",
         primaryLabel: "Saya mengerti",
         dismissLabel: "Tutup",
-        illustration: <IosShareGuide />,
+        illustration: <IosShareGuide device="iPhone" />,
+      };
+
+    case "ipados-add-to-home-screen":
+      return {
+        icon: <Share2 className="h-5 w-5 fill-primary text-primary" />,
+        title: "Pasang ndjourney di iPad",
+        description:
+          "Tekan tombol Share (📤) di Safari, lalu pilih \"Tambah ke Layar Utama\". Di iPadOS juga bisa via menu ⋮ > \"Tambah ke Layar Utama\".",
+        primaryLabel: "Saya mengerti",
+        dismissLabel: "Tutup",
+        illustration: <IosShareGuide device="iPad" />,
       };
 
     case "firefox-android":
       return {
         icon: <Smartphone className="h-5 w-5 text-primary" />,
-        title: "Install ndjourney",
+        title: "Pasang ndjourney di Firefox Android",
         description:
-          "Buka menu (⋮) di Firefox, lalu pilih \"Install\" atau \"Add to Home Screen\".",
+          "Buka menu (⋮) di Firefox, pilih \"Pasang\" atau \"Tambah ke Layar Utama\".",
         primaryLabel: "Saya mengerti",
         dismissLabel: "Tutup",
       };
@@ -385,29 +447,70 @@ function getPromptContent(method: InstallMethod): {
     case "safari-desktop":
       return {
         icon: <Monitor className="h-5 w-5 text-primary" />,
-        title: "Install ndjourney",
+        title: "Gunakan Chrome atau Edge",
         description:
-          "Safari desktop belum mendukung install aplikasi. Buka dengan Chrome atau Edge untuk bisa menginstall.",
+          "Safari di macOS belum mendukung instalasi PWA. Buka situs ini di Chrome atau Edge untuk memasang aplikasi.",
         primaryLabel: "Saya mengerti",
         dismissLabel: "Tutup",
       };
 
     case "firefox-desktop":
       return {
-        icon: <Monitor className="h-5 w-5 text-primary" />,
-        title: "Install ndjourney",
+        icon: <Globe className="h-5 w-5 text-primary" />,
+        title: "Gunakan Chrome atau Edge",
         description:
-          "Firefox desktop belum mendukung install aplikasi. Buka dengan Chrome atau Edge untuk bisa menginstall.",
+          "Firefox desktop tidak mendukung instalasi PWA. Buka di Chrome atau Edge untuk memasang.",
+        primaryLabel: "Saya mengerti",
+        dismissLabel: "Tutup",
+      };
+
+    case "chrome-desktop":
+      return {
+        icon: <Monitor className="h-5 w-5 text-primary" />,
+        title: "Install ndjourney di Chrome",
+        description:
+          "Klik ikon install di address bar, atau menu -> \"Install ndjourney\".",
+        primaryLabel: "Saya mengerti",
+        dismissLabel: "Tutup",
+      };
+
+    case "edge-desktop":
+      return {
+        icon: <Globe className="h-5 w-5 text-primary" />,
+        title: "Install ndjourney di Edge",
+        description:
+          "Klik ikon install di address bar, atau menu -> Apps -> \"Install ndjourney\".",
         primaryLabel: "Saya mengerti",
         dismissLabel: "Tutup",
       };
 
     case "manual":
+      const isIpadDevice = platform === "ipados";
+      if (isAndroid()) {
+        return {
+          icon: <Download className="h-5 w-5 text-primary" />,
+          title: "Pasang ndjourney",
+          description:
+            "Buka menu browser (⋮) > \"Install app\" atau \"Tambah ke Layar Utama\". Di Chrome: ikon Install di address bar.",
+          primaryLabel: "Saya mengerti",
+          dismissLabel: "Tutup",
+        };
+      }
+      if (isIOS()) {
+        return {
+          icon: <Share2 className="h-5 w-5 fill-primary text-primary" />,
+          title: "Pasang ndjourney",
+          description:
+            "Tekan Share (📤) di Safari > \"Tambah ke Layar Utama\".",
+          primaryLabel: "Saya mengerti",
+          dismissLabel: "Tutup",
+        };
+      }
       return {
         icon: <Download className="h-5 w-5 text-primary" />,
         title: "Install ndjourney",
         description:
-          "Klik ikon Install di address bar browser kamu, atau buka menu browser lalu pilih \"Install ndjourney\".",
+          "Klik ikon Install di address bar, atau buka menu browser > \"Install\".",
         primaryLabel: "Saya mengerti",
         dismissLabel: "Tutup",
       };
@@ -423,7 +526,9 @@ function getPromptContent(method: InstallMethod): {
   }
 }
 
-function IosShareGuide() {
+function IosShareGuide({ device }: { device: "iPhone" | "iPad" }) {
+  const isIpad = device === "iPad";
+
   return (
     <div className="flex items-center justify-center gap-3 rounded-lg border border-border bg-muted/50 p-3">
       <div className="flex flex-col items-center gap-1">
@@ -479,7 +584,9 @@ function IosShareGuide() {
             <path d="M4 16h16" />
           </svg>
         </div>
-        <span className="text-[10px] text-muted-foreground">Add</span>
+        <span className="text-[10px] text-muted-foreground">
+          {isIpad ? "Add to Home Screen" : "Tambah ke Layar Utama"}
+        </span>
       </div>
     </div>
   );

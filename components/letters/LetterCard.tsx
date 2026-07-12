@@ -7,6 +7,7 @@ import { cn, formatDateTime } from "@/lib/utils";
 import { formatInJakarta } from "@/lib/date";
 import { LETTER_MOOD_CONFIG } from "@/types";
 import type { LetterWithUsers } from "@/hooks/useLetters";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui";
 
 type LetterCardProps = {
   letter: LetterWithUsers;
@@ -37,12 +38,10 @@ function LetterCard({ letter, type, index = 0, baseHref = "/dashboard/letters" }
         href={`${baseHref}/${letter.id}`}
         className="flex w-full items-start gap-4"
       >
-        <div
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg"
-          style={{ backgroundColor: mood.color + "20" }}
-        >
-          {isLocked ? "🔒" : mood.emoji}
-        </div>
+        <Avatar className="h-10 w-10 shrink-0">
+          <AvatarImage src={person.image ?? undefined} alt={person.name ?? "Person"} />
+          <AvatarFallback>{person.name?.charAt(0) || "P"}</AvatarFallback>
+        </Avatar>
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">

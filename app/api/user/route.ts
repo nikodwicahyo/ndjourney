@@ -3,6 +3,8 @@ import { redis } from "@/lib/redis";
 import { NextResponse } from "next/server";
 import { updateUserSchema } from "@/lib/validations/user";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
+import { clearUserCache, invalidateUserCache } from "@/lib/batch";
+import { invalidateCache } from "@/lib/redis";
 
 export async function PUT(request: Request) {
   try {
@@ -50,6 +52,22 @@ export async function PUT(request: Request) {
       for (const s of userSessions) {
         await redis.del(`cache:session:${s.sessionToken}`);
       }
+    }
+
+    // Clear in-memory user cache so subsequent batchLoadUsers calls get fresh data
+    await invalidateUserCache(session.user.id);
+    clearUserCache();
+
+    // Invalidate Redis caches that may contain user data (notes, letters, photos, etc.)
+    if (redis) {
+      await invalidateCache("notes:*");
+      await invalidateCache("letters:*");
+      await invalidateCache("photos:*");
+      await invalidateCache("milestones:*");
+      await invalidateCache("wishes:*");
+      await invalidateCache("games:*");
+      await invalidateCache("dashboard:*");
+      await invalidateCache("partner:*");
     }
 
     return NextResponse.json({ data: updated });

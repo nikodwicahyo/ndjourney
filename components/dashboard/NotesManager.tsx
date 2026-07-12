@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { useDailyNotes, useCreateNote, useDeleteNote } from "@/hooks/useNotes";
-import { Button, Skeleton } from "@/components/ui";
+import { Button, Skeleton, Avatar, AvatarImage, AvatarFallback } from "@/components/ui";
 import { Send, Heart, MessageCircle, Calendar, List, Loader2, Trash2 } from "lucide-react";
 import { formatDate, formatRelativeTime } from "@/lib/utils";
 import { getJakartaToday } from "@/lib/date";
@@ -165,9 +165,10 @@ export default function NotesManager() {
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-2">
-                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary">
-                        {note.author.name?.charAt(0) || "P"}
-                      </div>
+                      <Avatar className="h-7 w-7">
+                        <AvatarImage src={note.author.image ?? undefined} alt={note.author.name ?? "Author"} />
+                        <AvatarFallback>{note.author.name?.charAt(0) || "P"}</AvatarFallback>
+                      </Avatar>
                       <span className="text-sm font-medium">
                         {note.author.name || "Pasangan"}
                       </span>

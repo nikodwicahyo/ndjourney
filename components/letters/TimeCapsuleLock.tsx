@@ -4,11 +4,13 @@ import { motion } from "framer-motion";
 import { Lock, Clock, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { formatInJakarta } from "@/lib/date";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui";
 
 type TimeCapsuleLockProps = {
   unlockAt: string | Date;
   title?: string;
   senderName?: string;
+  senderImage?: string | null;
   backHref?: string;
 };
 
@@ -16,6 +18,7 @@ export default function TimeCapsuleLock({
   unlockAt,
   title,
   senderName,
+  senderImage,
   backHref = "/dashboard/letters",
 }: TimeCapsuleLockProps) {
   const unlockDate = new Date(unlockAt);
@@ -56,9 +59,13 @@ export default function TimeCapsuleLock({
         )}
 
         {senderName && (
-          <p className="mt-1 text-xs text-muted-foreground">
-            Dari {senderName}
-          </p>
+          <div className="mt-2 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+            <Avatar className="h-5 w-5">
+              <AvatarImage src={senderImage ?? undefined} alt={senderName ?? "Sender"} />
+              <AvatarFallback>{senderName?.charAt(0) || "P"}</AvatarFallback>
+            </Avatar>
+            <span>Dari {senderName}</span>
+          </div>
         )}
 
         <div className="mt-6 space-y-2">

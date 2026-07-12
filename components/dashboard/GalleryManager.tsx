@@ -18,7 +18,7 @@ const Lightbox = dynamic(() => import("../gallery/Lightbox"), {
   ssr: false,
 });
 
-const MAX_FILES = 30;
+const MAX_FILES = 50;
 const MAX_SIZE_MB = 200;
 const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
 

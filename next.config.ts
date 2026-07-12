@@ -1,6 +1,6 @@
 import type { NextConfig } from "next";
 
-let config: NextConfig = {
+const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
       {
@@ -97,12 +97,4 @@ let config: NextConfig = {
   output: "standalone",
 };
 
-if (process.env.ANALYZE === "true") {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const withBundleAnalyzer = require("@next/bundle-analyzer")({
-    enabled: true,
-  });
-  config = withBundleAnalyzer(config);
-}
-
-export default config;
+export default nextConfig;

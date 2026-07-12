@@ -1,16 +1,16 @@
 {
   "name": "NDjourney — Niko & Dzikria",
   "short_name": "ndjourney",
-  "description": "Tempat semua cerita kita tersimpan selamanya.",
-  "start_url": "/?source=pwa",
+  "description": "Tempat cerita cinta Niko & Dzikria. Simpan kenangan, hitung hari bersama, dan mainkan game seru.",
+  "start_url": "/",
   "display": "standalone",
   "display_override": [
     "window-controls-overlay",
     "standalone",
     "minimal-ui"
   ],
-  "background_color": "#FFF1F2",
-  "theme_color": "#F43F5E",
+  "background_color": "#fffaf0",
+  "theme_color": "#e87d9f",
   "orientation": "portrait-primary",
   "scope": "/",
   "launch_handler": {
@@ -20,15 +20,15 @@
   "edge_side_panel": {
     "preferred_width": 400
   },
-  "categories": ["lifestyle", "social", "dating"],
-  "lang": "id-ID",
+  "categories": ["lifestyle", "social", "entertainment"],
+  "lang": "id",
   "dir": "ltr",
   "icons": [
     {
       "src": "/icons/icon-48x48.png",
       "sizes": "48x48",
       "type": "image/png",
-      "purpose": "any"
+      "purpose": "any maskable"
     },
     {
       "src": "/icons/icon-72x72.png",
@@ -85,45 +85,48 @@
       "purpose": "any maskable"
     }
   ],
+  "screenshots": [
+    {
+      "src": "/screenshots/home-wide.svg",
+      "sizes": "1280x720",
+      "type": "image/svg+xml",
+      "form_factor": "wide",
+      "label": "Halaman utama ndjourney"
+    },
+    {
+      "src": "/screenshots/home-narrow.svg",
+      "sizes": "750x1334",
+      "type": "image/svg+xml",
+      "form_factor": "narrow",
+      "label": "Halaman utama di mobile"
+    }
+  ],
   "shortcuts": [
     {
-      "name": "Kirim Surat Cinta",
-      "short_name": "Surat",
-      "description": "Tulis surat cinta untuk pasangan",
-      "url": "/letters/new?source=pwa_shortcut",
-      "icons": [
-        {
-          "src": "/icons/icon-96x96.png",
-          "sizes": "96x96",
-          "type": "image/png"
-        }
-      ]
+      "name": "Cerita Kita",
+      "short_name": "Cerita",
+      "description": "Buka cerita cinta kalian",
+      "url": "/dashboard?tab=story",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
     },
     {
-      "name": "Momen Spesial",
-      "short_name": "Momen",
-      "description": "Lihat momen-momen spesial",
-      "url": "/moments?source=pwa_shortcut",
-      "icons": [
-        {
-          "src": "/icons/icon-96x96.png",
-          "sizes": "96x96",
-          "type": "image/png"
-        }
-      ]
+      "name": "Hari Bersama",
+      "short_name": "Hitung",
+      "description": "Lihat berapa hari sudah bersama",
+      "url": "/dashboard?tab=countdown",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
     },
     {
-      "name": "Love Quiz",
-      "short_name": "Kuis",
-      "description": "Mainkan kuis interaktif",
-      "url": "/games?source=pwa_shortcut",
-      "icons": [
-        {
-          "src": "/icons/icon-96x96.png",
-          "sizes": "96x96",
-          "type": "image/png"
-        }
-      ]
+      "name": "Game",
+      "short_name": "Game",
+      "description": "Main game seru bareng pasangan",
+      "url": "/dashboard?tab=games",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
     }
-  ]
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false,
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  }
 }

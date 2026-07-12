@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRecentActivity } from "@/hooks/useDashboard";
-import { Skeleton } from "@/components/ui";
+import { Skeleton, Avatar, AvatarImage, AvatarFallback } from "@/components/ui";
 import { motion } from "framer-motion";
 import { Image, Mail, Flag, Heart, History } from "lucide-react";
 import { formatRelativeTime } from "@/lib/utils";
@@ -82,6 +82,10 @@ export default function RecentActivity() {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm">{item.description}</p>
                 <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Avatar className="h-5 w-5 shrink-0">
+                    <AvatarImage src={item.user.image ?? undefined} alt={item.user.name ?? "User"} />
+                    <AvatarFallback>{item.user.name?.charAt(0) || "P"}</AvatarFallback>
+                  </Avatar>
                   <span>{item.user.name || "Pasangan"}</span>
                   <span>·</span>
                   <span>{formatRelativeTime(item.createdAt)}</span>

@@ -130,7 +130,7 @@ async function getNotesSummary() {
   try {
     const cached = await getCached<{
       noteCount: number;
-      latestNote: { content: string; authorName: string } | null;
+      latestNote: { content: string; authorName: string; authorImage: string | null } | null;
     } | null>(cacheKey("home", "notes"));
     if (cached) return cached;
 
@@ -141,14 +141,14 @@ async function getNotesSummary() {
       prisma.dailyNote.findMany({
         orderBy: { createdAt: "desc" },
         take: 1,
-        select: { content: true, author: { select: { name: true } } },
+        select: { content: true, author: { select: { name: true, image: true } } },
       }),
     ]);
 
     const result = {
       noteCount: Number(countResult[0]?.count ?? 0),
       latestNote: notes[0]
-        ? { content: notes[0].content, authorName: notes[0].author.name ?? "Pasangan" }
+        ? { content: notes[0].content, authorName: notes[0].author.name ?? "Pasangan", authorImage: notes[0].author.image ?? null }
         : null,
     };
 

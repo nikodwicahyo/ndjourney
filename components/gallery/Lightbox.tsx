@@ -59,18 +59,16 @@ export default function Lightbox({
 
   const handlePrev = useCallback(() => {
     if (isVideoRef.current) dispatchBgEvent("resume");
-    if (currentIndex > 0) {
-      setLoaded(false);
-      onNavigate(currentIndex - 1);
-    }
-  }, [currentIndex, onNavigate]);
+    const prevIndex = currentIndex === 0 ? photos.length - 1 : currentIndex - 1;
+    setLoaded(false);
+    onNavigate(prevIndex);
+  }, [currentIndex, photos.length, onNavigate]);
 
   const handleNext = useCallback(() => {
     if (isVideoRef.current) dispatchBgEvent("resume");
-    if (currentIndex < photos.length - 1) {
-      setLoaded(false);
-      onNavigate(currentIndex + 1);
-    }
+    const nextIndex = currentIndex === photos.length - 1 ? 0 : currentIndex + 1;
+    setLoaded(false);
+    onNavigate(nextIndex);
   }, [currentIndex, photos.length, onNavigate]);
 
   const handleClose = useCallback(() => {
@@ -201,20 +199,18 @@ export default function Lightbox({
 
         <div className="flex flex-1 overflow-hidden">
           {/* Left backdrop — click prev */}
-          {!isFirst && (
-            <div
-              onClick={handlePrev}
-              className="flex cursor-pointer items-center justify-start pl-1 sm:pl-2"
-              style={{ flex: "1 1 0" }}
+          <div
+            onClick={handlePrev}
+            className="flex cursor-pointer items-center justify-start pl-1 sm:pl-2"
+            style={{ flex: "1 1 0" }}
+          >
+            <button
+              className="rounded-full bg-black/40 p-1.5 text-white/80 transition-colors hover:bg-black/60 hover:text-white sm:p-2"
+              aria-label="Previous"
             >
-              <button
-                className="rounded-full bg-black/40 p-1.5 text-white/80 transition-colors hover:bg-black/60 hover:text-white sm:p-2"
-                aria-label="Previous"
-              >
-                <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />
-              </button>
-            </div>
-          )}
+              <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />
+            </button>
+          </div>
 
           {/* Media container */}
           <div className="flex shrink-0 items-center justify-center" style={{ maxWidth: "85%" }}>
@@ -254,20 +250,18 @@ export default function Lightbox({
           </div>
 
           {/* Right backdrop — click next */}
-          {!isLast && (
-            <div
-              onClick={handleNext}
-              className="flex cursor-pointer items-center justify-end pr-1 sm:pr-2"
-              style={{ flex: "1 1 0" }}
+          <div
+            onClick={handleNext}
+            className="flex cursor-pointer items-center justify-end pr-1 sm:pr-2"
+            style={{ flex: "1 1 0" }}
+          >
+            <button
+              className="rounded-full bg-black/40 p-1.5 text-white/80 transition-colors hover:bg-black/60 hover:text-white sm:p-2"
+              aria-label="Next"
             >
-              <button
-                className="rounded-full bg-black/40 p-1.5 text-white/80 transition-colors hover:bg-black/60 hover:text-white sm:p-2"
-                aria-label="Next"
-              >
-                <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />
-              </button>
-            </div>
-          )}
+              <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center justify-between px-6 py-4">

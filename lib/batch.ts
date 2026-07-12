@@ -19,6 +19,10 @@ export function clearUserCache() {
   userCache.clear();
 }
 
+export async function invalidateUserCache(userId: string) {
+  userCache.delete(userId);
+}
+
 export async function batchLoadUsers(ids: (string | null | undefined)[]): Promise<Map<string, UserBasic>> {
   const uniqueIds = [...new Set(ids.filter(Boolean))] as string[];
   if (uniqueIds.length === 0) return new Map();

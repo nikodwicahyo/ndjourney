@@ -1,13 +1,12 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import PublicWishList from "@/components/wishlist/PublicWishList";
-import PageTransition from "@/components/PageTransition";
 
 export const metadata: Metadata = { title: "Wishlist" };
 
 export default async function WishlistPage() {
   return (
-    <PageTransition>
+    <>
       <div className="mb-8">
         <h1 className="font-heading text-3xl">Wish List 🎯</h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -26,6 +25,6 @@ export default async function WishlistPage() {
       >
         <PublicWishList />
       </Suspense>
-    </PageTransition>
+    </>
   );
 }

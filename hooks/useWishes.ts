@@ -11,7 +11,14 @@ export function useWishes() {
     queryKey: wishKeys.list(),
     queryFn: async () => {
       const res = await fetch("/api/wishes");
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error || "Gagal memuat wish list");
+      }
       const json = await res.json();
+      if (!Array.isArray(json.data) && json.data !== undefined) {
+        throw new Error("Invalid response format");
+      }
       return json.data as WishItem[];
     },
     staleTime: 30_000,

@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer";
 
-const FROM_EMAIL = process.env.SMTP_FROM_EMAIL || "noreply@couple.com";
+const FROM_NAME = process.env.SMTP_FROM_NAME || "ND Journey";
+const FROM_EMAIL = `"${FROM_NAME}" <${process.env.SMTP_FROM_EMAIL || "noreply@couple.com"}>`;
 
 type SendEmailParams = {
   to: string;

@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { updateQuestionSchema } from "@/lib/validations/game";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { invalidateCache } from "@/lib/redis";
+import { getUserCoupleId } from "@/lib/couple";
+import { triggerCoupleEvent } from "@/lib/pusher-server";
 
 export async function PUT(
   request: Request,
@@ -42,6 +44,11 @@ export async function PUT(
 
     await invalidateCache("games:*");
 
+    const coupleId = await getUserCoupleId(rateCheck.session.user.id);
+    if (coupleId) {
+      triggerCoupleEvent(coupleId, 'GAMES');
+    }
+
     return NextResponse.json({ data: question });
   } catch (error) {
     console.error("Error updating question:", error);
@@ -67,6 +74,11 @@ export async function DELETE(
     await prisma.gameQuestion.delete({ where: { id } });
 
     await invalidateCache("games:*");
+
+    const coupleId = await getUserCoupleId(rateCheck.session.user.id);
+    if (coupleId) {
+      triggerCoupleEvent(coupleId, 'GAMES');
+    }
 
     return NextResponse.json({ message: "Question deleted" });
   } catch (error) {

@@ -26,12 +26,17 @@ export function useRealtimeSync(coupleId: string | undefined) {
           queryClient.invalidateQueries({ queryKey: queryKeys.albums.all });
           queryClient.invalidateQueries({ queryKey: queryKeys.storage.usage() });
           queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.stats() });
+          queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.activity() });
           break;
         case 'TIMELINE':
           queryClient.invalidateQueries({ queryKey: queryKeys.milestones.all });
+          queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.stats() });
+          queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.activity() });
           break;
         case 'LETTERS':
           queryClient.invalidateQueries({ queryKey: queryKeys.letters.all });
+          queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.stats() });
+          queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.activity() });
           break;
         case 'DAILY_NOTES':
           queryClient.invalidateQueries({ queryKey: queryKeys.notes.all });
@@ -39,12 +44,18 @@ export function useRealtimeSync(coupleId: string | undefined) {
         case 'WISHLIST':
           queryClient.invalidateQueries({ queryKey: queryKeys.wishes.all });
           break;
+        case 'GAMES':
+          queryClient.invalidateQueries({ queryKey: queryKeys.games.all });
+          queryClient.invalidateQueries({ queryKey: queryKeys.games.leaderboard() });
+          break;
         case 'DASHBOARD':
           queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.stats() });
           queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.activity() });
           queryClient.invalidateQueries({ queryKey: queryKeys.storage.usage() });
           queryClient.invalidateQueries({ queryKey: queryKeys.couple.all });
           queryClient.invalidateQueries({ queryKey: queryKeys.partner.all() });
+          break;
+        default:
           break;
       }
     });

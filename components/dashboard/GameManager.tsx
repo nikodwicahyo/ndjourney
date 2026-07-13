@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { showDeleteConfirm } from "@/lib/swal";
 import { formatInJakarta } from "@/lib/date";
+import { queryKeys } from "@/lib/query-keys";
 import type { GameType } from "@/types";
 
 const GAME_TYPES: { value: GameType; label: string; icon: typeof Shuffle }[] = [
@@ -43,7 +44,7 @@ export default function GameManager() {
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
 
   const { data: allQuestions, isLoading } = useQuery({
-    queryKey: ["games", "questions", "all", sortOrder],
+    queryKey: ["games", "questions", "all", sortOrder] as const,
     queryFn: async () => {
       const res = await fetch(`/api/games/questions?limit=2000&sort=${sortOrder}`, {
         cache: "no-cache",
@@ -87,8 +88,8 @@ export default function GameManager() {
       return json.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["games", "questions"], refetchType: "all" });
-      toast.success("Pertanyaan ditambahkan! 🎯");
+      qc.invalidateQueries({ queryKey: queryKeys.games.all });
+      toast.success("Pertanyaan ditambahkan!");
       setQuestion("");
       setOptionA("");
       setOptionB("");
@@ -106,7 +107,7 @@ export default function GameManager() {
       if (!res.ok) throw new Error("Gagal menghapus pertanyaan");
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["games", "questions"], refetchType: "all" });
+      qc.invalidateQueries({ queryKey: queryKeys.games.all });
       toast.success("Pertanyaan dihapus");
     },
     onError: () => toast.error("Gagal menghapus pertanyaan"),
@@ -137,8 +138,8 @@ export default function GameManager() {
       return json.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["games", "questions"], refetchType: "all" });
-      toast.success("Pertanyaan diubah! ✏️");
+      qc.invalidateQueries({ queryKey: queryKeys.games.all });
+      toast.success("Pertanyaan diubah!");
       setQuestion("");
       setOptionA("");
       setOptionB("");

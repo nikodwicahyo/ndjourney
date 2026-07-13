@@ -4,6 +4,8 @@ import { submitScoreSchema } from "@/lib/validations/game";
 import { withRateLimit, withAnonymousRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { invalidateCache } from "@/lib/redis";
 import { auth } from "@/lib/auth";
+import { getUserCoupleId } from "@/lib/couple";
+import { triggerCoupleEvent } from "@/lib/pusher-server";
 
 export async function POST(request: Request) {
   try {
@@ -70,6 +72,13 @@ export async function POST(request: Request) {
     });
 
     await invalidateCache("games:*");
+
+    if (isAuthed) {
+      const coupleId = await getUserCoupleId(session!.user.id);
+      if (coupleId) {
+        triggerCoupleEvent(coupleId, 'GAMES');
+      }
+    }
 
     return NextResponse.json({ data: score }, { status: 201 });
   } catch (error) {

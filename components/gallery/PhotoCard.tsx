@@ -119,10 +119,10 @@ export default function PhotoCard({
       {selectable && (
         <div
           className={cn(
-            "absolute top-3 left-3 z-10 rounded-full p-1 transition-all",
+            "absolute top-3 left-3 z-10 rounded-full p-1 backdrop-blur-sm transition-all duration-200",
             isSelected
-              ? "bg-primary text-primary-foreground"
-              : "bg-black/40 text-white opacity-0 group-hover:opacity-100",
+              ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20 ring-2 ring-primary/30"
+              : "bg-black/40 text-white/80 hover:bg-black/60 hover:text-white hover:scale-110",
           )}
         >
           <CheckCircle className={cn("h-5 w-5", isSelected && "fill-current")} />
@@ -154,10 +154,10 @@ export default function PhotoCard({
           onFavoriteToggle?.(photo.id, !photo.isFavorite);
         }}
         className={cn(
-          "absolute top-3 right-3 rounded-full p-1.5 transition-all",
+          "absolute top-3 right-3 rounded-full p-1.5 backdrop-blur-sm transition-all duration-200",
           photo.isFavorite
-            ? "bg-primary/20 text-primary"
-            : "bg-black/20 text-white opacity-0 group-hover:opacity-100",
+            ? "bg-primary/25 text-primary shadow-sm shadow-primary/10"
+            : "bg-black/30 text-white/70 hover:bg-black/50 hover:text-white hover:scale-110",
         )}
         aria-label={photo.isFavorite ? "Remove from favorites" : "Add to favorites"}
       >

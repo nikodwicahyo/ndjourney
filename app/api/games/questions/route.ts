@@ -4,6 +4,8 @@ import { createQuestionSchema } from "@/lib/validations/game";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { getCached, setCached, invalidateCache, cacheKey } from "@/lib/redis";
 import { auth } from "@/lib/auth";
+import { getUserCoupleId } from "@/lib/couple";
+import { triggerCoupleEvent } from "@/lib/pusher-server";
 
 const CACHE_TTL = 600;
 
@@ -150,6 +152,11 @@ export async function POST(request: Request) {
     });
 
     await invalidateCache("games:*");
+
+    const coupleId = await getUserCoupleId(rateCheck.session.user.id);
+    if (coupleId) {
+      triggerCoupleEvent(coupleId, 'GAMES');
+    }
 
     return NextResponse.json({ data: question }, { status: 201 });
   } catch (error) {

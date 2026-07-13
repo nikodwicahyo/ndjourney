@@ -7,7 +7,7 @@ import { useStorageUsage } from "@/hooks/useStorage";
 import AlbumManager from "./AlbumManager";
 import { Button, StorageUsageBar } from "@/components/ui";
 import UploadItem from "./UploadItem";
-import { Upload, ImagePlus, Loader2, ChevronDown, FileWarning, Image as ImageIcon, Video, ArrowUpDown, Trash2, CheckSquare } from "lucide-react";
+import { Upload, ImagePlus, Loader2, ChevronDown, FileWarning, Image as ImageIcon, Video, ArrowUpDown, Trash2, CheckSquare, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { showDeleteConfirm } from "@/lib/swal";
 import dynamic from "next/dynamic";
@@ -50,7 +50,8 @@ export default function GalleryManager() {
   const [mediaType, setMediaType] = useState<string | undefined>();
   const [sort, setSort] = useState<string | undefined>();
   const [albumFilter, setAlbumFilter] = useState<string | undefined>();
-  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = usePhotos({ limit: 30, mediaType, sort, albumId: albumFilter });
+  const [favoriteFilter, setFavoriteFilter] = useState(false);
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = usePhotos({ limit: 30, mediaType, sort, albumId: albumFilter, isFavorite: favoriteFilter || undefined });
   const { data: storage } = useStorageUsage();
   const uploadPhotos = useUploadPhotos();
   const deletePhoto = useDeletePhoto();
@@ -535,6 +536,18 @@ export default function GalleryManager() {
                 </button>
               ))}
             </div>
+            <button
+              onClick={() => setFavoriteFilter(!favoriteFilter)}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                favoriteFilter
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border text-muted-foreground hover:bg-accent"
+              )}
+            >
+              <Heart className={cn("h-3.5 w-3.5", favoriteFilter && "fill-primary")} />
+              Favorit
+            </button>
             {albums && albums.length > 0 && (
               <select
                 value={albumFilter ?? ""}

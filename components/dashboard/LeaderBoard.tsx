@@ -4,7 +4,8 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Skeleton, Avatar, AvatarImage, AvatarFallback } from "@/components/ui";
 import { motion } from "framer-motion";
-import { Trophy, Medal, Target, Gamepad2 } from "lucide-react";
+import { Trophy, Medal, Target, Gamepad2, Cherry, Sparkles } from "lucide-react";
+import { queryKeys } from "@/lib/query-keys";
 
 type LeaderboardEntry = {
   user: { id: string; name: string | null; image: string | null } | null;
@@ -18,13 +19,15 @@ const GAME_TABS = [
   { label: "Semua", value: null },
   { label: "Would You Rather", value: "WOULD_YOU_RATHER" },
   { label: "Love Quiz", value: "TRIVIA" },
+  { label: "Truth or Dare", value: "TRUTH_OR_DARE" },
+  { label: "Spin The Wheel", value: "SPIN_THE_WHEEL" },
 ] as const;
 
 export default function LeaderBoard() {
   const [gameType, setGameType] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["games", "leaderboard", gameType],
+    queryKey: [...queryKeys.games.leaderboard(), gameType],
     queryFn: async () => {
       try {
         const params = gameType ? `?type=${gameType}` : "";

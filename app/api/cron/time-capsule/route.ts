@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { sendEmail, timeCapsuleNotificationHtml } from "@/lib/resend";
 import { triggerCoupleEvent } from "@/lib/pusher-server";
+import { invalidateCache } from "@/lib/redis";
 
 
 export async function GET(request: Request) {
@@ -96,6 +97,9 @@ export async function GET(request: Request) {
         });
       }
     }
+
+    await invalidateCache("letters:*");
+    await invalidateCache("dashboard:*");
 
     for (const coupleId of affectedCouples) {
       triggerCoupleEvent(coupleId, 'LETTERS');

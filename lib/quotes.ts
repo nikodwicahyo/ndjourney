@@ -34,17 +34,53 @@ export const QUOTES = [
   "I love you to the moon and back.",
 ];
 
-export function getQuoteOfTheDay(date?: Date): string {
-  const d = date ?? new Date();
-  const parts = getJakartaParts(d);
-  if (parts) {
-    const period = Math.floor(parts.hour / 6);
-    const daySeed = (parts.year * 10000 + parts.month * 100 + parts.day) * 4 + period;
-    const rng = seededRandom(daySeed);
-    return QUOTES[Math.floor(rng() * QUOTES.length)];
+const LS_KEY = "quotes-shown";
+
+export function loadShownQuoteIndices(): number[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
   }
-  const period = Math.floor(d.getHours() / 6);
-  const daySeed = (d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate()) * 4 + period;
+}
+
+export function saveShownQuoteIndex(index: number) {
+  try {
+    const shown = loadShownQuoteIndices();
+    if (!shown.includes(index)) {
+      shown.push(index);
+      localStorage.setItem(LS_KEY, JSON.stringify(shown));
+    }
+  } catch {}
+}
+
+export function resetShownQuotes() {
+  try {
+    localStorage.removeItem(LS_KEY);
+  } catch {}
+}
+
+export function getQuoteOfTheDay(excludeIndices?: number[]): string {
+  const d = new Date();
+  const parts = getJakartaParts(d);
+
+  const available = excludeIndices && excludeIndices.length < QUOTES.length
+    ? QUOTES.map((_, i) => i).filter(i => !excludeIndices.includes(i))
+    : QUOTES.map((_, i) => i);
+
+  let period: number;
+  let daySeed: number;
+
+  if (parts) {
+    period = Math.floor(parts.hour / 4);
+    daySeed = (parts.year * 10000 + parts.month * 100 + parts.day) * 6 + period;
+  } else {
+    period = Math.floor(d.getHours() / 4);
+    daySeed = (d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate()) * 6 + period;
+  }
+
   const rng = seededRandom(daySeed);
-  return QUOTES[Math.floor(rng() * QUOTES.length)];
+  return QUOTES[available[Math.floor(rng() * available.length)]];
 }

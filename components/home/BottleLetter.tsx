@@ -303,6 +303,25 @@ const orbits = [
   orbitKeyframes(270),
 ];
 
+const LS_ORDER = "bottle-order";
+const LS_INDEX = "bottle-index";
+
+function loadFromLocal<T>(key: string, fallback: T): T {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveToLocal(key: string, value: unknown) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {}
+}
+
 export default function BottleLetter() {
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-40px" });
@@ -316,15 +335,31 @@ export default function BottleLetter() {
   >([]);
   const [afterglow, setAfterglow] = useState(false);
 
-  const shuffledRef = useRef(shuffle(messages));
+  const orderRef = useRef<number[]>([]);
   const indexRef = useRef(0);
+
+  useEffect(() => {
+    const saved = loadFromLocal<number[] | null>(LS_ORDER, null);
+    if (saved && saved.length === messages.length) {
+      orderRef.current = saved;
+      indexRef.current = loadFromLocal<number>(LS_INDEX, 0);
+    } else {
+      orderRef.current = shuffle(messages.map((_, i) => i));
+      indexRef.current = 0;
+    }
+    saveToLocal(LS_ORDER, orderRef.current);
+    saveToLocal(LS_INDEX, indexRef.current);
+  }, []);
 
   const nextMessage = (): string => {
     if (indexRef.current >= messages.length) {
-      shuffledRef.current = shuffle(messages);
+      orderRef.current = shuffle(messages.map((_, i) => i));
       indexRef.current = 0;
     }
-    return shuffledRef.current[indexRef.current++];
+    const idx = orderRef.current[indexRef.current++];
+    saveToLocal(LS_ORDER, orderRef.current);
+    saveToLocal(LS_INDEX, indexRef.current);
+    return messages[idx];
   };
 
   const handleOpen = () => {

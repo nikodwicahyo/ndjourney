@@ -2,34 +2,44 @@
 
 import { useRef, useState, useEffect } from "react";
 import { motion, useInView } from "framer-motion";
-import { Quote } from "lucide-react";
-import { getQuoteOfTheDay } from "@/lib/quotes";
+import { Quote, RotateCcw } from "lucide-react";
+import { getQuoteOfTheDay, QUOTES, loadShownQuoteIndices, saveShownQuoteIndex, resetShownQuotes } from "@/lib/quotes";
 import { getJakartaParts } from "@/lib/date";
 
 export default function QuoteOfTheDay() {
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-40px" });
   const [quote, setQuote] = useState<string>("");
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [shownCount, setShownCount] = useState(() => loadShownQuoteIndices().length);
 
   useEffect(() => {
     function update() {
-      setQuote(getQuoteOfTheDay());
+      const shown = loadShownQuoteIndices();
+      const q = getQuoteOfTheDay(shown);
+      setQuote(q);
+      const idx = QUOTES.indexOf(q);
+      if (idx !== -1) saveShownQuoteIndex(idx);
+      setShownCount(shown.length + (idx !== -1 && !shown.includes(idx) ? 1 : 0));
+    }
+
+    function scheduleNext() {
+      const ms = getMsUntilNextPeriod();
+      timeoutRef.current = setTimeout(() => {
+        update();
+        scheduleNext();
+      }, ms);
     }
 
     update();
-
-    const msUntilNext = getMsUntilNextPeriod();
-    const timeout = setTimeout(() => {
-      update();
-    }, msUntilNext);
-
-    const interval = setInterval(update, 6 * 60 * 60 * 1000);
+    scheduleNext();
 
     return () => {
-      clearTimeout(timeout);
-      clearInterval(interval);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
   }, []);
+
+  const allShown = shownCount >= QUOTES.length;
 
   return (
     <motion.div
@@ -37,14 +47,24 @@ export default function QuoteOfTheDay() {
       initial={{ opacity: 0, y: 20 }}
       animate={isInView ? { opacity: 1, y: 0 } : {}}
       transition={{ duration: 0.5, ease: "easeOut" }}
-      className=""
     >
       <div className="relative rounded-2xl border border-border bg-card p-6 text-center shadow-sm overflow-hidden">
         <Quote className="absolute top-4 left-4 h-8 w-8 text-primary/20" />
         <p className="font-heading text-base italic leading-relaxed text-foreground sm:text-lg md:text-xl break-words">
           &ldquo;{quote}&rdquo;
         </p>
-        <p className="mt-4 text-xs text-muted-foreground">Quote of the Day</p>
+        <div className="mt-4 flex items-center justify-center gap-3">
+          <p className="text-xs text-muted-foreground">Quote of the Day</p>
+          {allShown && (
+            <button
+              onClick={() => { resetShownQuotes(); setShownCount(0); setQuote(getQuoteOfTheDay()); }}
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <RotateCcw className="h-3 w-3" />
+              Mulai Ulang
+            </button>
+          )}
+        </div>
       </div>
     </motion.div>
   );
@@ -53,11 +73,10 @@ export default function QuoteOfTheDay() {
 function getMsUntilNextPeriod(): number {
   const now = new Date();
   const parts = getJakartaParts(now);
-  if (!parts) return 6 * 60 * 60 * 1000;
+  if (!parts) return 4 * 60 * 60 * 1000;
 
   const { year, month, day, hour } = parts;
-  const period = Math.floor(hour / 6);
-  const nextBoundaryHour = (period + 1) * 6;
+  const nextBoundaryHour = (Math.floor(hour / 4) + 1) * 4;
 
   let boundaryYear = year;
   let boundaryMonth = month;
@@ -76,5 +95,5 @@ function getMsUntilNextPeriod(): number {
 
   const boundary = Date.UTC(boundaryYear, boundaryMonth - 1, boundaryDay, boundaryHour - 7, 0, 0, 0);
   const ms = boundary - now.getTime();
-  return ms > 0 ? ms : 6 * 60 * 60 * 1000;
+  return ms > 0 ? ms : 4 * 60 * 60 * 1000;
 }

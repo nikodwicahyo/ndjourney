@@ -7,6 +7,7 @@ import { batchLoadUsers } from "@/lib/batch";
 import { jakartaStartOfDay, toJakartaMidnight } from "@/lib/date";
 import { getUserCoupleId } from "@/lib/couple";
 import { triggerCoupleEvent } from "@/lib/pusher-server";
+import { sendEmail, noteNotificationHtml } from "@/lib/resend";
 
 const CACHE_TTL = 30;
 
@@ -115,6 +116,39 @@ export async function POST(request: Request) {
     const coupleId = await getUserCoupleId(session.user.id);
     if (coupleId) {
       triggerCoupleEvent(coupleId, 'DAILY_NOTES');
+    }
+
+    // Send email notification to partner
+    if (coupleId) {
+      try {
+        const partnerMember = await prisma.coupleMember.findFirst({
+          where: { coupleId, userId: { not: session.user.id } },
+          include: { user: { select: { id: true, email: true, name: true } } },
+        });
+
+        const partner = partnerMember?.user;
+
+        if (partner?.email) {
+          const emailResult = await sendEmail({
+            to: partner.email,
+            subject: `\u{270D}\u{FE0F} Catatan Baru dari ${session.user.name || "Pasangan"}!`,
+            html: noteNotificationHtml(
+              session.user.name || "Pasangan",
+              note.content,
+              `${process.env.NEXTAUTH_URL}/notes`,
+            ),
+          });
+
+          if (emailResult?.error) {
+            console.error(
+              `Failed to send note notification to ${partner.email}:`,
+              emailResult.error,
+            );
+          }
+        }
+      } catch (error) {
+        console.error("Failed to send note email notification:", error);
+      }
     }
 
     return NextResponse.json({ data }, { status: 201 });

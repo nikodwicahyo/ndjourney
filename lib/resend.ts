@@ -63,6 +63,32 @@ export async function sendEmail({ to, subject, html }: SendEmailParams) {
   }
 }
 
+export function noteNotificationHtml(
+  senderName: string,
+  content: string,
+  url: string,
+): string {
+  const preview = content.length > 150 ? content.slice(0, 150) + "..." : content;
+  return `
+    <div style="font-family: 'Inter', sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px; background: #F0FDF4; border-radius: 16px;">
+      <div style="text-align: center; margin-bottom: 24px;">
+        <span style="font-size: 48px;">\u{1F4DD}</span>
+      </div>
+      <h1 style="font-family: 'Playfair Display', serif; color: #16A34A; text-align: center; font-size: 24px; margin-bottom: 8px;">
+        Catatan Baru dari ${senderName}!
+      </h1>
+      <p style="color: #14532D; text-align: center; font-size: 16px; margin-bottom: 16px; font-style: italic;">
+        "${preview}"
+      </p>
+      <div style="text-align: center;">
+        <a href="${url}" style="display: inline-block; background: #16A34A; color: white; text-decoration: none; padding: 12px 32px; border-radius: 9999px; font-size: 16px; font-weight: 600;">
+          Baca Catatan \u{1F49A}
+        </a>
+      </div>
+    </div>
+  `;
+}
+
 export function letterNotificationHtml(senderName: string, letterTitle: string, url: string): string {
   return `
     <div style="font-family: 'Inter', sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px; background: #FFF1F2; border-radius: 16px;">

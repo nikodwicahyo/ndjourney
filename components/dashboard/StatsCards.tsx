@@ -65,7 +65,7 @@ export default function StatsCards() {
       },
       {
         key: "milestoneCount" as const,
-        label: "Milestone",
+        label: "Timeline",
         icon: Flag,
         color: "#F97316",
         bgColor: "#F97316",

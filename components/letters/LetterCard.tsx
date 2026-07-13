@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import React from "react";
-import { Lock, Clock, ChevronRight } from "lucide-react";
+import { Lock, Clock, ChevronRight, Trash2 } from "lucide-react";
 import { cn, formatDateTime } from "@/lib/utils";
 import { formatInJakarta } from "@/lib/date";
 import { LETTER_MOOD_CONFIG } from "@/types";
@@ -14,9 +14,10 @@ type LetterCardProps = {
   type: "inbox" | "sent";
   index?: number;
   baseHref?: string;
+  onDelete?: () => void;
 };
 
-function LetterCard({ letter, type, index = 0, baseHref = "/dashboard/letters" }: LetterCardProps) {
+function LetterCard({ letter, type, index = 0, baseHref = "/dashboard/letters", onDelete }: LetterCardProps) {
   const mood = LETTER_MOOD_CONFIG[letter.mood as keyof typeof LETTER_MOOD_CONFIG];
   const isLocked =
     letter.isTimeCapsule &&
@@ -83,7 +84,23 @@ function LetterCard({ letter, type, index = 0, baseHref = "/dashboard/letters" }
           )}
         </div>
 
-        <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+        <div className="flex items-center gap-1">
+          {onDelete && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onDelete();
+              }}
+              className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+              aria-label="Hapus surat"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+        </div>
       </Link>
     </div>
   );

@@ -97,6 +97,12 @@ model CoupleConfig {
   birthDate1         DateTime?
   birthDate2         DateTime?
   backgroundMusicUrl String?
+  targetMilestones    Int?
+  targetNotes         Int?
+  targetLetters       Int?
+  targetPhotos        Int?
+  targetSetAt         DateTime?
+  targetMetAt         DateTime?
 }
 
 model Photo {

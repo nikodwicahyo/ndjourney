@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, useInView } from "framer-motion";
-import { Heart, Sparkles, Lightbulb } from "lucide-react";
+import { Heart, Sparkles, Lightbulb, Timer } from "lucide-react";
 
 type LoveMeterProps = {
   daysTogether?: number;
@@ -13,17 +13,24 @@ type LoveMeterProps = {
   wishDone?: number;
   wishTotal?: number;
   photoCount?: number;
+  targetMilestones?: number;
+  targetNotes?: number;
+  targetLetters?: number;
+  targetPhotos?: number;
+  targetSetAt?: string | null;
+  targetMetAt?: string | null;
 };
 
-function getAdaptiveGoal(value: number): { goal: number; multiplier: string } {
-  if (value === 0) return { goal: 3, multiplier: "+3" };
-  if (value < 10) return { goal: Math.ceil(value * 1.1), multiplier: "10%" };
-  if (value < 25) return { goal: Math.ceil(value * 1.3), multiplier: "30%" };
-  if (value < 50) return { goal: Math.ceil(value * 1.5), multiplier: "50%" };
-  if (value < 100) return { goal: Math.ceil(value * 1.7), multiplier: "70%" };
-  if (value < 250) return { goal: Math.ceil(value * 2), multiplier: "100%" };
-  if (value < 500) return { goal: Math.ceil(value * 2.5), multiplier: "150%" };
-  return { goal: Math.ceil(value * 3), multiplier: "200%" };
+function getMultiplier(current: number, goal: number): string | null {
+  if (current <= 0 || goal <= 0) return null;
+  const growth = goal / current - 1;
+  if (growth < 0.15) return "+10%";
+  if (growth < 0.4) return "+30%";
+  if (growth < 0.6) return "+50%";
+  if (growth < 0.85) return "+70%";
+  if (growth < 1.5) return "+100%";
+  if (growth < 2) return "+150%";
+  return "+200%";
 }
 
 export default function LoveMeter({
@@ -35,25 +42,50 @@ export default function LoveMeter({
   wishDone = 0,
   wishTotal = 0,
   photoCount = 0,
+  targetMilestones = 0,
+  targetNotes = 0,
+  targetLetters = 0,
+  targetPhotos = 0,
+  targetMetAt = null,
 }: LoveMeterProps) {
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-40px" });
   const [isHovered, setIsHovered] = useState(false);
 
   const quantityMetrics = [
-    { value: milestoneCount, key: "milestoneCount", icon: "📍", label: "Momen" },
-    { value: noteCount, key: "noteCount", icon: "📝", label: "Catatan" },
-    { value: letterCount, key: "letterCount", icon: "💌", label: "Surat" },
-    { value: photoCount, key: "photoCount", icon: "📸", label: "Foto & Video" },
+    { value: milestoneCount, key: "milestoneCount", icon: "📍", label: "Momen", goal: targetMilestones },
+    { value: noteCount, key: "noteCount", icon: "📝", label: "Catatan", goal: targetNotes },
+    { value: letterCount, key: "letterCount", icon: "💌", label: "Surat", goal: targetLetters },
+    { value: photoCount, key: "photoCount", icon: "📸", label: "Foto & Video", goal: targetPhotos },
   ];
 
-  const quantityProgress = quantityMetrics.map((m) => {
-    const { goal, multiplier } = getAdaptiveGoal(m.value);
-    return { ...m, goal, multiplier, pct: Math.min(Math.round((m.value / goal) * 100), 100) };
-  });
-  const avgProgress =
-    quantityProgress.reduce((s, m) => s + m.pct, 0) / quantityProgress.length / 100;
-  const nonZero = quantityMetrics.filter((m) => m.value > 0).length;
+  const { quantityProgress, avgProgress, nonZero, atTargetPercent } = useMemo(() => {
+    const qp = quantityMetrics.map((m) => {
+      const goal = m.goal > 0 ? m.goal : 1;
+      const pct = Math.min(Math.round((m.value / goal) * 100), 100);
+      return { ...m, goal, pct, multiplier: getMultiplier(m.value, goal) };
+    });
+    const ap = qp.reduce((s, m) => s + m.pct, 0) / qp.length / 100;
+    const nz = quantityMetrics.filter((m) => m.value > 0).length;
+    const atp = qp.every((m) => m.value >= m.goal);
+    return { quantityProgress: qp, avgProgress: ap, nonZero: nz, atTargetPercent: atp };
+  }, [milestoneCount, noteCount, letterCount, photoCount, targetMilestones, targetNotes, targetLetters, targetPhotos]);
+
+  const is100Pct = atTargetPercent;
+
+  const countdownText = useMemo(() => {
+    if (!targetMetAt || !is100Pct) return null;
+    const met = new Date(targetMetAt).getTime();
+    const now = Date.now();
+    const elapsed = now - met;
+    const remaining = 7 * 24 * 60 * 60 * 1000 - elapsed;
+    if (remaining <= 0) return null;
+    const days = Math.floor(remaining / (24 * 60 * 60 * 1000));
+    const hours = Math.floor((remaining % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+    if (days > 0) return `Target baru dalam ${days} hari`;
+    if (hours > 0) return `Target baru dalam ${hours} jam`;
+    return "Target baru sebentar lagi";
+  }, [targetMetAt, is100Pct]);
 
   const rawScore =
     avgProgress * 30 +
@@ -61,10 +93,9 @@ export default function LoveMeter({
     Math.min(daysTogether / 365, 1) * 12 +
     wishProgress * 13 +
     25;
-
   const targetPercent = Math.min(Math.round(rawScore), 100);
-  const [displayPercent, setDisplayPercent] = useState(0);
 
+  const [displayPercent, setDisplayPercent] = useState(0);
   useEffect(() => {
     if (!isInView) return;
     const start = performance.now();
@@ -81,7 +112,8 @@ export default function LoveMeter({
 
   const radius = 72;
   const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (displayPercent / 100) * circumference;
+  const offsetPercent = is100Pct ? 100 : displayPercent;
+  const offset = circumference - (offsetPercent / 100) * circumference;
   const color =
     displayPercent < 40
       ? "#F43F5E"
@@ -91,14 +123,16 @@ export default function LoveMeter({
           ? "#22C55E"
           : "#6366F1";
 
-  const getLabel = () => {
-    if (displayPercent < 30) return "Perlu dirawat 💪";
-    if (displayPercent < 50) return "Mulai hangat 🌱";
-    if (displayPercent < 65) return "Semakin kuat 🌻";
-    if (displayPercent < 80) return "Harmonis 💞";
-    if (displayPercent < 93) return "Hampir sempurna ✨";
-    return "Soulmate! 💎";
-  };
+  const displayLabel = useMemo(() => {
+    if (!isInView) return "";
+    const pct = is100Pct ? 100 : displayPercent;
+    if (pct < 30) return "Perlu dirawat";
+    if (pct < 50) return "Mulai hangat";
+    if (pct < 65) return "Semakin kuat";
+    if (pct < 80) return "Harmonis";
+    if (pct < 93) return "Hampir sempurna";
+    return "Soulmate!";
+  }, [displayPercent, is100Pct, isInView]);
 
   const tips = [
     ...quantityProgress.map((m) => ({
@@ -115,7 +149,7 @@ export default function LoveMeter({
       current: daysTogether,
       max: 365,
       pct: Math.min(Math.round((daysTogether / 365) * 100), 100),
-      multiplier: "",
+      multiplier: null,
     },
     {
       icon: "✨",
@@ -123,7 +157,7 @@ export default function LoveMeter({
       current: wishDone,
       max: Math.max(wishTotal, 1),
       pct: Math.round(wishProgress * 100),
-      multiplier: "",
+      multiplier: null,
     },
   ];
 
@@ -163,32 +197,16 @@ export default function LoveMeter({
               </feMerge>
             </filter>
           </defs>
-          <circle
-            cx="95"
-            cy="95"
-            r={radius}
-            fill="none"
-            stroke="oklch(0.92 0.006 355)"
-            strokeWidth="10"
-          />
+          <circle cx="95" cy="95" r={radius} fill="none" stroke="oklch(0.92 0.006 355)" strokeWidth="10" />
           <motion.circle
-            cx="95"
-            cy="95"
-            r={radius}
-            fill="none"
-            stroke="url(#loveGradient)"
-            strokeWidth="10"
-            strokeLinecap="round"
+            cx="95" cy="95" r={radius} fill="none" stroke="url(#loveGradient)"
+            strokeWidth="10" strokeLinecap="round"
             strokeDasharray={circumference}
             strokeDashoffset={circumference}
-            animate={{
-              strokeDashoffset: offset,
-              filter: isHovered ? "brightness(1.2)" : "brightness(1)",
-            }}
+            animate={{ strokeDashoffset: offset, filter: isHovered ? "brightness(1.2)" : "brightness(1)" }}
             transition={{ duration: 2, ease: "easeOut" }}
             style={{ filter: `drop-shadow(0 0 8px ${color}40)` }}
           />
-
           {Array.from({ length: 8 }).map((_, i) => {
             const angle = (i / 8) * 360;
             const rad = (angle - 90) * (Math.PI / 180);
@@ -197,49 +215,46 @@ export default function LoveMeter({
             const y1 = 95 + radius * Math.sin(rad);
             const x2 = 95 + tickRadius * Math.cos(rad);
             const y2 = 95 + tickRadius * Math.sin(rad);
-            const isActive = (i / 8) * 100 <= displayPercent;
+            const isActive = (i / 8) * 100 <= offsetPercent;
             return (
-              <line
-                key={i}
-                x1={x1}
-                y1={y1}
-                x2={x2}
-                y2={y2}
+              <line key={i} x1={x1} y1={y1} x2={x2} y2={y2}
                 stroke={isActive ? color : "oklch(0.85 0.01 355)"}
-                strokeWidth="2"
-                strokeLinecap="round"
+                strokeWidth="2" strokeLinecap="round"
                 opacity={isActive ? 0.6 : 0.3}
               />
             );
           })}
         </svg>
-        <div className="absolute flex flex-col items-center">
+        <div className="absolute flex flex-col items-center gap-1">
           <motion.span
             key={displayPercent}
             initial={{ scale: 1.4, opacity: 0.5 }}
-            animate={{
-              scale: isHovered ? [1, 1.05, 1] : 1,
-              opacity: 1,
-            }}
-            transition={
-              isHovered
-                ? { duration: 0.6, repeat: Infinity, ease: "easeInOut" }
-                : { duration: 0.3 }
-            }
+            animate={{ scale: isHovered ? [1, 1.05, 1] : 1, opacity: 1 }}
+            transition={isHovered ? { duration: 0.6, repeat: Infinity, ease: "easeInOut" } : { duration: 0.3 }}
             className="font-heading text-2xl font-bold tabular-nums sm:text-4xl"
-            style={{ color }}
+            style={{ color: is100Pct ? "#22C55E" : color }}
           >
-            {displayPercent}%
+            {is100Pct ? 100 : displayPercent}%
           </motion.span>
           <motion.span
-            key={getLabel()}
+            key={displayLabel}
             initial={{ opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mt-1 text-center text-xs font-semibold"
-            style={{ color }}
+            className="text-center text-xs font-semibold"
+            style={{ color: is100Pct ? "#22C55E" : color }}
           >
-            {getLabel()}
+            {is100Pct ? "Soulmate! \u{1F48E}" : displayLabel}
           </motion.span>
+          {countdownText && (
+            <motion.span
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="inline-flex items-center gap-1 rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-600 dark:text-green-400"
+            >
+              <Timer className="h-3 w-3" />
+              {countdownText}
+            </motion.span>
+          )}
         </div>
       </div>
 
@@ -250,10 +265,7 @@ export default function LoveMeter({
           <p className="text-xs text-muted-foreground sm:text-sm">Hari Bersama</p>
         </div>
         {quantityMetrics.map((m) => (
-          <div
-            key={m.key}
-            className="rounded-xl bg-muted/40 px-3 py-2.5 text-center transition-colors hover:bg-muted/60 sm:px-4 sm:py-3"
-          >
+          <div key={m.key} className="rounded-xl bg-muted/40 px-3 py-2.5 text-center transition-colors hover:bg-muted/60 sm:px-4 sm:py-3">
             <span className="text-sm sm:text-base">{m.icon}</span>
             <p className="mt-1 text-sm font-bold text-foreground sm:text-base">{m.value}</p>
             <p className="text-xs text-muted-foreground sm:text-sm">{m.label}</p>
@@ -261,9 +273,7 @@ export default function LoveMeter({
         ))}
         <div className="rounded-xl bg-muted/40 px-3 py-2.5 text-center transition-colors hover:bg-muted/60 sm:px-4 sm:py-3">
           <span className="text-sm sm:text-base">✨</span>
-          <p className="mt-1 text-sm font-bold text-foreground sm:text-base">
-            {wishDone}
-          </p>
+          <p className="mt-1 text-sm font-bold text-foreground sm:text-base">{wishDone}</p>
           <p className="text-xs text-muted-foreground sm:text-sm">Wish List Tercapai</p>
         </div>
       </div>
@@ -271,26 +281,17 @@ export default function LoveMeter({
       <div className="mt-5 rounded-xl bg-muted/30 p-4">
         <div className="mb-3 flex items-center gap-1.5">
           <Lightbulb className="h-4 w-4 text-amber-500" />
-          <span className="text-sm font-semibold text-foreground">
-            Target berikutnya
-          </span>
+          <span className="text-sm font-semibold text-foreground">Target berikutnya</span>
         </div>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {tips.map((tip) => (
-            <div
-              key={tip.label}
-              className="flex items-center gap-3 rounded-lg bg-background/60 px-3 py-2"
-            >
+            <div key={tip.label} className="flex items-center gap-3 rounded-lg bg-background/60 px-3 py-2">
               <span className="text-sm leading-none">{tip.icon}</span>
               <div className="flex-1 min-w-0">
                 <p className="truncate text-xs text-muted-foreground">{tip.label}</p>
                 <div className="mt-1 h-1.5 rounded-full bg-muted-foreground/20">
-                  <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{
-                      width: `${tip.pct}%`,
-                      backgroundColor: color,
-                    }}
+                  <div className="h-full rounded-full transition-all duration-500"
+                    style={{ width: `${tip.pct}%`, backgroundColor: is100Pct ? "#22C55E" : color }}
                   />
                 </div>
               </div>

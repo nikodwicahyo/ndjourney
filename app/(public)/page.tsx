@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { getCached, setCached, cacheKey } from "@/lib/redis";
+import { ensureLoveMeterTargets } from "@/lib/love-meter";
 import HomeContent from "@/components/home/HomeContent";
 import PageTransition from "@/components/PageTransition";
 
@@ -250,6 +251,13 @@ export default async function HomePage() {
     getLettersSummary(),
   ]);
 
+  const loveMeterTargets = await ensureLoveMeterTargets({
+    milestoneCount: timeline.milestoneCount,
+    noteCount: notes.noteCount,
+    letterCount: letters.totalCount,
+    photoCount: gallery.photoCount,
+  });
+
   return (
     <PageTransition>
       <HomeContent
@@ -275,6 +283,7 @@ export default async function HomePage() {
         galleryPhotos={gallery.latestPhotos}
         photoCount={gallery.photoCount}
         summaries={{ timeline, notes, games, wishlist, letters }}
+        loveMeterTargets={loveMeterTargets}
       />
     </PageTransition>
   );

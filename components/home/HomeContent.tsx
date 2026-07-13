@@ -13,6 +13,7 @@ import MemoryMatch from "./MemoryMatch";
 import ClickHearts from "./ClickHearts";
 import type { GalleryPhoto } from "./GallerySlideshow";
 import type { HomeSummaries } from "./HomeStats";
+import type { LoveMeterState } from "@/lib/love-meter";
 
 type HomeContentProps = {
   coupleConfig: {
@@ -27,6 +28,7 @@ type HomeContentProps = {
   galleryPhotos: GalleryPhoto[];
   photoCount?: number;
   summaries: HomeSummaries;
+  loveMeterTargets: LoveMeterState;
 };
 
 export default function HomeContent({
@@ -34,6 +36,7 @@ export default function HomeContent({
   galleryPhotos,
   photoCount = 0,
   summaries,
+  loveMeterTargets,
 }: HomeContentProps) {
   const daysTogether = useMemo(() => {
     if (!coupleConfig?.anniversaryDate) return 0;
@@ -96,6 +99,12 @@ export default function HomeContent({
             wishDone={summaries.wishlist.done}
             wishTotal={summaries.wishlist.total}
             photoCount={photoCount}
+            targetMilestones={loveMeterTargets.targetMilestones}
+            targetNotes={loveMeterTargets.targetNotes}
+            targetLetters={loveMeterTargets.targetLetters}
+            targetPhotos={loveMeterTargets.targetPhotos}
+            targetSetAt={loveMeterTargets.targetSetAt?.toISOString() ?? null}
+            targetMetAt={loveMeterTargets.targetMetAt?.toISOString() ?? null}
           />
         </section>
 

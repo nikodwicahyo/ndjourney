@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useLetters, useDeleteLetter } from "@/hooks/useLetters";
 import LetterCard from "./LetterCard";
 import { Button, Skeleton } from "@/components/ui";
-import { PenLine, Inbox, Send, Trash2, MailQuestion } from "lucide-react";
+import { PenLine, Inbox, Send, MailQuestion } from "lucide-react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -130,29 +130,24 @@ export default function LetterList() {
       ) : (
         <div className="space-y-3">
           {letters?.map((letter, i) => (
-            <div key={letter.id} className="group relative">
-              <LetterCard letter={letter} type={tab} index={i} />
-              {tab === "sent" && (
-                <button
-                  onClick={async () => {
-                    const confirmed = await showDeleteConfirm({
-                      title: "Hapus Surat",
-                      text: "Apakah Anda yakin ingin menghapus surat ini?",
-                    });
-                    if (confirmed) {
-                      deleteLetter.mutate(letter.id, {
-                        onSuccess: () => toast.success("Surat dihapus"),
-                        onError: () => toast.error("Gagal menghapus surat"),
-                      });
-                    }
-                  }}
-                  className="absolute top-3 right-3 z-10 rounded-full p-1.5 text-muted-foreground opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
-                  aria-label="Hapus surat"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
+            <LetterCard
+              key={letter.id}
+              letter={letter}
+              type={tab}
+              index={i}
+              onDelete={tab === "sent" ? async () => {
+                const confirmed = await showDeleteConfirm({
+                  title: "Hapus Surat",
+                  text: "Apakah Anda yakin ingin menghapus surat ini?",
+                });
+                if (confirmed) {
+                  deleteLetter.mutate(letter.id, {
+                    onSuccess: () => toast.success("Surat dihapus"),
+                    onError: () => toast.error("Gagal menghapus surat"),
+                  });
+                }
+              } : undefined}
+            />
           ))}
         </div>
       )}

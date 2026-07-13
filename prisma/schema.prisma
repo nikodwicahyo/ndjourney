@@ -7,35 +7,25 @@ datasource db {
   provider = "postgresql"
 }
 
-// ─────────────────────────────────────────
-// AUTH
-// ─────────────────────────────────────────
-
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String    @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?
-  role          Role      @default(PARTNER)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  accounts          Account[]
-  sessions          Session[]
-  photos            Photo[]
-  letters           Letter[]        @relation("LetterAuthor")
-  receivedLetters   Letter[]        @relation("LetterRecipient")
-  milestones        Milestone[]
-  dailyNotes        DailyNote[]
-  gameScores        GameScore[]
-  coupleMembers     CoupleMember[]
-}
-
-enum Role {
-  PARTNER
-  ADMIN
+  id              String        @id @default(cuid())
+  name            String?
+  email           String        @unique
+  emailVerified   DateTime?
+  image           String?
+  password        String?
+  role            Role          @default(PARTNER)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  accounts        Account[]
+  coupleMembers   CoupleMember?
+  dailyNotes      DailyNote[]
+  gameScores      GameScore[]
+  letters         Letter[]      @relation("LetterAuthor")
+  receivedLetters Letter[]      @relation("LetterRecipient")
+  milestones      Milestone[]
+  photos          Photo[]
+  sessions        Session[]
 }
 
 model Account {
@@ -44,15 +34,14 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
@@ -73,81 +62,65 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-// ─────────────────────────────────────────
-// COUPLE / TENANCY
-// ─────────────────────────────────────────
-
 model Couple {
-  id        String   @id @default(cuid())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  members     CoupleMember[]
-  photos      Photo[]
-  letters     Letter[]
-  milestones  Milestone[]
-  dailyNotes  DailyNote[]
-  wishes      WishItem[]
+  id         String         @id @default(cuid())
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  members    CoupleMember[]
+  dailyNotes DailyNote[]
+  letters    Letter[]
+  milestones Milestone[]
+  photos     Photo[]
+  wishes     WishItem[]
 }
 
 model CoupleMember {
   id       String @id @default(cuid())
   coupleId String
-  userId   String
+  userId   String @unique
+  couple   Couple @relation(fields: [coupleId], references: [id], onDelete: Cascade)
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  couple Couple @relation(fields: [coupleId], references: [id], onDelete: Cascade)
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId])
   @@unique([coupleId, userId])
 }
 
-// ─────────────────────────────────────────
-// COUPLE CONFIG
-// ─────────────────────────────────────────
-
 model CoupleConfig {
-  id                String   @id @default(cuid())
-  name1             String
-  name2             String
-  anniversaryDate   DateTime
-  birthDate1        DateTime?
-  birthDate2        DateTime?
-  tagline           String?
-  heroPhotoUrl      String?
+  id                 String    @id @default(cuid())
+  name1              String
+  name2              String
+  anniversaryDate    DateTime
+  tagline            String?
+  heroPhotoUrl       String?
   spotifyPlaylistUrl String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  birthDate1         DateTime?
+  birthDate2         DateTime?
   backgroundMusicUrl String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
 }
 
-// ─────────────────────────────────────────
-// GALLERY
-// ─────────────────────────────────────────
-
 model Photo {
-  id           String   @id @default(cuid())
-  url          String
-  publicId     String
-  thumbnailUrl String?
-  caption      String?
-  takenAt      DateTime?
-  width        Int?
-  height       Int?
-  fileSize     Int?
-  isVideo      Boolean  @default(false)
-  isFavorite   Boolean  @default(false)
-  isMilestoneOnly Boolean @default(false)
-  albumId      String?
-  uploadedById String
-  coupleId     String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  album      Album?           @relation(fields: [albumId], references: [id])
-  uploadedBy User             @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
-  couple     Couple?          @relation(fields: [coupleId], references: [id], onDelete: SetNull)
-  milestones MilestonePhoto[]
+  id              String           @id @default(cuid())
+  url             String
+  publicId        String
+  thumbnailUrl    String?
+  caption         String?
+  takenAt         DateTime?
+  width           Int?
+  height          Int?
+  fileSize        Int?
+  isVideo         Boolean          @default(false)
+  isFavorite      Boolean          @default(false)
+  albumId         String?
+  uploadedById    String
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  coupleId        String?
+  isMilestoneOnly Boolean          @default(false)
+  milestones      MilestonePhoto[]
+  album           Album?           @relation(fields: [albumId], references: [id])
+  couple          Couple?          @relation(fields: [coupleId], references: [id])
+  uploadedBy      User             @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
 
   @@index([albumId])
   @@index([uploadedById])
@@ -167,33 +140,27 @@ model Album {
   isPublic      Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
-
-  photos Photo[]
+  photos        Photo[]
 
   @@index([createdAt])
 }
 
-// ─────────────────────────────────────────
-// TIMELINE / MILESTONES
-// ─────────────────────────────────────────
-
 model Milestone {
-  id          String   @id @default(cuid())
+  id          String           @id @default(cuid())
   title       String
-  description String?  @db.Text
+  description String?
   date        DateTime
   icon        String?
   color       String?
   location    String?
-  isPublic    Boolean  @default(true)
+  isPublic    Boolean          @default(true)
   createdById String
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
   coupleId    String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  createdBy User             @relation(fields: [createdById], references: [id], onDelete: Cascade)
-  couple    Couple?          @relation(fields: [coupleId], references: [id], onDelete: SetNull)
-  photos    MilestonePhoto[]
+  couple      Couple?          @relation(fields: [coupleId], references: [id])
+  createdBy   User             @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  photos      MilestonePhoto[]
 
   @@index([createdById])
   @@index([date])
@@ -205,37 +172,31 @@ model Milestone {
 model MilestonePhoto {
   milestoneId String
   photoId     String
-
-  milestone Milestone @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
-  photo     Photo     @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  milestone   Milestone @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  photo       Photo     @relation(fields: [photoId], references: [id], onDelete: Cascade)
 
   @@id([milestoneId, photoId])
 }
 
-// ─────────────────────────────────────────
-// LOVE LETTERS
-// ─────────────────────────────────────────
-
 model Letter {
-  id                 String      @id @default(cuid())
+  id                 String     @id @default(cuid())
   title              String
-  content            String      @db.Text
+  content            String
   authorId           String
   recipientId        String
-  isTimeCapsule      Boolean     @default(false)
+  isTimeCapsule      Boolean    @default(false)
   unlockAt           DateTime?
-  isOpened           Boolean     @default(false)
+  isOpened           Boolean    @default(false)
   openedAt           DateTime?
-  notificationSentAt DateTime?
-  mood               LetterMood  @default(LOVE)
-  isPublic           Boolean     @default(false)
+  mood               LetterMood @default(LOVE)
+  isPublic           Boolean    @default(false)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
   coupleId           String?
-  createdAt          DateTime    @default(now())
-  updatedAt          DateTime    @updatedAt
-
-  author    User    @relation("LetterAuthor", fields: [authorId], references: [id], onDelete: Cascade)
-  recipient User    @relation("LetterRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
-  couple    Couple? @relation(fields: [coupleId], references: [id], onDelete: SetNull)
+  notificationSentAt DateTime?
+  author             User       @relation("LetterAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  couple             Couple?    @relation(fields: [coupleId], references: [id])
+  recipient          User       @relation("LetterRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
 
   @@index([authorId])
   @@index([recipientId])
@@ -243,6 +204,76 @@ model Letter {
   @@index([recipientId, isOpened, createdAt])
   @@index([authorId, createdAt])
   @@index([isTimeCapsule, isOpened, unlockAt])
+}
+
+model DailyNote {
+  id        String   @id @default(cuid())
+  content   String
+  authorId  String
+  date      DateTime @default(now()) @db.Date
+  createdAt DateTime @default(now())
+  coupleId  String?
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  couple    Couple?  @relation(fields: [coupleId], references: [id])
+
+  @@index([authorId])
+  @@index([date])
+  @@index([date, authorId])
+}
+
+model GameQuestion {
+  id        String      @id @default(cuid())
+  type      GameType
+  question  String
+  optionA   String?
+  optionB   String?
+  answer    String?
+  category  String?
+  createdAt DateTime    @default(now())
+  scores    GameScore[]
+
+  @@index([type])
+}
+
+model GameScore {
+  id         String       @id @default(cuid())
+  userId     String?
+  questionId String
+  isCorrect  Boolean
+  playedAt   DateTime     @default(now())
+  playerName String?
+  question   GameQuestion @relation(fields: [questionId], references: [id])
+  user       User?        @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([questionId])
+  @@index([userId, isCorrect])
+  @@index([playerName])
+}
+
+model WishItem {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  imageUrl    String?
+  link        String?
+  category    String?
+  isDone      Boolean   @default(false)
+  doneAt      DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  coupleId    String?
+  couple      Couple?   @relation(fields: [coupleId], references: [id])
+
+  @@index([category])
+  @@index([isDone])
+  @@index([isDone, createdAt])
+  @@index([category, isDone])
+}
+
+enum Role {
+  PARTNER
+  ADMIN
 }
 
 enum LetterMood {
@@ -254,90 +285,9 @@ enum LetterMood {
   SURPRISE
 }
 
-// ─────────────────────────────────────────
-// DAILY NOTES
-// ─────────────────────────────────────────
-
-model DailyNote {
-  id        String   @id @default(cuid())
-  content   String   @db.Text
-  authorId  String
-  coupleId  String?
-  date      DateTime @default(now()) @db.Date
-  createdAt DateTime @default(now())
-
-  author User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  couple Couple? @relation(fields: [coupleId], references: [id], onDelete: SetNull)
-
-  @@index([authorId])
-  @@index([date])
-  @@index([date, authorId])
-}
-
-// ─────────────────────────────────────────
-// GAMES
-// ─────────────────────────────────────────
-
-model GameQuestion {
-  id        String       @id @default(cuid())
-  type      GameType
-  question  String       @db.Text
-  optionA   String?
-  optionB   String?
-  answer    String?
-  category  String?
-  createdAt DateTime     @default(now())
-
-  scores GameScore[]
-
-  @@index([type])
-}
-
-model GameScore {
-  id         String   @id @default(cuid())
-  userId     String?
-  playerName String?
-  questionId String
-  isCorrect  Boolean
-  playedAt   DateTime @default(now())
-
-  user     User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
-  question GameQuestion @relation(fields: [questionId], references: [id])
-
-  @@index([userId])
-  @@index([questionId])
-  @@index([userId, isCorrect])
-  @@index([playerName])
-}
-
 enum GameType {
   WOULD_YOU_RATHER
   TRIVIA
   SPIN_THE_WHEEL
   TRUTH_OR_DARE
-}
-
-// ─────────────────────────────────────────
-// WISH LIST
-// ─────────────────────────────────────────
-
-model WishItem {
-  id          String    @id @default(cuid())
-  title       String
-  description String?
-  imageUrl    String?
-  link        String?
-  category    String?
-  isDone      Boolean   @default(false)
-  doneAt      DateTime?
-  coupleId    String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  couple Couple? @relation(fields: [coupleId], references: [id], onDelete: SetNull)
-
-  @@index([category])
-  @@index([isDone])
-  @@index([isDone, createdAt])
-  @@index([category, isDone])
 }

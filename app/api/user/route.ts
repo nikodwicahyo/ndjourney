@@ -5,6 +5,7 @@ import { updateUserSchema } from "@/lib/validations/user";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { clearUserCache, invalidateUserCache } from "@/lib/batch";
 import { invalidateCache } from "@/lib/redis";
+import { deleteFromCloudinaryUrl } from "@/lib/cloudinary";
 
 export async function PUT(request: Request) {
   try {
@@ -27,6 +28,15 @@ export async function PUT(request: Request) {
 
     const { name, image } = parsed.data;
 
+    let oldImage: string | null = null;
+    if (image !== undefined) {
+      const existingUser = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { image: true },
+      });
+      oldImage = existingUser?.image ?? null;
+    }
+
     const updated = await prisma.user.update({
       where: { id: session.user.id },
       data: {
@@ -41,6 +51,10 @@ export async function PUT(request: Request) {
         role: true,
       },
     });
+
+    if (oldImage && oldImage !== image) {
+      await deleteFromCloudinaryUrl(oldImage).catch(console.error);
+    }
 
     // Invalidate session caches so next session fetch gets fresh data
     if (redis) {

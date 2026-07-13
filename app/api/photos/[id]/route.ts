@@ -134,7 +134,11 @@ export async function PUT(
       return NextResponse.json({ error: "Photo not found" }, { status: 404 });
     }
 
-    await invalidateCache("photos:*");
+    await Promise.all([
+      invalidateCache("photos:*"),
+      invalidateCache("albums:*"),
+      invalidateCache("dashboard:*"),
+    ]);
 
     return NextResponse.json({ data: photo });
   } catch (error) {
@@ -161,7 +165,7 @@ export async function DELETE(
 
     const photo = await prisma.photo.findUnique({
       where: { id },
-      select: { publicId: true, uploadedById: true },
+      select: { publicId: true, uploadedById: true, isVideo: true },
     });
 
     if (!photo) {
@@ -171,12 +175,15 @@ export async function DELETE(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    await Promise.all([
-      deleteFromCloudinary(photo.publicId),
-      prisma.photo.delete({ where: { id } }),
-    ]);
+    // Do not remove the database record unless Cloudinary confirms deletion.
+    await deleteFromCloudinary(photo.publicId, photo.isVideo ? "video" : "image");
+    await prisma.photo.delete({ where: { id } });
 
-    await invalidateCache("photos:*");
+    await Promise.all([
+      invalidateCache("photos:*"),
+      invalidateCache("albums:*"),
+      invalidateCache("dashboard:*"),
+    ]);
 
     return NextResponse.json({ message: "Photo deleted" });
   } catch (error) {

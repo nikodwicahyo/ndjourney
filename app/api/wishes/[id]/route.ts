@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { updateWishSchema } from "@/lib/validations/wish";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { invalidateCache } from "@/lib/redis";
-
+import { deleteFromCloudinaryUrl } from "@/lib/cloudinary";
 
 export async function PUT(
   request: Request,
@@ -31,6 +31,16 @@ export async function PUT(
       data.doneAt = new Date();
     }
 
+    // Fetch old imageUrl before update so we can clean up if changed
+    let oldImageUrl: string | null = null;
+    if ("imageUrl" in data) {
+      const existing = await prisma.wishItem.findUnique({
+        where: { id },
+        select: { imageUrl: true },
+      });
+      oldImageUrl = existing?.imageUrl ?? null;
+    }
+
     const wish = await prisma.wishItem.update({
       where: { id },
       data,
@@ -47,6 +57,11 @@ export async function PUT(
         updatedAt: true,
       },
     });
+
+    // Delete old Cloudinary image if changed
+    if (oldImageUrl && oldImageUrl !== wish.imageUrl) {
+      await deleteFromCloudinaryUrl(oldImageUrl).catch(console.error);
+    }
 
     await invalidateCache("wishes:*");
 
@@ -72,7 +87,18 @@ export async function DELETE(
 
     const { id } = await params;
 
+    // Fetch imageUrl before deleting so we can clean up Cloudinary
+    const wish = await prisma.wishItem.findUnique({
+      where: { id },
+      select: { imageUrl: true },
+    });
+
     await prisma.wishItem.delete({ where: { id } });
+
+    // Delete from Cloudinary if it was stored there
+    if (wish?.imageUrl) {
+      await deleteFromCloudinaryUrl(wish.imageUrl).catch(console.error);
+    }
 
     await invalidateCache("wishes:*");
 

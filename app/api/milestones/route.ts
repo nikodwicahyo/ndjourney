@@ -170,6 +170,7 @@ export async function POST(request: Request) {
     const data = { ...milestone, createdBy: userMap.get(milestone.createdById) ?? null };
 
     await invalidateCache("milestones:*");
+    await invalidateCache("dashboard:*");
 
     return NextResponse.json({ data }, { status: 201 });
   } catch (error) {

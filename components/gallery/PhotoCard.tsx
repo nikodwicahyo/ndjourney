@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Image from "next/image";
-import { Heart, Play, Lock } from "lucide-react";
+import { File, Heart, Play, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getBlurImageUrl } from "@/lib/cloudinary-urls";
 import type { Photo } from "@/types";
@@ -22,18 +22,29 @@ export default function PhotoCard({
 }: PhotoCardProps) {
   const [loaded, setLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
+  const [useOriginal, setUseOriginal] = useState(false);
 
   const aspectRatio = photo.width && photo.height ? photo.width / photo.height : 3 / 4;
+  const displayUrl = useOriginal || !photo.thumbnailUrl ? photo.url : photo.thumbnailUrl;
+  const canPreviewAsImage =
+    photo.url.includes("/image/upload/") ||
+    photo.thumbnailUrl?.includes("/image/upload/") ||
+    photo.isVideo;
+
+  useEffect(() => {
+    setLoaded(false);
+    setImgError(false);
+    setUseOriginal(false);
+  }, [photo.id, photo.thumbnailUrl, photo.url]);
 
   const blurDataUrl = useMemo(() => {
-    const imgUrl = photo.thumbnailUrl || photo.url;
-    if (!imgUrl) return undefined;
+    if (!displayUrl) return undefined;
     try {
-      return getBlurImageUrl(imgUrl);
+      return getBlurImageUrl(displayUrl);
     } catch {
       return undefined;
     }
-  }, [photo.thumbnailUrl, photo.url]);
+  }, [displayUrl]);
 
   return (
     <div
@@ -49,21 +60,35 @@ export default function PhotoCard({
         <div className="absolute inset-0 animate-pulse bg-muted" />
       )}
 
-      {imgError ? (
+      {!canPreviewAsImage ? (
+        <div className="flex aspect-[3/4] flex-col items-center justify-center gap-2 bg-muted px-4 text-center">
+          <File className="h-8 w-8 text-muted-foreground/60" />
+          <span className="line-clamp-2 text-xs font-medium text-muted-foreground">
+            {photo.caption || photo.publicId.split("/").pop() || "File"}
+          </span>
+        </div>
+      ) : imgError ? (
         <div className="flex aspect-[3/4] items-center justify-center bg-muted">
           <Lock className="h-8 w-8 text-muted-foreground/50" />
         </div>
       ) : (
         <div className="relative overflow-hidden" style={{ aspectRatio }}>
           <Image
-            src={photo.thumbnailUrl || photo.url}
+            src={displayUrl}
             alt={photo.caption ?? "Photo"}
             fill
             sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
             priority={isPrioritized}
             loading={isPrioritized ? "eager" : "lazy"}
             onLoad={() => setLoaded(true)}
-            onError={() => setImgError(true)}
+            onError={() => {
+              if (!useOriginal && photo.thumbnailUrl) {
+                setUseOriginal(true);
+                setLoaded(false);
+                return;
+              }
+              setImgError(true);
+            }}
             placeholder={blurDataUrl ? "blur" : "empty"}
             blurDataURL={blurDataUrl}
             className={cn(

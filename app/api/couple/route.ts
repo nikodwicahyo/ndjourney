@@ -4,6 +4,7 @@ import { getCached, setCached, invalidateCache, cacheKey } from "@/lib/redis";
 import { updateCoupleSchema } from "@/lib/validations/couple";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { parseJakartaDateOnly } from "@/lib/date";
+import { deleteFromCloudinaryUrl } from "@/lib/cloudinary";
 
 const CACHE_TTL = 300;
 
@@ -73,7 +74,7 @@ export async function PUT(request: Request) {
 
     const config = await prisma.coupleConfig.findFirst({
       take: 1,
-      select: { id: true },
+      select: { id: true, heroPhotoUrl: true, backgroundMusicUrl: true },
     });
 
     if (!config) {
@@ -148,6 +149,14 @@ export async function PUT(request: Request) {
     });
 
     await invalidateCache("couple:*");
+
+    // Clean up old Cloudinary files if URLs changed
+    if (config.heroPhotoUrl && config.heroPhotoUrl !== updated.heroPhotoUrl) {
+      await deleteFromCloudinaryUrl(config.heroPhotoUrl).catch(console.error);
+    }
+    if (config.backgroundMusicUrl && config.backgroundMusicUrl !== updated.backgroundMusicUrl) {
+      await deleteFromCloudinaryUrl(config.backgroundMusicUrl).catch(console.error);
+    }
 
     return NextResponse.json({ data: updated });
   } catch (error) {

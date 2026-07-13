@@ -108,3 +108,18 @@ export function getInitials(name: string): string {
     .toUpperCase()
     .slice(0, 2);
 }
+
+export async function parseResponseBody(res: Response): Promise<string> {
+  const contentType = res.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    try {
+      const json = await res.json();
+      return json.error || json.message || res.statusText;
+    } catch {
+      return res.statusText || "Upload failed";
+    }
+  }
+  const text = await res.text();
+  const cleaned = text.replace(/<[^>]*>/g, "").trim().substring(0, 200);
+  return cleaned || res.statusText || "Upload failed";
+}

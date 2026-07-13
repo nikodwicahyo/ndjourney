@@ -41,7 +41,7 @@ const nextConfig: NextConfig = {
             "frame-ancestors 'none'",
             "base-uri 'self'",
             "form-action 'self'",
-            "connect-src 'self' https://res.cloudinary.com https://fonts.googleapis.com https://fonts.gstatic.com https://*.upstash.io https://api.resend.com",
+            "connect-src 'self' https://res.cloudinary.com https://api.cloudinary.com https://fonts.googleapis.com https://fonts.gstatic.com https://*.upstash.io https://api.resend.com",
             "worker-src 'self' blob:",
             "report-uri /api/csp-violation",
           ].join("; "),

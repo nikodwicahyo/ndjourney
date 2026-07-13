@@ -134,6 +134,7 @@ export async function DELETE(
     await prisma.letter.delete({ where: { id } });
 
     await invalidateCache("letters:*");
+    await invalidateCache("dashboard:*");
 
     return NextResponse.json({ message: "Letter deleted" });
   } catch (error) {

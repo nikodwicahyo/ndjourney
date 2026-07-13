@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query-keys";
 import type { GameQuestion, GameType } from "@/types";
 
@@ -37,6 +37,8 @@ export function useAllQuestions(type: GameType) {
 }
 
 export function useSubmitScore() {
+  const qc = useQueryClient();
+
   return useMutation({
     mutationFn: async ({
       questionId,
@@ -55,6 +57,9 @@ export function useSubmitScore() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to submit score");
       return json.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.games.leaderboard() });
     },
   });
 }

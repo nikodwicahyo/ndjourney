@@ -35,7 +35,7 @@ export default function QueryProvider({
             retry: 2,
             retryDelay: (attemptIndex) =>
               Math.min(1000 * 2 ** attemptIndex, 5000),
-            refetchOnWindowFocus: false,
+            refetchOnWindowFocus: true,
             refetchOnReconnect: true,
           },
           mutations: {

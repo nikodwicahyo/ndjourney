@@ -10,6 +10,8 @@ import {
   Heart,
   Download,
   Trash2,
+  File,
+  ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/utils";
@@ -102,6 +104,10 @@ export default function Lightbox({
   }, [photo]);
 
   useEffect(() => {
+    setLoaded(false);
+  }, [photo?.id]);
+
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       switch (e.key) {
         case "Escape":
@@ -131,6 +137,8 @@ export default function Lightbox({
 
   const isFirst = currentIndex === 0;
   const isLast = currentIndex === photos.length - 1;
+  const isImage = photo.url.includes("/image/upload/");
+  const fileName = photo.caption || photo.publicId.split("/").pop() || "File";
 
   return (
     <AnimatePresence>
@@ -225,7 +233,7 @@ export default function Lightbox({
                 onPause={() => dispatchBgEvent("resume")}
                 onEnded={() => dispatchBgEvent("resume")}
               />
-            ) : (
+            ) : isImage ? (
               <div className="relative flex max-h-[80vh] max-w-full items-center justify-center">
                 {!loaded && (
                   <div className="absolute h-8 w-8 animate-spin rounded-full border-2 border-white/30 border-t-white" />
@@ -245,6 +253,23 @@ export default function Lightbox({
                   )}
                   style={{ maxWidth: "100%", height: "auto" }}
                 />
+              </div>
+            ) : (
+              <div className="flex max-w-sm flex-col items-center gap-4 rounded-lg border border-white/10 bg-white/5 p-6 text-center">
+                <File className="h-12 w-12 text-white/70" />
+                <div>
+                  <p className="break-all text-sm font-medium text-white">{fileName}</p>
+                  <p className="mt-1 text-xs text-white/50">Preview tidak tersedia untuk tipe file ini.</p>
+                </div>
+                <a
+                  href={photo.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-white/90"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Buka file
+                </a>
               </div>
             )}
           </div>

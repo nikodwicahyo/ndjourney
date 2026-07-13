@@ -56,6 +56,8 @@ export function useCreateMilestone() {
     }) => api.post("/api/milestones", data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: milestoneKeys.all });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats() });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.activity() });
       qc.refetchQueries({ queryKey: milestoneKeys.list() });
     },
   });
@@ -81,6 +83,8 @@ export function useUpdateMilestone() {
     }) => api.put(`/api/milestones/${id}`, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: milestoneKeys.all });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats() });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.activity() });
       qc.refetchQueries({ queryKey: milestoneKeys.list() });
     },
   });
@@ -93,6 +97,8 @@ export function useDeleteMilestone() {
     mutationFn: (id: string) => api.delete(`/api/milestones/${id}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: milestoneKeys.all });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats() });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.activity() });
       qc.refetchQueries({ queryKey: milestoneKeys.list() });
     },
   });

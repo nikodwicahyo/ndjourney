@@ -32,7 +32,7 @@ export default function GalleryClient() {
   const handleUpload = useCallback(
     async (file: File) => {
       try {
-        await uploadPhoto.mutateAsync({ file });
+        await uploadPhoto.mutateAsync({ file, albumId: filters.albumId });
         const l = file.type.startsWith("video/") ? "Video" : "Foto";
         toast.success(`${l} berhasil diupload! 💕`);
       } catch (err) {
@@ -41,7 +41,7 @@ export default function GalleryClient() {
         );
       }
     },
-    [uploadPhoto],
+    [uploadPhoto, filters.albumId],
   );
 
   const handlePhotoClick = useCallback(

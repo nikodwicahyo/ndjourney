@@ -73,6 +73,8 @@ export function useCreateLetter() {
       api.post("/api/letters", data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: letterKeys.all });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats() });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.activity() });
     },
   });
 }
@@ -84,6 +86,7 @@ export function useOpenLetter() {
     mutationFn: (id: string) => api.put(`/api/letters/${id}/open`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: letterKeys.all });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats() });
     },
   });
 }
@@ -95,6 +98,8 @@ export function useDeleteLetter() {
     mutationFn: (id: string) => api.delete(`/api/letters/${id}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: letterKeys.all });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats() });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.activity() });
     },
   });
 }

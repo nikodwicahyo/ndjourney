@@ -107,7 +107,7 @@ export default function StorageUsageBar({
 
           {resourcesCount > 0 && estimatedRemainingFiles > 0 && (
             <p className="mt-2 text-xs text-muted-foreground">
-              Estimasi bisa untuk ~{estimatedRemainingFiles.toLocaleString("id-ID")} file lagi
+              Estimasi bisa untuk ~{estimatedRemainingFiles.toLocaleString("id-ID")} file lagi.
             </p>
           )}
         </>

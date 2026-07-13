@@ -1,45 +1,31 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useMemo } from "react";
 import { usePhotos, useUploadPhotos, useDeletePhoto, useAlbums, useUpdatePhoto } from "@/hooks/usePhotos";
 import { useStorageUsage } from "@/hooks/useStorage";
 import AlbumManager from "./AlbumManager";
-import { Button, Skeleton, StorageUsageBar } from "@/components/ui";
-import { Upload, Trash2, ImagePlus, Loader2, ChevronDown, X, FileVideo, FileWarning, Play, Image as ImageIcon, Video, ArrowUpDown } from "lucide-react";
-import Image from "next/image";
-import { toast } from "sonner";
+import { Button, StorageUsageBar } from "@/components/ui";
+import UploadItem from "./UploadItem";
+import { Upload, ImagePlus, Loader2, ChevronDown, FileWarning, Image as ImageIcon, Video, ArrowUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { showDeleteConfirm } from "@/lib/swal";
 import dynamic from "next/dynamic";
 import type { Photo } from "@/types";
 import PhotoCard from "@/components/gallery/PhotoCard";
+import { formatBytes, formatTime } from "@/lib/upload-config";
+import { toast } from "sonner";
 
-const Lightbox = dynamic(() => import("../gallery/Lightbox"), {
-  ssr: false,
-});
+const Lightbox = dynamic(() => import("../gallery/Lightbox"), { ssr: false });
 
 const MAX_FILES = 50;
-const MAX_SIZE_MB = 200;
-const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
+const SUPPORTED_FORMATS_LABEL = "JPG, PNG, WEBP, HEIC, GIF, MP4, MOV, WEBM, AVI, MKV, OGG, MPEG.";
+const ACCEPT_STRING = "image/*,video/*";
 
-const ALLOWED_MIME_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/heic",
-  "video/mp4",
-  "video/quicktime",
-  "video/webm",
-  "video/x-msvideo",
-  "video/x-matroska",
-  "video/ogg",
-  "video/mpeg",
-  "audio/mpeg",
-]);
-
-const SUPPORTED_FORMATS_LABEL = "JPG, PNG, WEBP, HEIC, MP4, MOV, WEBM, AVI, MKV, OGG, MPEG";
-
-const ACCEPT_STRING = "image/jpeg,image/png,image/webp,image/heic,video/mp4,video/quicktime,video/webm,video/x-msvideo,video/x-matroska,video/ogg,video/mpeg,audio/mpeg";
+const MEDIA_TABS = [
+  { key: "", label: "Semua", icon: null },
+  { key: "foto", label: "Foto", icon: ImageIcon },
+  { key: "video", label: "Video", icon: Video },
+] as const;
 
 function hasVideoFiles(files: File[]): boolean {
   return files.some((f) => f.type.startsWith("video/"));
@@ -49,11 +35,15 @@ function label(files: File[]): string {
   return hasVideoFiles(files) ? "media" : "foto";
 }
 
-const MEDIA_TABS = [
-  { key: "", label: "Semua", icon: null },
-  { key: "foto", label: "Foto", icon: ImageIcon },
-  { key: "video", label: "Video", icon: Video },
-] as const;
+export interface UploadFileItem {
+  id: string;
+  file: File;
+  previewUrl?: string;
+  status: "pending" | "uploading" | "complete" | "error" | "cancelled";
+  progress: { loaded: number; total: number; percent: number; speed: number; eta: number };
+  error?: string;
+  result?: { url: string; publicId: string; secureUrl: string; width: number; height: number; format: string; bytes: number; duration?: number };
+}
 
 export default function GalleryManager() {
   const [mediaType, setMediaType] = useState<string | undefined>();
@@ -65,148 +55,259 @@ export default function GalleryManager() {
   const updatePhoto = useUpdatePhoto();
   const [showUploader, setShowUploader] = useState(false);
   const [selectedAlbumId, setSelectedAlbumId] = useState("");
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [fileErrors, setFileErrors] = useState<string[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const { data: albums } = useAlbums();
+  const [pendingFiles, setPendingFiles] = useState<UploadFileItem[]>([]);
 
   const [lightboxIndex, setLightboxIndex] = useState(-1);
   const [lightboxPhotos, setLightboxPhotos] = useState<Photo[]>([]);
+  const lightboxIndexRef = useRef(-1);
+  const lightboxPhotosRef = useRef<Photo[]>([]);
 
-  const handlePhotoClick = useCallback(
-    (photosList: Photo[], index: number) => {
-      setLightboxPhotos(photosList);
-      setLightboxIndex(index);
-    },
-    [],
-  );
-
-  const photos = data?.pages.flatMap((p) => p.data || []) ?? [];
-
-  const handleFilesSelected = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const fileList = e.target.files;
-      if (!fileList || fileList.length === 0) return;
-
-      setFileErrors([]);
-      const newFiles: File[] = [];
-      const errors: string[] = [];
-
-      for (const file of Array.from(fileList)) {
-        if (!ALLOWED_MIME_TYPES.has(file.type)) {
-          errors.push(`${file.name}: Format tidak didukung`);
-          continue;
-        }
-        if (file.size > MAX_SIZE_BYTES) {
-          errors.push(`${file.name}: Maksimal ${MAX_SIZE_MB}MB`);
-          continue;
-        }
-        newFiles.push(file);
-      }
-
-      if (errors.length > 0) {
-        setFileErrors(errors);
-      }
-
-      setSelectedFiles((prev) => {
-        const combined = [...prev, ...newFiles];
-        return combined.slice(0, MAX_FILES);
-      });
-
-      e.target.value = "";
-    },
-    [],
-  );
-
-  const removeFile = useCallback((index: number) => {
-    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+  const handlePhotoClick = useCallback((photosList: Photo[], index: number) => {
+    lightboxPhotosRef.current = photosList;
+    lightboxIndexRef.current = index;
+    setLightboxPhotos(photosList);
+    setLightboxIndex(index);
   }, []);
 
+  const handleLightboxNavigate = useCallback((index: number) => {
+    lightboxIndexRef.current = index;
+    setLightboxIndex(index);
+  }, []);
+
+  const handleLightboxClose = useCallback(() => {
+    lightboxIndexRef.current = -1;
+    setLightboxIndex(-1);
+  }, []);
+
+  const photos = useMemo(() => data?.pages.flatMap((p) => p.data || []) ?? [], [data]);
+
+  const handleFilesSelected = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
+
+    setFileErrors([]);
+    const newFiles: File[] = [];
+    const errors: string[] = [];
+
+    for (const file of Array.from(fileList)) {
+      if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
+        errors.push(`${file.name}: Hanya foto dan video yang bisa diupload`);
+        continue;
+      }
+      if (file.size <= 0) {
+        errors.push(`${file.name}: File kosong tidak bisa diupload`);
+        continue;
+      }
+      newFiles.push(file);
+    }
+
+    if (errors.length > 0) setFileErrors(errors);
+
+    setPendingFiles((prev) => {
+      const availableSlots = MAX_FILES - prev.length;
+      if (availableSlots <= 0) return prev;
+      const filesToAdd = newFiles.slice(0, availableSlots);
+      const newItems: UploadFileItem[] = filesToAdd.map((file) => ({
+        id: `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`,
+        file,
+        status: "pending",
+        progress: { loaded: 0, total: file.size, percent: 0, speed: 0, eta: 0 },
+      }));
+      return [...prev, ...newItems];
+    });
+
+    e.target.value = "";
+  }, []);
+
+  const removeFile = useCallback((id: string) => {
+    setPendingFiles((prev) => prev.filter((u) => u.id !== id));
+  }, []);
+
+  const clearQueue = useCallback(() => {
+    uploadPhotos.cancelAllUploads();
+    setPendingFiles([]);
+    setFileErrors([]);
+    setIsSubmitting(false);
+  }, [uploadPhotos]);
+
+  const handleCancel = useCallback((queueId: string) => {
+    uploadPhotos.cancelUpload(queueId);
+  }, [uploadPhotos]);
+
+  const handleRetry = useCallback((queueId: string) => {
+    uploadPhotos.retryUpload(queueId);
+  }, [uploadPhotos]);
+
   const handleUpload = useCallback(async () => {
-    if (selectedFiles.length === 0) return;
+    if (pendingFiles.length === 0 || isSubmitting) return;
+    setIsSubmitting(true);
 
     try {
-      const result = await uploadPhotos.mutateAsync({
-        files: selectedFiles,
-        albumId: selectedAlbumId || undefined,
-      });
+      const result = await uploadPhotos.uploadFiles(
+        pendingFiles.map((u) => u.file),
+        selectedAlbumId || undefined
+      );
 
       const successCount = result.uploaded.length;
       const failCount = result.failed.length;
+      const l = label(pendingFiles.map((u) => u.file));
 
-      const l = label(selectedFiles);
       if (successCount > 0 && failCount === 0) {
-        toast.success(`${successCount} ${l} berhasil diupload!`);
+        toast.success(`${successCount} ${l} berhasil diupload! 💕`);
+        setPendingFiles([]);
+        setFileErrors([]);
+        setShowUploader(false);
       } else if (successCount > 0 && failCount > 0) {
         toast.success(`${successCount} ${l} berhasil diupload`);
-        toast.error(`${failCount} ${l} gagal: ${result.failed.map((f) => `${f.name} — ${f.error}`).join(", ")}`);
+        toast.error(`${failCount} ${l} gagal`);
+        const failedNames = new Set(result.failed.map((f) => f.name));
+        setPendingFiles((prev) =>
+          prev
+            .filter((u) => failedNames.has(u.file.name))
+            .map((u) => ({
+              ...u,
+              status: "error",
+              error: result.failed.find((f) => f.name === u.file.name)?.error || "Upload failed",
+            }))
+        );
+        setFileErrors([]);
       } else {
-        toast.error(`Semua ${l} gagal: ${result.failed.map((f) => `${f.name} — ${f.error}`).join(", ")}`);
+        toast.error(`Semua ${l} gagal diupload`);
+        setPendingFiles((prev) =>
+          prev.map((u) => ({
+            ...u,
+            status: "error",
+            error: result.failed.find((f) => f.name === u.file.name)?.error || "Upload failed",
+          }))
+        );
       }
-
-      setSelectedFiles([]);
-      setFileErrors([]);
-      setShowUploader(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : `Gagal upload ${label(selectedFiles)}`);
+      toast.error(err instanceof Error ? err.message : `Gagal upload`);
+    } finally {
+      setIsSubmitting(false);
     }
-  }, [selectedFiles, selectedAlbumId, uploadPhotos]);
+  }, [pendingFiles, selectedAlbumId, uploadPhotos, isSubmitting]);
 
-  const handleDelete = useCallback(
-    async (id: string) => {
-      const confirmed = await showDeleteConfirm({
-        title: "Hapus Media",
-        text: "Apakah Anda yakin ingin menghapus media ini?",
+  const handleDelete = useCallback(async (id: string) => {
+    const confirmed = await showDeleteConfirm({ title: "Hapus Media", text: "Apakah Anda yakin ingin menghapus media ini?" });
+    if (confirmed) {
+      deletePhoto.mutate(id, {
+        onSuccess: () => {
+          const currentPhotos = lightboxPhotosRef.current;
+          const deletedIndex = currentPhotos.findIndex((photo) => photo.id === id);
+          const remainingPhotos = currentPhotos.filter((photo) => photo.id !== id);
+
+          if (deletedIndex !== -1) {
+            const currentIndex = lightboxIndexRef.current;
+            const nextIndex = remainingPhotos.length === 0
+              ? -1
+              : deletedIndex < currentIndex
+                ? currentIndex - 1
+                : Math.min(currentIndex, remainingPhotos.length - 1);
+
+            lightboxPhotosRef.current = remainingPhotos;
+            lightboxIndexRef.current = nextIndex;
+            setLightboxPhotos(remainingPhotos);
+            setLightboxIndex(nextIndex);
+          }
+          toast.success("Media dihapus");
+        },
+        onError: () => toast.error("Gagal menghapus media"),
       });
-      if (confirmed) {
-        deletePhoto.mutate(id, {
-          onSuccess: () => toast.success("Media dihapus"),
-          onError: () => toast.error("Gagal menghapus media"),
-        });
-      }
-    },
-    [deletePhoto],
-  );
+    }
+  }, [deletePhoto]);
+
+  const uploadQueue = useMemo(() => {
+    if (!isSubmitting) return pendingFiles;
+    return uploadPhotos.queue.map((q) => ({
+      id: q.id,
+      file: q.file,
+      status: q.status,
+      progress: q.progress,
+      error: q.error,
+      result: q.result,
+    })) as UploadFileItem[];
+  }, [isSubmitting, pendingFiles, uploadPhotos.queue]);
+
+  const pendingCount = pendingFiles.length;
+  const uploadingCount = uploadQueue.filter((u) => u.status === "uploading").length;
+  const completeCount = uploadQueue.filter((u) => u.status === "complete").length;
+  const errorCount = uploadQueue.filter((u) => u.status === "error").length;
+  const totalCount = uploadQueue.length;
+
+  const overallProgress = totalCount > 0 ? Math.round((completeCount / totalCount) * 100) : 0;
+  const totalSpeed = useMemo(() => uploadQueue.reduce((sum, u) => sum + (u.progress.speed || 0), 0), [uploadQueue]);
+  const uploadingItems = useMemo(() => uploadQueue.filter((u) => u.status === "uploading"), [uploadQueue]);
+  const avgEta = uploadingItems.length > 0
+    ? Math.round(uploadingItems.reduce((sum, u) => sum + u.progress.eta, 0) / uploadingItems.length)
+    : 0;
 
   return (
     <div className="space-y-8">
       {storage && (
-        <StorageUsageBar
-          used={storage.storageUsed}
-          limit={storage.storageLimit}
-          resourcesCount={storage.resourcesCount}
-        />
+        <StorageUsageBar used={storage.storageUsed} limit={storage.storageLimit} resourcesCount={storage.resourcesCount} />
       )}
 
       <section>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-heading text-lg font-semibold">Upload Foto & Video</h2>
-          <Button size="sm" onClick={() => {
-            const closing = showUploader;
-            setShowUploader(!showUploader);
-            if (closing) {
-              setSelectedFiles([]);
-              setFileErrors([]);
-            }
-          }} className="gap-2">
+          <Button
+            size="sm"
+            onClick={() => {
+              const closing = showUploader;
+              setShowUploader(!showUploader);
+              if (closing) clearQueue();
+            }}
+            className="gap-2 relative"
+          >
             <ImagePlus className="h-4 w-4" />
             {showUploader ? "Tutup" : "Upload"}
+            {totalCount > 0 && !showUploader && (
+              <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-medium">
+                {totalCount > 9 ? "9+" : totalCount}
+              </span>
+            )}
           </Button>
         </div>
+
         {showUploader && (
-          <div className="rounded-2xl border-2 border-dashed border-border bg-muted/30 p-6 text-center">
+          <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+            {uploadQueue.length > 0 && (
+              <div className="mb-4 p-3 rounded-lg border border-primary/30 bg-primary/5 text-left">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <div className="h-2 min-w-12 flex-1 max-w-xs overflow-hidden rounded-full bg-muted">
+                      <div className="h-full bg-primary transition-all duration-300" style={{ width: `${overallProgress}%` }} />
+                    </div>
+                    <span className="whitespace-nowrap text-xs font-medium text-primary sm:text-sm">
+                      {completeCount}/{totalCount} file {uploadingCount > 0 ? `(${uploadingCount} uploading)` : ""}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 lg:shrink-0">
+                    {errorCount > 0 && <span className="text-xs text-destructive">{errorCount} error</span>}
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">
+                      {totalSpeed > 0 ? `${formatBytes(totalSpeed)}/s` : "Menunggu..."}
+                    </span>
+                    {avgEta > 0 && <span className="text-xs text-muted-foreground whitespace-nowrap">ETA: {formatTime(avgEta)}</span>}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {albums && albums.length > 0 && (
-              <div className="mb-4">
+              <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-center gap-3">
                 <select
                   value={selectedAlbumId}
                   onChange={(e) => setSelectedAlbumId(e.target.value)}
-                  className="h-9 w-full max-w-xs rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="h-9 w-full max-w-xs rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring justify-center"
                 >
                   <option value="">Tanpa album</option>
                   {albums.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.name}
-                    </option>
+                    <option key={a.id} value={a.id}>{a.name}</option>
                   ))}
                 </select>
               </div>
@@ -218,7 +319,7 @@ export default function GalleryManager() {
               accept={ACCEPT_STRING}
               multiple
               onChange={handleFilesSelected}
-              disabled={uploadPhotos.isPending}
+              disabled={isSubmitting}
               className="hidden"
               id="gallery-upload-input"
             />
@@ -226,68 +327,37 @@ export default function GalleryManager() {
             <label
               htmlFor="gallery-upload-input"
               className={cn(
-                "flex cursor-pointer flex-col items-center gap-3 rounded-xl border-2 border-dashed p-8 transition-colors",
-                uploadPhotos.isPending
-                  ? "pointer-events-none opacity-50"
-                  : "hover:border-primary/50",
+                "flex cursor-pointer flex-col items-center gap-3 rounded-xl border-2 border-dashed p-6 transition-colors w-full",
+                isSubmitting ? "pointer-events-none opacity-50" : "hover:border-primary/50 hover:bg-accent"
               )}
             >
-              {uploadPhotos.isPending ? (
+              {isSubmitting ? (
                 <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" />
               ) : (
                 <Upload className="h-10 w-10 text-muted-foreground" />
               )}
-              <div>
+              <div className="flex flex-col items-center justify-center text-center">
                 <p className="text-sm font-medium">
-                  {uploadPhotos.isPending
-                    ? "Mengupload..."
-                    : "Klik untuk pilih media"}
+                  {isSubmitting ? "Mengupload..." : "Klik untuk pilih media"}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {SUPPORTED_FORMATS_LABEL} max {MAX_SIZE_MB}MB (maks {MAX_FILES} file per upload)
+                  {SUPPORTED_FORMATS_LABEL} (Maks {MAX_FILES} file per upload)
                 </p>
               </div>
             </label>
 
-            {selectedFiles.length > 0 && (
+            {uploadQueue.length > 0 && (
               <div className="mt-4 space-y-2 text-left">
-                <p className="text-xs font-medium text-muted-foreground">
-                  {selectedFiles.length} file dipilih
-                </p>
-                <div className="max-h-48 space-y-2 overflow-y-auto">
-                  {selectedFiles.map((file, i) => (
-                    <div
-                      key={`${file.name}-${i}`}
-                      className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 p-2"
-                    >
-                      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
-                        {file.type.startsWith("image/") ? (
-                          <Image
-                            src={URL.createObjectURL(file)}
-                            alt={file.name}
-                            width={40}
-                            height={40}
-                            className="h-full w-full object-cover"
-                            unoptimized
-                          />
-                        ) : (
-                          <FileVideo className="h-5 w-5 text-muted-foreground" />
-                        )}
-                      </div>
-                      <span className="flex-1 truncate text-sm">{file.name}</span>
-                      <span className="flex-shrink-0 text-xs text-muted-foreground">
-                        {(file.size / (1024 * 1024)).toFixed(1)}MB
-                      </span>
-                      {!uploadPhotos.isPending && (
-                        <button
-                          type="button"
-                          onClick={() => removeFile(i)}
-                          className="rounded-full p-0.5 transition-colors hover:bg-muted"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </div>
+                <div className="max-h-64 space-y-2 overflow-y-auto">
+                  {uploadQueue.map((item) => (
+                    <UploadItem
+                      key={item.id}
+                      item={item}
+                      onCancel={handleCancel}
+                      onRetry={handleRetry}
+                      onRemove={removeFile}
+                      isUploading={isSubmitting}
+                    />
                   ))}
                 </div>
               </div>
@@ -304,31 +374,23 @@ export default function GalleryManager() {
               </div>
             )}
 
-            {selectedFiles.length > 0 && (
+            {uploadQueue.length > 0 && (
               <div className="mt-4 flex gap-3">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => {
-                    setSelectedFiles([]);
-                    setFileErrors([]);
-                  }}
-                  disabled={uploadPhotos.isPending}
-                >
+                <Button variant="outline" className="flex-1" onClick={clearQueue} disabled={isSubmitting}>
                   Hapus semua
                 </Button>
                 <Button
                   className="flex-1"
                   onClick={handleUpload}
-                  disabled={uploadPhotos.isPending}
+                  disabled={isSubmitting || pendingCount === 0}
                 >
-                  {uploadPhotos.isPending ? (
+                  {isSubmitting ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Uploading...
                     </>
                   ) : (
-                    `Upload ${selectedFiles.length} file`
+                    `Upload ${pendingCount} file${pendingCount !== 1 ? "s" : ""}`
                   )}
                 </Button>
               </div>
@@ -343,11 +405,8 @@ export default function GalleryManager() {
 
       <section>
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="font-heading text-lg font-semibold">
-            Semua Media ({photos.length})
-          </h2>
+          <h2 className="font-heading text-lg font-semibold">Semua Media ({photos.length})</h2>
           <div className="flex flex-wrap items-center gap-2">
-            {/* Media type tabs */}
             <div className="flex items-center gap-1 rounded-full border border-border p-0.5">
               {MEDIA_TABS.map(({ key, label, icon: Icon }) => (
                 <button
@@ -357,7 +416,7 @@ export default function GalleryManager() {
                     "inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
                     (mediaType || "") === key
                       ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground",
+                      : "text-muted-foreground hover:text-foreground"
                   )}
                 >
                   {Icon && <Icon className="h-3.5 w-3.5" />}
@@ -365,17 +424,11 @@ export default function GalleryManager() {
                 </button>
               ))}
             </div>
-
-            {/* Sort toggle */}
             <button
-              onClick={() =>
-                setSort(sort === "oldest" ? undefined : "oldest")
-              }
+              onClick={() => setSort(sort === "oldest" ? undefined : "oldest")}
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-                sort === "oldest"
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-border text-muted-foreground hover:bg-accent",
+                sort === "oldest" ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-accent"
               )}
             >
               <ArrowUpDown className="h-3.5 w-3.5" />
@@ -395,49 +448,39 @@ export default function GalleryManager() {
             <ImagePlus className="h-10 w-10 text-muted-foreground" />
             <p className="text-sm text-muted-foreground">Belum ada media</p>
           </div>
-) : (
-            <>
-              <div className="columns-2 gap-3 md:columns-3 lg:columns-4">
-                {photos.map((photo, index) => (
-                  <div key={photo.id} className="mb-3 break-inside-avoid">
-                    <PhotoCard
-                      photo={photo}
-                      onClick={(p) => handlePhotoClick(photos, index)}
-                      onFavoriteToggle={(id, isFavorite) =>
-                        updatePhoto.mutate({ id, isFavorite })}
-                      isPrioritized={index < 8}
-                    />
-                  </div>
-                ))}
-              </div>
-
-              {hasNextPage && (
-                <div className="mt-6 flex justify-center">
-                  <Button
-                    variant="outline"
-                    onClick={() => fetchNextPage()}
-                    disabled={isFetchingNextPage}
-                    className="gap-2"
-                  >
-                    {isFetchingNextPage ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4" />
-                    )}
-                    Muat lebih banyak
-                  </Button>
+        ) : (
+          <>
+            <div className="columns-2 gap-3 md:columns-3 lg:columns-4">
+              {photos.map((photo, index) => (
+                <div key={photo.id} className="mb-3 break-inside-avoid">
+                  <PhotoCard
+                    photo={photo}
+                    onClick={(p) => handlePhotoClick(photos, index)}
+                    onFavoriteToggle={(id, isFavorite) => updatePhoto.mutate({ id, isFavorite })}
+                    isPrioritized={index < 8}
+                  />
                 </div>
-              )}
-            </>
-          )}
+              ))}
+            </div>
+
+            {hasNextPage && (
+              <div className="mt-6 flex justify-center">
+                <Button variant="outline" onClick={() => fetchNextPage()} disabled={isFetchingNextPage} className="gap-2">
+                  {isFetchingNextPage ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronDown className="h-4 w-4" />}
+                  Muat lebih banyak
+                </Button>
+              </div>
+            )}
+          </>
+        )}
       </section>
 
       <Lightbox
         photos={lightboxPhotos}
         currentIndex={lightboxIndex}
         isOpen={lightboxIndex >= 0}
-        onClose={() => setLightboxIndex(-1)}
-        onNavigate={setLightboxIndex}
+        onClose={handleLightboxClose}
+        onNavigate={handleLightboxNavigate}
         onDelete={handleDelete}
         showAlbumMove={true}
       />

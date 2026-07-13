@@ -14,7 +14,7 @@ type UploadButtonProps = {
 
 export default function UploadButton({
   onUpload,
-  maxFiles = 30,
+  maxFiles = 50,
   maxSizeMB = 200,
 }: UploadButtonProps) {
   const [isOpen, setIsOpen] = useState(false);

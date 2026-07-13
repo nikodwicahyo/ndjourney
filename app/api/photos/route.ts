@@ -6,6 +6,9 @@ import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { getCached, setCached, invalidateCache, cacheKey } from "@/lib/redis";
 import { jakartaYearStart } from "@/lib/date";
 import { generateId } from "@/lib/utils";
+import { isAllowedCloudinaryUrl, publicIdBelongsToUser } from "@/lib/upload-policy";
+
+export const runtime = "nodejs";
 
 const CACHE_TTL = 60;
 
@@ -125,6 +128,17 @@ export async function POST(request: Request) {
     }
 
     const { url, publicId, thumbnailUrl, caption, takenAt, width, height, isVideo, albumId } = parsed.data;
+    if (!isAllowedCloudinaryUrl(url) || !publicIdBelongsToUser(publicId, session.user.id)) {
+      return NextResponse.json({ error: "Invalid uploaded media" }, { status: 400 });
+    }
+
+    if (thumbnailUrl && !isAllowedCloudinaryUrl(thumbnailUrl)) {
+      return NextResponse.json({ error: "Invalid thumbnail URL" }, { status: 400 });
+    }
+
+    if (isVideo && !url.includes("/video/upload/")) {
+      return NextResponse.json({ error: "Invalid video media URL" }, { status: 400 });
+    }
 
     const selectCols = buildPhotoSelect();
     const now = new Date();
@@ -145,7 +159,11 @@ export async function POST(request: Request) {
       now,
     );
 
-    await invalidateCache("photos:*");
+    await Promise.all([
+      invalidateCache("photos:*"),
+      invalidateCache("albums:*"),
+      invalidateCache("dashboard:*"),
+    ]);
 
     return NextResponse.json({ data: result[0] }, { status: 201 });
   } catch (error) {

@@ -125,6 +125,10 @@ const UPLOAD_TRANSFORMS = [
   { quality: "auto:good", fetch_format: "auto", flags: "lossy" },
 ];
 
+const VIDEO_UPLOAD_TRANSFORMS = [
+  { quality: "auto:good", fetch_format: "auto" },
+];
+
 export async function uploadToCloudinary(
   file: string,
   folder = "ndjourney-web",
@@ -173,15 +177,22 @@ export async function uploadStreamToCloudinary(
 export async function uploadBufferToCloudinary(
   buffer: Buffer,
   folder = "ndjourney-web",
+  isVideo = false
 ): Promise<CloudinaryUploadResult> {
   return new Promise((resolve, reject) => {
+    const timeout = isVideo ? 300000 : 120000; // 5 min for video, 2 min for images
+    const timeoutId = setTimeout(() => {
+      reject(new Error(`Upload timeout after ${timeout / 1000}s`));
+    }, timeout);
+
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         folder,
-        resource_type: "auto",
-        transformation: UPLOAD_TRANSFORMS,
+        resource_type: isVideo ? "video" : "auto",
+        transformation: isVideo ? VIDEO_UPLOAD_TRANSFORMS : UPLOAD_TRANSFORMS,
       },
       (error, result) => {
+        clearTimeout(timeoutId);
         if (error || !result) {
           reject(error || new Error("Upload failed"));
           return;
@@ -213,8 +224,20 @@ function formatCloudinaryResult(result: {
   };
 }
 
-export async function deleteFromCloudinary(publicId: string): Promise<void> {
-  await cloudinary.uploader.destroy(publicId);
+export async function deleteFromCloudinary(
+  publicId: string,
+  resourceType = "image",
+): Promise<void> {
+  const result = await cloudinary.uploader.destroy(publicId, {
+    resource_type: resourceType,
+    invalidate: true,
+  });
+
+  if (result.result !== "ok") {
+    throw new Error(
+      `Cloudinary did not delete media ${publicId}: ${result.result ?? "unknown result"}`,
+    );
+  }
 }
 
 export type CloudinaryUsage = {
@@ -286,4 +309,22 @@ export function getImageUrl(
     transformation: [{ ...opts }],
     secure: true,
   });
+}
+
+export async function deleteFromCloudinaryUrl(url: string | null | undefined): Promise<void> {
+  if (!url) return;
+  const match = url.match(/^(https:\/\/res\.cloudinary\.com\/[^/]+\/(image|video)\/upload)\/(?:v\d+\/)?([^?#]+)$/);
+  if (!match) return;
+  const [, , resourceType, rest] = match;
+  
+  const pathParts = rest.split("/");
+  const cleanedParts = pathParts.filter(part => !part.includes(","));
+  const publicIdWithExt = cleanedParts.join("/");
+  const publicId = publicIdWithExt.replace(/\.[^/.]+$/, "");
+  
+  try {
+    await deleteFromCloudinary(publicId, resourceType);
+  } catch (err) {
+    console.error("Failed to delete parsed Cloudinary URL:", url, err);
+  }
 }

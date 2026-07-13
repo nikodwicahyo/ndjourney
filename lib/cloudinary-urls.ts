@@ -4,7 +4,8 @@ function extractUploadBaseAndId(url: string): { base: string; publicId: string }
   const match = url.match(/^(https:\/\/res\.cloudinary\.com\/[^/]+\/(?:image|video)\/upload)\/(.*)$/);
   if (!match) return null;
   const [, base, rest] = match;
-  const publicId = rest.includes(",") ? rest.slice(rest.indexOf("/") + 1) : rest;
+  const firstSlash = rest.indexOf("/");
+  const publicId = rest.includes(",") && firstSlash >= 0 ? rest.slice(firstSlash + 1) : rest;
   return { base: base + "/", publicId };
 }
 

@@ -75,6 +75,7 @@ export async function PUT(
     }
 
     await invalidateCache("letters:*");
+    await invalidateCache("dashboard:*");
 
     return NextResponse.json({ data: updated });
   } catch (error) {

@@ -4,6 +4,7 @@ import { updateMilestoneSchema } from "@/lib/validations/milestone";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { parseJakartaDateOnly } from "@/lib/date";
 import { invalidateCache } from "@/lib/redis";
+import { deleteFromCloudinary } from "@/lib/cloudinary";
 
 export async function GET(
   _request: Request,
@@ -131,9 +132,36 @@ export async function PUT(
     const allPhotoIds = [...(photoIds ?? []), ...createdPhotoIds];
 
     if (Array.isArray(photoIds) || photoUploads !== undefined) {
-      await prisma.milestonePhoto.deleteMany({
+      // Find photos that will be removed and are milestone-only (not shared elsewhere)
+      const currentLinks = await prisma.milestonePhoto.findMany({
         where: { milestoneId: id },
+        select: { photoId: true },
       });
+      const currentPhotoIds = currentLinks.map((l) => l.photoId);
+      const keepSet = new Set(allPhotoIds);
+      const removedPhotoIds = currentPhotoIds.filter((pid) => !keepSet.has(pid));
+
+      if (removedPhotoIds.length > 0) {
+        const orphanedPhotos = await prisma.photo.findMany({
+          where: { id: { in: removedPhotoIds }, isMilestoneOnly: true },
+          select: { id: true, publicId: true, isVideo: true },
+        });
+
+        await prisma.milestonePhoto.deleteMany({ where: { milestoneId: id } });
+
+        if (orphanedPhotos.length > 0) {
+          await Promise.allSettled(
+            orphanedPhotos.map((p) =>
+              deleteFromCloudinary(p.publicId, p.isVideo ? "video" : "image")
+            )
+          );
+          await prisma.photo.deleteMany({
+            where: { id: { in: orphanedPhotos.map((p) => p.id) } },
+          });
+        }
+      } else {
+        await prisma.milestonePhoto.deleteMany({ where: { milestoneId: id } });
+      }
 
       if (allPhotoIds.length > 0) {
         await prisma.milestonePhoto.createMany({
@@ -179,6 +207,7 @@ export async function PUT(
     ]);
 
     await invalidateCache("milestones:*");
+    await invalidateCache("dashboard:*");
 
     return NextResponse.json({
       data: {
@@ -219,9 +248,32 @@ export async function DELETE(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    // Fetch milestone-only photos to clean from Cloudinary
+    const milestoneOnlyPhotos = await prisma.photo.findMany({
+      where: {
+        milestones: { some: { milestoneId: id } },
+        isMilestoneOnly: true,
+      },
+      select: { id: true, publicId: true, isVideo: true },
+    });
+
+    // Cascade delete milestone (MilestonePhoto rows deleted by onDelete: Cascade)
     await prisma.milestone.delete({ where: { id } });
 
+    // Clean up orphaned milestone-only photos from DB and Cloudinary
+    if (milestoneOnlyPhotos.length > 0) {
+      await Promise.allSettled(
+        milestoneOnlyPhotos.map((p) =>
+          deleteFromCloudinary(p.publicId, p.isVideo ? "video" : "image")
+        )
+      );
+      await prisma.photo.deleteMany({
+        where: { id: { in: milestoneOnlyPhotos.map((p) => p.id) } },
+      });
+    }
+
     await invalidateCache("milestones:*");
+    await invalidateCache("dashboard:*");
 
     return NextResponse.json({ message: "Milestone deleted" });
   } catch (error) {

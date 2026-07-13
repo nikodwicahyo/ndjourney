@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query-keys";
 import type { Photo, AlbumWithCount } from "@/types";
+import { useUploadPhotos as useNewUploadPhotos } from "./useUpload";
 
 export const photoKeys = queryKeys.photos;
 export const albumKeys = queryKeys.albums;
@@ -113,6 +114,7 @@ export function useUpdatePhoto() {
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: photoKeys.all });
+      qc.invalidateQueries({ queryKey: albumKeys.all });
     },
   });
 }
@@ -127,8 +129,10 @@ export function useDeletePhoto() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: photoKeys.all });
+      qc.invalidateQueries({ queryKey: albumKeys.all });
       qc.invalidateQueries({ queryKey: ["storage", "usage"] });
       qc.invalidateQueries({ queryKey: ["dashboard", "stats"] });
+      qc.invalidateQueries({ queryKey: ["dashboard", "activity"] });
     },
   });
 }
@@ -138,31 +142,21 @@ export function useUploadPhoto() {
 
   return useMutation({
     mutationFn: async ({ file, albumId }: { file: File; albumId?: string }) => {
-      const formData = new FormData();
-      formData.append("file", file);
+      const { uploadFileSimple } = await import("@/lib/chunked-upload");
 
-      const uploadRes = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!uploadRes.ok) {
-        const err = await uploadRes.json();
-        throw new Error(err.error || "Upload failed");
-      }
-
-      const uploadData: { data: UploadFileResult } = await uploadRes.json();
+      const result = await uploadFileSimple(file, () => {}, undefined);
 
       const photoRes = await fetch("/api/photos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          url: uploadData.data.url,
-          publicId: uploadData.data.publicId,
-          thumbnailUrl: uploadData.data.thumbnailUrl,
-          width: uploadData.data.width,
-          height: uploadData.data.height,
-          isVideo: uploadData.data.isVideo ?? false,
+          url: result.url,
+          publicId: result.publicId,
+          thumbnailUrl: result.thumbnailUrl,
+          width: result.width,
+          height: result.height,
+          fileSize: result.bytes,
+          isVideo: result.format?.includes("mp4") || result.format?.includes("mov") || result.isVideo || false,
           albumId,
         }),
       });
@@ -175,9 +169,11 @@ export function useUploadPhoto() {
       return photoRes.json();
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: photoKeys.all });
-      qc.invalidateQueries({ queryKey: ["storage", "usage"] });
-      qc.invalidateQueries({ queryKey: ["dashboard", "stats"] });
+      // refetchType: "all" forces a fresh fetch even within stale time
+      qc.invalidateQueries({ queryKey: photoKeys.all, refetchType: "all" });
+      qc.invalidateQueries({ queryKey: ["storage", "usage"], refetchType: "all" });
+      qc.invalidateQueries({ queryKey: ["dashboard", "stats"], refetchType: "all" });
+      qc.invalidateQueries({ queryKey: ["dashboard", "activity"], refetchType: "all" });
     },
   });
 }
@@ -190,6 +186,8 @@ type UploadFileResult = {
   height?: number;
   fileSize?: number;
   isVideo?: boolean;
+  format?: string;
+  bytes?: number;
 };
 
 type UploadResult = {
@@ -197,161 +195,8 @@ type UploadResult = {
   failed: { name: string; error: string }[];
 };
 
-async function parseResponseBody(res: Response): Promise<string> {
-  const contentType = res.headers.get("content-type") || "";
-  if (contentType.includes("application/json")) {
-    try {
-      const json = await res.json();
-      return json.error || json.message || res.statusText;
-    } catch {
-      return res.statusText || "Upload failed";
-    }
-  }
-  const text = await res.text();
-  const cleaned = text.replace(/<[^>]*>/g, "").trim().substring(0, 200);
-  return cleaned || res.statusText || "Upload failed";
-}
-
-type BulkUploadResult = {
-  fileName: string;
-  success: boolean;
-  result?: UploadFileResult;
-  error?: string;
-};
-
-async function uploadBulkFiles(
-  files: File[],
-  albumId?: string,
-  signal?: AbortSignal,
-): Promise<{ uploaded: Photo[]; failed: { name: string; error: string }[] }> {
-  const formData = new FormData();
-  files.forEach((file) => formData.append("files", file));
-  if (albumId) formData.append("albumId", albumId);
-
-  const res = await fetch("/api/upload/bulk", {
-    method: "POST",
-    body: formData,
-    signal,
-  });
-
-  if (!res.ok) {
-    const errorMessage = await parseResponseBody(res);
-    throw new Error(errorMessage);
-  }
-
-  const data: { results: BulkUploadResult[]; rateLimit: { remaining: number } } = await res.json();
-
-  const uploadedFiles = data.results
-    .filter((r): r is BulkUploadResult & { result: UploadFileResult } => r.success && !!r.result)
-    .map((r) => r.result!);
-
-  const failed = data.results
-    .filter((r): r is BulkUploadResult & { error: string } => !r.success && !!r.error)
-    .map((r) => ({ name: r.fileName, error: r.error! }));
-
-  if (uploadedFiles.length === 0) {
-    return { uploaded: [], failed };
-  }
-
-  const photoRes = await fetch("/api/photos/bulk-upload", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      photos: uploadedFiles.map((f) => ({
-        url: f.url,
-        publicId: f.publicId,
-        thumbnailUrl: f.thumbnailUrl,
-        width: f.width,
-        height: f.height,
-        fileSize: f.fileSize,
-        isVideo: f.isVideo ?? false,
-        albumId,
-      })),
-    }),
-  });
-
-  if (!photoRes.ok) {
-    const errorMessage = await parseResponseBody(photoRes);
-    throw new Error(errorMessage);
-  }
-
-  const photoData: { data: Photo[] } = await photoRes.json();
-  return { uploaded: photoData.data, failed };
-}
-
-const UPLOAD_CONCURRENCY = 3;
-
-async function uploadSingleFile(
-  file: File,
-  signal?: AbortSignal,
-): Promise<UploadFileResult> {
-  const formData = new FormData();
-  formData.append("file", file);
-
-  const res = await fetch("/api/upload", {
-    method: "POST",
-    body: formData,
-    signal,
-  });
-
-  if (!res.ok) {
-    const errorMessage = await parseResponseBody(res);
-    throw new Error(errorMessage);
-  }
-
-  const data: { data: UploadFileResult } = await res.json();
-  return data.data;
-}
-
 export function useUploadPhotos() {
-  const qc = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({
-      files,
-      albumId,
-    }: {
-      files: File[];
-      albumId?: string;
-    }): Promise<UploadResult> => {
-      if (files.length === 1) {
-        const result = await uploadSingleFile(files[0]);
-        const photoRes = await fetch("/api/photos/bulk-upload", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            photos: [
-              {
-                url: result.url,
-                publicId: result.publicId,
-                thumbnailUrl: result.thumbnailUrl,
-                width: result.width,
-                height: result.height,
-                fileSize: result.fileSize,
-                isVideo: result.isVideo ?? false,
-                albumId,
-              },
-            ],
-          }),
-        });
-
-        if (!photoRes.ok) {
-          const errorMessage = await parseResponseBody(photoRes);
-          throw new Error(errorMessage);
-        }
-
-        const photoData: { data: Photo[] } = await photoRes.json();
-        return { uploaded: photoData.data, failed: [] };
-      }
-
-      return uploadBulkFiles(files, albumId);
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: photoKeys.all });
-      qc.invalidateQueries({ queryKey: ["storage", "usage"] });
-      qc.invalidateQueries({ queryKey: ["dashboard", "stats"] });
-    },
-  });
+  return useNewUploadPhotos();
 }
 
 export function useAlbums() {

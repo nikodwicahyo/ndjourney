@@ -172,6 +172,7 @@ export async function POST(request: Request) {
     }
 
     await invalidateCache("letters:*");
+    await invalidateCache("dashboard:*");
 
     return NextResponse.json({ data: enriched }, { status: 201 });
   } catch (error) {

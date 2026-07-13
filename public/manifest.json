@@ -1,6 +1,6 @@
 {
-  "name": "NDjourney — Niko & Dzikria",
-  "short_name": "ndjourney",
+  "name": "NDjourney - Niko & Dzikria",
+  "short_name": "NDjourney",
   "description": "Tempat cerita cinta Niko & Dzikria. Simpan kenangan, hitung hari bersama, dan mainkan game seru.",
   "start_url": "/",
   "display": "standalone",
@@ -13,9 +13,6 @@
   "theme_color": "#e87d9f",
   "orientation": "portrait-primary",
   "scope": "/",
-  "launch_handler": {
-    "client_mode": "focus-existing"
-  },
   "handle_links": "preferred",
   "edge_side_panel": {
     "preferred_width": 400

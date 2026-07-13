@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { uploadBufferToCloudinary } from "@/lib/cloudinary";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 
+export const runtime = "nodejs";
+
 const ALLOWED_TYPES = [
   "image/jpeg",
   "image/png",
@@ -26,13 +28,14 @@ const MAGIC_BYTES: Record<string, string[]> = {
   "image/png": ["89504e47"],
   "image/webp": ["52494646"],
   "image/heic": ["00000018", "0000001c"],
-  "video/mp4": ["00000018", "0000001c", "66747970"],
+  // Video formats have varied headers; use broader signatures + longer check
+  "video/mp4": ["00000018", "0000001c", "66747970", "6d646174", "6d6f6f76", "77696465"],
   "video/webm": ["1a45dfa3"],
-  "video/quicktime": ["66747970"],
+  "video/quicktime": ["66747970", "6d646174", "6d6f6f76", "77696465"],
   "video/x-msvideo": ["52494646"],
   "video/x-matroska": ["1a45dfa3"],
   "video/ogg": ["4f676753"],
-  "video/mpeg": ["000001ba"],
+  "video/mpeg": ["000001ba", "000001b3"],
 };
 
 type BulkUploadResult = {
@@ -68,10 +71,13 @@ async function validateAndPrepareFile(file: File): Promise<{ buffer: Buffer; isV
     return `Empty file.`;
   }
 
-  const hex = buffer.subarray(0, 8).toString("hex");
+  // Check more bytes for video files (up to 16 bytes) since headers vary
+  const checkLength = file.type.startsWith("video/") ? 16 : 8;
+  const hex = buffer.subarray(0, checkLength).toString("hex");
   const validSignatures = MAGIC_BYTES[file.type];
 
   if (validSignatures && !validSignatures.some((sig) => hex.includes(sig))) {
+    console.warn("Magic bytes mismatch:", { fileName: file.name, fileType: file.type, hex: hex.substring(0, 32) });
     return `File content does not match declared type: ${file.type}`;
   }
 
@@ -132,7 +138,7 @@ export async function POST(request: Request) {
 
       const batchResults = await Promise.allSettled(
         batch.map(async ({ file, buffer, isVideo }) => {
-          const cloudinaryResult = await uploadBufferToCloudinary(buffer);
+          const cloudinaryResult = await uploadBufferToCloudinary(buffer, "ndjourney-web", isVideo);
 
           return {
             fileName: file.name,
@@ -171,8 +177,9 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Bulk upload error:", error);
+    const message = error instanceof Error ? error.message : "Bulk upload failed";
     return NextResponse.json(
-      { error: "Bulk upload failed" },
+      { error: message },
       { status: 500 },
     );
   }

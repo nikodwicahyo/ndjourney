@@ -13,6 +13,8 @@ export async function DELETE(
     }
 
     const { publicId } = await params;
+    const { searchParams } = new URL(request.url);
+    const resourceType = searchParams.get("resourceType") || "image";
 
     if (!publicId) {
       return NextResponse.json(
@@ -21,7 +23,7 @@ export async function DELETE(
       );
     }
 
-    await deleteFromCloudinary(publicId);
+    await deleteFromCloudinary(publicId, resourceType);
 
     return NextResponse.json({ message: "File deleted from Cloudinary" });
   } catch (error) {

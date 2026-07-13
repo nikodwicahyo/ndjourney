@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { invalidateCache } from "@/lib/redis";
+import { getUserCoupleId } from "@/lib/couple";
+import { triggerCoupleEvent } from "@/lib/pusher-server";
 
 export async function DELETE(
   request: Request,
@@ -38,6 +40,11 @@ export async function DELETE(
     await prisma.dailyNote.delete({ where: { id } });
 
     await invalidateCache("notes:*");
+
+    const coupleId = await getUserCoupleId(session.user.id);
+    if (coupleId) {
+      triggerCoupleEvent(coupleId, 'DAILY_NOTES');
+    }
 
     return NextResponse.json({ message: "Catatan berhasil dihapus" });
   } catch (error) {

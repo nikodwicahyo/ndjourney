@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { deleteFromCloudinary } from "@/lib/cloudinary";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
+import { prisma } from "@/lib/prisma";
+import { publicIdBelongsToUser } from "@/lib/upload-policy";
 
 export async function DELETE(
   request: Request,
@@ -12,6 +14,7 @@ export async function DELETE(
       return rateCheck.response;
     }
 
+    const session = rateCheck.session;
     const { publicId } = await params;
     const { searchParams } = new URL(request.url);
     const resourceType = searchParams.get("resourceType") || "image";
@@ -20,6 +23,25 @@ export async function DELETE(
       return NextResponse.json(
         { error: "publicId is required" },
         { status: 400 },
+      );
+    }
+
+    if (!publicIdBelongsToUser(publicId, session.user.id)) {
+      return NextResponse.json(
+        { error: "Invalid publicId format" },
+        { status: 400 },
+      );
+    }
+
+    const photo = await prisma.photo.findFirst({
+      where: { publicId, uploadedById: session.user.id },
+      select: { id: true },
+    });
+
+    if (!photo) {
+      return NextResponse.json(
+        { error: "No matching media found for this user" },
+        { status: 404 },
       );
     }
 

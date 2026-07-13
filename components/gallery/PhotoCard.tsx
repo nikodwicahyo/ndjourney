@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import Image from "next/image";
-import { File, Heart, Play, Lock } from "lucide-react";
+import { File, Heart, Play, Lock, CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getBlurImageUrl } from "@/lib/cloudinary-urls";
 import type { Photo } from "@/types";
@@ -12,6 +12,9 @@ type PhotoCardProps = {
   onFavoriteToggle?: (id: string, isFavorite: boolean) => void;
   onClick?: (photo: Photo) => void;
   isPrioritized?: boolean;
+  selectable?: boolean;
+  isSelected?: boolean;
+  onSelectToggle?: (id: string) => void;
 };
 
 export default function PhotoCard({
@@ -19,6 +22,9 @@ export default function PhotoCard({
   onFavoriteToggle,
   onClick,
   isPrioritized,
+  selectable,
+  isSelected,
+  onSelectToggle,
 }: PhotoCardProps) {
   const [loaded, setLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
@@ -46,12 +52,23 @@ export default function PhotoCard({
     }
   }, [displayUrl]);
 
+  function handleClick() {
+    if (selectable) {
+      onSelectToggle?.(photo.id);
+    } else {
+      onClick?.(photo);
+    }
+  }
+
   return (
     <div
-      className="group relative cursor-pointer overflow-hidden rounded-2xl bg-muted shadow-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-lg"
-      onClick={() => onClick?.(photo)}
+      className={cn(
+        "group relative cursor-pointer overflow-hidden rounded-2xl bg-muted shadow-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-lg",
+        isSelected && "ring-2 ring-primary ring-offset-2",
+      )}
+      onClick={handleClick}
       onKeyDown={(e) => {
-        if (e.key === "Enter") onClick?.(photo);
+        if (e.key === "Enter") handleClick();
       }}
       role="button"
       tabIndex={0}
@@ -99,7 +116,20 @@ export default function PhotoCard({
         </div>
       )}
 
-      {photo.isVideo && (
+      {selectable && (
+        <div
+          className={cn(
+            "absolute top-3 left-3 z-10 rounded-full p-1 transition-all",
+            isSelected
+              ? "bg-primary text-primary-foreground"
+              : "bg-black/40 text-white opacity-0 group-hover:opacity-100",
+          )}
+        >
+          <CheckCircle className={cn("h-5 w-5", isSelected && "fill-current")} />
+        </div>
+      )}
+
+      {photo.isVideo && !selectable && (
         <div className="absolute top-3 left-3 rounded-full bg-black/50 p-1.5">
           <Play className="h-3.5 w-3.5 fill-white text-white" />
         </div>

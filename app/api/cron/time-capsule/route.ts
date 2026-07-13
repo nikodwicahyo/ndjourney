@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { sendEmail, timeCapsuleNotificationHtml } from "@/lib/resend";
+import { triggerCoupleEvent } from "@/lib/pusher-server";
 
 
 export async function GET(request: Request) {
@@ -38,6 +39,14 @@ export async function GET(request: Request) {
         recipient: { select: { id: true, name: true, email: true } },
       },
     });
+
+    const affectedCouples = new Set<string>();
+
+    for (const letter of unlockedLetters) {
+      if (letter.coupleId) {
+        affectedCouples.add(letter.coupleId);
+      }
+    }
 
     const results: Array<{ letterId: string; emailSent: boolean }> = [];
 
@@ -86,6 +95,10 @@ export async function GET(request: Request) {
           emailSent: false,
         });
       }
+    }
+
+    for (const coupleId of affectedCouples) {
+      triggerCoupleEvent(coupleId, 'LETTERS');
     }
 
     return NextResponse.json({

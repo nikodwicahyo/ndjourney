@@ -8,15 +8,23 @@ export type GameQuestionWithMeta = GameQuestion & {
   isTruth?: boolean;
 };
 
-export function useQuestions(type: GameType, count: number = 10) {
+type UseQuestionsResult = {
+  questions: GameQuestionWithMeta[];
+  total: number;
+};
+
+export function useQuestions(type: GameType, count: number = 10, exclude?: string[]) {
   return useQuery({
-    queryKey: queryKeys.games.questions(type, count),
+    queryKey: queryKeys.games.questions(type, count, exclude),
     queryFn: async () => {
-      const res = await fetch(
-        `/api/games/questions?type=${type}&random=${count}`,
-      );
+      const params = new URLSearchParams({ type, random: String(count) });
+      if (exclude && exclude.length > 0) params.set("exclude", exclude.join(","));
+      const res = await fetch(`/api/games/questions?${params}`);
       const json = await res.json();
-      return json.data as GameQuestionWithMeta[];
+      return {
+        questions: (json.data ?? []) as GameQuestionWithMeta[],
+        total: (json.total as number) ?? 0,
+      } satisfies UseQuestionsResult;
     },
     staleTime: 60_000,
     gcTime: 300_000,

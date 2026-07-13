@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useCallback, useRef, useMemo } from "react";
+import { useState, useCallback, useRef, useMemo, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { usePhotos, useUploadPhotos, useDeletePhoto, useAlbums, useUpdatePhoto } from "@/hooks/usePhotos";
 import { useStorageUsage } from "@/hooks/useStorage";
 import AlbumManager from "./AlbumManager";
 import { Button, StorageUsageBar } from "@/components/ui";
 import UploadItem from "./UploadItem";
-import { Upload, ImagePlus, Loader2, ChevronDown, FileWarning, Image as ImageIcon, Video, ArrowUpDown } from "lucide-react";
+import { Upload, ImagePlus, Loader2, ChevronDown, FileWarning, Image as ImageIcon, Video, ArrowUpDown, Trash2, CheckSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { showDeleteConfirm } from "@/lib/swal";
 import dynamic from "next/dynamic";
@@ -48,7 +49,8 @@ export interface UploadFileItem {
 export default function GalleryManager() {
   const [mediaType, setMediaType] = useState<string | undefined>();
   const [sort, setSort] = useState<string | undefined>();
-  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = usePhotos({ limit: 30, mediaType, sort });
+  const [albumFilter, setAlbumFilter] = useState<string | undefined>();
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = usePhotos({ limit: 30, mediaType, sort, albumId: albumFilter });
   const { data: storage } = useStorageUsage();
   const uploadPhotos = useUploadPhotos();
   const deletePhoto = useDeletePhoto();
@@ -83,7 +85,113 @@ export default function GalleryManager() {
     setLightboxIndex(-1);
   }, []);
 
+  const queryClient = useQueryClient();
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
   const photos = useMemo(() => data?.pages.flatMap((p) => p.data || []) ?? [], [data]);
+
+  const [colCount, setColCount] = useState(2);
+
+  useEffect(() => {
+    const onResize = () => {
+      const w = window.innerWidth;
+      if (w >= 1024) setColCount(4);
+      else if (w >= 768) setColCount(3);
+      else setColCount(2);
+    };
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  const toReadingOrder = useCallback(function <T>(items: T[], cols: number) {
+    const rows = Math.ceil(items.length / cols);
+    const result: T[] = [];
+    for (let col = 0; col < cols; col++) {
+      for (let row = 0; row < rows; row++) {
+        const idx = row * cols + col;
+        if (idx < items.length) result.push(items[idx]);
+      }
+    }
+    return result;
+  }, []);
+
+  const orderedPhotos = useMemo(
+    () => toReadingOrder(photos, colCount) as Photo[],
+    [photos, colCount, toReadingOrder],
+  );
+
+  const handleSelectToggle = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+    setSelectMode(false);
+  }, []);
+
+  const handleBatchDelete = useCallback(async () => {
+    const count = selectedIds.size;
+    if (count === 0) return;
+    const confirmed = await showDeleteConfirm({
+      title: "Hapus Media",
+      text: `Apakah Anda yakin ingin menghapus ${count} media?`,
+    });
+    if (!confirmed) return;
+    const ids = Array.from(selectedIds);
+    const results = await Promise.allSettled(
+      ids.map((id) =>
+        fetch(`/api/photos/${id}`, { method: "DELETE" }).then((r) => {
+          if (!r.ok) throw new Error("Gagal menghapus");
+        }),
+      ),
+    );
+    const failed = results.filter((r) => r.status === "rejected").length;
+    const succeeded = results.filter((r) => r.status === "fulfilled").length;
+    if (succeeded > 0) {
+      toast.success(`${succeeded} media dihapus`);
+      queryClient.invalidateQueries({ queryKey: ["photos"] });
+      queryClient.invalidateQueries({ queryKey: ["albums"] });
+      queryClient.invalidateQueries({ queryKey: ["storage", "usage"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard", "stats"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard", "activity"] });
+    }
+    if (failed > 0) toast.error(`${failed} media gagal dihapus`);
+    clearSelection();
+  }, [selectedIds, queryClient, clearSelection]);
+
+  const [moveAlbumId, setMoveAlbumId] = useState("");
+  const handleBatchMove = useCallback(async () => {
+    if (!moveAlbumId || selectedIds.size === 0) return;
+    const ids = Array.from(selectedIds);
+    const results = await Promise.allSettled(
+      ids.map((id) =>
+        fetch(`/api/photos/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ albumId: moveAlbumId }),
+        }).then((r) => {
+          if (!r.ok) throw new Error("Gagal memindahkan");
+        }),
+      ),
+    );
+    const failed = results.filter((r) => r.status === "rejected").length;
+    const succeeded = results.filter((r) => r.status === "fulfilled").length;
+    if (succeeded > 0) {
+      toast.success(`${succeeded} media dipindahkan`);
+      queryClient.invalidateQueries({ queryKey: ["photos"] });
+      queryClient.invalidateQueries({ queryKey: ["albums"] });
+    }
+    if (failed > 0) toast.error(`${failed} media gagal dipindahkan`);
+    setMoveAlbumId("");
+    clearSelection();
+  }, [moveAlbumId, selectedIds, queryClient, clearSelection]);
 
   const handleFilesSelected = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
@@ -161,6 +269,9 @@ export default function GalleryManager() {
         setPendingFiles([]);
         setFileErrors([]);
         setShowUploader(false);
+        if (selectedAlbumId) {
+          setAlbumFilter(selectedAlbumId);
+        }
       } else if (successCount > 0 && failCount > 0) {
         toast.success(`${successCount} ${l} berhasil diupload`);
         toast.error(`${failCount} ${l} gagal`);
@@ -233,7 +344,7 @@ export default function GalleryManager() {
     })) as UploadFileItem[];
   }, [isSubmitting, pendingFiles, uploadPhotos.queue]);
 
-  const pendingCount = pendingFiles.length;
+  const pendingCount = uploadQueue.filter((u) => u.status === "pending").length;
   const uploadingCount = uploadQueue.filter((u) => u.status === "uploading").length;
   const completeCount = uploadQueue.filter((u) => u.status === "complete").length;
   const errorCount = uploadQueue.filter((u) => u.status === "error").length;
@@ -284,13 +395,13 @@ export default function GalleryManager() {
                       <div className="h-full bg-primary transition-all duration-300" style={{ width: `${overallProgress}%` }} />
                     </div>
                     <span className="whitespace-nowrap text-xs font-medium text-primary sm:text-sm">
-                      {completeCount}/{totalCount} file {uploadingCount > 0 ? `(${uploadingCount} uploading)` : ""}
+                      {completeCount}/{totalCount} file {uploadingCount > 0 ? `(mengupload ${uploadingCount} file)` : pendingCount > 0 && totalCount > 0 ? `(${pendingCount} antrian)` : ""}
                     </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1 lg:shrink-0">
                     {errorCount > 0 && <span className="text-xs text-destructive">{errorCount} error</span>}
                     <span className="text-xs text-muted-foreground whitespace-nowrap">
-                      {totalSpeed > 0 ? `${formatBytes(totalSpeed)}/s` : "Menunggu..."}
+                      {uploadingCount > 0 ? (totalSpeed > 0 ? `${formatBytes(totalSpeed)}/s` : "Mengupload...") : "Menunggu..."}
                     </span>
                     {avgEta > 0 && <span className="text-xs text-muted-foreground whitespace-nowrap">ETA: {formatTime(avgEta)}</span>}
                   </div>
@@ -405,7 +516,7 @@ export default function GalleryManager() {
 
       <section>
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="font-heading text-lg font-semibold">Semua Media ({photos.length})</h2>
+          <h2 className="font-heading text-lg font-semibold">Gallery ({data?.pages[0]?.total ?? photos.length})</h2>
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1 rounded-full border border-border p-0.5">
               {MEDIA_TABS.map(({ key, label, icon: Icon }) => (
@@ -424,6 +535,18 @@ export default function GalleryManager() {
                 </button>
               ))}
             </div>
+            {albums && albums.length > 0 && (
+              <select
+                value={albumFilter ?? ""}
+                onChange={(e) => setAlbumFilter(e.target.value || undefined)}
+                className="h-8 rounded-full border border-border bg-background px-3 text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="">Semua Album</option>
+                {albums.map((a) => (
+                  <option key={a.id} value={a.id}>{a.name} ({a._count.photos})</option>
+                ))}
+              </select>
+            )}
             <button
               onClick={() => setSort(sort === "oldest" ? undefined : "oldest")}
               className={cn(
@@ -434,13 +557,68 @@ export default function GalleryManager() {
               <ArrowUpDown className="h-3.5 w-3.5" />
               {sort === "oldest" ? "Terlama" : "Terbaru"}
             </button>
+            <button
+              onClick={() => {
+                if (selectMode) clearSelection();
+                else setSelectMode(true);
+              }}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                selectMode ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-accent"
+              )}
+            >
+              <CheckSquare className="h-3.5 w-3.5" />
+              {selectMode ? "Batal" : "Pilih"}
+            </button>
           </div>
         </div>
 
+        {selectedIds.size > 0 && (
+          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card p-3">
+            <span className="text-sm font-medium">{selectedIds.size} media dipilih</span>
+            {albums && albums.length > 0 && (
+              <div className="flex items-center gap-2 ml-auto">
+                <select
+                  value={moveAlbumId}
+                  onChange={(e) => setMoveAlbumId(e.target.value)}
+                  className="h-8 rounded-lg border border-input bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <option value="">Pindahkan ke album</option>
+                  {albums.map((a) => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                </select>
+                <Button
+                  size="sm"
+                  onClick={handleBatchMove}
+                  disabled={!moveAlbumId}
+                  className="gap-2"
+                >
+                  Pindahkan
+                </Button>
+              </div>
+            )}
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={handleBatchDelete}
+              className="gap-2"
+            >
+              <Trash2 className="h-4 w-4" />
+              Hapus
+            </Button>
+            <Button size="sm" variant="outline" onClick={clearSelection}>
+              Batal
+            </Button>
+          </div>
+        )}
+
         {isLoading ? (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="columns-2 gap-3 md:columns-3 lg:columns-4">
             {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="aspect-[3/4] animate-pulse rounded-2xl bg-muted" />
+              <div key={i} className="mb-3 break-inside-avoid">
+                <div className="aspect-[3/4] w-full animate-pulse rounded-2xl bg-muted" />
+              </div>
             ))}
           </div>
         ) : photos.length === 0 ? (
@@ -451,23 +629,29 @@ export default function GalleryManager() {
         ) : (
           <>
             <div className="columns-2 gap-3 md:columns-3 lg:columns-4">
-              {photos.map((photo, index) => (
-                <div key={photo.id} className="mb-3 break-inside-avoid">
-                  <PhotoCard
-                    photo={photo}
-                    onClick={(p) => handlePhotoClick(photos, index)}
-                    onFavoriteToggle={(id, isFavorite) => updatePhoto.mutate({ id, isFavorite })}
-                    isPrioritized={index < 8}
-                  />
-                </div>
-              ))}
+              {orderedPhotos.map((photo) => {
+                const origIndex = photos.indexOf(photo);
+                return (
+                  <div key={photo.id} className="mb-3 break-inside-avoid">
+                    <PhotoCard
+                      photo={photo}
+                      onClick={(p) => handlePhotoClick(photos, origIndex)}
+                      onFavoriteToggle={(id, isFavorite) => updatePhoto.mutate({ id, isFavorite })}
+                      isPrioritized={origIndex < 8}
+                      selectable={selectMode}
+                      isSelected={selectedIds.has(photo.id)}
+                      onSelectToggle={handleSelectToggle}
+                    />
+                  </div>
+                );
+              })}
             </div>
 
             {hasNextPage && (
               <div className="mt-6 flex justify-center">
                 <Button variant="outline" onClick={() => fetchNextPage()} disabled={isFetchingNextPage} className="gap-2">
                   {isFetchingNextPage ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronDown className="h-4 w-4" />}
-                  Muat lebih banyak
+                  Lihat Lebih Banyak
                 </Button>
               </div>
             )}

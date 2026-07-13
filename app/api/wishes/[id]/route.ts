@@ -4,6 +4,8 @@ import { updateWishSchema } from "@/lib/validations/wish";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { invalidateCache } from "@/lib/redis";
 import { deleteFromCloudinaryUrl } from "@/lib/cloudinary";
+import { getUserCoupleId } from "@/lib/couple";
+import { triggerCoupleEvent } from "@/lib/pusher-server";
 
 export async function PUT(
   request: Request,
@@ -65,6 +67,11 @@ export async function PUT(
 
     await invalidateCache("wishes:*");
 
+    const coupleId = await getUserCoupleId(rateCheck.session.user.id);
+    if (coupleId) {
+      triggerCoupleEvent(coupleId, 'WISHLIST');
+    }
+
     return NextResponse.json({ data: wish });
   } catch (error) {
     console.error("Error updating wish:", error);
@@ -101,6 +108,11 @@ export async function DELETE(
     }
 
     await invalidateCache("wishes:*");
+
+    const coupleId = await getUserCoupleId(rateCheck.session.user.id);
+    if (coupleId) {
+      triggerCoupleEvent(coupleId, 'WISHLIST');
+    }
 
     return NextResponse.json({ message: "Wish deleted" });
   } catch (error) {

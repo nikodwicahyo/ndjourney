@@ -8,6 +8,7 @@ import { Heart, RotateCcw, RefreshCw } from "lucide-react";
 
 const MAX_WHEEL_SEGMENTS = 15;
 const SPIN_DURATION_MS = 3800;
+const LS_KEY = "spin-seen-ids";
 
 const COLORS = [
   "#F43F5E",
@@ -29,16 +30,36 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
+function loadSeenIds(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function saveSeenIds(set: Set<string>) {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify([...set]));
+  } catch {}
+}
+
 export default function SpinTheWheel() {
   const { data: ideas, isLoading, error, refetch } = useAllQuestions("SPIN_THE_WHEEL");
   const [spinning, setSpinning] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [rotation, setRotation] = useState(0);
   const [history, setHistory] = useState<string[]>([]);
-  const [seenIds, setSeenIds] = useState<Set<string>>(new Set());
+  const [seenIds, setSeenIds] = useState<Set<string>>(loadSeenIds);
   const [resetCount, setResetCount] = useState(0);
 
   const spinTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    saveSeenIds(seenIds);
+  }, [seenIds]);
 
   const allExhausted = useMemo(() => {
     if (!ideas || ideas.length === 0) return false;

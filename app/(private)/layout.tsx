@@ -1,7 +1,9 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
 import { Navbar, Sidebar, BottomNav } from "@/components/layout";
 import LayoutTransition from "@/components/LayoutTransition";
+import { RealtimeSyncClient } from "@/components/RealtimeSyncClient";
 
 export default async function PrivateLayout({
   children,
@@ -14,8 +16,14 @@ export default async function PrivateLayout({
     redirect("/login");
   }
 
+  const membership = await prisma.coupleMember.findUnique({
+    where: { userId: session.user.id },
+    select: { coupleId: true },
+  });
+
   return (
     <>
+      <RealtimeSyncClient coupleId={membership?.coupleId ?? undefined} />
       <Navbar />
       <div className="flex min-h-screen pt-16 overflow-x-hidden">
         <Sidebar />

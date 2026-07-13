@@ -66,6 +66,10 @@ export function useUploadPhotos(): UseUploadPhotosReturn {
     async (files: File[], albumId?: string): Promise<UploadResult> => {
       const uploadQueue = getOrCreateQueue();
 
+      // Clear any stale items from previous upload sessions
+      uploadQueue.clearAll();
+      setQueue([]);
+
       const publicIds = files.map((file) => generatePublicId(file.name, "temp"));
       const resourceTypes = files.map((file) => getResourceType(file.type));
 

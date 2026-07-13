@@ -24,8 +24,6 @@ function LetterCard({ letter, type, index = 0, baseHref = "/dashboard/letters" }
     new Date(letter.unlockAt) > new Date() &&
     !letter.isOpened;
 
-  const person = type === "inbox" ? letter.author : letter.recipient;
-
   return (
     <div
       className={cn(
@@ -39,8 +37,8 @@ function LetterCard({ letter, type, index = 0, baseHref = "/dashboard/letters" }
         className="flex w-full items-start gap-4"
       >
         <Avatar className="h-10 w-10 shrink-0">
-          <AvatarImage src={person.image ?? undefined} alt={person.name ?? "Person"} />
-          <AvatarFallback>{person.name?.charAt(0) || "P"}</AvatarFallback>
+          <AvatarImage src={letter.author.image ?? undefined} alt={letter.author.name ?? "Author"} />
+          <AvatarFallback>{letter.author.name?.charAt(0) || "P"}</AvatarFallback>
         </Avatar>
 
         <div className="min-w-0 flex-1">
@@ -58,8 +56,10 @@ function LetterCard({ letter, type, index = 0, baseHref = "/dashboard/letters" }
             )}
           </div>
 
-          <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-            <span>{person.name || "Pasangan"}</span>
+          <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground flex-wrap">
+            <span>{letter.author.name || "Pasangan"}</span>
+            <span>→</span>
+            <span>{letter.recipient.name || "Pasangan"}</span>
             <span>·</span>
             <span>{formatDateTime(letter.createdAt)}</span>
             {isLocked && (

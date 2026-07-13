@@ -93,21 +93,15 @@ function MilestoneCard({
                 )}
 
                 {milestone.location && (
-<div
-                  className={cn(
-                    "mt-3 flex items-center gap-2 text-xs text-muted-foreground",
-                    isLeft ? "md:flex-row-reverse" : "md:flex-row",
-                  )}
-                >
-                  <Avatar className="h-5 w-5 shrink-0">
-                    <AvatarImage src={milestone.createdBy.image ?? undefined} alt={milestone.createdBy.name ?? "Creator"} />
-                    <AvatarFallback>{milestone.createdBy.name?.charAt(0) || "P"}</AvatarFallback>
-                  </Avatar>
-                  <Heart className="h-3 w-3 shrink-0" />
-                  <span>
-                    {milestone.createdBy.name || "Pasangan"}
-                  </span>
-                </div>
+                  <div
+                    className={cn(
+                      "mt-3 flex items-center gap-2 text-xs text-muted-foreground",
+                      isLeft ? "md:flex-row-reverse" : "md:flex-row",
+                    )}
+                  >
+                    <MapPin className="h-3 w-3 shrink-0" />
+                    <span>{milestone.location}</span>
+                  </div>
                 )}
 
                 <div
@@ -115,7 +109,8 @@ function MilestoneCard({
                     "mt-3 flex items-center gap-2 text-xs text-muted-foreground",
                     isLeft ? "md:flex-row-reverse" : "md:flex-row",
                   )}
-                >
+                > 
+                  <Heart className="h-3 w-3 shrink-0" />
                   <Avatar className="h-5 w-5">
                     <AvatarImage src={milestone.createdBy.image ?? undefined} alt={milestone.createdBy.name ?? "Author"} />
                     <AvatarFallback>{milestone.createdBy.name?.charAt(0) || "P"}</AvatarFallback>
@@ -123,6 +118,7 @@ function MilestoneCard({
                   <span>
                     {milestone.createdBy.name || "Pasangan"}
                   </span>
+                  
                 </div>
               </div>
 

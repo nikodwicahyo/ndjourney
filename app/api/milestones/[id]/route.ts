@@ -1,16 +1,22 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
 import { updateMilestoneSchema } from "@/lib/validations/milestone";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { parseJakartaDateOnly } from "@/lib/date";
 import { invalidateCache } from "@/lib/redis";
 import { deleteFromCloudinary } from "@/lib/cloudinary";
+import { getUserCoupleId } from "@/lib/couple";
+import { triggerCoupleEvent } from "@/lib/pusher-server";
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const session = await auth();
+    const isAuthed = !!session?.user;
+
     const { id } = await params;
 
     const milestone = await prisma.milestone.findUnique({
@@ -31,6 +37,14 @@ export async function GET(
     });
 
     if (!milestone) {
+      return NextResponse.json(
+        { error: "Milestone not found" },
+        { status: 404 },
+      );
+    }
+
+    // Enforce visibility rules for unauthenticated callers matching the list endpoint
+    if (!isAuthed && !milestone.isPublic) {
       return NextResponse.json(
         { error: "Milestone not found" },
         { status: 404 },
@@ -58,6 +72,8 @@ export async function GET(
         createdBy: user ?? null,
         photos,
       },
+    }, {
+      headers: { "Cache-Control": isAuthed ? "private, s-maxage=60" : "public, s-maxage=60, stale-while-revalidate=300" },
     });
   } catch (error) {
     return NextResponse.json(
@@ -209,6 +225,11 @@ export async function PUT(
     await invalidateCache("milestones:*");
     await invalidateCache("dashboard:*");
 
+    const coupleId = await getUserCoupleId(session.user.id);
+    if (coupleId) {
+      triggerCoupleEvent(coupleId, 'TIMELINE');
+    }
+
     return NextResponse.json({
       data: {
         ...updated,
@@ -274,6 +295,11 @@ export async function DELETE(
 
     await invalidateCache("milestones:*");
     await invalidateCache("dashboard:*");
+
+    const coupleId = await getUserCoupleId(userId);
+    if (coupleId) {
+      triggerCoupleEvent(coupleId, 'TIMELINE');
+    }
 
     return NextResponse.json({ message: "Milestone deleted" });
   } catch (error) {

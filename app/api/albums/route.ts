@@ -4,6 +4,8 @@ import { NextResponse } from "next/server";
 import { createAlbumSchema } from "@/lib/validations/photo";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { getCached, setCached, invalidateCache, cacheKey } from "@/lib/redis";
+import { getUserCoupleId } from "@/lib/couple";
+import { triggerCoupleEvent } from "@/lib/pusher-server";
 
 const CACHE_TTL = 120;
 
@@ -110,6 +112,11 @@ export async function POST(request: Request) {
     });
 
     await invalidateCache("albums:*");
+
+    const coupleId = await getUserCoupleId(rateCheck.session.user.id);
+    if (coupleId) {
+      triggerCoupleEvent(coupleId, 'GALLERY');
+    }
 
     return NextResponse.json({ data: album }, { status: 201 });
   } catch (error) {

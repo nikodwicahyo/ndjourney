@@ -9,7 +9,7 @@ type RateLimitConfig = {
 };
 
 const defaults: RateLimitConfig = {
-  maxRequests: 20,
+  maxRequests: 30,
   windowSeconds: 3600,
   keyPrefix: "",
 };
@@ -123,7 +123,7 @@ export async function withRateLimit(
 }
 
 export const rateLimitConfigs = {
-  upload: { maxRequests: 20, windowSeconds: 3600, keyPrefix: "upload" },
+  upload: { maxRequests: 30, windowSeconds: 3600, keyPrefix: "upload" },
   bulkUpload: { maxRequests: 30, windowSeconds: 3600, keyPrefix: "upload:bulk" },
   note: { maxRequests: 100, windowSeconds: 86400, keyPrefix: "note" },
   letter: { maxRequests: 30, windowSeconds: 3600, keyPrefix: "letter" },

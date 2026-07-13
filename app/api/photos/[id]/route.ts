@@ -1,24 +1,32 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
 import { updatePhotoSchema } from "@/lib/validations/photo";
 import { deleteFromCloudinary } from "@/lib/cloudinary";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { getCached, setCached, invalidateCache, cacheKey } from "@/lib/redis";
+import { getUserCoupleId } from "@/lib/couple";
+import { triggerCoupleEvent } from "@/lib/pusher-server";
 
-const CACHE_TTL = 120;
+const CACHE_TTL_AUTH = 120;
+const CACHE_TTL_PUBLIC = 60;
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const session = await auth();
+    const isAuthed = !!session?.user;
+
     const { id } = await params;
 
-    const cacheK = cacheKey("photos", "detail", id);
+    const scope = isAuthed ? "auth" : "public";
+    const cacheK = cacheKey("photos", "detail", scope, id);
     const cached = await getCached<unknown>(cacheK);
     if (cached) {
       return NextResponse.json(cached, {
-        headers: { "Cache-Control": "public, s-maxage=120, stale-while-revalidate=300" },
+        headers: { "Cache-Control": isAuthed ? "private, s-maxage=120" : "public, s-maxage=60, stale-while-revalidate=300" },
       });
     }
 
@@ -37,6 +45,7 @@ export async function GET(
         isFavorite: true,
         albumId: true,
         uploadedById: true,
+        isMilestoneOnly: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -46,12 +55,30 @@ export async function GET(
       return NextResponse.json({ error: "Photo not found" }, { status: 404 });
     }
 
-    const response = { data: photo };
+    // Enforce visibility rules for unauthenticated callers matching the list endpoint
+    if (!isAuthed) {
+      if (photo.isMilestoneOnly) {
+        return NextResponse.json({ error: "Photo not found" }, { status: 404 });
+      }
+      if (photo.albumId) {
+        const album = await prisma.album.findUnique({
+          where: { id: photo.albumId },
+          select: { isPublic: true },
+        });
+        if (!album || !album.isPublic) {
+          return NextResponse.json({ error: "Photo not found" }, { status: 404 });
+        }
+      }
+    }
 
-    await setCached(cacheK, response, CACHE_TTL);
+    // Strip internal fields from the response
+    const { isMilestoneOnly, ...publicPhoto } = photo;
+    const response = { data: publicPhoto };
+
+    await setCached(cacheK, response, isAuthed ? CACHE_TTL_AUTH : CACHE_TTL_PUBLIC);
 
     return NextResponse.json(response, {
-      headers: { "Cache-Control": "public, s-maxage=120, stale-while-revalidate=300" },
+      headers: { "Cache-Control": isAuthed ? "private, s-maxage=120" : "public, s-maxage=60, stale-while-revalidate=300" },
     });
   } catch (error) {
     console.error("Error fetching photo:", error);
@@ -140,6 +167,11 @@ export async function PUT(
       invalidateCache("dashboard:*"),
     ]);
 
+    const coupleId = await getUserCoupleId(userId);
+    if (coupleId) {
+      triggerCoupleEvent(coupleId, 'GALLERY');
+    }
+
     return NextResponse.json({ data: photo });
   } catch (error) {
     console.error("Error updating photo:", error);
@@ -184,6 +216,11 @@ export async function DELETE(
       invalidateCache("albums:*"),
       invalidateCache("dashboard:*"),
     ]);
+
+    const coupleId = await getUserCoupleId(userId);
+    if (coupleId) {
+      triggerCoupleEvent(coupleId, 'GALLERY');
+    }
 
     return NextResponse.json({ message: "Photo deleted" });
   } catch (error) {

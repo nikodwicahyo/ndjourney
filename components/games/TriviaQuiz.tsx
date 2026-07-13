@@ -1,21 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useAllQuestions, useSubmitScore, type GameQuestionWithMeta } from "@/hooks/useGames";
+import { useQuestions, useSubmitScore } from "@/hooks/useGames";
 import { Button, Skeleton } from "@/components/ui";
 import { motion } from "framer-motion";
 import { Brain, RefreshCw, Check, X, ArrowRight } from "lucide-react";
 
-const BATCH_SIZE = 20;
-
-function shuffle<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
+const BATCH_SIZE = 10;
 
 type TriviaQuizProps = {
   disableScoreSubmit?: boolean;
@@ -23,7 +14,8 @@ type TriviaQuizProps = {
 };
 
 export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: TriviaQuizProps) {
-  const { data: allQuestions, isLoading, error, refetch } = useAllQuestions("TRIVIA");
+  const [seenIds, setSeenIds] = useState<string[]>([]);
+  const { data, isLoading, error, refetch } = useQuestions("TRIVIA", BATCH_SIZE, seenIds);
   const submitScore = useSubmitScore();
   const [currentIdx, setCurrentIdx] = useState(0);
   const [userAnswer, setUserAnswer] = useState("");
@@ -31,22 +23,22 @@ export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: T
   const [score, setScore] = useState(0);
   const [finished, setFinished] = useState(false);
   const [results, setResults] = useState<Array<{ question: string; correct: boolean }>>([]);
-  const [seenIds, setSeenIds] = useState<Set<string>>(new Set());
-  const [batch, setBatch] = useState<GameQuestionWithMeta[]>([]);
-  const [batchNum, setBatchNum] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
 
-  const totalSeen = seenIds.size;
+  const batch = data?.questions ?? [];
+  const totalQuestions = data?.total ?? 0;
+  const current = batch[currentIdx];
 
+  // Reset state when new batch arrives
   useEffect(() => {
-    if (allQuestions && allQuestions.length > 0 && batch.length === 0) {
-      const next = shuffle(allQuestions).slice(0, BATCH_SIZE);
-      setBatch(next);
-      setHasMore(allQuestions.length > BATCH_SIZE);
+    if (batch && batch.length > 0) {
+      setCurrentIdx(0);
+      setUserAnswer("");
+      setRevealed(false);
+      setScore(0);
+      setFinished(false);
+      setResults([]);
     }
-  }, [allQuestions, batch]);
-
-  const isLoadingState = isLoading || (!allQuestions && batch.length === 0);
+  }, [batch]);
 
   function handleInputKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Enter" && userAnswer.trim() && !revealed) {
@@ -54,7 +46,7 @@ export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: T
     }
   }
 
-  if (isLoadingState) {
+  if (isLoading) {
     return (
       <div className="space-y-4">
         {Array.from({ length: 3 }).map((_, i) => (
@@ -64,7 +56,16 @@ export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: T
     );
   }
 
-  if (error || !allQuestions || allQuestions.length === 0) {
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
+        <p className="text-muted-foreground">Gagal memuat pertanyaan</p>
+        <Button onClick={() => refetch()}>Coba Lagi</Button>
+      </div>
+    );
+  }
+
+  if (!batch || batch.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
         <p className="text-muted-foreground">Belum ada pertanyaan</p>
@@ -72,8 +73,6 @@ export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: T
       </div>
     );
   }
-
-  const current = batch[currentIdx];
 
   if (!current || finished) {
     return (
@@ -86,14 +85,9 @@ export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: T
           <Brain className="h-10 w-10 text-primary" />
         </motion.div>
         <div>
-          <p className="font-heading text-xl font-semibold">
-            Batch {batchNum} Selesai! 🎯
-          </p>
+          <p className="font-heading text-xl font-semibold">Selesai! 🎯</p>
           <p className="mt-2 text-muted-foreground">
             Skor: {score}/{batch.length}
-            {allQuestions.length > 0 && (
-              <> &middot; Total {totalSeen + batch.length}/{allQuestions.length} terjawab</>
-            )}
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
             {score === batch.length
@@ -103,22 +97,10 @@ export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: T
                 : "Yuk kenali pasanganmu lebih dalam lagi! 💪"}
           </p>
         </div>
-        <div className="flex gap-3">
-          {hasMore && (
-            <Button onClick={continueToNext} className="gap-2">
-              Lanjutkan
-              <ArrowRight className="h-4 w-4" />
-            </Button>
-          )}
-          <Button
-            variant={hasMore ? "outline" : "default"}
-            onClick={mainLagi}
-            className="gap-2"
-          >
-            <RefreshCw className="h-4 w-4" />
-            {hasMore ? "Mulai Ulang" : "Main Lagi"}
-          </Button>
-        </div>
+        <Button onClick={mainLagi} className="gap-2">
+          <RefreshCw className="h-4 w-4" />
+          Main Lagi
+        </Button>
         {results.length > 0 && (
           <div className="mt-4 w-full max-w-md space-y-2 rounded-2xl border border-border bg-card p-4 text-left">
             <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -141,6 +123,7 @@ export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: T
   }
 
   async function revealAnswer() {
+    if (!current) return;
     setRevealed(true);
     const isCorrect =
       current.answer?.toLowerCase() === "none" ||
@@ -173,80 +156,30 @@ export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: T
       setUserAnswer("");
       setRevealed(false);
     } else {
-      finishBatch();
+      setFinished(true);
     }
-  }
-
-  function finishBatch() {
-    const updatedSeen = new Set(seenIds);
-    batch.forEach(q => updatedSeen.add(q.id));
-    setSeenIds(updatedSeen);
-
-    const remaining = allQuestions!.filter(q => !updatedSeen.has(q.id));
-    setHasMore(remaining.length > 0);
-    setFinished(true);
-  }
-
-  function continueToNext() {
-    const updatedSeen = new Set(seenIds);
-    const remaining = allQuestions!.filter(q => !updatedSeen.has(q.id));
-
-    let nextBatch: GameQuestionWithMeta[];
-    let more: boolean;
-
-    if (remaining.length === 0) {
-      nextBatch = shuffle(allQuestions!).slice(0, BATCH_SIZE);
-      more = allQuestions!.length > BATCH_SIZE;
-      setBatchNum(1);
-      setSeenIds(new Set());
-    } else {
-      nextBatch = remaining.length > BATCH_SIZE
-        ? shuffle(remaining).slice(0, BATCH_SIZE)
-        : shuffle(remaining);
-      more = remaining.length > BATCH_SIZE;
-      setBatchNum(n => n + 1);
-    }
-
-    setBatch(nextBatch);
-    setHasMore(more);
-    setCurrentIdx(0);
-    setUserAnswer("");
-    setRevealed(false);
-    setScore(0);
-    setFinished(false);
-    setResults([]);
   }
 
   function mainLagi() {
-    const next = shuffle(allQuestions!).slice(0, BATCH_SIZE);
-    setBatch(next);
-    setHasMore(allQuestions!.length > BATCH_SIZE);
-    setSeenIds(new Set());
-    setBatchNum(1);
-    setCurrentIdx(0);
-    setUserAnswer("");
-    setRevealed(false);
-    setScore(0);
-    setFinished(false);
-    setResults([]);
+    if (!batch) return;
+    const newSeen = [...seenIds, ...batch.map((q) => q.id)];
+    setSeenIds(newSeen);
+    refetch();
   }
 
   function acakUlang() {
-    const reshuffled = shuffle(batch);
-    setBatch(reshuffled);
-    setCurrentIdx(0);
-    setUserAnswer("");
-    setRevealed(false);
-    setScore(0);
-    setFinished(false);
-    setResults([]);
+    if (!batch) return;
+    setSeenIds(prev => [...prev, ...batch.map(q => q.id)]);
   }
 
   return (
     <div className="mx-auto max-w-lg">
       <div className="mb-6 flex items-center justify-between text-sm text-muted-foreground">
         <span>
-          Batch {batchNum} &middot; {currentIdx + 1}/{batch.length}
+          {currentIdx + 1}/{batch.length}
+          <span className="ml-2 text-xs text-muted-foreground/60">
+            &middot; dari {totalQuestions} pertanyaan
+          </span>
         </span>
         <button
           onClick={acakUlang}
@@ -258,7 +191,7 @@ export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: T
       </div>
 
       <motion.div
-        key={currentIdx}
+        key={current.id}
         initial={{ opacity: 0, x: 40 }}
         animate={{ opacity: 1, x: 0 }}
         className="mb-8 text-center"

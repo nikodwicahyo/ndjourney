@@ -5,6 +5,8 @@ import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { getCached, setCached, invalidateCache, cacheKey } from "@/lib/redis";
 import { batchLoadUsers } from "@/lib/batch";
 import { jakartaStartOfDay, toJakartaMidnight } from "@/lib/date";
+import { getUserCoupleId } from "@/lib/couple";
+import { triggerCoupleEvent } from "@/lib/pusher-server";
 
 const CACHE_TTL = 30;
 
@@ -35,7 +37,7 @@ export async function GET(request: Request) {
 
     const notes = await prisma.dailyNote.findMany({
       where,
-      orderBy: { date: "desc" },
+      orderBy: [{ date: "desc" }, { createdAt: "desc" }],
       select: {
         id: true,
         content: true,
@@ -109,6 +111,11 @@ export async function POST(request: Request) {
     const data = { ...note, author: userMap.get(note.authorId) ?? null };
 
     await invalidateCache("notes:*");
+
+    const coupleId = await getUserCoupleId(session.user.id);
+    if (coupleId) {
+      triggerCoupleEvent(coupleId, 'DAILY_NOTES');
+    }
 
     return NextResponse.json({ data }, { status: 201 });
   } catch (error) {

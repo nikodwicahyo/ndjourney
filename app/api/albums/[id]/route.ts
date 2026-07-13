@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { updateAlbumSchema } from "@/lib/validations/photo";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { invalidateCache } from "@/lib/redis";
+import { getUserCoupleId } from "@/lib/couple";
+import { triggerCoupleEvent } from "@/lib/pusher-server";
 
 export async function PUT(
   request: Request,
@@ -42,6 +44,11 @@ export async function PUT(
 
     await invalidateCache("albums:*");
 
+    const coupleId = await getUserCoupleId(rateCheck.session.user.id);
+    if (coupleId) {
+      triggerCoupleEvent(coupleId, 'GALLERY');
+    }
+
     return NextResponse.json({ data: album });
   } catch (error) {
     console.error("Error updating album:", error);
@@ -73,6 +80,11 @@ export async function DELETE(
 
     await invalidateCache("albums:*");
     await invalidateCache("photos:*");
+
+    const coupleId = await getUserCoupleId(rateCheck.session.user.id);
+    if (coupleId) {
+      triggerCoupleEvent(coupleId, 'GALLERY');
+    }
 
     return NextResponse.json({ message: "Album deleted" });
   } catch (error) {

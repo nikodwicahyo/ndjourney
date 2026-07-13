@@ -199,7 +199,7 @@ export default function GameManager() {
     setOptionA(q.optionA ?? "");
     setOptionB(q.optionB ?? "");
     setAnswer(q.answer ?? "");
-    setCategory(q.category ?? "");
+    setCategory(q.type === "SPIN_THE_WHEEL" ? "Date Ideas" : (q.category ?? ""));
     setOpen(true);
     setExpandedId(null);
   }
@@ -221,7 +221,7 @@ export default function GameManager() {
     setOptionA("");
     setOptionB("");
     setAnswer("");
-    setCategory("");
+    setCategory(activeTab === "SPIN_THE_WHEEL" ? "Date Ideas" : "");
     setType(activeTab);
     setOpen(true);
   }
@@ -236,6 +236,7 @@ export default function GameManager() {
 
   const isWYR = type === "WOULD_YOU_RATHER";
   const isTOD = type === "TRUTH_OR_DARE";
+  const isSpin = type === "SPIN_THE_WHEEL";
   const isEditing = !!editingId;
 
   return (
@@ -410,6 +411,18 @@ export default function GameManager() {
                         {cat === "Truth" ? "😇 Truth" : "😈 Dare"}
                       </button>
                     ))}
+                  </div>
+                </div>
+              ) : isSpin ? (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground">Kategori</p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      className="rounded-full border border-primary bg-primary/10 px-4 py-1.5 text-xs font-medium text-primary"
+                    >
+                      💝 Date Ideas
+                    </button>
                   </div>
                 </div>
               ) : (

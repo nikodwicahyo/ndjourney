@@ -6,6 +6,8 @@ import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { clearUserCache, invalidateUserCache } from "@/lib/batch";
 import { invalidateCache } from "@/lib/redis";
 import { deleteFromCloudinaryUrl } from "@/lib/cloudinary";
+import { getUserCoupleId } from "@/lib/couple";
+import { triggerCoupleEvent } from "@/lib/pusher-server";
 
 export async function PUT(request: Request) {
   try {
@@ -82,6 +84,11 @@ export async function PUT(request: Request) {
       await invalidateCache("games:*");
       await invalidateCache("dashboard:*");
       await invalidateCache("partner:*");
+    }
+
+    const coupleId = await getUserCoupleId(session.user.id);
+    if (coupleId) {
+      triggerCoupleEvent(coupleId, 'DASHBOARD');
     }
 
     return NextResponse.json({ data: updated });

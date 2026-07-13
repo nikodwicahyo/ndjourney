@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { usePhotos, useUpdatePhoto } from "@/hooks/usePhotos";
 import PhotoCard from "./PhotoCard";
 import { Button } from "@/components/ui";
@@ -18,6 +18,26 @@ type MasonryGridProps = {
   onPhotoClick?: (photo: Photo, index: number, allPhotos: Photo[]) => void;
   isPublic?: boolean;
 };
+
+function getColCount() {
+  if (typeof window === "undefined") return 2;
+  const w = window.innerWidth;
+  if (w >= 1024) return 4;
+  if (w >= 768) return 3;
+  return 2;
+}
+
+function toReadingOrder<T>(items: T[], cols: number): T[] {
+  const rows = Math.ceil(items.length / cols);
+  const result: T[] = [];
+  for (let col = 0; col < cols; col++) {
+    for (let row = 0; row < rows; row++) {
+      const idx = row * cols + col;
+      if (idx < items.length) result.push(items[idx]);
+    }
+  }
+  return result;
+}
 
 function PhotoSkeleton() {
   return (
@@ -40,6 +60,14 @@ export default function MasonryGrid({ filters, onPhotoClick, isPublic }: Masonry
 
   const updatePhoto = useUpdatePhoto();
   const loadMoreRef = useRef<HTMLDivElement>(null);
+  const [colCount, setColCount] = useState(2);
+
+  useEffect(() => {
+    const onResize = () => setColCount(getColCount());
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   const handleObserver = useCallback(
     (entries: IntersectionObserverEntry[]) => {
@@ -64,11 +92,18 @@ export default function MasonryGrid({ filters, onPhotoClick, isPublic }: Masonry
 
   const allPhotos = (data?.pages.flatMap((page) => page.data ?? []) ?? []).filter(Boolean) as Photo[];
 
+  const orderedPhotos = useMemo(
+    () => toReadingOrder(allPhotos, colCount),
+    [allPhotos, colCount],
+  );
+
   if (isLoading) {
     return (
       <div className="columns-2 gap-3 md:columns-3 lg:columns-4">
         {Array.from({ length: 8 }).map((_, i) => (
-          <PhotoSkeleton key={i} />
+          <div key={i} className="mb-3 break-inside-avoid">
+            <PhotoSkeleton />
+          </div>
         ))}
       </div>
     );
@@ -102,25 +137,30 @@ export default function MasonryGrid({ filters, onPhotoClick, isPublic }: Masonry
   return (
     <>
       <div className="columns-2 gap-3 md:columns-3 lg:columns-4">
-        {allPhotos.map((photo, index) => (
-          <div key={photo.id} className="mb-3 break-inside-avoid">
-            <PhotoCard
-              photo={photo}
-              onClick={(p) => onPhotoClick?.(p, index, allPhotos)}
-              onFavoriteToggle={(id, isFavorite) =>
-                updatePhoto.mutate({ id, isFavorite })
-              }
-              isPrioritized={index < 8}
-            />
-          </div>
-        ))}
+        {orderedPhotos.map((photo) => {
+          const origIndex = allPhotos.indexOf(photo);
+          return (
+            <div key={photo.id} className="mb-3 break-inside-avoid">
+              <PhotoCard
+                photo={photo}
+                onClick={(p) => onPhotoClick?.(p, origIndex, allPhotos)}
+                onFavoriteToggle={(id, isFavorite) =>
+                  updatePhoto.mutate({ id, isFavorite })
+                }
+                isPrioritized={origIndex < 8}
+              />
+            </div>
+          );
+        })}
       </div>
 
       <div ref={loadMoreRef} className="py-8">
         {isFetchingNextPage && (
           <div className="columns-2 gap-3 md:columns-3 lg:columns-4">
             {Array.from({ length: 4 }).map((_, i) => (
-              <PhotoSkeleton key={i} />
+              <div key={i} className="mb-3 break-inside-avoid">
+                <PhotoSkeleton />
+              </div>
             ))}
           </div>
         )}

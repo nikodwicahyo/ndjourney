@@ -1,13 +1,19 @@
 import { prisma } from "@/lib/prisma";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getCached, setCached, cacheKey } from "@/lib/redis";
 import { batchLoadUsers } from "@/lib/batch";
 
 const CACHE_TTL = 300;
 
-export async function GET() {
+type RawRow = { userId: string; totalPlayed: bigint; totalCorrect: bigint };
+
+export async function GET(request: NextRequest) {
   try {
-    const cacheK = cacheKey("games", "leaderboard");
+    const { searchParams } = new URL(request.url);
+    const type = searchParams.get("type");
+    const cacheSegment = type || "all";
+
+    const cacheK = cacheKey("games", "leaderboard", cacheSegment);
     const cached = await getCached<unknown>(cacheK);
     if (cached) {
       return NextResponse.json(cached, {
@@ -15,19 +21,34 @@ export async function GET() {
       });
     }
 
-    const rows = await prisma.$queryRaw<
-      Array<{ userId: string; totalPlayed: bigint; totalCorrect: bigint }>
-    >`
-      SELECT
-        "userId",
-        COUNT(*)::bigint AS "totalPlayed",
-        COALESCE(SUM(CASE WHEN "isCorrect" THEN 1 ELSE 0 END), 0)::bigint AS "totalCorrect"
-      FROM "GameScore"
-      WHERE "userId" IS NOT NULL
-      GROUP BY "userId"
-      ORDER BY "totalCorrect" DESC
-      LIMIT 50
-    `;
+    let rows: RawRow[];
+
+    if (type) {
+      rows = await prisma.$queryRaw<RawRow[]>`
+        SELECT
+          gs."userId",
+          COUNT(*)::bigint AS "totalPlayed",
+          COALESCE(SUM(CASE WHEN gs."isCorrect" THEN 1 ELSE 0 END), 0)::bigint AS "totalCorrect"
+        FROM "GameScore" gs
+        JOIN "GameQuestion" q ON q.id = gs."questionId"
+        WHERE gs."userId" IS NOT NULL AND q."type" = ${type}::"GameType"
+        GROUP BY gs."userId"
+        ORDER BY "totalCorrect" DESC
+        LIMIT 50
+      `;
+    } else {
+      rows = await prisma.$queryRaw<RawRow[]>`
+        SELECT
+          "userId",
+          COUNT(*)::bigint AS "totalPlayed",
+          COALESCE(SUM(CASE WHEN "isCorrect" THEN 1 ELSE 0 END), 0)::bigint AS "totalCorrect"
+        FROM "GameScore"
+        WHERE "userId" IS NOT NULL
+        GROUP BY "userId"
+        ORDER BY "totalCorrect" DESC
+        LIMIT 50
+      `;
+    }
 
     if (rows.length === 0) {
       return NextResponse.json({ data: [] });

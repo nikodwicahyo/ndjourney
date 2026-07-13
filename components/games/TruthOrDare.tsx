@@ -1,21 +1,45 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAllQuestions } from "@/hooks/useGames";
 import { Button, Skeleton } from "@/components/ui";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, RefreshCw, Shuffle } from "lucide-react";
+import { RefreshCw, Shuffle } from "lucide-react";
+
+const LS_KEY = "tod-history";
+
+type HistoryItem = {
+  id: string;
+  question: string;
+  category: string;
+};
+
+function loadHistory(): HistoryItem[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveHistory(items: HistoryItem[]) {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(items));
+  } catch {}
+}
 
 export default function TruthOrDare() {
   const { data: questions, isLoading, error, refetch } = useAllQuestions("TRUTH_OR_DARE");
   const [mode, setMode] = useState<"select" | "result">("select");
-  const [currentCard, setCurrentCard] = useState<{
-    question: string;
-    category: string;
-  } | null>(null);
-  const [history, setHistory] = useState<
-    Array<{ question: string; category: string }>
-  >([]);
+  const [currentCard, setCurrentCard] = useState<HistoryItem | null>(null);
+  const [history, setHistory] = useState<HistoryItem[]>(loadHistory);
+  const [lastCategory, setLastCategory] = useState<"Truth" | "Dare" | null>(null);
+
+  useEffect(() => {
+    saveHistory(history);
+  }, [history]);
 
   if (isLoading) {
     return (
@@ -43,16 +67,24 @@ export default function TruthOrDare() {
     const pool = category === "Truth" ? truths : dares;
     if (pool.length === 0) return;
 
-    const usedIds = new Set(history.map((h) => h.question));
-    const available = pool.filter((q) => !usedIds.has(q.question));
+    const usedIds = new Set(history.map((h) => h.id));
+    const available = pool.filter((q) => !usedIds.has(q.id));
     const pickFrom = available.length > 0 ? available : pool;
 
     const card = pickFrom[Math.floor(Math.random() * pickFrom.length)];
-    setCurrentCard({ question: card.question, category });
+    setCurrentCard({ id: card.id, question: card.question, category });
+    setLastCategory(category);
     setMode("result");
   }
 
-  function next() {
+  function lagi() {
+    if (!currentCard || !lastCategory) return;
+    setHistory((prev) => [currentCard, ...prev].slice(0, 20));
+    setCurrentCard(null);
+    pick(lastCategory);
+  }
+
+  function gantiMode() {
     if (currentCard) {
       setHistory((prev) => [currentCard, ...prev].slice(0, 20));
     }
@@ -105,6 +137,35 @@ export default function TruthOrDare() {
                 </span>
               </button>
             </div>
+            {history.length > 0 && (
+              <div className="flex flex-col items-center gap-2">
+                <p className="text-xs text-muted-foreground">
+                  Sisa {truths.length + dares.length - new Set(history.map(h => h.id)).size} dari {truths.length + dares.length} kartu
+                </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setHistory([])}
+                  className="gap-1 text-xs"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  Reset Riwayat
+                </Button>
+              </div>
+            )}
+            {history.length > 0 && (
+              <div className="w-full space-y-2 rounded-2xl border border-border bg-card p-4 text-left">
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  Riwayat
+                </p>
+                {history.map((h, i) => (
+                  <p key={i} className="flex items-start gap-2 text-sm">
+                    <span>{h.category === "Truth" ? "😇" : "😈"}</span>
+                    <span className="text-muted-foreground">{h.question}</span>
+                  </p>
+                ))}
+              </div>
+            )}
           </motion.div>
         ) : currentCard ? (
           <motion.div
@@ -134,34 +195,14 @@ export default function TruthOrDare() {
             </div>
 
             <div className="flex gap-3">
-              <Button onClick={next} className="gap-2">
+              <Button onClick={lagi} className="gap-2">
                 <Shuffle className="h-4 w-4" />
-                {history.length > 0 ? "Lagi" : "Berikutnya"}
+                {currentCard.category === "Truth" ? "😇 Lagi" : "😈 Lagi"}
               </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setCurrentCard(null);
-                  setMode("select");
-                }}
-              >
+              <Button variant="outline" onClick={gantiMode}>
                 Ganti Mode
               </Button>
             </div>
-
-            {history.length > 0 && (
-              <div className="mt-4 w-full space-y-2 rounded-2xl border border-border bg-card p-4 text-left">
-                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  Riwayat
-                </p>
-                {history.map((h, i) => (
-                  <p key={i} className="flex items-start gap-2 text-sm">
-                    <span>{h.category === "Truth" ? "😇" : "😈"}</span>
-                    <span className="text-muted-foreground">{h.question}</span>
-                  </p>
-                ))}
-              </div>
-            )}
           </motion.div>
         ) : null}
       </AnimatePresence>

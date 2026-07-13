@@ -5,6 +5,8 @@ import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { generateId } from "@/lib/utils";
 import type { Photo } from "@/types";
 import { invalidateCache } from "@/lib/redis";
+import { triggerCoupleEvent } from "@/lib/pusher-server";
+import { isAllowedCloudinaryUrl, publicIdBelongsToUser } from "@/lib/upload-policy";
 
 export const runtime = "nodejs";
 
@@ -59,6 +61,27 @@ export async function POST(request: Request) {
     let idx = 1;
 
     for (const p of parsed.data.photos) {
+      if (!isAllowedCloudinaryUrl(p.url) || !publicIdBelongsToUser(p.publicId, session.user.id)) {
+        return NextResponse.json(
+          { error: `Invalid or unowned media: ${p.publicId}` },
+          { status: 400 },
+        );
+      }
+
+      if (p.thumbnailUrl && !isAllowedCloudinaryUrl(p.thumbnailUrl)) {
+        return NextResponse.json(
+          { error: "Invalid thumbnail URL" },
+          { status: 400 },
+        );
+      }
+
+      if (p.isVideo && !p.url.includes("/video/upload/")) {
+        return NextResponse.json(
+          { error: "Invalid video media URL" },
+          { status: 400 },
+        );
+      }
+
       insertValues.push(
         `($${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++})`,
       );
@@ -91,6 +114,10 @@ export async function POST(request: Request) {
       invalidateCache("albums:*"),
       invalidateCache("dashboard:*"),
     ]);
+
+    if (coupleId) {
+      triggerCoupleEvent(coupleId, 'GALLERY');
+    }
 
     return NextResponse.json({ data: photos }, { status: 201 });
   } catch (error) {

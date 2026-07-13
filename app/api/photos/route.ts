@@ -5,8 +5,10 @@ import { createPhotoSchema } from "@/lib/validations/photo";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { getCached, setCached, invalidateCache, cacheKey } from "@/lib/redis";
 import { jakartaYearStart } from "@/lib/date";
-import { generateId } from "@/lib/utils";
+import { generateId, encodeCompositeCursor, decodeCompositeCursor } from "@/lib/utils";
 import { isAllowedCloudinaryUrl, publicIdBelongsToUser } from "@/lib/upload-policy";
+import { getUserCoupleId } from "@/lib/couple";
+import { triggerCoupleEvent } from "@/lib/pusher-server";
 
 export const runtime = "nodejs";
 
@@ -71,12 +73,20 @@ export async function GET(request: Request) {
     }
 
     const isOldest = sort === "oldest";
-    const cursorOp = isOldest ? ">" : "<";
     const orderDir = isOldest ? "ASC" : "DESC";
+    const cmpOp = isOldest ? ">" : "<";
 
+    // Composite cursor: (createdAt, id) matching ORDER BY "createdAt", "id"
     if (cursor) {
-      conditions.push(`"id" ${cursorOp} $${sqlParams.length + 1}`);
-      sqlParams.push(cursor);
+      const decoded = decodeCompositeCursor(cursor);
+      if (decoded) {
+        const caIdx = sqlParams.length + 1;
+        const idIdx = sqlParams.length + 2;
+        conditions.push(
+          `("createdAt", "id") ${cmpOp} ($${caIdx}::timestamptz, $${idIdx})`,
+        );
+        sqlParams.push(new Date(decoded.createdAt), decoded.id);
+      }
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
@@ -90,9 +100,25 @@ export async function GET(request: Request) {
 
     const hasMore = photos.length > limit;
     const data = hasMore ? photos.slice(0, limit) : photos;
-    const nextCursor = hasMore ? (data[data.length - 1]?.id as string) ?? null : null;
+    const last = data[data.length - 1];
+    const nextCursor = hasMore && last
+      ? encodeCompositeCursor(new Date(last.createdAt as string), last.id as string)
+      : null;
 
-    const response = { data, nextCursor, hasMore };
+    // total count from cache key hash or compute
+    const countQuery = `SELECT COUNT(*)::int as cnt FROM "Photo" ${whereClause}`;
+    const countResult = await prisma.$queryRawUnsafe<{ cnt: number }[]>(countQuery, ...sqlParams.slice(0, sqlParams.length - 1));
+    const total = countResult[0]?.cnt ?? data.length;
+
+    const fotoQuery = `SELECT COUNT(*)::int as cnt FROM "Photo" ${whereClause}${whereClause ? " AND" : "WHERE"} "isVideo" = false`;
+    const fotoResult = await prisma.$queryRawUnsafe<{ cnt: number }[]>(fotoQuery, ...sqlParams.slice(0, sqlParams.length - 1));
+    const fotoTotal = fotoResult[0]?.cnt ?? 0;
+
+    const videoQuery = `SELECT COUNT(*)::int as cnt FROM "Photo" ${whereClause}${whereClause ? " AND" : "WHERE"} "isVideo" = true`;
+    const videoResult = await prisma.$queryRawUnsafe<{ cnt: number }[]>(videoQuery, ...sqlParams.slice(0, sqlParams.length - 1));
+    const videoTotal = videoResult[0]?.cnt ?? 0;
+
+    const response = { data, nextCursor, hasMore, total, fotoTotal, videoTotal };
 
     await setCached(cacheK, response, CACHE_TTL);
 
@@ -164,6 +190,11 @@ export async function POST(request: Request) {
       invalidateCache("albums:*"),
       invalidateCache("dashboard:*"),
     ]);
+
+    const coupleId = await getUserCoupleId(session.user.id);
+    if (coupleId) {
+      triggerCoupleEvent(coupleId, 'GALLERY');
+    }
 
     return NextResponse.json({ data: result[0] }, { status: 201 });
   } catch (error) {

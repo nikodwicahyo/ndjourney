@@ -1,4 +1,30 @@
 import type { NextConfig } from "next";
+import { CSP_DIRECTIVES } from "./lib/csp";
+import { readFileSync } from "fs";
+import { join } from "path";
+
+const CSP_STRING = CSP_DIRECTIVES.join("; ");
+
+// ── Build-time CSP drift check ─────────────────────────────────
+try {
+  const vercelJsonPath = join(process.cwd(), "vercel.json");
+  const vercelRaw = readFileSync(vercelJsonPath, "utf-8");
+  const vercelConfig = JSON.parse(vercelRaw);
+  const vercelHeader = vercelConfig.headers?.find(
+    (h: { source: string }) => h.source === "/(.*)",
+  );
+  const vercelCspEntry = vercelHeader?.headers?.find(
+    (h: { key: string }) => h.key === "Content-Security-Policy",
+  );
+  if (vercelCspEntry?.value !== CSP_STRING) {
+    console.warn(
+      "\x1b[33m⚠ CSP drift detected: vercel.json CSP does not match lib/csp.ts\x1b[0m\n" +
+        "\x1b[33m  Run `node scripts/sync-csp.mjs` to sync them.\x1b[0m",
+    );
+  }
+} catch {
+  // skip check when cwd is unexpected
+}
 
 const nextConfig: NextConfig = {
   images: {
@@ -30,21 +56,7 @@ const nextConfig: NextConfig = {
       headers: [
         {
           key: "Content-Security-Policy",
-          value: [
-            "default-src 'self'",
-            "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
-            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-            "font-src 'self' data: https://res.cloudinary.com https://fonts.gstatic.com",
-            "img-src 'self' data: blob: https://res.cloudinary.com https://*.googleusercontent.com https://avatars.githubusercontent.com",
-            "media-src 'self' https://res.cloudinary.com",
-            "frame-src https://open.spotify.com",
-            "frame-ancestors 'none'",
-            "base-uri 'self'",
-            "form-action 'self'",
-            "connect-src 'self' https://res.cloudinary.com https://api.cloudinary.com https://fonts.googleapis.com https://fonts.gstatic.com https://*.upstash.io https://api.resend.com",
-            "worker-src 'self' blob:",
-            "report-uri /api/csp-violation",
-          ].join("; "),
+          value: CSP_STRING,
         },
         {
           key: "X-Content-Type-Options",

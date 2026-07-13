@@ -3,6 +3,8 @@ import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { getCached, setCached, cacheKey, invalidateCache } from "@/lib/redis";
 import { batchLoadUsers } from "@/lib/batch";
+import { getUserCoupleId } from "@/lib/couple";
+import { triggerCoupleEvent } from "@/lib/pusher-server";
 
 
 const CACHE_TTL = 120;
@@ -135,6 +137,11 @@ export async function DELETE(
 
     await invalidateCache("letters:*");
     await invalidateCache("dashboard:*");
+
+    const coupleId = await getUserCoupleId(session.user.id);
+    if (coupleId) {
+      triggerCoupleEvent(coupleId, 'LETTERS');
+    }
 
     return NextResponse.json({ message: "Letter deleted" });
   } catch (error) {

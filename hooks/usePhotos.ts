@@ -38,7 +38,7 @@ export function usePhotos(filters?: {
       const res = await fetch(`/api/photos?${params}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Gagal memuat media");
-      return json as { data: Photo[]; nextCursor: string | null; hasMore: boolean };
+      return json as { data: Photo[]; nextCursor: string | null; hasMore: boolean; total: number; fotoTotal: number; videoTotal: number };
     },
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     initialPageParam: null as string | null,

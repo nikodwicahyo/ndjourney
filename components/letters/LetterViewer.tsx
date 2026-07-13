@@ -149,11 +149,11 @@ export default function LetterViewer({ id, isRecipient, backHref = "/dashboard/l
 
               <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                 <span className="inline-flex items-center gap-1.5">
+                  <Heart className="h-3.5 w-3.5" />
                   <Avatar className="h-6 w-6 shrink-0">
                     <AvatarImage src={letter.author?.image ?? undefined} alt={letter.author?.name ?? "Author"} />
                     <AvatarFallback>{letter.author?.name?.charAt(0) || "P"}</AvatarFallback>
                   </Avatar>
-                  <Heart className="h-3.5 w-3.5" />
                   {letter.author?.name || "Pasangan"}
                 </span>
                 <span>·</span>

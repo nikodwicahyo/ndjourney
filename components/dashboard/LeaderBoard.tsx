@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Skeleton, Avatar, AvatarImage, AvatarFallback } from "@/components/ui";
 import { motion } from "framer-motion";
@@ -13,13 +14,27 @@ type LeaderboardEntry = {
   accuracy: number;
 };
 
+const GAME_TABS = [
+  { label: "Semua", value: null },
+  { label: "Would You Rather", value: "WOULD_YOU_RATHER" },
+  { label: "Love Quiz", value: "TRIVIA" },
+] as const;
+
 export default function LeaderBoard() {
+  const [gameType, setGameType] = useState<string | null>(null);
+
   const { data, isLoading } = useQuery({
-    queryKey: ["games", "leaderboard"],
+    queryKey: ["games", "leaderboard", gameType],
     queryFn: async () => {
-      const res = await fetch("/api/games/leaderboard");
-      const json = await res.json();
-      return json.data as LeaderboardEntry[];
+      try {
+        const params = gameType ? `?type=${gameType}` : "";
+        const res = await fetch(`/api/games/leaderboard${params}`);
+        if (!res.ok) return [];
+        const json = await res.json();
+        return Array.isArray(json?.data) ? (json.data as LeaderboardEntry[]) : [];
+      } catch {
+        return [];
+      }
     },
     staleTime: 30_000,
   });
@@ -50,6 +65,21 @@ export default function LeaderBoard() {
 
   return (
     <div className="space-y-3 overflow-hidden">
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {GAME_TABS.map((tab) => (
+          <button
+            key={tab.value ?? "all"}
+            onClick={() => setGameType(tab.value)}
+            className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+              gameType === tab.value
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground hover:bg-muted/80"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
       {data.map((entry, i) => {
         const isFirst = i === 0;
         const isSecond = i === 1;

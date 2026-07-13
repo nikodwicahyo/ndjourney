@@ -5,6 +5,8 @@ import { updateCoupleSchema } from "@/lib/validations/couple";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { parseJakartaDateOnly } from "@/lib/date";
 import { deleteFromCloudinaryUrl } from "@/lib/cloudinary";
+import { getUserCoupleId } from "@/lib/couple";
+import { triggerCoupleEvent } from "@/lib/pusher-server";
 
 const CACHE_TTL = 300;
 
@@ -156,6 +158,11 @@ export async function PUT(request: Request) {
     }
     if (config.backgroundMusicUrl && config.backgroundMusicUrl !== updated.backgroundMusicUrl) {
       await deleteFromCloudinaryUrl(config.backgroundMusicUrl).catch(console.error);
+    }
+
+    const coupleId = await getUserCoupleId(rateCheck.session.user.id);
+    if (coupleId) {
+      triggerCoupleEvent(coupleId, 'DASHBOARD');
     }
 
     return NextResponse.json({ data: updated });

@@ -6,6 +6,7 @@ import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { getCached, setCached, invalidateCache, cacheKey } from "@/lib/redis";
 import { batchLoadUsers, mapUsersToRecords } from "@/lib/batch";
 import { sendEmail, letterNotificationHtml } from "@/lib/resend";
+import { triggerCoupleEvent } from "@/lib/pusher-server";
 
 const CACHE_TTL = 30;
 
@@ -97,12 +98,15 @@ export async function POST(request: Request) {
       );
     }
 
+    let membership: { couple: { id: string; members: Array<{ userId: string }> } } | null = null;
+
     if (parsed.data.recipientId) {
-      const membership = await prisma.coupleMember.findUnique({
+      membership = await prisma.coupleMember.findUnique({
         where: { userId: session.user.id },
         select: {
           couple: {
             select: {
+              id: true,
               members: {
                 where: { userId: { not: session.user.id } },
                 select: { userId: true },
@@ -173,6 +177,11 @@ export async function POST(request: Request) {
 
     await invalidateCache("letters:*");
     await invalidateCache("dashboard:*");
+
+    const coupleId = membership?.couple?.id;
+    if (coupleId) {
+      triggerCoupleEvent(coupleId, 'LETTERS');
+    }
 
     return NextResponse.json({ data: enriched }, { status: 201 });
   } catch (error) {

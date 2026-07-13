@@ -176,6 +176,21 @@ export class UploadQueue {
     return true;
   }
 
+  clearAll(): void {
+    this.queue.forEach((task) => {
+      if (task.upload.status === "uploading") {
+        const controller = this.abortControllers.get(task.upload.id);
+        controller?.abort();
+      }
+    });
+    this.queue = [];
+    this.abortControllers.clear();
+    this.activeCount = 0;
+    this.completedCount = 0;
+    this.isProcessing = false;
+    this.isPaused = false;
+  }
+
   private async process(): Promise<void> {
     if (this.isProcessing || this.isPaused) return;
 
@@ -212,12 +227,20 @@ export class UploadQueue {
       const result = await uploadFileSimple(
         upload.file,
         (progress) => {
+          const elapsed = (Date.now() - (upload.startedAt ?? Date.now())) / 1000;
+          const speed = progress.speed > 0
+            ? progress.speed
+            : elapsed > 0 && progress.loaded > 0
+              ? progress.loaded / elapsed
+              : progress.status === "uploading" && elapsed > 0
+                ? progress.loaded / elapsed
+                : 0;
           upload.progress = {
             loaded: progress.loaded,
             total: progress.total,
             percent: progress.progress,
-            speed: progress.speed,
-            eta: progress.eta,
+            speed,
+            eta: speed > 0 ? (progress.total - progress.loaded) / speed : 0,
           };
           upload.status = progress.status === "complete" ? "complete" : "uploading";
           this.options.onProgress(upload);

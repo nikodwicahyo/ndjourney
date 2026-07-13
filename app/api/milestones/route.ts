@@ -6,6 +6,8 @@ import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { invalidateCache } from "@/lib/redis";
 import { batchLoadUsers } from "@/lib/batch";
 import { parseJakartaDateOnly } from "@/lib/date";
+import { getUserCoupleId } from "@/lib/couple";
+import { triggerCoupleEvent } from "@/lib/pusher-server";
 
 export async function GET(request: Request) {
   try {
@@ -171,6 +173,11 @@ export async function POST(request: Request) {
 
     await invalidateCache("milestones:*");
     await invalidateCache("dashboard:*");
+
+    const coupleId = await getUserCoupleId(session.user.id);
+    if (coupleId) {
+      triggerCoupleEvent(coupleId, 'TIMELINE');
+    }
 
     return NextResponse.json({ data }, { status: 201 });
   } catch (error) {

@@ -89,6 +89,23 @@ export function formatBytes(bytes: number): string {
   return `${value.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 }
 
+export function encodeCompositeCursor(createdAt: Date, id: string): string {
+  return Buffer.from(JSON.stringify({ c: createdAt.toISOString(), i: id })).toString("base64url");
+}
+
+export function decodeCompositeCursor(cursor: string): { createdAt: string; id: string } | null {
+  try {
+    const raw = Buffer.from(cursor, "base64url").toString("utf8");
+    const parsed = JSON.parse(raw);
+    if (typeof parsed.c === "string" && typeof parsed.i === "string") {
+      return { createdAt: parsed.c, id: parsed.i };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export function generateId(): string {
   const timestamp = Date.now().toString(36);
   const random = crypto.randomUUID().replace(/-/g, "").slice(0, 16);

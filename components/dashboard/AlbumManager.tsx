@@ -15,6 +15,7 @@ export default function AlbumManager() {
   const [description, setDescription] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
 
   const { data: albums, isLoading } = useQuery({
     queryKey: ["albums", "all"],
@@ -51,14 +52,16 @@ export default function AlbumManager() {
     mutationFn: async ({
       id,
       name,
+      description,
     }: {
       id: string;
       name: string;
+      description?: string;
     }) => {
       const res = await fetch(`/api/albums/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, description: description || undefined }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Gagal mengupdate album");
@@ -66,9 +69,10 @@ export default function AlbumManager() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["albums"] });
-      toast.success("Nama album diubah");
+      toast.success("Album diubah");
       setEditingId(null);
       setEditName("");
+      setEditDescription("");
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : "Gagal"),
   });
@@ -88,16 +92,22 @@ export default function AlbumManager() {
   function startEditing(album: AlbumWithCount) {
     setEditingId(album.id);
     setEditName(album.name);
+    setEditDescription(album.description ?? "");
   }
 
   function cancelEditing() {
     setEditingId(null);
     setEditName("");
+    setEditDescription("");
   }
 
   function saveEdit() {
     if (!editingId || !editName.trim()) return;
-    updateAlbum.mutate({ id: editingId, name: editName.trim() });
+    updateAlbum.mutate({
+      id: editingId,
+      name: editName.trim(),
+      description: editDescription.trim() || undefined,
+    });
   }
 
   return (
@@ -155,9 +165,9 @@ export default function AlbumManager() {
       )}
 
       {isLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-14 rounded-xl" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-32 rounded-2xl" />
           ))}
         </div>
       ) : !albums || albums.length === 0 ? (
@@ -165,80 +175,90 @@ export default function AlbumManager() {
           Belum ada album
         </p>
       ) : (
-        <div className="space-y-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
           {albums.map((album) => (
             <div
               key={album.id}
-              className="flex items-center justify-between rounded-xl border border-border bg-card p-3"
+              className="group relative rounded-2xl border border-border bg-card p-4 shadow-sm transition-all hover:shadow-md"
             >
               {editingId === album.id ? (
-                <div className="flex flex-1 items-center gap-2">
+                <div className="space-y-2">
                   <input
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") saveEdit();
+                      if (e.key === "Enter" && !e.shiftKey) saveEdit();
                       if (e.key === "Escape") cancelEditing();
                     }}
                     placeholder="Nama album"
                     autoFocus
-                    className="h-8 flex-1 rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="h-8 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   />
-                  <button
-                    onClick={saveEdit}
-                    disabled={!editName.trim() || updateAlbum.isPending}
-                    className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:pointer-events-none disabled:opacity-50"
-                  >
-                    {updateAlbum.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Check className="h-4 w-4" />
-                    )}
-                  </button>
-                  <button
-                    onClick={cancelEditing}
-                    disabled={updateAlbum.isPending}
-                    className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
+                  <input
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                    placeholder="Deskripsi (opsional)"
+                    className="h-8 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={saveEdit}
+                      disabled={!editName.trim() || updateAlbum.isPending}
+                      className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:pointer-events-none disabled:opacity-50"
+                    >
+                      {updateAlbum.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Check className="h-4 w-4" />
+                      )}
+                    </button>
+                    <button
+                      onClick={cancelEditing}
+                      disabled={updateAlbum.isPending}
+                      className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{album.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {"_count" in album && album._count
-                        ? `${album._count.photos} foto`
-                        : "—"}
-                    </p>
-                    {album.description && (
-                      <p className="mt-0.5 truncate text-[11px] text-muted-foreground/70">
-                        {album.description}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => startEditing(album)}
-                      className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={async () => {
-                        const confirmed = await showDeleteConfirm({
-                          title: "Hapus Album",
-                          text: `Apakah Anda yakin ingin menghapus album "${album.name}"?`,
-                        });
-                        if (confirmed) {
-                          deleteAlbum.mutate(album.id);
-                        }
-                      }}
-                      className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="truncate font-medium">
+                        {album.name}
+                        <span className="ml-1 text-xs font-normal text-muted-foreground">
+                          ({album._count ? album._count.photos : "—"} file)
+                        </span>
+                      </h3>
+                      {album.description && (
+                        <p className="mt-1.5 line-clamp-2 text-xs text-muted-foreground/70 leading-relaxed">
+                          {album.description}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <button
+                        onClick={() => startEditing(album)}
+                        className="rounded-full p-1.5 text-muted-foreground transition-all hover:bg-muted"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={async () => {
+                          const confirmed = await showDeleteConfirm({
+                            title: "Hapus Album",
+                            text: `Apakah Anda yakin ingin menghapus album "${album.name}"?`,
+                          });
+                          if (confirmed) {
+                            deleteAlbum.mutate(album.id);
+                          }
+                        }}
+                        className="rounded-full p-1.5 text-muted-foreground transition-all hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </>
               )}

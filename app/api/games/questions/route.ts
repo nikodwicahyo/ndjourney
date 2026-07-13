@@ -3,8 +3,18 @@ import { NextResponse } from "next/server";
 import { createQuestionSchema } from "@/lib/validations/game";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { getCached, setCached, invalidateCache, cacheKey } from "@/lib/redis";
+import { auth } from "@/lib/auth";
 
 const CACHE_TTL = 600;
+
+function shuffleArray<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
 
 export async function GET(request: Request) {
   try {
@@ -29,18 +39,47 @@ export async function GET(request: Request) {
 
     let questions;
 
+    let totalCount = 0;
+
     if (random) {
       const count = parseInt(random);
-      questions = await prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
-        `SELECT id, type::text, question, "optionA", "optionB", answer, category, "createdAt"
-         FROM "GameQuestion"
-         WHERE "type" = CAST($1 AS "GameType")${category ? ` AND category = $2` : ""}
-         ORDER BY RANDOM()
-         LIMIT $${category ? "3" : "2"}`,
-        type,
-        ...(category ? [category] : []),
-        count,
-      );
+      const session = await auth();
+      const answeredBy = session?.user?.id;
+
+      // Build exclusion set: from server-side GameScore + client-provided exclude param
+      const excludeParam = searchParams.get("exclude");
+      const excludeFromParam = excludeParam ? excludeParam.split(",").filter(Boolean) : [];
+
+      let answeredIds = new Set<string>(excludeFromParam);
+
+      if (answeredBy) {
+        const scores = await prisma.gameScore.findMany({
+          where: { userId: answeredBy },
+          select: { questionId: true },
+        });
+        for (const s of scores) answeredIds.add(s.questionId);
+      }
+
+      // Get all questions of this type
+      const allQuestions = await prisma.gameQuestion.findMany({
+        where,
+        select: {
+          id: true, type: true, question: true, optionA: true, optionB: true,
+          answer: true, category: true, createdAt: true,
+        },
+      });
+
+      totalCount = allQuestions.length;
+
+      // Shuffle for randomness
+      const shuffled = shuffleArray(allQuestions);
+
+      // Split: unanswered first, answered/excluded last
+      const unanswered = shuffled.filter((q) => !answeredIds.has(q.id));
+      const answered = shuffled.filter((q) => answeredIds.has(q.id));
+
+      // Prefer unanswered; if exhausted, recycle answered questions
+      questions = [...unanswered, ...answered].slice(0, count);
     } else {
       questions = await prisma.gameQuestion.findMany({
         where,
@@ -59,7 +98,9 @@ export async function GET(request: Request) {
       });
     }
 
-    const response = { data: questions };
+    const response = random
+      ? { data: questions, total: totalCount }
+      : { data: questions };
 
     if (!random) {
       await setCached(cacheK, response, CACHE_TTL);

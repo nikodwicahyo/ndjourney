@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { createWishSchema } from "@/lib/validations/wish";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { getCached, setCached, invalidateCache, cacheKey } from "@/lib/redis";
+import { getUserCoupleId } from "@/lib/couple";
+import { triggerCoupleEvent } from "@/lib/pusher-server";
 
 const CACHE_TTL = 30;
 
@@ -84,6 +86,11 @@ export async function POST(request: Request) {
     });
 
     await invalidateCache("wishes:*");
+
+    const coupleId = await getUserCoupleId(rateCheck.session.user.id);
+    if (coupleId) {
+      triggerCoupleEvent(coupleId, 'WISHLIST');
+    }
 
     return NextResponse.json({ data: wish }, { status: 201 });
   } catch (error) {

@@ -142,3 +142,25 @@ export type NavItem = {
   icon: string;
   requiresAuth?: boolean;
 };
+
+// ── Pusher / Real-time Sync Types ────────────
+
+export type SyncScope =
+  | 'GALLERY'
+  | 'TIMELINE'
+  | 'LETTERS'
+  | 'DAILY_NOTES'
+  | 'WISHLIST'
+  | 'DASHBOARD';
+
+export type SyncAction = 'REFRESH';
+
+export type SyncPayload = {
+  scope: SyncScope;
+  action: SyncAction;
+};
+
+declare global {
+  // eslint-disable-next-line no-var
+  var pusherServer: import('pusher') | undefined;
+}

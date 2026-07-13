@@ -423,7 +423,7 @@ export default function DailyLoveTask() {
             aria-label="Selanjutnya"
           >
             <ArrowRight className="h-3 w-3" />
-            Selanjutnya
+            New Task
           </button>
         </div>
       </div>

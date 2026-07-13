@@ -16,6 +16,7 @@ type AlbumSelectorProps = {
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
   isPublic?: boolean;
+  counts?: { all: number; foto: number; video: number };
 };
 
 const MEDIA_TABS = [
@@ -28,6 +29,7 @@ export default function AlbumSelector({
   filters,
   onFiltersChange,
   isPublic,
+  counts,
 }: AlbumSelectorProps) {
   const { data: albums, isLoading } = useAlbums();
 
@@ -54,6 +56,14 @@ export default function AlbumSelector({
           >
             {Icon && <Icon className="h-3.5 w-3.5" />}
             {label}
+            {counts && (
+              <span className={cn(
+                "ml-0.5 tabular-nums",
+                (filters.mediaType || "") === key ? "text-primary-foreground/70" : "text-muted-foreground/50",
+              )}>
+                {counts[key === "" ? "all" : key as "foto" | "video"]}
+              </span>
+            )}
           </button>
         ))}
       </div>

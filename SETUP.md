@@ -51,14 +51,30 @@
 3. Dapatkan REST URL dan REST Token
 4. Copy ke `UPSTASH_REDIS_REST_URL` dan `UPSTASH_REDIS_REST_TOKEN`
 
-## 5. Resend (Email Notification)
+## 5. Pusher Channels (Real-time Sync)
+
+1. Daftar di [pusher.com](https://pusher.com) (free tier — 200.000 messages/hari)
+2. Buat Channels app baru → pilih cluster terdekat (ap-southeast-1 for Singapore/Indonesia)
+3. Dapatkan credentials dari App Keys tab:
+   - `PUSHER_APP_ID`
+   - `PUSHER_SECRET`
+   - `NEXT_PUBLIC_PUSHER_APP_KEY` (App Key)
+   - `NEXT_PUBLIC_PUSHER_CLUSTER`
+4. Enable **Client Events** di Settings (opsional, untuk future use)
+5. Copy semua key ke `.env.local`
+
+> **Arsitektur:** Server mengirim event `sync-mutate` ke channel `private-couple-{coupleId}`.
+> Client subscribe dan invalidate TanStack React Query cache berdasarkan scope
+> (`GALLERY`, `TIMELINE`, `LETTERS`, `DAILY_NOTES`, `WISHLIST`, `DASHBOARD`).
+
+## 6. Resend (Email Notification)
 
 1. Daftar di [resend.com](https://resend.com) (free tier — 3.000 email/bulan)
 2. API Keys → Create API Key → copy ke `RESEND_API_KEY`
 3. Domains → Add domain (atau gunakan `onboarding@resend.dev` untuk testing)
 4. Set `RESEND_FROM_EMAIL` sesuai domain
 
-## 6. Local Development
+## 7. Local Development
 
 ```bash
 # 1. Install dependencies
@@ -77,7 +93,7 @@ npx prisma db seed
 npm run dev
 ```
 
-## 7. Deploy ke Vercel
+## 8. Deploy ke Vercel
 
 ```bash
 # 1. Push ke GitHub
@@ -102,7 +118,7 @@ git push origin main
 # Settings → Domains → Add domain
 ```
 
-## 8. Registrasi Akun
+## 9. Registrasi Akun
 
 > Web hanya bisa diakses oleh 2 akun pasangan.
 
@@ -131,5 +147,9 @@ git push origin main
 | `RESEND_API_KEY` | ❌ | Resend API key |
 | `RESEND_FROM_EMAIL` | ❌ | Resend sender email |
 | `INVITE_TOKEN` | ✅ | Token untuk registrasi invite-only |
+| `PUSHER_APP_ID` | ❌ | Pusher App ID (real-time sync) |
+| `PUSHER_SECRET` | ❌ | Pusher App Secret |
+| `NEXT_PUBLIC_PUSHER_APP_KEY` | ❌ | Pusher App Key (public) |
+| `NEXT_PUBLIC_PUSHER_CLUSTER` | ❌ | Pusher cluster (e.g. `ap1`, `us2`) |
 
 > ✅ = Wajib / ❌ = Opsional (fallback gracefully)

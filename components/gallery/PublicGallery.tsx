@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import dynamic from "next/dynamic";
+import { usePhotos } from "@/hooks/usePhotos";
 import MasonryGrid from "./MasonryGrid";
 import AlbumSelector from "./AlbumSelector";
 import type { Photo } from "@/types";
@@ -23,6 +24,18 @@ export default function PublicGallery() {
   const [lightboxIndex, setLightboxIndex] = useState(-1);
   const [lightboxPhotos, setLightboxPhotos] = useState<Photo[]>([]);
 
+  const { data } = usePhotos({ ...filters, isPublic: true });
+  const allPhotos = useMemo(
+    () => (data?.pages.flatMap((p) => p.data ?? []) ?? []).filter(Boolean) as Photo[],
+    [data],
+  );
+
+  const counts = useMemo(() => ({
+    all: data?.pages[0]?.total ?? allPhotos.length,
+    foto: data?.pages[0]?.fotoTotal ?? allPhotos.filter((p) => !p.isVideo).length,
+    video: data?.pages[0]?.videoTotal ?? allPhotos.filter((p) => p.isVideo).length,
+  }), [data, allPhotos]);
+
   const handlePhotoClick = useCallback(
     (photos: Photo[], index: number) => {
       setLightboxPhotos(photos);
@@ -42,7 +55,7 @@ export default function PublicGallery() {
         </div>
       </div>
 
-      <AlbumSelector filters={filters} onFiltersChange={setFilters} isPublic />
+      <AlbumSelector filters={filters} onFiltersChange={setFilters} isPublic counts={counts} />
 
       <MasonryGrid
         filters={filters}

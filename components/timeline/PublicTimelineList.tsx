@@ -1,21 +1,14 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import { useMilestones } from "@/hooks/useMilestones";
 import MilestoneCard from "./MilestoneCard";
 import { Button, Skeleton } from "@/components/ui";
-import { Heart, Filter } from "lucide-react";
+import { Heart } from "lucide-react";
 
 export default function PublicTimelineList() {
   const { data: milestones, isLoading, error, refetch } = useMilestones();
-  const [photosOnly, setPhotosOnly] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  const filtered = milestones
-    ? photosOnly
-      ? milestones.filter((m) => m.photos.length > 0)
-      : milestones
-    : [];
 
   if (isLoading) {
     return (
@@ -46,7 +39,7 @@ export default function PublicTimelineList() {
     );
   }
 
-  if (filtered.length === 0) {
+  if (!milestones || milestones.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
         <Heart className="h-12 w-12 text-muted-foreground" />
@@ -62,30 +55,17 @@ export default function PublicTimelineList() {
 
   return (
     <div ref={containerRef}>
-      <div className="mb-6 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <p className="text-sm text-muted-foreground">
-            {filtered.length} kenangan
-          </p>
-          <button
-            onClick={() => setPhotosOnly(!photosOnly)}
-            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-              photosOnly
-                ? "border-primary bg-primary/10 text-primary"
-                : "border-border text-muted-foreground hover:bg-accent"
-            }`}
-          >
-            <Filter className="h-3 w-3" />
-            Hanya foto
-          </button>
-        </div>
+      <div className="mb-6">
+        <p className="text-sm text-muted-foreground">
+          {milestones.length} kenangan
+        </p>
       </div>
 
       <div className="relative">
         <div className="absolute left-5 top-0 bottom-0 hidden w-0.5 bg-border md:block" />
 
         <div className="space-y-10 md:space-y-12">
-          {filtered.map((milestone, index) => (
+          {milestones.map((milestone, index) => (
             <MilestoneCard
               key={milestone.id}
               milestone={milestone}

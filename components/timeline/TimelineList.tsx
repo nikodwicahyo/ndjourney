@@ -13,7 +13,7 @@ const AddMilestoneForm = dynamic(() => import("./AddMilestoneForm"), {
   loading: () => <div className="h-48 animate-pulse rounded-2xl bg-muted" />,
 });
 import { Button, Skeleton } from "@/components/ui";
-import { Heart, Plus, Filter } from "lucide-react";
+import { Heart, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { showDeleteConfirm } from "@/lib/swal";
 import type { MilestoneWithRelations } from "@/hooks/useMilestones";
@@ -25,7 +25,6 @@ export default function TimelineList() {
   const [showForm, setShowForm] = useState(false);
   const [editingMilestone, setEditingMilestone] =
     useState<MilestoneWithRelations | null>(null);
-  const [photosOnly, setPhotosOnly] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const openEdit = useCallback((m: MilestoneWithRelations) => {
@@ -47,12 +46,6 @@ export default function TimelineList() {
     },
     [deleteMilestone],
   );
-
-  const filtered = milestones
-    ? photosOnly
-      ? milestones.filter((m) => m.photos.length > 0)
-      : milestones
-    : [];
 
   if (isLoading) {
     return (
@@ -83,7 +76,7 @@ export default function TimelineList() {
     );
   }
 
-  if (filtered.length === 0) {
+  if (!milestones || milestones.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
         <Heart className="h-12 w-12 text-muted-foreground" />
@@ -106,21 +99,10 @@ export default function TimelineList() {
   return (
     <div ref={containerRef}>
       <div className="mb-6 flex items-center justify-between">
-        <div className="flex items-center gap-2">
+        <div>
           <p className="text-sm text-muted-foreground">
-            {filtered.length} kenangan
+            {milestones.length} kenangan
           </p>
-          <button
-            onClick={() => setPhotosOnly(!photosOnly)}
-            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-              photosOnly
-                ? "border-primary bg-primary/10 text-primary"
-                : "border-border text-muted-foreground hover:bg-accent"
-            }`}
-          >
-            <Filter className="h-3 w-3" />
-            Hanya foto
-          </button>
         </div>
 
         {session?.user && (
@@ -142,7 +124,7 @@ export default function TimelineList() {
         <div className="absolute left-5 top-0 bottom-0 hidden w-0.5 bg-border md:block" />
 
         <div className="space-y-10 md:space-y-12">
-          {filtered.map((milestone, index) => (
+          {milestones.map((milestone, index) => (
             <MilestoneCard
               key={milestone.id}
               milestone={milestone}

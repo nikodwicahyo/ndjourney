@@ -67,12 +67,25 @@
 > Client subscribe dan invalidate TanStack React Query cache berdasarkan scope
 > (`GALLERY`, `TIMELINE`, `LETTERS`, `DAILY_NOTES`, `WISHLIST`, `DASHBOARD`).
 
-## 6. Resend (Email Notification)
+## 6. SMTP Email (Notifications)
 
-1. Daftar di [resend.com](https://resend.com) (free tier — 3.000 email/bulan)
-2. API Keys → Create API Key → copy ke `RESEND_API_KEY`
-3. Domains → Add domain (atau gunakan `onboarding@resend.dev` untuk testing)
-4. Set `RESEND_FROM_EMAIL` sesuai domain
+> Menggunakan Nodemailer dengan Gmail SMTP. Tidak perlu domain sendiri — pakai Gmail biasa.
+
+1. Gunakan akun Gmail yang sudah ada (atau buat baru)
+2. Aktifkan **2-Step Verification** di [myaccount.google.com/security](https://myaccount.google.com/security)
+3. Buat **App Password** di [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords):
+   - Pilih *Mail* sebagai app dan *Windows Computer* sebagai device
+   - Copy 16-karakter password yang muncul
+4. Set environment variables:
+   ```
+   SMTP_HOST="smtp.gmail.com"
+   SMTP_PORT="587"
+   SMTP_USER="emailkamu@gmail.com"
+   SMTP_PASS="16-karakter-app-password"
+   SMTP_FROM_EMAIL="emailkamu@gmail.com"
+   ```
+
+> **Alternatif SMTP lain:** Isi `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` sesuai provider (SendGrid, Mailgun, Brevo, dll).
 
 ## 7. Local Development
 
@@ -144,8 +157,11 @@ git push origin main
 | `CLOUDINARY_API_SECRET` | ✅ | Cloudinary API secret |
 | `UPSTASH_REDIS_REST_URL` | ❌ | Upstash Redis REST URL |
 | `UPSTASH_REDIS_REST_TOKEN` | ❌ | Upstash Redis REST token |
-| `RESEND_API_KEY` | ❌ | Resend API key |
-| `RESEND_FROM_EMAIL` | ❌ | Resend sender email |
+| `SMTP_HOST` | ❌ | SMTP server (default: `smtp.gmail.com`) |
+| `SMTP_PORT` | ❌ | SMTP port (default: `587`) |
+| `SMTP_USER` | ❌ | SMTP username (Gmail email) |
+| `SMTP_PASS` | ❌ | SMTP password (Gmail App Password) |
+| `SMTP_FROM_EMAIL` | ❌ | Sender email address |
 | `INVITE_TOKEN` | ✅ | Token untuk registrasi invite-only |
 | `PUSHER_APP_ID` | ❌ | Pusher App ID (real-time sync) |
 | `PUSHER_SECRET` | ❌ | Pusher App Secret |

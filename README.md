@@ -35,7 +35,7 @@ Built for two. Powered by Next.js.
 ### 💌 Love Letters
 - Rich text editor (Tiptap) with mood selector (love, grateful, missing, happy, apology, surprise)
 - Time capsule support — schedule delivery with envelope unlock animation
-- Email notification on send (via Resend)
+- Email notification on send (via SMTP/Gmail)
 - Inbox / Sent management
 
 ### 🎮 Games
@@ -83,7 +83,7 @@ Built for two. Powered by Next.js.
 | **Database** | [Neon](https://neon.tech) Serverless PostgreSQL + [Prisma](https://www.prisma.io) ORM |
 | **Media** | [Cloudinary](https://cloudinary.com) — upload, transform, CDN, blur placeholders |
 | **Cache & Rate Limit** | [Upstash Redis](https://upstash.com) |
-| **Email** | [Resend](https://resend.com) — transactional emails, time capsule notifications |
+| **Email** | [Nodemailer](https://nodemailer.com) + SMTP (Gmail) — transactional emails, time capsule notifications |
 | **Editor** | [Tiptap](https://tiptap.dev) — rich text for love letters |
 | **Validation** | [Zod](https://zod.dev) — schema validation |
 | **State** | [TanStack React Query](https://tanstack.com/query) (server), [Zustand](https://github.com/pmndrs/zustand) (client) |
@@ -101,7 +101,7 @@ Before you begin, you'll need accounts for these services:
 | [Cloudinary](https://cloudinary.com) | Yes | 25 GB storage |
 | [Google Cloud Console](https://console.cloud.google.com) | Yes | OAuth 2.0 credentials |
 | [Upstash](https://upstash.com) | No | 10K req/day (optional: caching + rate limiting) |
-| [Resend](https://resend.com) | No | 3K emails/month (optional: email notifications) |
+| — | — | Email via SMTP (Gmail App Password or any provider) |
 
 ---
 
@@ -195,8 +195,11 @@ types/                # Shared TypeScript types
 | `CLOUDINARY_STORAGE_LIMIT_BYTES` | ❌ | `26843545600` (25 GB) | Cloudinary storage limit |
 | `UPSTASH_REDIS_REST_URL` | ❌ | — | Upstash Redis REST URL |
 | `UPSTASH_REDIS_REST_TOKEN` | ❌ | — | Upstash Redis REST token |
-| `RESEND_API_KEY` | ❌ | — | Resend API key |
-| `RESEND_FROM_EMAIL` | ❌ | — | Resend sender email |
+| `SMTP_HOST` | ❌ | `smtp.gmail.com` | SMTP server host |
+| `SMTP_PORT` | ❌ | `587` | SMTP server port |
+| `SMTP_USER` | ❌ | — | SMTP username (Gmail email) |
+| `SMTP_PASS` | ❌ | — | SMTP password (Gmail App Password) |
+| `SMTP_FROM_EMAIL` | ❌ | — | Sender email address |
 | `CRON_SECRET` | ✅ | — | Secret for Vercel Cron auth |
 | `INVITE_TOKEN` | ✅ | — | Invite-only registration token |
 

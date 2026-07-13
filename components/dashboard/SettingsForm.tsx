@@ -9,6 +9,7 @@ import { queryKeys } from "@/lib/query-keys";
 import { api } from "@/lib/api-client";
 import { Loader2, Save, Upload, X, Cake } from "lucide-react";
 import { toast } from "sonner";
+import { uploadFileSimple } from "@/lib/chunked-upload";
 import { getJakartaDateOnly } from "@/lib/date";
 
 export default function SettingsForm() {
@@ -59,22 +60,8 @@ export default function SettingsForm() {
   async function handleUploadMusic(file: File) {
     setUploadingMusic(true);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        toast.error(err.error || "Gagal upload musik");
-        return;
-      }
-
-      const { data } = await res.json();
-      setBackgroundMusicUrl(data.secureUrl);
+      const result = await uploadFileSimple(file, () => {});
+      setBackgroundMusicUrl(result.url);
       toast.success("Musik latar berhasil diupload!");
     } catch {
       toast.error("Gagal upload musik");
@@ -86,22 +73,8 @@ export default function SettingsForm() {
   async function handleUploadHero(file: File) {
     setUploadingHero(true);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        toast.error(err.error || "Gagal upload foto");
-        return;
-      }
-
-      const { data } = await res.json();
-      setHeroPhotoUrl(data.secureUrl);
+      const result = await uploadFileSimple(file, () => {});
+      setHeroPhotoUrl(result.url);
       toast.success("Foto pada beranda berhasil diupload!");
     } catch {
       toast.error("Gagal upload foto");

@@ -4,7 +4,7 @@ export interface QueuedUpload {
   id: string;
   file: File;
   publicId: string;
-  resourceType: "image" | "video" | "auto";
+  resourceType: "image" | "video" | "raw" | "auto";
   status: "pending" | "uploading" | "complete" | "error" | "cancelled";
   progress: {
     loaded: number;
@@ -62,7 +62,7 @@ export class UploadQueue {
   add(
     file: File,
     publicId: string,
-    resourceType: "image" | "video" | "auto"
+    resourceType: "image" | "video" | "raw" | "auto"
   ): Promise<QueuedUpload> {
     const id = `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
     const upload: QueuedUpload = {
@@ -86,7 +86,7 @@ export class UploadQueue {
     });
   }
 
-  addMultiple(files: File[], publicIds: string[], resourceTypes: ("image" | "video" | "auto")[]): Promise<QueuedUpload>[] {
+  addMultiple(files: File[], publicIds: string[], resourceTypes: ("image" | "video" | "raw" | "auto")[]): Promise<QueuedUpload>[] {
     return files.map((file, index) => this.add(file, publicIds[index], resourceTypes[index]));
   }
 

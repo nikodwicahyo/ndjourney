@@ -78,9 +78,10 @@ export function formatTime(seconds: number): string {
   return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
 }
 
-export function getResourceType(mimeType: string): "image" | "video" | "auto" {
+export function getResourceType(mimeType: string): "image" | "video" | "raw" | "auto" {
   if (mimeType.startsWith("image/")) return "image";
   if (mimeType.startsWith("video/")) return "video";
+  if (mimeType.startsWith("audio/")) return "raw";
   return "auto";
 }
 

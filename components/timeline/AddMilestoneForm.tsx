@@ -7,6 +7,7 @@ import { Button } from "@/components/ui";
 import { X, Loader2, Upload, ImagePlus } from "lucide-react";
 import { toast } from "sonner";
 import type { MilestoneWithRelations } from "@/hooks/useMilestones";
+import { uploadFileSimple } from "@/lib/chunked-upload";
 import { getJakartaDateOnly, getJakartaToday } from "@/lib/date";
 
 const EMOJIS = [
@@ -64,24 +65,10 @@ export default function AddMilestoneForm({
     setUploadingPhotos(true);
     for (const file of Array.from(files)) {
       try {
-        const formData = new FormData();
-        formData.append("file", file);
-
-        const res = await fetch("/api/upload", {
-          method: "POST",
-          body: formData,
-        });
-
-        if (!res.ok) {
-          const err = await res.json();
-          toast.error(err.error || `Gagal upload ${file.name}`);
-          continue;
-        }
-
-        const { data } = await res.json();
+        const result = await uploadFileSimple(file, () => {});
         setSelectedPhotos((prev) => [
           ...prev,
-          { url: data.secureUrl, thumbnailUrl: data.thumbnailUrl ?? null, publicId: data.publicId },
+          { url: result.url, thumbnailUrl: result.thumbnailUrl ?? null, publicId: result.publicId },
         ]);
       } catch {
         toast.error(`Gagal upload ${file.name}`);

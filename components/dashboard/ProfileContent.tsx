@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { Heart, Mail, CalendarDays, Quote, Cake, Loader2, Upload, X, Pencil } from "lucide-react";
 import { Button } from "@/components/ui";
 import { formatDate } from "@/lib/utils";
+import { uploadFileSimple } from "@/lib/chunked-upload";
 import { toast } from "sonner";
 
 type ProfileContentProps = {
@@ -52,22 +53,8 @@ export default function ProfileContent({ user, couple }: ProfileContentProps) {
   async function handleUploadAvatar(file: File) {
     setUploading(true);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        toast.error(err.error || "Gagal upload foto");
-        return;
-      }
-
-      const { data } = await res.json();
-      setEditImage(data.secureUrl);
+      const result = await uploadFileSimple(file, () => {});
+      setEditImage(result.url);
       toast.success("Foto profil berhasil diupload!");
     } catch {
       toast.error("Gagal upload foto");

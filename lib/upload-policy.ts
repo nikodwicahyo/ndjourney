@@ -1,6 +1,6 @@
 import { formatBytes } from "./upload-config";
 
-export type UploadResourceType = "image" | "video";
+export type UploadResourceType = "image" | "video" | "raw";
 
 type UploadPolicy = {
   maxBytes: number;
@@ -87,6 +87,13 @@ export function validateUploadRequest(input: {
       return { valid: false, error: `Video exceeds ${formatBytes(DEFAULT_LIMITS.video)} limit` };
     }
     return { valid: true, policy: { maxBytes: DEFAULT_LIMITS.video, resourceType: "video" } };
+  }
+
+  if (fileType.startsWith("audio/")) {
+    if (fileSize > DEFAULT_LIMITS.video) {
+      return { valid: false, error: `Audio exceeds ${formatBytes(DEFAULT_LIMITS.video)} limit` };
+    }
+    return { valid: true, policy: { maxBytes: DEFAULT_LIMITS.video, resourceType: "raw" } };
   }
 
   return { valid: false, error: "Only image and video files are allowed in gallery" };

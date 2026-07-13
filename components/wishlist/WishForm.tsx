@@ -4,9 +4,10 @@ import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import { useCreateWish, useUpdateWish, useDeleteWish } from "@/hooks/useWishes";
 import { Button } from "@/components/ui";
-import { Plus, Loader2, X, ImagePlus, Trash2 } from "lucide-react";
+import { Plus, Loader2, X, Upload, ImagePlus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { showDeleteConfirm } from "@/lib/swal";
+import { uploadFileSimple } from "@/lib/chunked-upload";
 import type { WishItem } from "@/types";
 
 const CATEGORIES = [
@@ -31,14 +32,48 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
   const [link, setLink] = useState("");
   const [category, setCategory] = useState("OTHER");
   const [imageUrl, setImageUrl] = useState("");
+  const [localPreviewUrl, setLocalPreviewUrl] = useState("");
+  const [previewFailed, setPreviewFailed] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showGalleryPicker, setShowGalleryPicker] = useState(false);
+  const [galleryPhotos, setGalleryPhotos] = useState<
+    Array<{ id: string; url: string; thumbnailUrl: string | null }>
+  >([]);
+  const [loadingGallery, setLoadingGallery] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const localPreviewUrlRef = useRef("");
+  const uploadRequestRef = useRef(0);
 
   const isEditing = !!editingWish;
 
+  function clearLocalPreview() {
+    if (localPreviewUrlRef.current) {
+      URL.revokeObjectURL(localPreviewUrlRef.current);
+      localPreviewUrlRef.current = "";
+    }
+    setLocalPreviewUrl("");
+  }
+
+  function setLocalPreview(file: File) {
+    clearLocalPreview();
+    const nextPreviewUrl = URL.createObjectURL(file);
+    localPreviewUrlRef.current = nextPreviewUrl;
+    setLocalPreviewUrl(nextPreviewUrl);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (localPreviewUrlRef.current) {
+        URL.revokeObjectURL(localPreviewUrlRef.current);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     if (editingWish) {
+      clearLocalPreview();
+      setPreviewFailed(false);
       setTitle(editingWish.title || "");
       setDescription(editingWish.description || "");
       setLink(editingWish.link || "");
@@ -49,6 +84,10 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
   }, [editingWish]);
 
   function reset() {
+    uploadRequestRef.current += 1;
+    clearLocalPreview();
+    setPreviewFailed(false);
+    setImageUploading(false);
     setTitle("");
     setDescription("");
     setLink("");
@@ -58,29 +97,73 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
     onClose?.();
   }
 
-  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("Maksimal 10MB");
+    const resetFileInput = () => {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    };
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Pilih file gambar yang valid");
+      resetFileInput();
       return;
     }
 
+    if (file.size === 0) {
+      toast.error("File gambar kosong");
+      resetFileInput();
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Maksimal 10MB");
+      resetFileInput();
+      return;
+    }
+
+    const requestId = ++uploadRequestRef.current;
+    setLocalPreview(file);
+    setPreviewFailed(false);
     setImageUploading(true);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Upload gagal");
-      setImageUrl(json.data.url);
+      const result = await uploadFileSimple(file, () => {});
+      if (requestId !== uploadRequestRef.current) return;
+      setImageUrl(result.secureUrl || result.url);
       toast.success("Gambar berhasil diupload");
     } catch {
-      toast.error("Gagal upload gambar");
+      if (requestId === uploadRequestRef.current) {
+        clearLocalPreview();
+        toast.error("Gagal upload gambar");
+      }
     } finally {
-      setImageUploading(false);
+      if (requestId === uploadRequestRef.current) setImageUploading(false);
+      resetFileInput();
     }
+  }
+
+  async function openGalleryPicker() {
+    setShowGalleryPicker(true);
+    if (galleryPhotos.length === 0) {
+      setLoadingGallery(true);
+      try {
+        const res = await fetch("/api/photos?limit=100&sort=newest");
+        const json = await res.json();
+        setGalleryPhotos(json.data || []);
+      } catch {
+        toast.error("Gagal memuat galeri");
+      }
+      setLoadingGallery(false);
+    }
+  }
+
+  function selectGalleryPhoto(photo: { id: string; url: string; thumbnailUrl: string | null }) {
+    uploadRequestRef.current += 1;
+    clearLocalPreview();
+    setPreviewFailed(false);
+    setImageUrl(photo.url);
+    setShowGalleryPicker(false);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -151,7 +234,7 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="mx-4 max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-xl">
+          <div className="relative mx-4 max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-xl">
             <div className="mb-5 flex items-center justify-between">
               <h2 className="font-heading text-lg font-semibold">
                 {isEditing ? "Edit Wish" : "Wish Baru"}
@@ -219,53 +302,70 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">Gambar (opsional)</label>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  className="hidden"
-                />
-                {imageUrl ? (
+                <label className="text-sm font-medium">Foto (opsional)</label>
+                {localPreviewUrl || imageUrl ? (
                   <div className="relative h-32 w-full overflow-hidden rounded-xl">
-                    <Image
-                      src={imageUrl}
-                      alt="Preview"
-                      fill
-                      className="object-cover"
-                    />
+                    {previewFailed ? (
+                      <div className="flex h-full items-center justify-center bg-muted px-4 text-center text-sm text-muted-foreground">
+                        Preview gambar tidak dapat dimuat. Silakan pilih foto lain.
+                      </div>
+                    ) : (
+                      <img
+                        src={localPreviewUrl || imageUrl}
+                        alt="Preview gambar wish"
+                        className="h-full w-full object-cover"
+                        onError={() => setPreviewFailed(true)}
+                      />
+                    )}
                     <button
                       type="button"
                       onClick={() => {
+                        uploadRequestRef.current += 1;
+                        clearLocalPreview();
+                        setPreviewFailed(false);
                         setImageUrl("");
-                        if (fileInputRef.current) fileInputRef.current.value = "";
                       }}
+                      disabled={imageUploading}
                       className="absolute right-2 top-2 z-10 rounded-full bg-black/50 p-1 text-white transition-colors hover:bg-black/70"
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>
                   </div>
-                ) : (
-                  <button
+                ) : null}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleFileUpload}
+                />
+                <div className="flex flex-wrap gap-2">
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={imageUploading}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border px-4 py-6 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
                   >
                     {imageUploading ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Mengupload...
-                      </>
+                      <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      <>
-                        <ImagePlus className="h-4 w-4" />
-                        Klik untuk upload gambar
-                      </>
+                      <Upload className="h-4 w-4" />
                     )}
-                  </button>
-                )}
+                    Upload Foto Baru
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={openGalleryPicker}
+                  >
+                    <ImagePlus className="h-4 w-4" />
+                    Pilih dari Galeri
+                  </Button>
+                </div>
               </div>
 
               <div className="flex gap-3 pt-2">
@@ -317,6 +417,82 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
                 </div>
               )}
             </form>
+
+            {showGalleryPicker && (
+              <div className="absolute inset-0 z-10 flex flex-col rounded-2xl border border-border bg-card">
+                <div className="flex-shrink-0 border-b border-border p-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-heading text-base font-semibold">
+                      Pilih Foto dari Galeri
+                    </h3>
+                    <button
+                      onClick={() => setShowGalleryPicker(false)}
+                      className="rounded-full p-1 transition-colors hover:bg-muted"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4">
+                  {loadingGallery ? (
+                    <div className="flex h-full items-center justify-center">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : galleryPhotos.length === 0 ? (
+                    <div className="flex h-full items-center justify-center">
+                      <p className="text-sm text-muted-foreground">
+                        Belum ada foto di galeri
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid w-full grid-cols-2 gap-1.5 sm:grid-cols-3">
+                      {galleryPhotos.map((photo) => (
+                        <button
+                          key={photo.id}
+                          type="button"
+                          onClick={() => selectGalleryPhoto(photo)}
+                          className={`relative w-full overflow-hidden rounded-lg transition-all ${
+                            imageUrl === photo.url
+                              ? "ring-2 ring-primary ring-offset-2 ring-offset-card"
+                              : "hover:ring-1 hover:ring-primary/50"
+                          }`}
+                          style={{ aspectRatio: "1 / 1" }}
+                        >
+                          <div className="absolute inset-0">
+                            <Image
+                              src={photo.thumbnailUrl || photo.url}
+                              alt=""
+                              fill
+                              sizes="(max-width: 640px) 50vw, 33vw"
+                              className="object-cover"
+                            />
+                          </div>
+                          {imageUrl === photo.url && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-primary/20">
+                              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm text-white shadow-lg">
+                                ✓
+                              </div>
+                            </div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex-shrink-0 border-t border-border p-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => setShowGalleryPicker(false)}
+                  >
+                    Selesai
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

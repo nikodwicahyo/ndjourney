@@ -23,6 +23,7 @@ type LeaderEntry = {
   _hasArcade?: boolean;
   _hasQa?: boolean;
   _qaPlayed?: number;
+  _arcadeScore?: number;
 };
 
 type TabEntry = {
@@ -147,7 +148,7 @@ export default function LeaderBoard() {
           if (existing) {
             existing.totalPlayed += e.totalPlayed;
             if (isArc) {
-              existing.totalScore = (existing.totalScore ?? 0) + (e.totalScore ?? 0);
+              existing._arcadeScore = (existing._arcadeScore ?? 0) + (e.totalScore ?? 0);
               existing.bestScore = Math.max(existing.bestScore ?? 0, e.bestScore ?? 0);
             } else {
               existing.totalCorrect = (existing.totalCorrect ?? 0) + (e.totalCorrect ?? 0);
@@ -160,13 +161,14 @@ export default function LeaderBoard() {
               totalPlayed: e.totalPlayed,
               totalCorrect: isArc ? undefined : e.totalCorrect,
               accuracy: isArc ? undefined : e.accuracy,
-              totalScore: isArc ? (e.totalScore ?? 0) : undefined,
+              totalScore: undefined,
               bestScore: isArc ? (e.bestScore ?? 0) : undefined,
-              avgScore: isArc ? (e.avgScore ?? 0) : undefined,
+              avgScore: undefined,
               _isArcade: isArc,
               _hasArcade: isArc,
               _hasQa: !isArc,
               _qaPlayed: isArc ? 0 : e.totalPlayed,
+              _arcadeScore: isArc ? (e.totalScore ?? 0) : undefined,
             });
           }
           if (existing) {
@@ -174,6 +176,8 @@ export default function LeaderBoard() {
             existing._hasQa = (existing._hasQa ?? false) || !isArc;
           }
       };
+
+      const QA_SESSION_SIZE = 10; // each QA game round = 10 questions
 
       (allQa.data ?? []).forEach((e) => merge(e, false));
       (allSwap.data ?? []).forEach((e) => merge(e, true));
@@ -184,8 +188,20 @@ export default function LeaderBoard() {
         if (e.totalCorrect != null && (e._qaPlayed ?? 0) > 0) {
           e.accuracy = Math.round((e.totalCorrect / (e._qaPlayed ?? 1)) * 100);
         }
+        // Convert QA question-level counts to session counts for merged display
+        if (e._hasQa) {
+          const qaSessions = Math.round((e._qaPlayed ?? 0) / QA_SESSION_SIZE);
+          const baseScore = e._qaPlayed ?? e.avgScore ?? 0;
+          e.totalPlayed = qaSessions + (e._hasArcade ? Math.round((e.totalPlayed - baseScore)) : 0);
+          e._qaPlayed = qaSessions * QA_SESSION_SIZE; // keep question count for accuracy display
+        }
+        // Composite score used for ranking: each QA correct answer = 1000 pts + arcade total score
+        const qaScore = (e.totalCorrect ?? 0) * 1000;
+        const arcadeScore = e._arcadeScore ?? 0;
+        e.totalScore = qaScore + arcadeScore;
+        e.avgScore = qaScore;
       });
-      return result.sort((a, b) => (b.totalPlayed ?? 0) - (a.totalPlayed ?? 0));
+      return result.sort((a, b) => (b.totalScore ?? 0) - (a.totalScore ?? 0));
     }
     if (isArcade) return arcadeQuery.data ?? [];
     return qaQuery.data ?? [];
@@ -264,7 +280,7 @@ export default function LeaderBoard() {
                   <AvatarImage src={entry.user?.image ?? undefined} alt={entry.playerName ?? entry.user?.name ?? "Player"} />
                   <AvatarFallback>{(entry.playerName ?? entry.user?.name ?? "P").charAt(0)}</AvatarFallback>
                 </Avatar>
-                <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="truncate font-semibold text-sm sm:text-base">
                       {entry.playerName || entry.user?.name || "Pasangan"}
@@ -285,9 +301,11 @@ export default function LeaderBoard() {
                 {isFirst && (
                   <div className="shrink-0 text-right">
                     <p className="text-base font-bold text-yellow-600 dark:text-yellow-400 sm:text-lg">
-                      {entry.totalPlayed}x
+                      {entry._hasQa ? `${entry.accuracy ?? 0}%` : (entry._arcadeScore ?? 0).toLocaleString()}
                     </p>
-                    <p className="text-[10px] text-muted-foreground">total main</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {entry._hasQa ? "akurasi" : "skor arcade"}
+                    </p>
                   </div>
                 )}
               </div>
@@ -319,7 +337,7 @@ export default function LeaderBoard() {
                     </div>
                     <div className="mt-1 text-xs text-muted-foreground">
                       <span className="font-medium text-foreground/80">
-                        {entry.totalScore?.toLocaleString() ?? 0}
+                        {(entry._arcadeScore ?? 0).toLocaleString()}
                       </span>{" "}
                       total skor · Best{" "}
                       <span className="font-medium text-foreground/80">

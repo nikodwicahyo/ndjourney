@@ -5,6 +5,19 @@ import { toast } from 'sonner';
 
 const POLL_INTERVAL = 120_000;
 
+/**
+ * Tell the active Service Worker to delete all caches so the next
+ * page load fetches everything fresh from the network.
+ */
+async function clearServiceWorkerCaches(): Promise<void> {
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    reg.active?.postMessage({ type: 'CLEAR_CACHES' });
+  } catch {
+    // Service worker not available — nothing to clear
+  }
+}
+
 export function useAppVersion() {
   const versionRef = useRef<string | null>(null);
 
@@ -30,7 +43,10 @@ export function useAppVersion() {
             id: 'app-update',
             action: {
               label: 'Muat Ulang',
-              onClick: () => window.location.reload(),
+              onClick: async () => {
+                await clearServiceWorkerCaches();
+                window.location.reload();
+              },
             },
           });
           versionRef.current = buildTime;

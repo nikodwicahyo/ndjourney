@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuestions, useSubmitScore } from "@/hooks/useGames";
 import { Button, Skeleton } from "@/components/ui";
 import { motion } from "framer-motion";
@@ -23,21 +23,16 @@ export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: T
   const [score, setScore] = useState(0);
   const [finished, setFinished] = useState(false);
   const [results, setResults] = useState<Array<{ question: string; correct: boolean }>>([]);
+  const submittedRef = useRef<{ set: Set<string>, dataset: string }>({ set: new Set<string>(), dataset: '' });
+  const { set: submittedSet, dataset } = submittedRef.current;
 
   const batch = data?.questions ?? [];
   const totalQuestions = data?.total ?? 0;
   const current = batch[currentIdx];
 
-  // Reset state when new batch arrives
+  // Do NOT reset state on data changes from random refetches
   useEffect(() => {
-    if (batch && batch.length > 0) {
-      setCurrentIdx(0);
-      setUserAnswer("");
-      setRevealed(false);
-      setScore(0);
-      setFinished(false);
-      setResults([]);
-    }
+    // Session state remains stable during background refreshes.
   }, [batch]);
 
   function handleInputKeyDown(e: React.KeyboardEvent) {
@@ -136,7 +131,8 @@ export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: T
       { question: current.question, correct: isCorrect },
     ]);
 
-    if (!disableScoreSubmit) {
+    if (!disableScoreSubmit && !submittedSet.has(current.id)) {
+      submittedSet.add(current.id);
       try {
         await submitScore.mutateAsync({
           questionId: current.id,
@@ -162,6 +158,13 @@ export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: T
 
   function mainLagi() {
     if (!batch) return;
+    submittedSet.clear();
+    setFinished(false);
+    setScore(0);
+    setCurrentIdx(0);
+    setResults([]);
+    setUserAnswer("");
+    setRevealed(false);
     const newSeen = [...seenIds, ...batch.map((q) => q.id)];
     setSeenIds(newSeen);
     refetch();
@@ -169,6 +172,7 @@ export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: T
 
   function acakUlang() {
     if (!batch) return;
+    submittedSet.clear();
     setSeenIds(prev => [...prev, ...batch.map(q => q.id)]);
   }
 

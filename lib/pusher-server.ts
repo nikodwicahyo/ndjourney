@@ -15,6 +15,8 @@ if (process.env.NODE_ENV !== 'production') {
   globalThis.pusherServer = pusherServer;
 }
 
+// No changes needed to triggerCoupleEvent, it already accepts SyncScope.
+// We just need to ensure usages update to the new scopes.
 export async function triggerCoupleEvent(
   coupleId: string,
   scope: SyncScope,

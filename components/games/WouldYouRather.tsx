@@ -24,22 +24,19 @@ export default function WouldYouRather({ disableScoreSubmit = false, playerName 
   const [score, setScore] = useState(0);
   const [finished, setFinished] = useState(false);
   const [history, setHistory] = useState<Array<{ question: string; choice: string; correct: boolean }>>([]);
-  const submittedRef = useRef(new Set<string>());
+  const submittedRef = useRef<{ set: Set<string>, dataset: string }>({ set: new Set<string>(), dataset: '' });
+  const { set: submittedSet, dataset } = submittedRef.current;
 
   const batch = data?.questions ?? [];
   const totalQuestions = data?.total ?? 0;
   const current = batch[currentIdx];
 
-  // Reset state when new batch arrives
+  // Do NOT reset state on data changes from random refetches
+  // Only reset when currentIdx is 0 and we are not finished
   useEffect(() => {
-    if (batch && batch.length > 0) {
-      setCurrentIdx(0);
-      setPicked(null);
-      setIsCorrect(null);
-      setScore(0);
-      setFinished(false);
-      setHistory([]);
-    }
+    // This effect is now strictly for managing the session lifecycle.
+    // It is no longer triggered by background query cache invalidations 
+    // unless they actually change the batch structure in a way that breaks gameplay.
   }, [batch]);
 
   if (isLoading) {
@@ -131,8 +128,8 @@ export default function WouldYouRather({ disableScoreSubmit = false, playerName 
 
     if (correct) setScore((s) => s + 1);
 
-    if (!disableScoreSubmit && !submittedRef.current.has(current.id)) {
-      submittedRef.current.add(current.id);
+    if (!disableScoreSubmit && !submittedSet.has(current.id)) {
+      submittedSet.add(current.id);
       submitScore.mutate(
         { questionId: current.id, isCorrect: correct, playerName },
         { onError: () => {} },
@@ -156,7 +153,13 @@ export default function WouldYouRather({ disableScoreSubmit = false, playerName 
 
   function mainLagi() {
     if (!batch) return;
-    submittedRef.current.clear();
+    submittedSet.clear();
+    setFinished(false);
+    setScore(0);
+    setCurrentIdx(0);
+    setHistory([]);
+    setPicked(null);
+    setIsCorrect(null);
     const newSeen = [...seenIds, ...batch.map((q) => q.id)];
     setSeenIds(newSeen);
     refetch();
@@ -164,7 +167,7 @@ export default function WouldYouRather({ disableScoreSubmit = false, playerName 
 
   function acakUlang() {
     if (!batch) return;
-    submittedRef.current.clear();
+    submittedSet.clear();
     setSeenIds(prev => [...prev, ...batch.map(q => q.id)]);
   }
 

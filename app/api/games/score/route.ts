@@ -76,7 +76,7 @@ export async function POST(request: Request) {
     if (isAuthed) {
       const coupleId = await getUserCoupleId(session!.user.id);
       if (coupleId) {
-        triggerCoupleEvent(coupleId, 'GAMES');
+        await triggerCoupleEvent(coupleId, 'GAMES_LEADERBOARD');
       }
     }
 

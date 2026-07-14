@@ -35,7 +35,7 @@ export async function GET(request: Request) {
       });
     }
 
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = { isArchived: false };
     if (type) where.type = type;
     if (category) where.category = category;
 
@@ -155,7 +155,7 @@ export async function POST(request: Request) {
 
     const coupleId = await getUserCoupleId(rateCheck.session.user.id);
     if (coupleId) {
-      triggerCoupleEvent(coupleId, 'GAMES');
+      await triggerCoupleEvent(coupleId, 'GAMES_QUESTIONS');
     }
 
     return NextResponse.json({ data: question }, { status: 201 });

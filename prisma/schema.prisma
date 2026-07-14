@@ -236,9 +236,11 @@ model GameQuestion {
   answer    String?
   category  String?
   createdAt DateTime    @default(now())
+  isArchived Boolean   @default(false)
   scores    GameScore[]
 
   @@index([type])
+  @@index([isArchived])
 }
 
 model GameScore {

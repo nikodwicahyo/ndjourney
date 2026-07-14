@@ -67,7 +67,6 @@ export function useSubmitScore() {
       return json.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.games.all });
       qc.invalidateQueries({ queryKey: queryKeys.games.leaderboard() });
     },
   });

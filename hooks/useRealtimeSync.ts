@@ -44,9 +44,29 @@ export function useRealtimeSync(coupleId: string | undefined) {
         case 'WISHLIST':
           queryClient.invalidateQueries({ queryKey: queryKeys.wishes.all });
           break;
-        case 'GAMES':
-          queryClient.invalidateQueries({ queryKey: queryKeys.games.all });
+        case 'GAMES_LEADERBOARD':
           queryClient.invalidateQueries({ queryKey: queryKeys.games.leaderboard() });
+          break;
+        case 'GAMES_QUESTIONS':
+          // Invalidate list/manager views (no random count/exclude params)
+          // Matches:
+          // - GameManager: ["games", "questions", "all", sortOrder]
+          // - useAllQuestions/useQuestions list views: ["games", "questions", type, "all", "all"]
+          queryClient.invalidateQueries({
+            predicate: (query) => {
+               const key = query.queryKey as any[];
+               if (key[0] !== 'games' || key[1] !== 'questions') return false;
+               
+               // GameManager format: ["games", "questions", "all", sortOrder]
+               if (key[2] === 'all') return true;
+               
+               // Standard queryKeys format: ["games", "questions", type, count, exclude]
+               // List views have count="all" and exclude="all"
+               if (key.length >= 5 && key[3] === 'all' && key[4] === 'all') return true;
+               
+               return false;
+            }
+          });
           break;
         case 'DASHBOARD':
           queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.stats() });

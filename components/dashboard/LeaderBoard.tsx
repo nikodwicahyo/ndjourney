@@ -19,8 +19,6 @@ const GAME_TABS = [
   { label: "Semua", value: null },
   { label: "Would You Rather", value: "WOULD_YOU_RATHER" },
   { label: "Love Quiz", value: "TRIVIA" },
-  { label: "Truth or Dare", value: "TRUTH_OR_DARE" },
-  { label: "Spin The Wheel", value: "SPIN_THE_WHEEL" },
 ] as const;
 
 export default function LeaderBoard() {

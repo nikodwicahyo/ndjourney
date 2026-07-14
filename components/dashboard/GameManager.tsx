@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button, Skeleton } from "@/components/ui";
-import { Plus, Loader2, X, Shuffle, Brain, Cherry, Sparkles, Trash2, ChevronDown, ChevronUp, Pencil } from "lucide-react";
+import { Plus, Loader2, X, Shuffle, Brain, Cherry, Sparkles, Pencil, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { showDeleteConfirm } from "@/lib/swal";
@@ -16,7 +16,7 @@ const GAME_TYPES: { value: GameType; label: string; icon: typeof Shuffle }[] = [
   { value: "TRIVIA", label: "Love Quiz", icon: Brain },
   { value: "SPIN_THE_WHEEL", label: "Spin The Wheel", icon: Cherry },
   { value: "TRUTH_OR_DARE", label: "Truth or Dare", icon: Sparkles },
-];
+] as const;
 
 type Question = {
   id: string;

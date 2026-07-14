@@ -46,7 +46,7 @@ export async function PUT(
 
     const coupleId = await getUserCoupleId(rateCheck.session.user.id);
     if (coupleId) {
-      triggerCoupleEvent(coupleId, 'GAMES');
+      await triggerCoupleEvent(coupleId, 'GAMES_QUESTIONS');
     }
 
     return NextResponse.json({ data: question });
@@ -71,16 +71,27 @@ export async function DELETE(
 
     const { id } = await params;
 
-    await prisma.gameQuestion.delete({ where: { id } });
+    // Check for existing scores
+    const scoreCount = await prisma.gameScore.count({ where: { questionId: id } });
+    let message = "Question deleted";
+    if (scoreCount > 0) {
+      await prisma.gameQuestion.update({
+        where: { id },
+        data: { isArchived: true },
+      });
+      message = "Question archived";
+    } else {
+      await prisma.gameQuestion.delete({ where: { id } });
+    }
 
     await invalidateCache("games:*");
 
     const coupleId = await getUserCoupleId(rateCheck.session.user.id);
     if (coupleId) {
-      triggerCoupleEvent(coupleId, 'GAMES');
+      await triggerCoupleEvent(coupleId, 'GAMES_QUESTIONS');
     }
 
-    return NextResponse.json({ message: "Question deleted" });
+    return NextResponse.json({ message });
   } catch (error) {
     console.error("Error deleting question:", error);
     return NextResponse.json(

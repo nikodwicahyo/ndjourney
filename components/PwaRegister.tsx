@@ -34,7 +34,11 @@ export default function PwaRegister() {
       // The new service worker now controls the page — clear caches and reload
       // so the freshly deployed assets are served. Only on a real update.
       if (!updatePending) return;
+      updatePending = false;
       wb.messageSW({ type: "CLEAR_CACHES" });
+      try {
+        localStorage.setItem("ndj:app-prev-version", "1");
+      } catch {}
       window.location.reload();
     });
 

@@ -6,6 +6,11 @@ import { toast } from 'sonner';
 // How often to check for a new deployment.
 const POLL_INTERVAL = 60_000;
 
+// Flag set right before we reload for an update. Its mere presence on the next
+// load proves the app was just updated — so we don't have to re-fetch and trust
+// a (possibly still-stale) version.json to confirm it.
+const UPDATED_FLAG = 'ndj:app-prev-version';
+
 /**
  * Tell the active Service Worker to delete all caches so the next
  * page load fetches everything fresh from the network.
@@ -19,37 +24,35 @@ async function clearServiceWorkerCaches(): Promise<void> {
   }
 }
 
+function markUpdated(oldVersion: string): void {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(UPDATED_FLAG, oldVersion || '1');
+    }
+  } catch {
+    // ignore storage failures
+  }
+}
+
+function consumeUpdated(): string | null {
+  try {
+    if (typeof localStorage === 'undefined') return null;
+    const v = localStorage.getItem(UPDATED_FLAG);
+    if (v) localStorage.removeItem(UPDATED_FLAG);
+    return v;
+  } catch {
+    return null;
+  }
+}
+
 // Module-level guard so we never schedule more than one reload.
 let reloadScheduled = false;
 
-/**
- * Apply a pending update at the least-disruptive moment: immediately if the
- * tab is already hidden (user isn't looking), otherwise as soon as the tab is
- * backgrounded, with a short grace-period fallback so any in-flight action can
- * settle before we refresh.
- */
-function scheduleUpdate() {
+function reloadNow(): void {
   if (reloadScheduled) return;
   reloadScheduled = true;
-
-  const doReload = () => window.location.reload();
-
-  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-    doReload();
-    return;
-  }
-
-  const onVisible = () => {
-    if (document.visibilityState === 'hidden') {
-      window.removeEventListener('visibilitychange', onVisible);
-      doReload();
-    }
-  };
-  window.addEventListener('visibilitychange', onVisible);
-  window.setTimeout(doReload, 5000);
+  window.location.reload();
 }
-
-const STORAGE_KEY = 'ndj:app-version';
 
 export function useAppVersion() {
   const versionRef = useRef<string | null>(null);
@@ -63,34 +66,29 @@ export function useAppVersion() {
         const buildTime = data.buildTime as string;
         if (!buildTime) return;
 
-        // First check this session: record the baseline build. If a previous
-        // visit stored a different build, the app was just updated — confirm it.
+        // First check after a (re)load. If we arrived here because an update was
+        // just applied, a flag was set right before the reload — confirm it.
         if (versionRef.current === null) {
           versionRef.current = buildTime;
-          const stored = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
-          if (stored && stored !== buildTime) {
+          const updatedFrom = consumeUpdated();
+          if (updatedFrom) {
             toast.success('Aplikasi sudah diperbarui ke versi terbaru 🎉', {
               id: 'app-updated',
-              duration: 4000,
+              duration: 6000,
             });
           }
-          try {
-            localStorage.setItem(STORAGE_KEY, buildTime);
-          } catch {}
           return;
         }
 
         if (versionRef.current !== buildTime) {
-          toast.loading('Memperbarui aplikasi…', {
+          toast.loading('Pembaruan tersedia, memuat ulang…', {
             id: 'app-update',
             duration: Infinity,
           });
           await clearServiceWorkerCaches();
-          scheduleUpdate();
+          markUpdated(versionRef.current ?? '');
           versionRef.current = buildTime;
-          // NB: intentionally do NOT write the new version to localStorage
-          // here — leaving the previous value lets the reloaded page detect
-          // the bump and show the "already updated" confirmation.
+          reloadNow();
         }
       } catch {
         // Network error — we'll retry on the next interval.

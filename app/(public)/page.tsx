@@ -48,13 +48,13 @@ async function getGallerySummary() {
       prisma.photo.findMany({
         where: { isMilestoneOnly: false },
         orderBy: { createdAt: "desc" },
-        take: 15,
+        take: 25,
         select: { id: true, url: true, caption: true, takenAt: true, isVideo: true },
       }),
       prisma.photo.findMany({
         where: { isMilestoneOnly: false },
         orderBy: { createdAt: "asc" },
-        take: 15,
+        take: 25,
         select: { id: true, url: true, caption: true, takenAt: true, isVideo: true },
       }),
     ]);
@@ -83,7 +83,7 @@ async function getGallerySummary() {
     const result = {
       photoCount: Number(row?.photoCount ?? 0),
       videoCount: Number(row?.videoCount ?? 0),
-      latestPhotos: mixed.slice(0, 30).map((p) => ({
+      latestPhotos: mixed.slice(0, 50).map((p) => ({
         ...p,
         takenAt: p.takenAt ? p.takenAt.toISOString() : null,
       })),

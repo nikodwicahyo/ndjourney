@@ -3,9 +3,13 @@
 import { useEffect, useRef } from "react";
 import { Workbox } from "workbox-window";
 import { toast } from "sonner";
+import { useAppVersion } from "@/hooks/useAppVersion";
 
 export default function PwaRegister() {
   const wbRef = useRef<Workbox | null>(null);
+  // Poll version.json and auto-apply app-code deployments (clears caches +
+  // reloads) without requiring the user to click anything.
+  useAppVersion();
 
   useEffect(() => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
@@ -15,26 +19,22 @@ export default function PwaRegister() {
     const wb = new Workbox("/sw.js");
     wbRef.current = wb;
 
+    // Tracks whether a genuine SW update is in flight, so we only reload when
+    // the new worker actually takes control (never on first install).
+    let updatePending = false;
+
     wb.addEventListener("waiting", () => {
-      toast.info("Update tersedia — muat ulang untuk versi terbaru", {
-        duration: 0,
-        id: "pwa-update",
-        action: {
-          label: "Muat Ulang",
-          onClick: () => {
-            if (wbRef.current) {
-              wbRef.current.messageSW({ type: "CLEAR_CACHES" });
-            }
-            window.location.reload();
-          },
-        },
-      });
+      // A new service worker is installed and waiting: tell it to skip waiting
+      // so it takes control immediately and the app updates automatically.
+      updatePending = true;
+      wb.messageSW({ type: "SKIP_WAITING" });
     });
 
     wb.addEventListener("controlling", () => {
-      if (wbRef.current) {
-        wbRef.current.messageSW({ type: "CLEAR_CACHES" });
-      }
+      // The new service worker now controls the page — clear caches and reload
+      // so the freshly deployed assets are served. Only on a real update.
+      if (!updatePending) return;
+      wb.messageSW({ type: "CLEAR_CACHES" });
       window.location.reload();
     });
 

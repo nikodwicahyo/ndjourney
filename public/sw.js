@@ -65,6 +65,9 @@ self.addEventListener("message", (event) => {
       Promise.all(names.map((name) => caches.delete(name))),
     );
   }
+  if (event.data?.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener("fetch", (event) => {

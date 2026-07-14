@@ -6,7 +6,7 @@ import dynamic from "next/dynamic";
 import GameSelector from "./GameSelector";
 import LeaderBoard from "@/components/dashboard/LeaderBoard";
 import { motion } from "framer-motion";
-import { ArrowLeft, Sparkles, Trophy, User, Grid3x3, Target } from "lucide-react";
+import { ArrowLeft, Sparkles, Trophy, User } from "lucide-react";
 import { Skeleton, Button } from "@/components/ui";
 import type { GameType } from "@/types";
 import { toast } from "sonner";
@@ -40,7 +40,7 @@ const SlidingPuzzle = dynamic(() => import("./SlidingPuzzle"), {
   loading: () => <Skeleton className="h-96 w-full rounded-2xl" />,
 });
 
-const LoveDarts = dynamic(() => import("./LoveDarts"), {
+const MemoryBlockBlast = dynamic(() => import("./MemoryBlockBlast"), {
   ssr: false,
   loading: () => <Skeleton className="h-96 w-full rounded-2xl" />,
 });
@@ -51,7 +51,7 @@ const gameLabels: Record<GameType, string> = {
   SPIN_THE_WHEEL: "Spin The Wheel",
   TRUTH_OR_DARE: "Truth or Dare",
   SLIDING_PUZZLE: "Puzzle",
-  LOVE_DARTS: "Darts",
+  MEMORY_BLOCK_BLAST: "Block Blast",
 };
 
 export default function PublicGameClient() {
@@ -86,8 +86,8 @@ export default function PublicGameClient() {
         return <TruthOrDare />;
       case "SLIDING_PUZZLE":
         return <SlidingPuzzle playerName={displayName} />;
-      case "LOVE_DARTS":
-        return <LoveDarts playerName={displayName} />;
+      case "MEMORY_BLOCK_BLAST":
+        return <MemoryBlockBlast playerName={displayName} onExit={handleBack} />;
       default:
         return null;
     }

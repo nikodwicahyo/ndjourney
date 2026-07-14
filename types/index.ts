@@ -155,7 +155,8 @@ export type SyncScope =
   | 'WISHLIST'
   | 'DASHBOARD'
   | 'GAMES_LEADERBOARD'
-  | 'GAMES_QUESTIONS';
+  | 'GAMES_QUESTIONS'
+  | 'PROFILE';
 
 export type SyncAction = 'REFRESH';
 

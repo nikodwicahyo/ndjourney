@@ -69,6 +69,7 @@ export function useSubmitScore() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.games.leaderboard() });
+      qc.invalidateQueries({ queryKey: ["leaderboard", "all-qa"] });
     },
   });
 }
@@ -88,7 +89,8 @@ export function useSubmitArcadeScore() {
       return json.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.games.arcadeLeaderboard() });
+      // Invalidate by prefix so every per-type arcade leaderboard refreshes.
+      qc.invalidateQueries({ queryKey: queryKeys.games.arcadeLeaderboardPrefix });
     },
   });
 }

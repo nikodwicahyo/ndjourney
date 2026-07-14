@@ -4,7 +4,7 @@ import { useState, useCallback } from "react";
 import dynamic from "next/dynamic";
 import GameSelector from "./GameSelector";
 import { motion } from "framer-motion";
-import { ArrowLeft, Sparkles, Grid3x3, Target } from "lucide-react";
+import { ArrowLeft, Sparkles } from "lucide-react";
 import type { GameType } from "@/types";
 import { Skeleton } from "@/components/ui";
 
@@ -37,7 +37,7 @@ const SlidingPuzzle = dynamic(() => import("./SlidingPuzzle"), {
   loading: () => <Skeleton className="h-96 w-full rounded-2xl" />,
 });
 
-const LoveDarts = dynamic(() => import("./LoveDarts"), {
+const MemoryBlockBlast = dynamic(() => import("./MemoryBlockBlast"), {
   ssr: false,
   loading: () => <Skeleton className="h-96 w-full rounded-2xl" />,
 });
@@ -48,7 +48,7 @@ const gameLabels: Record<GameType, string> = {
   SPIN_THE_WHEEL: "Spin The Wheel",
   TRUTH_OR_DARE: "Truth or Dare",
   SLIDING_PUZZLE: "Puzzle",
-  LOVE_DARTS: "Darts",
+  MEMORY_BLOCK_BLAST: "Block Blast",
 };
 
 type GameClientProps = {
@@ -72,8 +72,8 @@ export default function GameClient({ disableScoreSubmit = false }: GameClientPro
         return <TruthOrDare />;
       case "SLIDING_PUZZLE":
         return <SlidingPuzzle />;
-      case "LOVE_DARTS":
-        return <LoveDarts />;
+      case "MEMORY_BLOCK_BLAST":
+        return <MemoryBlockBlast onExit={handleBack} />;
       default:
         return null;
     }

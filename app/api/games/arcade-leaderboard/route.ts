@@ -4,7 +4,7 @@ import { getCached, setCached, cacheKey } from "@/lib/redis";
 import { batchLoadUsers } from "@/lib/batch";
 
 const CACHE_TTL = 300;
-const ARCADE_TYPES = ["SLIDING_PUZZLE", "LOVE_DARTS"] as const;
+const ARCADE_TYPES = ["SLIDING_PUZZLE", "MEMORY_BLOCK_BLAST"] as const;
 
 type RawRow = {
   userId: string;
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
     if (!type || !ARCADE_TYPES.includes(type as typeof ARCADE_TYPES[number])) {
       return NextResponse.json(
-        { error: "Parameter type wajib diisi (SLIDING_PUZZLE atau LOVE_DARTS)" },
+        { error: "Parameter type wajib diisi (SLIDING_PUZZLE atau MEMORY_BLOCK_BLAST)" },
         { status: 400 },
       );
     }

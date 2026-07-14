@@ -70,7 +70,7 @@ export const submitScoreSchema = z.object({
 });
 
 export const submitArcadeScoreSchema = z.object({
-  gameType: z.enum(["SLIDING_PUZZLE", "LOVE_DARTS"]),
+  gameType: z.enum(["SLIDING_PUZZLE", "MEMORY_BLOCK_BLAST"]),
   score: z.number().int().min(0),
   metadata: z.record(z.string(), z.unknown()).optional(),
   playerName: z.string().min(1).max(100).optional(),

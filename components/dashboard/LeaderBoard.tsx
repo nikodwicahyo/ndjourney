@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import { Trophy, Medal, Target, Gamepad2, Star, Brain } from "lucide-react";
 import { queryKeys } from "@/lib/query-keys";
 
-const ARCADE_TYPES = ["SLIDING_PUZZLE", "LOVE_DARTS"];
+const ARCADE_TYPES = ["SLIDING_PUZZLE", "MEMORY_BLOCK_BLAST"];
 
 type LeaderEntry = {
   user: { id: string; name: string | null; image: string | null } | null;
@@ -34,7 +34,7 @@ type TabEntry = {
 
 const ARCADE_LABELS: Record<string, string> = {
   SLIDING_PUZZLE: "Puzzle",
-  LOVE_DARTS: "Darts",
+  MEMORY_BLOCK_BLAST: "Block Blast",
 };
 
 const GAME_TABS: TabEntry[] = [
@@ -42,7 +42,7 @@ const GAME_TABS: TabEntry[] = [
   { label: "Would You Rather", value: "WOULD_YOU_RATHER", type: "qa" },
   { label: "Love Quiz", value: "TRIVIA", type: "qa" },
   { label: "Puzzle", value: "SLIDING_PUZZLE", type: "arcade" },
-  { label: "Darts", value: "LOVE_DARTS", type: "arcade" },
+  { label: "Block Blast", value: "MEMORY_BLOCK_BLAST", type: "arcade" },
 ];
 
 async function fetchLeaderboard(
@@ -119,12 +119,12 @@ export default function LeaderBoard() {
     enabled: isAll,
   });
 
-  const allDarts = useQuery({
-    queryKey: queryKeys.games.arcadeLeaderboard("LOVE_DARTS"),
+  const allMemory = useQuery({
+    queryKey: queryKeys.games.arcadeLeaderboard("MEMORY_BLOCK_BLAST"),
     queryFn: (): Promise<LeaderEntry[]> =>
       fetchLeaderboard(
-        "/api/games/arcade-leaderboard?type=LOVE_DARTS",
-        "Darts",
+        "/api/games/arcade-leaderboard?type=MEMORY_BLOCK_BLAST",
+        "Block Blast",
         true,
       ),
     staleTime: 30_000,
@@ -132,7 +132,7 @@ export default function LeaderBoard() {
   });
 
   const isLoading = isAll
-    ? allQa.isLoading || allSwap.isLoading || allDarts.isLoading
+    ? allQa.isLoading || allSwap.isLoading || allMemory.isLoading
     : isArcade
       ? arcadeQuery.isLoading
       : qaQuery.isLoading;
@@ -181,7 +181,7 @@ export default function LeaderBoard() {
 
       (allQa.data ?? []).forEach((e) => merge(e, false));
       (allSwap.data ?? []).forEach((e) => merge(e, true));
-      (allDarts.data ?? []).forEach((e) => merge(e, true));
+      (allMemory.data ?? []).forEach((e) => merge(e, true));
 
       const result = Array.from(groups.values());
       result.forEach((e) => {
@@ -205,7 +205,7 @@ export default function LeaderBoard() {
     }
     if (isArcade) return arcadeQuery.data ?? [];
     return qaQuery.data ?? [];
-  }, [isAll, isArcade, allQa.data, allSwap.data, allDarts.data, arcadeQuery.data, qaQuery.data]);
+  }, [isAll, isArcade, allQa.data, allSwap.data, allMemory.data, arcadeQuery.data, qaQuery.data]);
 
   if (isLoading) {
     return (
@@ -333,7 +333,7 @@ export default function LeaderBoard() {
                   <div className="rounded-xl border border-border/60 bg-muted/30 px-3 py-2">
                     <div className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
                       <Star className="h-3 w-3 text-yellow-500" />
-                      Arcade (Puzzle & Darts)
+                      Arcade (Puzzle & Block Blast)
                     </div>
                     <div className="mt-1 text-xs text-muted-foreground">
                       <span className="font-medium text-foreground/80">

@@ -78,7 +78,7 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
 
   useEffect(() => {
     if (isPaused || !hasPhotos) return;
-    intervalRef.current = setInterval(() => goNextRef.current(), 5000);
+    intervalRef.current = setInterval(() => goNextRef.current(), 3000);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
@@ -169,14 +169,14 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
 
           <button
             onClick={(e) => { e.stopPropagation(); goPrev(); }}
-            className="absolute left-2 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/40 p-1.5 text-white/80 opacity-0 transition-opacity hover:bg-black/60 hover:text-white group-hover:opacity-100 md:p-2"
+            className="absolute left-2 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/50 p-1.5 text-white shadow-md transition-colors hover:bg-black/70 md:p-2"
             aria-label="Previous"
           >
             <ChevronLeft className="h-4 w-4 md:h-5 md:w-5" />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); goNext(); }}
-            className="absolute right-2 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/40 p-1.5 text-white/80 opacity-0 transition-opacity hover:bg-black/60 hover:text-white group-hover:opacity-100 md:p-2"
+            className="absolute right-2 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/50 p-1.5 text-white shadow-md transition-colors hover:bg-black/70 md:p-2"
             aria-label="Next"
           >
             <ChevronRight className="h-4 w-4 md:h-5 md:w-5" />

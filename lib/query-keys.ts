@@ -33,6 +33,12 @@ export const queryKeys = {
       ["games", "questions", type, count ?? "all", exclude?.join(",") ?? "all"] as const,
     leaderboard: () => ["games", "leaderboard"] as const,
     arcadeLeaderboard: (type?: string) => ["games", "arcade-leaderboard", type] as const,
+    // Prefix used for invalidations. NOTE: do NOT use arcadeLeaderboard()
+    // here — when called without an argument it returns a key ending in
+    // `undefined`, which TanStack v5's strict per-element prefix match will
+    // NOT match against the concrete `["games","arcade-leaderboard", <type>]`
+    // query keys used by the UI.
+    arcadeLeaderboardPrefix: ["games", "arcade-leaderboard"] as const,
   },
   wishes: {
     all: ["wishes"] as const,

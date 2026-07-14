@@ -352,7 +352,7 @@ async function seedGameQuestions() {
   await prisma.gameQuestion.createMany({
     data: [
       { type: "SLIDING_PUZZLE", question: "Puzzle — tukar posisi kotak foto favorit dari galeri", category: "Puzzle" },
-      { type: "LOVE_DARTS", question: "Darts — lempar panah ke target", category: "Arcade" },
+      { type: "MEMORY_BLOCK_BLAST", question: "Block Blast — susun blok foto untuk mengungkap foto", category: "Arcade" },
     ],
     skipDuplicates: true,
   });

@@ -88,7 +88,7 @@ export async function PUT(request: Request) {
 
     const coupleId = await getUserCoupleId(session.user.id);
     if (coupleId) {
-      triggerCoupleEvent(coupleId, 'DASHBOARD');
+      triggerCoupleEvent(coupleId, 'PROFILE');
     }
 
     return NextResponse.json({ data: updated });

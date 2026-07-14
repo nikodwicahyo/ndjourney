@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button, Skeleton } from "@/components/ui";
-import { Plus, Loader2, X, Shuffle, Brain, Cherry, Sparkles, Pencil, Trash2, ChevronDown, ChevronUp, Grid3x3, Target, Trophy, Gamepad2, Star } from "lucide-react";
+import { Plus, Loader2, X, Shuffle, Brain, Cherry, Sparkles, Pencil, Trash2, ChevronDown, ChevronUp, Grid3x3, Blocks, Trophy, Gamepad2, Star } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { showDeleteConfirm } from "@/lib/swal";
@@ -17,7 +17,7 @@ const GAME_TYPES: { value: GameType; label: string; icon: typeof Shuffle; isArca
   { value: "SPIN_THE_WHEEL", label: "Spin The Wheel", icon: Cherry },
   { value: "TRUTH_OR_DARE", label: "Truth or Dare", icon: Sparkles },
   { value: "SLIDING_PUZZLE", label: "Puzzle", icon: Grid3x3, isArcade: true },
-  { value: "LOVE_DARTS", label: "Darts", icon: Target, isArcade: true },
+  { value: "MEMORY_BLOCK_BLAST", label: "Block Blast", icon: Blocks, isArcade: true },
 ] as const;
 
 type Question = {
@@ -157,7 +157,7 @@ export default function GameManager() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (type === "SLIDING_PUZZLE" || type === "LOVE_DARTS") {
+    if (type === "SLIDING_PUZZLE" || type === "MEMORY_BLOCK_BLAST") {
       toast.error("Game ini tidak menggunakan pertanyaan");
       return;
     }
@@ -251,7 +251,7 @@ export default function GameManager() {
   const isArcadeTab = activeGameType?.isArcade ?? false;
 
   const arcadeLabel = isArcadeTab
-    ? activeTab === "SLIDING_PUZZLE" ? "Puzzle" : "Darts"
+    ? activeTab === "SLIDING_PUZZLE" ? "Puzzle" : "Block Blast"
     : "";
 
   const { data: arcadeStats } = useQuery({
@@ -277,7 +277,7 @@ export default function GameManager() {
   const statCards = [
     { label: "Total Plays", value: arcadeStats?.totalPlays ?? 0, icon: Gamepad2 },
     { label: "Total Players", value: arcadeStats?.totalPlayers ?? 0, icon: Star },
-    { label: "Average Score", value: arcadeStats?.avgScore ?? 0, icon: Target },
+    { label: "Average Score", value: arcadeStats?.avgScore ?? 0, icon: Sparkles },
     { label: "High Score", value: arcadeStats?.highScore ?? 0, icon: Trophy },
   ];
 
@@ -380,7 +380,7 @@ export default function GameManager() {
                 </div>
               )}
 
-              {type === "SLIDING_PUZZLE" || type === "LOVE_DARTS" ? (
+              {type === "SLIDING_PUZZLE" || type === "MEMORY_BLOCK_BLAST" ? (
                 <div className="rounded-xl border border-border bg-muted/30 p-4 text-center text-sm text-muted-foreground">
                   Game ini tidak menggunakan pertanyaan. Klik "Tutup" untuk kembali.
                 </div>
@@ -490,7 +490,7 @@ export default function GameManager() {
 
               <Button
                 type="submit"
-                disabled={type === "SLIDING_PUZZLE" || type === "LOVE_DARTS" || (editingId ? editQuestion.isPending : createQuestion.isPending) || !question.trim()}
+                disabled={type === "SLIDING_PUZZLE" || type === "MEMORY_BLOCK_BLAST" || (editingId ? editQuestion.isPending : createQuestion.isPending) || !question.trim()}
                 className="w-full gap-2"
               >
                 {(editingId ? editQuestion.isPending : createQuestion.isPending) ? (

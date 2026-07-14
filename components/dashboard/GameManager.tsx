@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button, Skeleton } from "@/components/ui";
-import { Plus, Loader2, X, Shuffle, Brain, Cherry, Sparkles, Pencil, Trash2, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Loader2, X, Shuffle, Brain, Cherry, Sparkles, Pencil, Trash2, ChevronDown, ChevronUp, Grid3x3, Target, Trophy, Gamepad2, Star } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { showDeleteConfirm } from "@/lib/swal";
@@ -11,11 +11,13 @@ import { formatInJakarta } from "@/lib/date";
 import { queryKeys } from "@/lib/query-keys";
 import type { GameType } from "@/types";
 
-const GAME_TYPES: { value: GameType; label: string; icon: typeof Shuffle }[] = [
+const GAME_TYPES: { value: GameType; label: string; icon: typeof Shuffle; isArcade?: boolean }[] = [
   { value: "WOULD_YOU_RATHER", label: "Would You Rather?", icon: Shuffle },
   { value: "TRIVIA", label: "Love Quiz", icon: Brain },
   { value: "SPIN_THE_WHEEL", label: "Spin The Wheel", icon: Cherry },
   { value: "TRUTH_OR_DARE", label: "Truth or Dare", icon: Sparkles },
+  { value: "SLIDING_PUZZLE", label: "Puzzle", icon: Grid3x3, isArcade: true },
+  { value: "LOVE_DARTS", label: "Darts", icon: Target, isArcade: true },
 ] as const;
 
 type Question = {
@@ -155,6 +157,10 @@ export default function GameManager() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (type === "SLIDING_PUZZLE" || type === "LOVE_DARTS") {
+      toast.error("Game ini tidak menggunakan pertanyaan");
+      return;
+    }
     if (!question.trim()) {
       toast.error("Pertanyaan wajib diisi");
       return;
@@ -241,11 +247,44 @@ export default function GameManager() {
   const isTOD = type === "TRUTH_OR_DARE";
   const isSpin = type === "SPIN_THE_WHEEL";
   const isEditing = !!editingId;
+  const activeGameType = GAME_TYPES.find((t) => t.value === activeTab);
+  const isArcadeTab = activeGameType?.isArcade ?? false;
+
+  const arcadeLabel = isArcadeTab
+    ? activeTab === "SLIDING_PUZZLE" ? "Puzzle" : "Darts"
+    : "";
+
+  const { data: arcadeStats } = useQuery({
+    queryKey: ["games", "arcade-stats", activeTab],
+    queryFn: async () => {
+      if (!isArcadeTab) return null;
+      const res = await fetch(`/api/games/arcade-leaderboard?type=${activeTab}`);
+      if (!res.ok) return null;
+      const json = await res.json();
+      const entries = (json.data ?? []) as Array<{ totalScore: number; totalPlayed: number; bestScore: number; avgScore: number }>;
+      if (entries.length === 0) return { totalPlays: 0, totalPlayers: 0, avgScore: 0, highScore: 0 };
+      return {
+        totalPlays: entries.reduce((s, e) => s + e.totalPlayed, 0),
+        totalPlayers: entries.length,
+        avgScore: Math.round(entries.reduce((s, e) => s + e.avgScore, 0) / entries.length),
+        highScore: Math.max(...entries.map(e => e.bestScore)),
+      };
+    },
+    enabled: isArcadeTab,
+    staleTime: 30_000,
+  });
+
+  const statCards = [
+    { label: "Total Plays", value: arcadeStats?.totalPlays ?? 0, icon: Gamepad2 },
+    { label: "Total Players", value: arcadeStats?.totalPlayers ?? 0, icon: Star },
+    { label: "Average Score", value: arcadeStats?.avgScore ?? 0, icon: Target },
+    { label: "High Score", value: arcadeStats?.highScore ?? 0, icon: Trophy },
+  ];
 
   return (
     <div className="w-full max-w-full space-y-6 overflow-hidden">
       <div className="flex flex-wrap gap-1.5">
-        {GAME_TYPES.map(({ value, label, icon: Icon }) => (
+        {GAME_TYPES.map(({ value, label, icon: Icon, isArcade }) => (
           <button
             key={value}
             onClick={() => setActiveTab(value)}
@@ -258,17 +297,20 @@ export default function GameManager() {
           >
             <Icon className="h-3.5 w-3.5 shrink-0" />
             <span className="text-xs sm:text-sm">{label}</span>
+            {!isArcade && (
             <span className="shrink-0 rounded-full bg-muted-foreground/10 px-1.5 text-[10px] tabular-nums">
               {countByType[value] ?? 0}
             </span>
+            )}
           </button>
         ))}
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="font-medium">
-          Pertanyaan {GAME_TYPES.find((t) => t.value === activeTab)?.label}
+          {isArcadeTab ? `Statistik ${arcadeLabel}` : `Pertanyaan ${activeGameType?.label}`}
         </h3>
+        {!isArcadeTab && (
         <div className="flex flex-row items-center gap-2">
           <button
             type="button"
@@ -282,6 +324,7 @@ export default function GameManager() {
             Tambah
           </Button>
         </div>
+        )}
       </div>
 
       {open && (
@@ -337,6 +380,12 @@ export default function GameManager() {
                 </div>
               )}
 
+              {type === "SLIDING_PUZZLE" || type === "LOVE_DARTS" ? (
+                <div className="rounded-xl border border-border bg-muted/30 p-4 text-center text-sm text-muted-foreground">
+                  Game ini tidak menggunakan pertanyaan. Klik "Tutup" untuk kembali.
+                </div>
+              ) : (
+              <>
               <input
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
@@ -436,10 +485,12 @@ export default function GameManager() {
                   className="flex h-10 w-full rounded-xl border border-input bg-background px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
               )}
+              </>
+              )}
 
               <Button
                 type="submit"
-                disabled={(editingId ? editQuestion.isPending : createQuestion.isPending) || !question.trim()}
+                disabled={type === "SLIDING_PUZZLE" || type === "LOVE_DARTS" || (editingId ? editQuestion.isPending : createQuestion.isPending) || !question.trim()}
                 className="w-full gap-2"
               >
                 {(editingId ? editQuestion.isPending : createQuestion.isPending) ? (
@@ -454,7 +505,31 @@ export default function GameManager() {
         </div>
       )}
 
-      {isLoading ? (
+      {isArcadeTab ? (
+        <div className="space-y-6">
+          <div className="rounded-2xl border border-border bg-card p-6 text-center">
+            <p className="text-sm text-muted-foreground">
+              Game ini tidak menggunakan pertanyaan. Skor diambil langsung dari permainan.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            {statCards.map((card) => (
+              <div
+                key={card.label}
+                className="flex flex-col items-center gap-2 rounded-2xl border border-border bg-card p-4 text-center"
+              >
+                <card.icon className="h-5 w-5 text-pink-500" />
+                <p className="text-2xl font-bold">
+                  {card.label === "Average Score" || card.label === "High Score"
+                    ? (card.value as number).toLocaleString()
+                    : card.value}
+                </p>
+                <p className="text-xs text-muted-foreground">{card.label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : isLoading ? (
         <div className="space-y-2">
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-14 w-full rounded-xl" />

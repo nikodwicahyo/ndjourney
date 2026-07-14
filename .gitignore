@@ -49,5 +49,3 @@ Desktop.ini
 *.tsbuildinfo
 tsconfig.tsbuildinfo
 
-# project specific
-scripts/

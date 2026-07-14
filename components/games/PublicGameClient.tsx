@@ -6,7 +6,7 @@ import dynamic from "next/dynamic";
 import GameSelector from "./GameSelector";
 import LeaderBoard from "@/components/dashboard/LeaderBoard";
 import { motion } from "framer-motion";
-import { ArrowLeft, Sparkles, Trophy, User } from "lucide-react";
+import { ArrowLeft, Sparkles, Trophy, User, Grid3x3, Target } from "lucide-react";
 import { Skeleton, Button } from "@/components/ui";
 import type { GameType } from "@/types";
 import { toast } from "sonner";
@@ -35,11 +35,23 @@ const TruthOrDare = dynamic(() => import("./TruthOrDare"), {
   loading: () => <Skeleton className="h-64 w-full rounded-2xl" />,
 });
 
+const SlidingPuzzle = dynamic(() => import("./SlidingPuzzle"), {
+  ssr: false,
+  loading: () => <Skeleton className="h-96 w-full rounded-2xl" />,
+});
+
+const LoveDarts = dynamic(() => import("./LoveDarts"), {
+  ssr: false,
+  loading: () => <Skeleton className="h-96 w-full rounded-2xl" />,
+});
+
 const gameLabels: Record<GameType, string> = {
   WOULD_YOU_RATHER: "Would You Rather?",
   TRIVIA: "Love Quiz",
   SPIN_THE_WHEEL: "Spin The Wheel",
   TRUTH_OR_DARE: "Truth or Dare",
+  SLIDING_PUZZLE: "Puzzle",
+  LOVE_DARTS: "Darts",
 };
 
 export default function PublicGameClient() {
@@ -72,6 +84,10 @@ export default function PublicGameClient() {
         return <SpinTheWheel />;
       case "TRUTH_OR_DARE":
         return <TruthOrDare />;
+      case "SLIDING_PUZZLE":
+        return <SlidingPuzzle playerName={displayName} />;
+      case "LOVE_DARTS":
+        return <LoveDarts playerName={displayName} />;
       default:
         return null;
     }
@@ -127,7 +143,7 @@ export default function PublicGameClient() {
                 {gameLabels[selected]}
               </h1>
               <p className="text-sm text-muted-foreground">
-                Main bareng pasangan, makin seru!
+                Main bersama pasangan, makin seru!
               </p>
             </div>
           </div>

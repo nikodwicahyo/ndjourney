@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Shuffle, Brain, Cherry, Sparkles, Heart } from "lucide-react";
+import { Shuffle, Brain, Cherry, Sparkles, Heart, Grid3x3, Target } from "lucide-react";
 import type { GameType } from "@/types";
 
 const gameTypes: {
@@ -21,7 +21,7 @@ const gameTypes: {
   {
     type: "TRIVIA",
     label: "Love Quiz",
-    description: "Tes seberapa dalam kamu tahu pasangan",
+    description: "Tes seberapa dalam kamu mengenal pasangan",
     icon: Brain,
     color: "#F43F5E",
   },
@@ -38,6 +38,20 @@ const gameTypes: {
     description: "Permainan Truth or Dare untuk pasangan",
     icon: Sparkles,
     color: "#F97316",
+  },
+  {
+    type: "SLIDING_PUZZLE",
+    label: "Puzzle",
+    description: "Tukar posisi kotak untuk menyusun foto",
+    icon: Grid3x3,
+    color: "#EC4899",
+  },
+  {
+    type: "LOVE_DARTS",
+    label: "Darts",
+    description: "Arahkan, tahan, dan lepaskan untuk mencetak skor tertinggi!",
+    icon: Target,
+    color: "#FF6B9D",
   },
 ];
 

@@ -4,7 +4,7 @@ import { useState, useCallback } from "react";
 import dynamic from "next/dynamic";
 import GameSelector from "./GameSelector";
 import { motion } from "framer-motion";
-import { ArrowLeft, Sparkles } from "lucide-react";
+import { ArrowLeft, Sparkles, Grid3x3, Target } from "lucide-react";
 import type { GameType } from "@/types";
 import { Skeleton } from "@/components/ui";
 
@@ -32,11 +32,23 @@ const TruthOrDare = dynamic(() => import("./TruthOrDare"), {
   loading: () => <Skeleton className="h-64 w-full rounded-2xl" />,
 });
 
+const SlidingPuzzle = dynamic(() => import("./SlidingPuzzle"), {
+  ssr: false,
+  loading: () => <Skeleton className="h-96 w-full rounded-2xl" />,
+});
+
+const LoveDarts = dynamic(() => import("./LoveDarts"), {
+  ssr: false,
+  loading: () => <Skeleton className="h-96 w-full rounded-2xl" />,
+});
+
 const gameLabels: Record<GameType, string> = {
   WOULD_YOU_RATHER: "Would You Rather?",
   TRIVIA: "Love Quiz",
   SPIN_THE_WHEEL: "Spin The Wheel",
   TRUTH_OR_DARE: "Truth or Dare",
+  SLIDING_PUZZLE: "Puzzle",
+  LOVE_DARTS: "Darts",
 };
 
 type GameClientProps = {
@@ -58,6 +70,10 @@ export default function GameClient({ disableScoreSubmit = false }: GameClientPro
         return <SpinTheWheel />;
       case "TRUTH_OR_DARE":
         return <TruthOrDare />;
+      case "SLIDING_PUZZLE":
+        return <SlidingPuzzle />;
+      case "LOVE_DARTS":
+        return <LoveDarts />;
       default:
         return null;
     }
@@ -84,7 +100,7 @@ export default function GameClient({ disableScoreSubmit = false }: GameClientPro
                 {gameLabels[selected]}
               </h1>
               <p className="text-sm text-muted-foreground">
-                Main bareng pasangan, makin seru!
+                Main bersama pasangan, makin seru!
               </p>
             </div>
           </div>

@@ -32,6 +32,7 @@ export const queryKeys = {
     questions: (type: string, count?: number, exclude?: string[]) =>
       ["games", "questions", type, count ?? "all", exclude?.join(",") ?? "all"] as const,
     leaderboard: () => ["games", "leaderboard"] as const,
+    arcadeLeaderboard: (type?: string) => ["games", "arcade-leaderboard", type] as const,
   },
   wishes: {
     all: ["wishes"] as const,

@@ -21,6 +21,7 @@ model User {
   coupleMembers   CoupleMember?
   dailyNotes      DailyNote[]
   gameScores      GameScore[]
+  gameArcadeScores GameArcadeScore[]
   letters         Letter[]      @relation("LetterAuthor")
   receivedLetters Letter[]      @relation("LetterRecipient")
   milestones      Milestone[]
@@ -259,6 +260,21 @@ model GameScore {
   @@index([playerName])
 }
 
+model GameArcadeScore {
+  id         String   @id @default(cuid())
+  gameType   GameType
+  userId     String?
+  playerName String?
+  score      Int
+  metadata   Json?
+  playedAt   DateTime @default(now())
+  user       User?    @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([gameType])
+  @@index([gameType, score])
+}
+
 model WishItem {
   id          String    @id @default(cuid())
   title       String
@@ -298,4 +314,6 @@ enum GameType {
   TRIVIA
   SPIN_THE_WHEEL
   TRUTH_OR_DARE
+  SLIDING_PUZZLE
+  LOVE_DARTS
 }

@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query-keys";
 import type { GameQuestion, GameType } from "@/types";
+import type { SubmitArcadeScoreInput } from "@/lib/validations/game";
 
 export type GameQuestionWithMeta = GameQuestion & {
   isTruth?: boolean;
@@ -68,6 +69,26 @@ export function useSubmitScore() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.games.leaderboard() });
+    },
+  });
+}
+
+export function useSubmitArcadeScore() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: SubmitArcadeScoreInput) => {
+      const res = await fetch("/api/games/arcade-score", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to submit score");
+      return json.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.games.arcadeLeaderboard() });
     },
   });
 }

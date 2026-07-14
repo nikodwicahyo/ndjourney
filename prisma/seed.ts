@@ -348,6 +348,15 @@ async function seedGameQuestions() {
     skipDuplicates: true,
   });
   console.log(`✅ ${DATE_IDEAS.length} Date ideas seeded`);
+
+  await prisma.gameQuestion.createMany({
+    data: [
+      { type: "SLIDING_PUZZLE", question: "Puzzle — tukar posisi kotak foto favorit dari galeri", category: "Puzzle" },
+      { type: "LOVE_DARTS", question: "Darts — lempar panah ke target", category: "Arcade" },
+    ],
+    skipDuplicates: true,
+  });
+  console.log(`✅ Arcade game types seeded`);
 }
 
 function getEnv(key: string, fallback: string): string {

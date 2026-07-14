@@ -69,6 +69,14 @@ export const submitScoreSchema = z.object({
   playerName: z.string().min(1).max(100).optional(),
 });
 
+export const submitArcadeScoreSchema = z.object({
+  gameType: z.enum(["SLIDING_PUZZLE", "LOVE_DARTS"]),
+  score: z.number().int().min(0),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  playerName: z.string().min(1).max(100).optional(),
+});
+
 export type CreateQuestionInput = z.infer<typeof createQuestionSchema>;
 export type UpdateQuestionInput = z.infer<typeof updateQuestionSchema>;
 export type SubmitScoreInput = z.infer<typeof submitScoreSchema>;
+export type SubmitArcadeScoreInput = z.infer<typeof submitArcadeScoreSchema>;

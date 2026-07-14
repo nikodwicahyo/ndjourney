@@ -17,7 +17,7 @@ export async function GET() {
     const cached = await getCached<unknown>(cacheK);
     if (cached) {
       return NextResponse.json({ data: cached }, {
-        headers: { "Cache-Control": "private, s-maxage=120, stale-while-revalidate=300" },
+        headers: { "Cache-Control": "private, no-cache" },
       });
     }
 
@@ -70,7 +70,7 @@ export async function GET() {
     await setCached(cacheK, data, CACHE_TTL);
 
     return NextResponse.json({ data }, {
-      headers: { "Cache-Control": "private, s-maxage=120, stale-while-revalidate=300" },
+      headers: { "Cache-Control": "private, no-cache" },
     });
   } catch (error) {
     console.error("Error fetching activity:", error);

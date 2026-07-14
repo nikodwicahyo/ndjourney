@@ -1,6 +1,6 @@
-const CACHE_NAME = "ndjourney-v7";
-const API_CACHE_NAME = "ndjourney-api-v7";
-const IMAGE_CACHE_NAME = "ndjourney-images-v7";
+const CACHE_NAME = "ndjourney-v8";
+const API_CACHE_NAME = "ndjourney-api-v8";
+const IMAGE_CACHE_NAME = "ndjourney-images-v8";
 
 const PRECACHE_URLS = [
   "/",
@@ -57,6 +57,14 @@ self.addEventListener("activate", (event) => {
       )
       .then(() => self.clients.claim()),
   );
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "CLEAR_CACHES") {
+    caches.keys().then((names) =>
+      Promise.all(names.map((name) => caches.delete(name))),
+    );
+  }
 });
 
 self.addEventListener("fetch", (event) => {

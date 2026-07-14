@@ -113,8 +113,8 @@ export function useUpdatePhoto() {
       }
     },
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: photoKeys.all });
-      qc.invalidateQueries({ queryKey: albumKeys.all });
+      qc.invalidateQueries({ queryKey: photoKeys.all, refetchType: 'all' });
+      qc.invalidateQueries({ queryKey: albumKeys.all, refetchType: 'all' });
     },
   });
 }
@@ -128,11 +128,11 @@ export function useDeletePhoto() {
       if (!res.ok) throw new Error("Gagal menghapus media");
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: photoKeys.all });
-      qc.invalidateQueries({ queryKey: albumKeys.all });
-      qc.invalidateQueries({ queryKey: ["storage", "usage"] });
-      qc.invalidateQueries({ queryKey: ["dashboard", "stats"] });
-      qc.invalidateQueries({ queryKey: ["dashboard", "activity"] });
+      qc.invalidateQueries({ queryKey: photoKeys.all, refetchType: 'all' });
+      qc.invalidateQueries({ queryKey: albumKeys.all, refetchType: 'all' });
+      qc.invalidateQueries({ queryKey: ["storage", "usage"], refetchType: 'all' });
+      qc.invalidateQueries({ queryKey: ["dashboard", "stats"], refetchType: 'all' });
+      qc.invalidateQueries({ queryKey: ["dashboard", "activity"], refetchType: 'all' });
     },
   });
 }
@@ -226,7 +226,7 @@ export function useCreateAlbum() {
       return json.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: albumKeys.all });
+      qc.invalidateQueries({ queryKey: albumKeys.all, refetchType: 'all' });
     },
   });
 }

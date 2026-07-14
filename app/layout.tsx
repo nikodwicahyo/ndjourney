@@ -6,6 +6,7 @@ import QueryProvider from "@/components/QueryProvider";
 import SessionProvider from "@/components/SessionProvider";
 import PwaRegister from "@/components/PwaRegister";
 import InstallPrompt from "@/components/InstallPrompt";
+import VersionCheck from "@/components/VersionCheck";
 import BackgroundEffect from "@/components/BackgroundEffect";
 import FloatingHearts from "@/components/FloatingHearts";
 import "./globals.css";
@@ -100,6 +101,7 @@ export default function RootLayout({
           <QueryProvider>
             <SessionProvider>
             {children}
+            <VersionCheck />
             <PwaRegister />
             <InstallPrompt />
             </SessionProvider>

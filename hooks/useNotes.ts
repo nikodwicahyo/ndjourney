@@ -38,7 +38,7 @@ export function useCreateNote() {
       return json.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: noteKeys.all });
+      qc.invalidateQueries({ queryKey: noteKeys.all, refetchType: 'all' });
     },
   });
 }
@@ -54,7 +54,7 @@ export function useDeleteNote() {
       return json;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: noteKeys.all });
+      qc.invalidateQueries({ queryKey: noteKeys.all, refetchType: 'all' });
     },
   });
 }

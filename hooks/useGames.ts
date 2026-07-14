@@ -39,8 +39,8 @@ export function useAllQuestions(type: GameType) {
       const json = await res.json();
       return json.data as GameQuestionWithMeta[];
     },
-    staleTime: 600_000,
-    gcTime: 600_000,
+    staleTime: 60_000,
+    gcTime: 300_000,
   });
 }
 

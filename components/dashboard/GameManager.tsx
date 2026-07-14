@@ -88,7 +88,7 @@ export default function GameManager() {
       return json.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.games.all });
+      qc.invalidateQueries({ queryKey: queryKeys.games.all, refetchType: 'all' });
       toast.success("Pertanyaan ditambahkan!");
       setQuestion("");
       setOptionA("");
@@ -107,7 +107,7 @@ export default function GameManager() {
       if (!res.ok) throw new Error("Gagal menghapus pertanyaan");
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.games.all });
+      qc.invalidateQueries({ queryKey: queryKeys.games.all, refetchType: 'all' });
       toast.success("Pertanyaan dihapus");
     },
     onError: () => toast.error("Gagal menghapus pertanyaan"),
@@ -138,7 +138,7 @@ export default function GameManager() {
       return json.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.games.all });
+      qc.invalidateQueries({ queryKey: queryKeys.games.all, refetchType: 'all' });
       toast.success("Pertanyaan diubah!");
       setQuestion("");
       setOptionA("");
@@ -168,6 +168,8 @@ export default function GameManager() {
       return;
     }
 
+    const finalAnswer = type === "WOULD_YOU_RATHER" && !answer.trim() ? "none" : answer.trim();
+
     if (editingId) {
       editQuestion.mutate({
         id: editingId,
@@ -176,7 +178,7 @@ export default function GameManager() {
           question: question.trim(),
           optionA: optionA.trim() || null,
           optionB: optionB.trim() || null,
-          answer: answer.trim() || null,
+          answer: finalAnswer || null,
           category: category.trim() || null,
         },
       });
@@ -186,7 +188,7 @@ export default function GameManager() {
         question: question.trim(),
         optionA: optionA.trim() || undefined,
         optionB: optionB.trim() || undefined,
-        answer: answer.trim() || undefined,
+        answer: finalAnswer || undefined,
         category: category.trim() || undefined,
       });
     }
@@ -368,7 +370,7 @@ export default function GameManager() {
                         <button
                           key={opt}
                           type="button"
-                          onClick={() => setAnswer(opt === "none" ? "" : opt)}
+                          onClick={() => setAnswer(opt === "none" ? "none" : opt)}
                           className={cn(
                             "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
                             (opt === "none" ? !answer : answer === opt)

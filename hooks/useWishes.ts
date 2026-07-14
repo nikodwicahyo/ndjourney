@@ -46,7 +46,7 @@ export function useCreateWish() {
       return json.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: wishKeys.all });
+      qc.invalidateQueries({ queryKey: wishKeys.all, refetchType: 'all' });
     },
   });
 }
@@ -76,7 +76,7 @@ export function useUpdateWish() {
       return json.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: wishKeys.all });
+      qc.invalidateQueries({ queryKey: wishKeys.all, refetchType: 'all' });
     },
   });
 }
@@ -96,7 +96,7 @@ export function useToggleWish() {
       return json.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: wishKeys.all });
+      qc.invalidateQueries({ queryKey: wishKeys.all, refetchType: 'all' });
     },
   });
 }
@@ -110,7 +110,7 @@ export function useDeleteWish() {
       if (!res.ok) throw new Error("Gagal menghapus wish");
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: wishKeys.all });
+      qc.invalidateQueries({ queryKey: wishKeys.all, refetchType: 'all' });
     },
   });
 }

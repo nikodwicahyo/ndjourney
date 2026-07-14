@@ -31,7 +31,7 @@ export async function GET(request: Request) {
     const cached = random ? null : await getCached<unknown>(cacheK);
     if (cached) {
       return NextResponse.json(cached, {
-        headers: { "Cache-Control": "public, s-maxage=600, stale-while-revalidate=1800" },
+        headers: { "Cache-Control": "private, no-cache" },
       });
     }
 
@@ -109,7 +109,7 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json(response, {
-      headers: { "Cache-Control": "public, s-maxage=600, stale-while-revalidate=1800" },
+      headers: { "Cache-Control": "private, no-cache" },
     });
   } catch (error) {
     console.error("Error fetching questions:", error);

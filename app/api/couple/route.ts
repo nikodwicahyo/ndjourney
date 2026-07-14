@@ -15,7 +15,7 @@ export async function GET() {
     const cached = await getCached<unknown>(cacheKey("couple", "config"));
     if (cached) {
       return NextResponse.json({ data: cached }, {
-        headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" },
+        headers: { "Cache-Control": "private, no-cache" },
       });
     }
 
@@ -47,7 +47,7 @@ export async function GET() {
     await setCached(cacheKey("couple", "config"), config, CACHE_TTL);
 
     return NextResponse.json({ data: config }, {
-      headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" },
+      headers: { "Cache-Control": "private, no-cache" },
     });
   } catch (error) {
     console.error("Error fetching couple config:", error);

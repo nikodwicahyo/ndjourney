@@ -18,7 +18,7 @@ export async function GET(request: Request) {
     const cached = await getCached<unknown>(cacheK);
     if (cached) {
       return NextResponse.json(cached, {
-        headers: { "Cache-Control": isAuthed ? "private, s-maxage=120" : "public, s-maxage=120, stale-while-revalidate=600" },
+        headers: { "Cache-Control": "private, no-cache" },
       });
     }
 
@@ -70,7 +70,7 @@ export async function GET(request: Request) {
     await setCached(cacheK, response, CACHE_TTL);
 
     return NextResponse.json(response, {
-      headers: { "Cache-Control": isAuthed ? "private, s-maxage=120" : "public, s-maxage=120, stale-while-revalidate=600" },
+      headers: { "Cache-Control": "private, no-cache" },
     });
   } catch (error) {
     console.error("Error fetching albums:", error);

@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     const cached = await getCached<unknown>(cacheK);
     if (cached) {
       return NextResponse.json(cached, {
-        headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" },
+        headers: { "Cache-Control": "private, no-cache" },
       });
     }
 
@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
     await setCached(cacheK, response, CACHE_TTL);
 
     return NextResponse.json(response, {
-      headers: { "Cache-Control": "private, s-maxage=300, stale-while-revalidate=600" },
+      headers: { "Cache-Control": "private, no-cache" },
     });
   } catch (error) {
     console.error("Error fetching leaderboard:", error);

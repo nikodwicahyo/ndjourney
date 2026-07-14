@@ -16,13 +16,25 @@ export default function PwaRegister() {
     wbRef.current = wb;
 
     wb.addEventListener("waiting", () => {
-      toast.info("Update tersedia — memuat ulang...", {
-        duration: 5000,
+      toast.info("Update tersedia — muat ulang untuk versi terbaru", {
+        duration: 0,
         id: "pwa-update",
+        action: {
+          label: "Muat Ulang",
+          onClick: () => {
+            if (wbRef.current) {
+              wbRef.current.messageSW({ type: "CLEAR_CACHES" });
+            }
+            window.location.reload();
+          },
+        },
       });
     });
 
     wb.addEventListener("controlling", () => {
+      if (wbRef.current) {
+        wbRef.current.messageSW({ type: "CLEAR_CACHES" });
+      }
       window.location.reload();
     });
 

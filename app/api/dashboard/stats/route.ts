@@ -24,7 +24,7 @@ export async function GET() {
           ...cached,
         },
       }, {
-        headers: { "Cache-Control": "private, s-maxage=300, stale-while-revalidate=600" },
+        headers: { "Cache-Control": "private, no-cache" },
       });
     }
 
@@ -86,7 +86,7 @@ export async function GET() {
     await setCached(cacheK, stats, CACHE_TTL);
 
     return NextResponse.json({ data: stats }, {
-      headers: { "Cache-Control": "private, s-maxage=300, stale-while-revalidate=600" },
+      headers: { "Cache-Control": "private, no-cache" },
     });
   } catch (error) {
     console.error("Error fetching dashboard stats:", error);

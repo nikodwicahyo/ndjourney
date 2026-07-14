@@ -72,9 +72,9 @@ export function useCreateLetter() {
     mutationFn: (data: CreateLetterInput) =>
       api.post("/api/letters", data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: letterKeys.all });
-      qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats() });
-      qc.invalidateQueries({ queryKey: queryKeys.dashboard.activity() });
+      qc.invalidateQueries({ queryKey: letterKeys.all, refetchType: 'all' });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats(), refetchType: 'all' });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.activity(), refetchType: 'all' });
     },
   });
 }
@@ -85,8 +85,9 @@ export function useOpenLetter() {
   return useMutation({
     mutationFn: (id: string) => api.put(`/api/letters/${id}/open`),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: letterKeys.all });
-      qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats() });
+      qc.invalidateQueries({ queryKey: letterKeys.all, refetchType: 'all' });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats(), refetchType: 'all' });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.activity(), refetchType: 'all' });
     },
   });
 }
@@ -97,9 +98,9 @@ export function useDeleteLetter() {
   return useMutation({
     mutationFn: (id: string) => api.delete(`/api/letters/${id}`),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: letterKeys.all });
-      qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats() });
-      qc.invalidateQueries({ queryKey: queryKeys.dashboard.activity() });
+      qc.invalidateQueries({ queryKey: letterKeys.all, refetchType: 'all' });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats(), refetchType: 'all' });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.activity(), refetchType: 'all' });
     },
   });
 }

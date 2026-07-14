@@ -73,7 +73,7 @@ export async function GET(
         photos,
       },
     }, {
-      headers: { "Cache-Control": isAuthed ? "private, s-maxage=60" : "public, s-maxage=60, stale-while-revalidate=300" },
+      headers: { "Cache-Control": "private, no-cache" },
     });
   } catch (error) {
     return NextResponse.json(

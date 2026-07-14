@@ -71,7 +71,7 @@ export async function GET(
     const cached = await getCached<unknown>(cacheK);
     if (cached) {
       return NextResponse.json(cached, {
-        headers: { "Cache-Control": "private, s-maxage=120, stale-while-revalidate=300" },
+headers: { "Cache-Control": "private, no-cache" },
       });
     }
 
@@ -89,7 +89,7 @@ export async function GET(
       };
       await setCached(cacheK, partial, CACHE_TTL);
       return NextResponse.json(partial, {
-        headers: { "Cache-Control": "private, s-maxage=60, stale-while-revalidate=120" },
+        headers: { "Cache-Control": "private, no-cache" },
       });
     }
 
@@ -97,7 +97,7 @@ export async function GET(
     await setCached(cacheK, response, CACHE_TTL);
 
     return NextResponse.json(response, {
-      headers: { "Cache-Control": "private, s-maxage=120, stale-while-revalidate=300" },
+      headers: { "Cache-Control": "private, no-cache" },
     });
   } catch (error) {
     console.error("Error fetching letter:", error);

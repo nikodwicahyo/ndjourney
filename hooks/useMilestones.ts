@@ -55,10 +55,9 @@ export function useCreateMilestone() {
       photoIds?: string[];
     }) => api.post("/api/milestones", data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: milestoneKeys.all });
-      qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats() });
-      qc.invalidateQueries({ queryKey: queryKeys.dashboard.activity() });
-      qc.refetchQueries({ queryKey: milestoneKeys.list() });
+      qc.invalidateQueries({ queryKey: milestoneKeys.all, refetchType: 'all' });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats(), refetchType: 'all' });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.activity(), refetchType: 'all' });
     },
   });
 }
@@ -82,10 +81,9 @@ export function useUpdateMilestone() {
       photoIds?: string[];
     }) => api.put(`/api/milestones/${id}`, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: milestoneKeys.all });
-      qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats() });
-      qc.invalidateQueries({ queryKey: queryKeys.dashboard.activity() });
-      qc.refetchQueries({ queryKey: milestoneKeys.list() });
+      qc.invalidateQueries({ queryKey: milestoneKeys.all, refetchType: 'all' });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats(), refetchType: 'all' });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.activity(), refetchType: 'all' });
     },
   });
 }
@@ -96,10 +94,9 @@ export function useDeleteMilestone() {
   return useMutation({
     mutationFn: (id: string) => api.delete(`/api/milestones/${id}`),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: milestoneKeys.all });
-      qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats() });
-      qc.invalidateQueries({ queryKey: queryKeys.dashboard.activity() });
-      qc.refetchQueries({ queryKey: milestoneKeys.list() });
+      qc.invalidateQueries({ queryKey: milestoneKeys.all, refetchType: 'all' });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats(), refetchType: 'all' });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.activity(), refetchType: 'all' });
     },
   });
 }

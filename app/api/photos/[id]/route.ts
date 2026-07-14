@@ -26,7 +26,7 @@ export async function GET(
     const cached = await getCached<unknown>(cacheK);
     if (cached) {
       return NextResponse.json(cached, {
-        headers: { "Cache-Control": isAuthed ? "private, s-maxage=120" : "public, s-maxage=60, stale-while-revalidate=300" },
+        headers: { "Cache-Control": "private, no-cache" },
       });
     }
 
@@ -78,7 +78,7 @@ export async function GET(
     await setCached(cacheK, response, isAuthed ? CACHE_TTL_AUTH : CACHE_TTL_PUBLIC);
 
     return NextResponse.json(response, {
-      headers: { "Cache-Control": isAuthed ? "private, s-maxage=120" : "public, s-maxage=60, stale-while-revalidate=300" },
+      headers: { "Cache-Control": "private, no-cache" },
     });
   } catch (error) {
     console.error("Error fetching photo:", error);

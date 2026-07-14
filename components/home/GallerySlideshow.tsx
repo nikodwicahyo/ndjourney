@@ -18,7 +18,7 @@ type GallerySlideshowProps = {
   photos: GalleryPhoto[];
 };
 
-const MAX_PHOTOS = 30;
+const MAX_PHOTOS = 50;
 
 function shuffleArray<T>(arr: T[]): T[] {
   const shuffled = [...arr];

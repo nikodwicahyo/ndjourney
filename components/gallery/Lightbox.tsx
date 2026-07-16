@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useCallback, useState, useMemo, useRef } from "react";
-import Image from "next/image";
+import { memo, useEffect, useCallback, useState, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
@@ -15,9 +14,12 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { formatDate } from "@/lib/utils";
-import { getOptimizedImageUrl, getBlurImageUrl } from "@/lib/cloudinary-urls";
+import { cn, formatDate } from "@/lib/utils";
+import {
+  getOptimizedImageUrl,
+  getImageSrcSet,
+  getOptimizedVideoUrl,
+} from "@/lib/cloudinary-urls";
 import type { Photo } from "@/types";
 import AlbumMoveDropdown from "./AlbumMoveDropdown";
 
@@ -37,16 +39,6 @@ function getVideoPosterUrl(videoUrl: string, width = 800): string {
 
 const preloadLinks: HTMLLinkElement[] = [];
 
-function preloadImage(url: string, as: string = "image", priority: "high" | "low" = "high") {
-  const link = document.createElement("link");
-  link.rel = "preload";
-  link.as = as;
-  link.href = url;
-  link.fetchPriority = priority;
-  document.head.appendChild(link);
-  preloadLinks.push(link);
-}
-
 function cleanupPreloads() {
   preloadLinks.forEach((link) => link.remove());
   preloadLinks.length = 0;
@@ -65,7 +57,7 @@ type LightboxProps = {
   hasNextPage?: boolean;
 };
 
-export default function Lightbox({
+function Lightbox({
   photos,
   currentIndex,
   isOpen,
@@ -79,54 +71,107 @@ export default function Lightbox({
 }: LightboxProps) {
   const [loaded, setLoaded] = useState(false);
   const [isZoomed, setIsZoomed] = useState(false);
+  const [direction, setDirection] = useState(1);
   const photo = photos[currentIndex];
   const videoRef = useRef<HTMLVideoElement>(null);
   const isVideoRef = useRef(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
   const loadedRef = useRef(false);
 
   const displayWidth = useMemo(() => {
-    if (!photo?.width) return 1600;
-    return Math.min(photo.width, 1600);
+    if (!photo?.width) return 1200;
+    if (typeof window === "undefined") return Math.min(photo.width, 1200);
+    const vw = window.innerWidth;
+    const dpr = window.devicePixelRatio || 1;
+    const target = Math.round(vw * dpr * 0.85);
+    const clamped = Math.max(640, Math.min(target, 1600));
+    return Math.min(photo.width, clamped);
   }, [photo?.width]);
 
   const optimizedUrl = useMemo(() => {
     if (!photo?.url) return "";
-    return getOptimizedImageUrl(photo.url, displayWidth, { crop: "limit" });
-  }, [photo?.url, displayWidth]);
+    const quality = isZoomed ? "auto:best" : "auto:eco";
+    return getOptimizedImageUrl(photo.url, displayWidth, { quality, crop: "limit" });
+  }, [photo?.url, displayWidth, isZoomed]);
 
-  const blurDataUrl = useMemo(() => {
+  const lowResUrl = useMemo(() => {
+    if (!photo?.url) return "";
+    return getOptimizedImageUrl(photo.url, 80, { quality: "auto:low" });
+  }, [photo?.url]);
+
+  const srcSet = useMemo(() => {
     if (!photo?.url) return undefined;
     try {
-      return getBlurImageUrl(photo.url);
+      const quality = isZoomed ? "auto:best" : "auto:eco";
+      return getImageSrcSet(photo.url, { quality });
     } catch {
       return undefined;
     }
-  }, [photo?.url]);
+  }, [photo?.url, isZoomed]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const link = document.createElement("link");
+    link.rel = "preconnect";
+    link.href = "https://res.cloudinary.com";
+    document.head.appendChild(link);
+    return () => link.remove();
+  }, [isOpen]);
 
   useEffect(() => {
     if (!photo?.url || photo.isVideo) return;
     cleanupPreloads();
-    preloadImage(optimizedUrl, "image", "high");
+    const link = document.createElement("link");
+    link.rel = "preload";
+    link.as = "image";
+    link.href = optimizedUrl;
+    link.fetchPriority = "high";
+    document.head.appendChild(link);
+    preloadLinks.push(link);
     if (photos.length > 1) {
       const prevIdx = currentIndex > 0 ? currentIndex - 1 : photos.length - 1;
       const nextIdx = currentIndex < photos.length - 1 ? currentIndex + 1 : 0;
       const prevPhoto = photos[prevIdx];
       const nextPhoto = photos[nextIdx];
+      const adjQuality = "auto:eco";
       if (prevPhoto?.url && !prevPhoto.isVideo) {
-        preloadImage(getOptimizedImageUrl(prevPhoto.url, 1600, { crop: "limit" }), "image", "low");
+        const prevUrl = getOptimizedImageUrl(prevPhoto.url, 800, { quality: adjQuality, crop: "limit" });
+        const pl = document.createElement("link");
+        pl.rel = "preload";
+        pl.as = "image";
+        pl.href = prevUrl;
+        pl.fetchPriority = "low";
+        document.head.appendChild(pl);
+        preloadLinks.push(pl);
       }
       if (nextPhoto?.url && !nextPhoto.isVideo) {
-        preloadImage(getOptimizedImageUrl(nextPhoto.url, 1600, { crop: "limit" }), "image", "low");
+        const nextUrl = getOptimizedImageUrl(nextPhoto.url, 800, { quality: adjQuality, crop: "limit" });
+        const pl = document.createElement("link");
+        pl.rel = "preload";
+        pl.as = "image";
+        pl.href = nextUrl;
+        pl.fetchPriority = "low";
+        document.head.appendChild(pl);
+        preloadLinks.push(pl);
       }
     }
     return cleanupPreloads;
   }, [currentIndex, photo?.url, photo?.isVideo, optimizedUrl, photos]);
 
+  const slideVariants = useMemo(() => ({
+    enter: (dir: number) => ({
+      x: dir > 0 ? 350 : -350,
+    }),
+    center: { x: 0 },
+    exit: (dir: number) => ({
+      x: dir > 0 ? -350 : 350,
+    }),
+  }), []);
+
   const handlePrev = useCallback(() => {
     if (isVideoRef.current) dispatchBgEvent("resume");
+    setDirection(-1);
     const prevIndex = currentIndex === 0 ? photos.length - 1 : currentIndex - 1;
-    setLoaded(false);
     loadedRef.current = false;
     setIsZoomed(false);
     onNavigate(prevIndex);
@@ -134,25 +179,22 @@ export default function Lightbox({
 
   const handleNext = useCallback(() => {
     if (isVideoRef.current) dispatchBgEvent("resume");
+    setDirection(1);
     const atEnd = currentIndex >= photos.length - 1;
     if (atEnd) {
       if (hasNextPage && fetchNextPage) {
         fetchNextPage();
       }
       if (!hasNextPage) {
-        const nextIndex = 0;
-        setLoaded(false);
         loadedRef.current = false;
         setIsZoomed(false);
-        onNavigate(nextIndex);
+        onNavigate(0);
       }
       return;
     }
-    const nextIndex = currentIndex + 1;
-    setLoaded(false);
     loadedRef.current = false;
     setIsZoomed(false);
-    onNavigate(nextIndex);
+    onNavigate(currentIndex + 1);
   }, [currentIndex, photos.length, onNavigate, hasNextPage, fetchNextPage]);
 
   const handleClose = useCallback(() => {
@@ -188,20 +230,39 @@ export default function Lightbox({
     }
   }, [photo?.isVideo]);
 
-  const handleImageLoad = useCallback(() => {
-    setLoaded(true);
-    loadedRef.current = true;
-  }, []);
-
   useEffect(() => {
     isVideoRef.current = photo?.isVideo ?? false;
   }, [photo]);
 
   useEffect(() => {
-    setLoaded(false);
     loadedRef.current = false;
+    setLoaded(false);
     setIsZoomed(false);
   }, [photo?.id]);
+
+  useEffect(() => {
+    if (!photo?.url || photo.isVideo) return;
+    let cancelled = false;
+    const img = new window.Image();
+    img.onload = () => {
+      if (!cancelled) {
+        loadedRef.current = true;
+        setLoaded(true);
+      }
+    };
+    img.onerror = () => {
+      if (!cancelled) {
+        loadedRef.current = true;
+        setLoaded(true);
+      }
+    };
+    img.src = getOptimizedImageUrl(photo.url, displayWidth, { quality: "auto:eco", crop: "limit" });
+    return () => {
+      cancelled = true;
+      img.onload = null;
+      img.onerror = null;
+    };
+  }, [photo?.id, photo?.url, displayWidth, photo?.isVideo]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -241,6 +302,7 @@ export default function Lightbox({
   return (
     <AnimatePresence>
       <motion.div
+        key="lightbox-overlay"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
@@ -304,7 +366,7 @@ export default function Lightbox({
           </div>
         </div>
 
-        <div ref={containerRef} className="flex flex-1 overflow-hidden">
+        <div className="flex flex-1 overflow-hidden">
           <div
             onClick={!isZoomed ? handlePrev : undefined}
             className={cn(
@@ -325,82 +387,87 @@ export default function Lightbox({
 
           <div
             className={cn(
-              "flex shrink-0 items-center justify-center",
+              "grid shrink-0 place-items-center overflow-hidden",
               isZoomed ? "overflow-auto" : "",
             )}
             style={{ maxWidth: isZoomed ? "100%" : "85%" }}
           >
-            {photo.isVideo ? (
-              <video
-                ref={videoRef}
-                src={photo.url}
-                controls
-                preload="metadata"
-                poster={getVideoPosterUrl(photo.url)}
-                className="max-h-full max-w-full rounded-lg"
-                autoPlay
-                onPlay={() => dispatchBgEvent("pause")}
-                onPause={() => dispatchBgEvent("resume")}
-                onEnded={() => dispatchBgEvent("resume")}
-              />
-            ) : isImage ? (
-              <div
-                className={cn(
-                  "relative flex items-center justify-center",
-                  isZoomed ? "h-full w-full" : "max-h-[80vh] max-w-full",
-                )}
+            <AnimatePresence initial={false} custom={direction}>
+              <motion.div
+                key={photo.isVideo ? `v-${photo.id}` : `i-${photo.id}`}
+                custom={direction}
+                variants={slideVariants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={{ x: { duration: 0.35, ease: [0.4, 0, 0.2, 1] } }}
+                className="col-start-1 row-start-1 flex items-center justify-center"
+                style={{ willChange: "transform" }}
               >
-                {!loaded && (
-                  <div className="absolute h-8 w-8 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                {photo.isVideo ? (
+                  <video
+                    ref={videoRef}
+                    src={getOptimizedVideoUrl(photo.url)}
+                    controls
+                    preload="metadata"
+                    poster={getVideoPosterUrl(photo.url)}
+                    className="max-h-[80vh] w-auto rounded-lg object-contain"
+                    autoPlay
+                    onPlay={() => dispatchBgEvent("pause")}
+                    onPause={() => dispatchBgEvent("resume")}
+                    onEnded={() => dispatchBgEvent("resume")}
+                  />
+                ) : isImage ? (
+                  <div
+                    className={cn(
+                      "relative flex items-center justify-center",
+                      isZoomed ? "h-full w-full" : "max-h-[80vh] max-w-full",
+                    )}
+                  >
+                    <img
+                      ref={imgRef}
+                      src={loaded ? optimizedUrl : lowResUrl}
+                      alt={photo.caption ?? "Photo"}
+                      srcSet={loaded ? srcSet : undefined}
+                      sizes={
+                        isZoomed
+                          ? "(max-width: 768px) 100vw, 90vw"
+                          : "(max-width: 768px) 85vw, (max-width: 1200px) 70vw, 60vw"
+                      }
+                      decoding="async"
+                      onClick={toggleZoom}
+                      className={cn(
+                        isZoomed
+                          ? "h-auto w-full max-w-none object-contain"
+                          : "max-h-[80vh] w-auto rounded-lg object-contain",
+                      )}
+                      style={
+                        isZoomed
+                          ? { maxWidth: "none", maxHeight: "none", width: "100%", height: "auto" }
+                          : { maxWidth: "100%", height: "auto" }
+                      }
+                    />
+                  </div>
+                ) : (
+                  <div className="flex max-w-sm flex-col items-center gap-4 rounded-lg border border-white/10 bg-white/5 p-6 text-center">
+                    <File className="h-12 w-12 text-white/70" />
+                    <div>
+                      <p className="break-all text-sm font-medium text-white">{fileName}</p>
+                      <p className="mt-1 text-xs text-white/50">Preview tidak tersedia untuk tipe file ini.</p>
+                    </div>
+                    <a
+                      href={photo.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-white/90"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      Buka file
+                    </a>
+                  </div>
                 )}
-                <Image
-                  src={optimizedUrl}
-                  alt={photo.caption ?? "Photo"}
-                  width={photo.width || displayWidth}
-                  height={photo.height || (displayWidth * 2) / 3}
-                  onLoad={handleImageLoad}
-                  sizes={
-                    isZoomed
-                      ? "(max-width: 768px) 100vw, 90vw"
-                      : "(max-width: 768px) 85vw, (max-width: 1200px) 70vw, 60vw"
-                  }
-                  placeholder={blurDataUrl ? "blur" : "empty"}
-                  blurDataURL={blurDataUrl}
-                  unoptimized
-                  loading="eager"
-                  className={cn(
-                    "transition-opacity duration-300",
-                    isZoomed
-                      ? "h-auto w-full max-w-none object-contain"
-                      : "max-h-[80vh] w-auto rounded-lg object-contain",
-                    loaded ? "opacity-100" : "opacity-0",
-                  )}
-                  onClick={toggleZoom}
-                  style={
-                    isZoomed
-                      ? { maxWidth: "none", maxHeight: "none", width: "100%", height: "auto" }
-                      : { maxWidth: "100%", height: "auto" }
-                  }
-                />
-              </div>
-            ) : (
-              <div className="flex max-w-sm flex-col items-center gap-4 rounded-lg border border-white/10 bg-white/5 p-6 text-center">
-                <File className="h-12 w-12 text-white/70" />
-                <div>
-                  <p className="break-all text-sm font-medium text-white">{fileName}</p>
-                  <p className="mt-1 text-xs text-white/50">Preview tidak tersedia untuk tipe file ini.</p>
-                </div>
-                <a
-                  href={photo.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-white/90"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  Buka file
-                </a>
-              </div>
-            )}
+              </motion.div>
+            </AnimatePresence>
           </div>
 
           <div
@@ -441,3 +508,5 @@ export default function Lightbox({
     </AnimatePresence>
   );
 }
+
+export default memo(Lightbox);

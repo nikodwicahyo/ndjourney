@@ -55,6 +55,22 @@ export function getImageSrcSet(
     .join(", ");
 }
 
+export function getOptimizedVideoUrl(
+  videoUrl: string,
+  width = 1280,
+  options: { quality?: string; codec?: string } = {},
+): string {
+  const extracted = extractUploadBaseAndId(videoUrl);
+  if (!extracted) return videoUrl;
+  const opts = {
+    q: options.quality ?? "auto",
+    vc: options.codec ?? "auto",
+    w: width,
+    c: "limit" as const,
+  };
+  return `${extracted.base}${buildTransform(opts)}/${extracted.publicId}`;
+}
+
 export function getVideoPosterUrl(videoUrl: string, width = 800): string {
   const match = videoUrl.match(/^(https:\/\/res\.cloudinary\.com\/[^/]+)\/video\/upload\/(.*)$/);
   if (!match) return videoUrl;

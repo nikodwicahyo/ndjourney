@@ -4,7 +4,8 @@ import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight, Camera, Video } from "lucide-react";
-import { cn, formatDate, isVideoUrl } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
+import { getOptimizedImageUrl } from "@/lib/cloudinary-urls";
 
 export type GalleryPhoto = {
   id: string;
@@ -20,47 +21,59 @@ type GallerySlideshowProps = {
 
 const MAX_PHOTOS = 50;
 
-function shuffleArray<T>(arr: T[]): T[] {
-  const shuffled = [...arr];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
-}
-
 export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
   const initialPhotos = useMemo(() => photos.slice(0, MAX_PHOTOS), [photos]);
   const [displayPhotos, setDisplayPhotos] = useState(initialPhotos);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [direction, setDirection] = useState(1);
   const [isPaused, setIsPaused] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const goNextRef = useRef<() => void>(() => {});
   const length = displayPhotos.length;
   const hasPhotos = length > 0;
   const photo = displayPhotos[currentIndex];
-  const photoIsVideo = photo ? isVideoUrl(photo.url) : false;
+
+  const fullUrl = useMemo(() => {
+    if (!photo?.url) return "";
+    return getOptimizedImageUrl(photo.url, 1024, { crop: "limit" });
+  }, [photo?.url]);
+
+  const lowResUrl = useMemo(() => {
+    if (!photo?.url) return "";
+    return getOptimizedImageUrl(photo.url, 80, { quality: "auto:low" });
+  }, [photo?.url]);
+
+  useEffect(() => {
+    if (!photo?.url || photo.isVideo) return;
+    let cancelled = false;
+    const img = new window.Image();
+    img.onload = () => {
+      if (!cancelled) setLoaded(true);
+    };
+    img.onerror = () => {
+      if (!cancelled) setLoaded(true);
+    };
+    img.src = fullUrl;
+    return () => {
+      cancelled = true;
+      img.onload = null;
+      img.onerror = null;
+    };
+  }, [photo?.id, photo?.url, fullUrl, photo?.isVideo]);
 
   useEffect(() => {
     setDisplayPhotos(initialPhotos);
     setCurrentIndex(0);
     setDirection(1);
+    setLoaded(false);
   }, [initialPhotos]);
-
-  const shuffle = useCallback(() => {
-    setDisplayPhotos((prev) => shuffleArray(prev));
-  }, []);
 
   const goNext = useCallback(() => {
     if (length === 0) return;
-    setCurrentIndex((prev) => {
-      const next = (prev + 1) % length;
-      if (next === 0) shuffle();
-      return next;
-    });
+    setCurrentIndex((prev) => (prev + 1) % length);
     setDirection(1);
-  }, [length, shuffle]);
+  }, [length]);
 
   goNextRef.current = goNext;
 
@@ -113,11 +126,11 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
       onPointerLeave={() => setIsPaused(false)}
       onPointerCancel={() => setIsPaused(false)}
     >
-      <div className="group relative overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-        <div className="relative aspect-[4/3] overflow-hidden">
+        <div className="group relative overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+        <div className="relative aspect-[4/3] overflow-hidden bg-muted">
           <AnimatePresence custom={direction} mode="wait">
             <motion.div
-              key={photo.id + currentIndex}
+              key={photo.id}
               custom={direction}
               variants={variants}
               initial="enter"
@@ -126,25 +139,28 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
               transition={{ duration: 0.35, ease: "easeInOut" }}
               className="absolute inset-0"
             >
-              {photoIsVideo ? (
+              {photo.isVideo ? (
                 <video
                   src={photo.url}
                   autoPlay
                   loop
                   muted
                   playsInline
+                  preload="metadata"
                   className="h-full w-full object-cover"
                 />
               ) : (
                 <Image
-                  src={photo.url}
+                  src={loaded ? fullUrl : lowResUrl}
                   alt={photo.caption ?? "Gallery"}
                   fill
-                  sizes="(max-width: 768px) 100vw, 512px"
+                  sizes="(max-width: 768px) 100vw, 1024px"
                   className="object-cover"
+                  loading="lazy"
+                  priority={currentIndex === 0}
                 />
               )}
-              {photoIsVideo && (
+              {photo.isVideo && (
                 <div className="absolute top-3 right-3 rounded-full bg-black/60 p-1.5">
                   <Video className="h-4 w-4 text-white" />
                 </div>

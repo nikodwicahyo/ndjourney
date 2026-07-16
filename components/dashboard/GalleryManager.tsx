@@ -65,31 +65,12 @@ export default function GalleryManager() {
   const [pendingFiles, setPendingFiles] = useState<UploadFileItem[]>([]);
 
   const [lightboxIndex, setLightboxIndex] = useState(-1);
-  const [isLoadingAll, setIsLoadingAll] = useState(false);
-  const isLoadingAllRef = useRef(false);
   const lightboxIndexRef = useRef(-1);
 
-  const handlePhotoClick = useCallback(async (photosList: Photo[], index: number) => {
-    if (isLoadingAllRef.current) return;
+  const handlePhotoClick = useCallback((photosList: Photo[], index: number) => {
     lightboxIndexRef.current = index;
-    if (hasNextPage) {
-      isLoadingAllRef.current = true;
-      setIsLoadingAll(true);
-      const toastId = toast.loading("Memuat semua media...");
-      let more = true;
-      let pageCount = 0;
-      while (more && pageCount < 20) {
-        const result = await fetchNextPage();
-        const lastPage = result.data?.pages?.[result.data.pages.length - 1];
-        more = lastPage?.hasMore ?? false;
-        pageCount++;
-      }
-      toast.dismiss(toastId);
-      isLoadingAllRef.current = false;
-      setIsLoadingAll(false);
-    }
     setLightboxIndex(index);
-  }, [fetchNextPage, hasNextPage]);
+  }, []);
 
   const handleLightboxNavigate = useCallback((index: number) => {
     lightboxIndexRef.current = index;
@@ -755,6 +736,7 @@ export default function GalleryManager() {
         showAlbumMove={true}
         fetchNextPage={fetchNextPage}
         hasNextPage={hasNextPage}
+        totalCount={data?.pages[0]?.total ?? photos.length}
       />
     </div>
   );

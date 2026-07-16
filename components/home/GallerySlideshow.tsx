@@ -1,11 +1,10 @@
 "use client";
 
 import { useState, useRef, useMemo, useEffect, useCallback } from "react";
-import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight, Camera, Video } from "lucide-react";
+import { ChevronLeft, ChevronRight, Camera, Video, RefreshCw } from "lucide-react";
 import { cn, formatDate } from "@/lib/utils";
-import { getOptimizedImageUrl } from "@/lib/cloudinary-urls";
+import { getOptimizedImageUrl, getBlurImageUrl, getImageSrcSet } from "@/lib/cloudinary-urls";
 
 export type GalleryPhoto = {
   id: string;
@@ -19,6 +18,8 @@ type GallerySlideshowProps = {
   photos: GalleryPhoto[];
 };
 
+type MediaState = "loading" | "loaded" | "error";
+
 const MAX_PHOTOS = 50;
 
 export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
@@ -27,21 +28,36 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [direction, setDirection] = useState(1);
   const [isPaused, setIsPaused] = useState(false);
-  const [loaded, setLoaded] = useState(false);
+  const [mediaState, setMediaState] = useState<MediaState>("loading");
+  const [retryKey, setRetryKey] = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const goNextRef = useRef<() => void>(() => {});
   const length = displayPhotos.length;
   const hasPhotos = length > 0;
   const photo = displayPhotos[currentIndex];
 
+  const handleRetry = useCallback(() => {
+    setMediaState("loading");
+    setRetryKey((k) => k + 1);
+  }, []);
+
   const fullUrl = useMemo(() => {
     if (!photo?.url) return "";
     return getOptimizedImageUrl(photo.url, 1024, { crop: "limit" });
   }, [photo?.url]);
 
-  const lowResUrl = useMemo(() => {
+  const blurPlaceholderUrl = useMemo(() => {
     if (!photo?.url) return "";
-    return getOptimizedImageUrl(photo.url, 80, { quality: "auto:low" });
+    return getBlurImageUrl(photo.url);
+  }, [photo?.url]);
+
+  const srcSet = useMemo(() => {
+    if (!photo?.url) return undefined;
+    try {
+      return getImageSrcSet(photo.url);
+    } catch {
+      return undefined;
+    }
   }, [photo?.url]);
 
   useEffect(() => {
@@ -49,10 +65,10 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
     let cancelled = false;
     const img = new window.Image();
     img.onload = () => {
-      if (!cancelled) setLoaded(true);
+      if (!cancelled) setMediaState("loaded");
     };
     img.onerror = () => {
-      if (!cancelled) setLoaded(true);
+      if (!cancelled) setMediaState("error");
     };
     img.src = fullUrl;
     return () => {
@@ -60,14 +76,19 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
       img.onload = null;
       img.onerror = null;
     };
-  }, [photo?.id, photo?.url, fullUrl, photo?.isVideo]);
+  }, [photo?.id, photo?.url, fullUrl, photo?.isVideo, retryKey]);
 
   useEffect(() => {
     setDisplayPhotos(initialPhotos);
     setCurrentIndex(0);
     setDirection(1);
-    setLoaded(false);
+    setMediaState("loading");
+    setRetryKey(0);
   }, [initialPhotos]);
+
+  useEffect(() => {
+    setMediaState("loading");
+  }, [photo?.id]);
 
   const goNext = useCallback(() => {
     if (length === 0) return;
@@ -149,16 +170,35 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
                   preload="metadata"
                   className="h-full w-full object-cover"
                 />
+              ) : mediaState === "error" ? (
+                <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-muted">
+                  <p className="text-xs text-muted-foreground">Gagal memuat</p>
+                  <button
+                    onClick={handleRetry}
+                    className="flex items-center gap-1.5 rounded-full bg-foreground/10 px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-foreground/20"
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                    Muat ulang
+                  </button>
+                </div>
               ) : (
-                <Image
-                  src={loaded ? fullUrl : lowResUrl}
-                  alt={photo.caption ?? "Gallery"}
-                  fill
-                  sizes="(max-width: 768px) 100vw, 1024px"
-                  className="object-cover"
-                  loading="lazy"
-                  priority={currentIndex === 0}
-                />
+                <>
+                  {mediaState === "loading" && (
+                    <div className="absolute inset-0 z-10 animate-pulse bg-muted" />
+                  )}
+                  <img
+                    src={mediaState === "loaded" ? fullUrl : blurPlaceholderUrl}
+                    alt={photo.caption ?? "Gallery"}
+                    className={cn(
+                      "absolute inset-0 h-full w-full object-cover transition-opacity duration-500",
+                      mediaState === "loading" ? "opacity-50" : "opacity-100",
+                    )}
+                    srcSet={mediaState === "loaded" ? srcSet : undefined}
+                    sizes="(max-width: 768px) 100vw, 1024px"
+                    decoding="async"
+                    fetchPriority={currentIndex === 0 ? "high" : "auto"}
+                  />
+                </>
               )}
               {photo.isVideo && (
                 <div className="absolute top-3 right-3 rounded-full bg-black/60 p-1.5">

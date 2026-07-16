@@ -13,12 +13,14 @@ import {
   ExternalLink,
   ZoomIn,
   ZoomOut,
+  RefreshCw,
 } from "lucide-react";
 import { cn, formatDate } from "@/lib/utils";
 import {
   getOptimizedImageUrl,
   getImageSrcSet,
   getOptimizedVideoUrl,
+  getBlurImageUrl,
 } from "@/lib/cloudinary-urls";
 import type { Photo } from "@/types";
 import AlbumMoveDropdown from "./AlbumMoveDropdown";
@@ -44,6 +46,8 @@ function cleanupPreloads() {
   preloadLinks.length = 0;
 }
 
+type MediaState = "loading" | "loaded" | "error";
+
 type LightboxProps = {
   photos: Photo[];
   currentIndex: number;
@@ -55,6 +59,7 @@ type LightboxProps = {
   showAlbumMove?: boolean;
   fetchNextPage?: () => void;
   hasNextPage?: boolean;
+  totalCount?: number;
 };
 
 function Lightbox({
@@ -68,15 +73,27 @@ function Lightbox({
   showAlbumMove = false,
   fetchNextPage,
   hasNextPage,
+  totalCount,
 }: LightboxProps) {
-  const [loaded, setLoaded] = useState(false);
+  const [mediaState, setMediaState] = useState<MediaState>("loading");
+  const [retryKey, setRetryKey] = useState(0);
   const [isZoomed, setIsZoomed] = useState(false);
   const [direction, setDirection] = useState(1);
   const photo = photos[currentIndex];
   const videoRef = useRef<HTMLVideoElement>(null);
   const isVideoRef = useRef(false);
   const imgRef = useRef<HTMLImageElement>(null);
-  const loadedRef = useRef(false);
+  const isFetchingRef = useRef(false);
+  const currentIndexRef = useRef(currentIndex);
+
+  useEffect(() => {
+    currentIndexRef.current = currentIndex;
+  }, [currentIndex]);
+
+  const handleRetry = useCallback(() => {
+    setMediaState("loading");
+    setRetryKey((k) => k + 1);
+  }, []);
 
   const displayWidth = useMemo(() => {
     if (!photo?.width) return 1200;
@@ -94,9 +111,9 @@ function Lightbox({
     return getOptimizedImageUrl(photo.url, displayWidth, { quality, crop: "limit" });
   }, [photo?.url, displayWidth, isZoomed]);
 
-  const lowResUrl = useMemo(() => {
+  const blurPlaceholderUrl = useMemo(() => {
     if (!photo?.url) return "";
-    return getOptimizedImageUrl(photo.url, 80, { quality: "auto:low" });
+    return getBlurImageUrl(photo.url);
   }, [photo?.url]);
 
   const srcSet = useMemo(() => {
@@ -170,29 +187,31 @@ function Lightbox({
 
   const handlePrev = useCallback(() => {
     if (isVideoRef.current) dispatchBgEvent("resume");
+    if (currentIndex === 0) return;
     setDirection(-1);
-    const prevIndex = currentIndex === 0 ? photos.length - 1 : currentIndex - 1;
-    loadedRef.current = false;
     setIsZoomed(false);
-    onNavigate(prevIndex);
-  }, [currentIndex, photos.length, onNavigate]);
+    onNavigate(currentIndex - 1);
+  }, [currentIndex, onNavigate]);
 
-  const handleNext = useCallback(() => {
+  const handleNext = useCallback(async () => {
     if (isVideoRef.current) dispatchBgEvent("resume");
     setDirection(1);
     const atEnd = currentIndex >= photos.length - 1;
     if (atEnd) {
-      if (hasNextPage && fetchNextPage) {
-        fetchNextPage();
-      }
-      if (!hasNextPage) {
-        loadedRef.current = false;
-        setIsZoomed(false);
-        onNavigate(0);
+      if (hasNextPage && fetchNextPage && !isFetchingRef.current) {
+        isFetchingRef.current = true;
+        try {
+          await fetchNextPage();
+          if (currentIndexRef.current === currentIndex) {
+            setIsZoomed(false);
+            onNavigate(currentIndex + 1);
+          }
+        } finally {
+          isFetchingRef.current = false;
+        }
       }
       return;
     }
-    loadedRef.current = false;
     setIsZoomed(false);
     onNavigate(currentIndex + 1);
   }, [currentIndex, photos.length, onNavigate, hasNextPage, fetchNextPage]);
@@ -235,8 +254,7 @@ function Lightbox({
   }, [photo]);
 
   useEffect(() => {
-    loadedRef.current = false;
-    setLoaded(false);
+    setMediaState("loading");
     setIsZoomed(false);
   }, [photo?.id]);
 
@@ -246,14 +264,12 @@ function Lightbox({
     const img = new window.Image();
     img.onload = () => {
       if (!cancelled) {
-        loadedRef.current = true;
-        setLoaded(true);
+        setMediaState("loaded");
       }
     };
     img.onerror = () => {
       if (!cancelled) {
-        loadedRef.current = true;
-        setLoaded(true);
+        setMediaState("error");
       }
     };
     img.src = getOptimizedImageUrl(photo.url, displayWidth, { quality: "auto:eco", crop: "limit" });
@@ -262,7 +278,7 @@ function Lightbox({
       img.onload = null;
       img.onerror = null;
     };
-  }, [photo?.id, photo?.url, displayWidth, photo?.isVideo]);
+  }, [photo?.id, photo?.url, displayWidth, photo?.isVideo, retryKey]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -319,7 +335,7 @@ function Lightbox({
               <X className="h-5 w-5" />
             </button>
             <span className="text-sm text-white/60">
-              {currentIndex + 1} / {photos.length}
+              {currentIndex + 1} / {totalCount ?? photos.length}
             </span>
           </div>
 
@@ -424,29 +440,54 @@ function Lightbox({
                       isZoomed ? "h-full w-full" : "max-h-[80vh] max-w-full",
                     )}
                   >
-                    <img
-                      ref={imgRef}
-                      src={loaded ? optimizedUrl : lowResUrl}
-                      alt={photo.caption ?? "Photo"}
-                      srcSet={loaded ? srcSet : undefined}
-                      sizes={
-                        isZoomed
-                          ? "(max-width: 768px) 100vw, 90vw"
-                          : "(max-width: 768px) 85vw, (max-width: 1200px) 70vw, 60vw"
-                      }
-                      decoding="async"
-                      onClick={toggleZoom}
-                      className={cn(
-                        isZoomed
-                          ? "h-auto w-full max-w-none object-contain"
-                          : "max-h-[80vh] w-auto rounded-lg object-contain",
-                      )}
-                      style={
-                        isZoomed
-                          ? { maxWidth: "none", maxHeight: "none", width: "100%", height: "auto" }
-                          : { maxWidth: "100%", height: "auto" }
-                      }
-                    />
+                    {mediaState === "loading" && (
+                      <div
+                        className={cn(
+                          "absolute inset-0 z-10 animate-pulse bg-white/20",
+                          isZoomed ? "" : "rounded-lg",
+                        )}
+                      />
+                    )}
+
+                    {mediaState === "error" ? (
+                      <div className="flex flex-col items-center gap-4 text-white/70">
+                        <p className="text-sm">Gagal memuat gambar</p>
+                        <button
+                          onClick={handleRetry}
+                          className="flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm text-white transition-colors hover:bg-white/20"
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                          Muat ulang
+                        </button>
+                      </div>
+                    ) : (
+                      <img
+                        ref={imgRef}
+                        src={mediaState === "loaded" ? optimizedUrl : blurPlaceholderUrl}
+                        alt={photo.caption ?? "Photo"}
+                        srcSet={mediaState === "loaded" ? srcSet : undefined}
+                        sizes={
+                          isZoomed
+                            ? "(max-width: 768px) 100vw, 90vw"
+                            : "(max-width: 768px) 85vw, (max-width: 1200px) 70vw, 60vw"
+                        }
+                        decoding="async"
+                        fetchPriority={mediaState === "loading" ? "low" : "high"}
+                        onClick={toggleZoom}
+                        className={cn(
+                          "transition-opacity duration-500",
+                          mediaState === "loading" ? "opacity-40" : "opacity-100",
+                          isZoomed
+                            ? "h-auto w-full max-w-none object-contain"
+                            : "max-h-[80vh] w-auto rounded-lg object-contain",
+                        )}
+                        style={
+                          isZoomed
+                            ? { maxWidth: "none", maxHeight: "none", width: "100%", height: "auto" }
+                            : { maxWidth: "100%", height: "auto" }
+                        }
+                      />
+                    )}
                   </div>
                 ) : (
                   <div className="flex max-w-sm flex-col items-center gap-4 rounded-lg border border-white/10 bg-white/5 p-6 text-center">

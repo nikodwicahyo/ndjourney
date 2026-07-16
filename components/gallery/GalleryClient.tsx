@@ -29,9 +29,9 @@ export default function GalleryClient() {
   const [filters, setFilters] = useState<Filters>({});
   const [lightboxIndex, setLightboxIndex] = useState(-1);
   const [lightboxPhotos, setLightboxPhotos] = useState<Photo[]>([]);
+  const [lightboxTotal, setLightboxTotal] = useState(0);
   const fetchNextPageRef = useRef<(() => void) | undefined>(undefined);
   const hasNextPageRef = useRef(false);
-  const isLoadingAllRef = useRef(false);
 
   const handleUpload = useCallback(
     async (file: File) => {
@@ -51,26 +51,11 @@ export default function GalleryClient() {
   const queryClient = useQueryClient();
 
   const handlePhotoClick = useCallback(
-    async (photos: Photo[], index: number, fetchNextPage?: () => void, hasNextPage?: boolean) => {
-      if (isLoadingAllRef.current) return;
-      if (hasNextPage && fetchNextPage) {
-        isLoadingAllRef.current = true;
-        const toastId = toast.loading("Memuat semua media...");
-        let more = true;
-        let pageCount = 0;
-        while (more && pageCount < 20) {
-          const result = await fetchNextPage();
-          const pages = (result as any)?.data?.pages ?? [];
-          const lastPage = pages[pages.length - 1];
-          more = lastPage?.hasMore ?? false;
-          pageCount++;
-        }
-        toast.dismiss(toastId);
-        isLoadingAllRef.current = false;
-      }
+    (photos: Photo[], index: number, fetchNextPage?: () => void, hasNextPage?: boolean) => {
       const allData = queryClient.getQueryData(photoKeys.list({ ...filters }));
-      const allPhotos = ((allData as any)?.pages ?? []).flatMap((p: any) => p.data ?? []) as Photo[];
-      setLightboxPhotos(allPhotos.length > 0 ? allPhotos : photos);
+      const firstPage = (allData as any)?.pages?.[0];
+      setLightboxTotal(firstPage?.total ?? photos.length);
+      setLightboxPhotos(photos);
       setLightboxIndex(index);
       fetchNextPageRef.current = fetchNextPage;
       hasNextPageRef.current = !!hasNextPage;
@@ -106,6 +91,7 @@ export default function GalleryClient() {
         showAlbumMove={true}
         fetchNextPage={fetchNextPageRef.current}
         hasNextPage={hasNextPageRef.current}
+        totalCount={lightboxTotal}
       />
     </div>
   );

@@ -2,22 +2,29 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ImagePlus, PenLine, Plus, Gamepad2, Gift } from "lucide-react";
+import { ImagePlus, PenLine, Plus, Gamepad2, Gift, FileText } from "lucide-react";
 
 const actions = [
-  {
-    href: "/dashboard/gallery",
-    label: "Kelola Foto",
-    icon: ImagePlus,
-    color: "#6366F1",
-    bgColor: "#6366F120",
-  },
   {
     href: "/dashboard/letters/new",
     label: "Tulis Surat",
     icon: PenLine,
     color: "#EC4899",
     bgColor: "#EC489920",
+  },
+  {
+    href: "/dashboard/notes",
+    label: "Tulis Catatan",
+    icon: FileText,
+    color: "#8B5CF6",
+    bgColor: "#8B5CF620",
+  },
+  {
+    href: "/dashboard/gallery",
+    label: "Kelola Foto",
+    icon: ImagePlus,
+    color: "#6366F1",
+    bgColor: "#6366F120",
   },
   {
     href: "/dashboard/timeline",
@@ -44,7 +51,7 @@ const actions = [
 
 export default function QuickActions() {
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
       {actions.map(({ href, label, icon: Icon, color, bgColor }, i) => (
         <motion.div
           key={href}

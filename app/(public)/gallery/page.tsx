@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import PublicGallery from "@/components/gallery/PublicGallery";
 import PageTransition from "@/components/PageTransition";
+import ScrollToTopButton from "@/components/ui/ScrollToTopButton";
 
 export const metadata: Metadata = { title: "Gallery" };
 
@@ -28,6 +29,8 @@ export default function GalleryPage() {
       >
         <PublicGallery />
       </Suspense>
+
+      <ScrollToTopButton />
     </PageTransition>
   );
 }

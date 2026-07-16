@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import GalleryManager from "@/components/dashboard/GalleryManager";
 import PageTransition from "@/components/PageTransition";
 import { Skeleton } from "@/components/ui";
+import ScrollToTopButton from "@/components/ui/ScrollToTopButton";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Gallery" };
@@ -32,6 +33,8 @@ export default function GalleryManagerPage() {
           <GalleryManager />
         </Suspense>
       </div>
+
+      <ScrollToTopButton />
     </PageTransition>
   );
 }

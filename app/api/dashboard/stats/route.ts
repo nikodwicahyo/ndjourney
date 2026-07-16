@@ -5,7 +5,7 @@ import { getCached, setCached, cacheKey } from "@/lib/redis";
 import { getNextBirthday, getAge } from "@/lib/date";
 import { getCloudinaryUsage } from "@/lib/cloudinary";
 
-const CACHE_TTL = 30;
+const CACHE_TTL = 10;
 
 export async function GET() {
   try {

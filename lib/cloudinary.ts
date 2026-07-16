@@ -246,6 +246,12 @@ export type CloudinaryUsage = {
   creditsUsed: number;
   creditsLimit: number;
   resourcesCount: number;
+  imagesBytes?: number;
+  videosBytes?: number;
+  rawBytes?: number;
+  imagesCount?: number;
+  videosCount?: number;
+  rawCount?: number;
 };
 
 const FALLBACK_STORAGE_LIMIT =
@@ -253,31 +259,84 @@ const FALLBACK_STORAGE_LIMIT =
     ? Number(process.env.CLOUDINARY_STORAGE_LIMIT_BYTES)
     : 25 * 1024 * 1024 * 1024;
 
+async function sumResourcesByType(type: string): Promise<{ count: number; bytes: number }> {
+  let count = 0;
+  let bytes = 0;
+  let cursor: string | undefined;
+  let pages = 0;
+  try {
+    do {
+      const result: any = await cloudinary.api.resources({
+        resource_type: type,
+        max_results: 500,
+        fields: "bytes",
+        next_cursor: cursor,
+      } as any);
+      const resources: any[] = result.resources ?? [];
+      for (const r of resources) {
+        count++;
+        bytes += r.bytes ?? 0;
+      }
+      cursor = result.next_cursor;
+      pages++;
+    } while (cursor && pages < 50);
+  } catch {
+    // A failing resource type should not break the whole calculation.
+  }
+  return { count, bytes };
+}
+
 export async function getCloudinaryUsage(): Promise<CloudinaryUsage> {
   try {
-    const usage = await cloudinary.api.usage();
-    const storageUsed =
-      usage.storage_usage_bytes ??
-      usage.storage_usage ??
-      usage.storage?.usage_bytes ??
-      usage.storage?.usage ??
-      0;
-    const apiLimit =
-      usage.storage_limit ??
-      usage.storage?.limit ??
-      0;
+    const usage: any = await cloudinary.api.usage();
+
+    // usage.credits holds { usage, limit }.
+    const creditsUsed = usage.credits?.usage ?? 0;
+    const creditsLimit = usage.credits?.limit ?? 0;
+
+    // usage.resources is the total number of original assets.
     const resourcesCount =
-      usage.resources ??
-      (usage.objects
-        ? (usage.objects.images ?? 0) + (usage.objects.videos ?? 0) + (usage.objects.raw ?? 0)
-        : 0);
+      typeof usage.resources === "number" ? usage.resources : 0;
+
+    // Sum the actual bytes of every original asset across all resource types.
+    // This mirrors the per-type breakdown shown in the Cloudinary dashboard
+    // (Image / Video / Raw), and the sum is the "used" storage.
+    let imagesBytes = 0;
+    let videosBytes = 0;
+    let rawBytes = 0;
+    let imagesCount = 0;
+    let videosCount = 0;
+    let rawCount = 0;
+    try {
+      const [img, vid, raw] = await Promise.all([
+        sumResourcesByType("image"),
+        sumResourcesByType("video"),
+        sumResourcesByType("raw"),
+      ]);
+      imagesBytes = img.bytes;
+      videosBytes = vid.bytes;
+      rawBytes = raw.bytes;
+      imagesCount = img.count;
+      videosCount = vid.count;
+      rawCount = raw.count;
+    } catch {
+      imagesBytes = videosBytes = rawBytes = 0;
+    }
+
+    const storageUsed = imagesBytes + videosBytes + rawBytes;
 
     return {
       storageUsed,
-      storageLimit: apiLimit > 0 ? apiLimit : FALLBACK_STORAGE_LIMIT,
-      creditsUsed: usage.credits_usage ?? 0,
-      creditsLimit: usage.credits_limit ?? 0,
+      storageLimit: FALLBACK_STORAGE_LIMIT,
+      creditsUsed,
+      creditsLimit,
       resourcesCount,
+      imagesBytes,
+      videosBytes,
+      rawBytes,
+      imagesCount,
+      videosCount,
+      rawCount,
     };
   } catch (error) {
     console.error("Cloudinary usage API error:", error);

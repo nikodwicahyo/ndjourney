@@ -83,6 +83,12 @@ export type CloudinaryUsage = {
   creditsUsed: number;
   creditsLimit: number;
   resourcesCount: number;
+  imagesBytes?: number;
+  videosBytes?: number;
+  rawBytes?: number;
+  imagesCount?: number;
+  videosCount?: number;
+  rawCount?: number;
 };
 
 export type RecentActivity = {

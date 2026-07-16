@@ -9,12 +9,13 @@ export const storageKeys = queryKeys.storage;
 export function useStorageUsage() {
   return useQuery({
     queryKey: storageKeys.usage(),
-    queryFn: async () => {
-      const res = await fetch("/api/storage/usage");
+    queryFn: async ({ signal }) => {
+      const res = await fetch("/api/storage/usage", { signal });
       if (!res.ok) throw new Error("Failed to fetch storage usage");
       const json = await res.json();
       return json.data as CloudinaryUsage;
     },
-    staleTime: 30_000,
+    staleTime: 0,
+    refetchInterval: 30_000,
   });
 }

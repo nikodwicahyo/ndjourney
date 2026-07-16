@@ -1,12 +1,12 @@
 import { auth } from "@/lib/auth";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getCloudinaryUsage } from "@/lib/cloudinary";
 import { getCached, setCached, cacheKey, checkRateLimit } from "@/lib/redis";
 import type { CloudinaryUsage } from "@/types";
 
-const CACHE_TTL = 60;
+const CACHE_TTL = 10;
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user) {
@@ -26,14 +26,19 @@ export async function GET() {
       );
     }
 
-    const cacheK = cacheKey("storage", "usage");
-    const cached = await getCached<CloudinaryUsage>(cacheK);
-    if (cached) {
-      return NextResponse.json({ data: cached });
+    const { searchParams } = request.nextUrl;
+    const forceRefresh = searchParams.get("refresh") === "1";
+
+    if (!forceRefresh) {
+      const cacheK = cacheKey("storage", "usage");
+      const cached = await getCached<CloudinaryUsage>(cacheK);
+      if (cached) {
+        return NextResponse.json({ data: cached });
+      }
     }
 
     const usage = await getCloudinaryUsage();
-    await setCached(cacheK, usage, CACHE_TTL);
+    await setCached(cacheKey("storage", "usage"), usage, CACHE_TTL);
 
     return NextResponse.json({ data: usage });
   } catch (error) {

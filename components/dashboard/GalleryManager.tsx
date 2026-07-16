@@ -52,7 +52,7 @@ export default function GalleryManager() {
   const [albumFilter, setAlbumFilter] = useState<string | undefined>();
   const [favoriteFilter, setFavoriteFilter] = useState(false);
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = usePhotos({ limit: 30, mediaType, sort, albumId: albumFilter, isFavorite: favoriteFilter || undefined });
-  const { data: storage } = useStorageUsage();
+  const { data: storage, refetch: refetchStorage, isFetching: isFetchingStorage } = useStorageUsage();
   const uploadPhotos = useUploadPhotos();
   const deletePhoto = useDeletePhoto();
   const updatePhoto = useUpdatePhoto();
@@ -401,7 +401,19 @@ export default function GalleryManager() {
   return (
     <div className="space-y-8">
       {storage && (
-        <StorageUsageBar used={storage.storageUsed} limit={storage.storageLimit} resourcesCount={storage.resourcesCount} />
+        <StorageUsageBar
+          used={storage.storageUsed}
+          limit={storage.storageLimit}
+          resourcesCount={storage.resourcesCount}
+          imagesCount={storage.imagesCount}
+          videosCount={storage.videosCount}
+          rawCount={storage.rawCount}
+          imagesBytes={storage.imagesBytes}
+          videosBytes={storage.videosBytes}
+          rawBytes={storage.rawBytes}
+          onRefresh={() => refetchStorage()}
+          isRefreshing={isFetchingStorage}
+        />
       )}
 
       <section>

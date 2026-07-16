@@ -10,12 +10,14 @@ export const dashboardKeys = queryKeys.dashboard;
 export function useDashboardStats() {
   return useQuery({
     queryKey: dashboardKeys.stats(),
-    queryFn: async () => {
-      const res = await fetch("/api/dashboard/stats");
+    queryFn: async ({ signal }) => {
+      const res = await fetch("/api/dashboard/stats", { signal });
+      if (!res.ok) throw new Error("Failed to fetch dashboard stats");
       const json = await res.json();
       return json.data as DashboardStats;
     },
-    staleTime: 30_000,
+    staleTime: 0,
+    refetchInterval: 30_000,
   });
 }
 

@@ -58,6 +58,7 @@ export default function GalleryManager() {
   const updatePhoto = useUpdatePhoto();
   const [showUploader, setShowUploader] = useState(false);
   const [selectedAlbumId, setSelectedAlbumId] = useState("");
+  const [photoPublic, setPhotoPublic] = useState(true);
   const [fileErrors, setFileErrors] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -234,6 +235,31 @@ export default function GalleryManager() {
     clearSelection();
   }, [moveAlbumId, selectedIds, queryClient, clearSelection]);
 
+  const handleBatchVisibility = useCallback(async (isPublic: boolean) => {
+    if (selectedIds.size === 0) return;
+    const ids = Array.from(selectedIds);
+    const results = await Promise.allSettled(
+      ids.map((id) =>
+        fetch(`/api/photos/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isPublic }),
+        }).then((r) => {
+          if (!r.ok) throw new Error("Gagal mengubah visibilitas");
+        }),
+      ),
+    );
+    const failed = results.filter((r) => r.status === "rejected").length;
+    const succeeded = results.filter((r) => r.status === "fulfilled").length;
+    if (succeeded > 0) {
+      toast.success(`${succeeded} media ${isPublic ? "publik" : "privat"}`);
+      queryClient.invalidateQueries({ queryKey: ["photos"] });
+      queryClient.invalidateQueries({ queryKey: ["albums"] });
+    }
+    if (failed > 0) toast.error(`${failed} media gagal diubah`);
+    clearSelection();
+  }, [selectedIds, queryClient, clearSelection]);
+
   const handleFilesSelected = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
     if (!fileList || fileList.length === 0) return;
@@ -310,7 +336,8 @@ export default function GalleryManager() {
       const result = await uploadPhotos.uploadFiles(
         pendingFiles.map((u) => u.file),
         selectedAlbumId || undefined,
-        pendingFiles.map((u) => u.id)
+        pendingFiles.map((u) => u.id),
+        photoPublic
       );
 
       const successCount = result.uploaded.length;
@@ -492,6 +519,23 @@ export default function GalleryManager() {
                   ))}
                 </select>
               </div>
+            )}
+
+            {!selectedAlbumId && (
+              <label className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-input bg-background px-4 py-2.5 text-sm">
+                <span className="flex flex-col">
+                  <span className="font-medium">Publik (tanpa album)</span>
+                  <span className="text-xs text-muted-foreground">
+                    Tampilkan di gallery publik
+                  </span>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={photoPublic}
+                  onChange={(e) => setPhotoPublic(e.target.checked)}
+                  className="h-4 w-4 accent-primary"
+                />
+              </label>
             )}
 
             <input
@@ -701,6 +745,24 @@ export default function GalleryManager() {
                 <Trash2 className="h-4 w-4" />
                 Hapus
               </Button>
+              <div className="flex items-center gap-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleBatchVisibility(true)}
+                  title="Jadikan publik"
+                >
+                  Publik
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleBatchVisibility(false)}
+                  title="Jadikan privat"
+                >
+                  Privat
+                </Button>
+              </div>
               <Button size="sm" variant="outline" onClick={clearSelection} className="ml-auto">
                 Batal
               </Button>

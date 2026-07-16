@@ -124,6 +124,7 @@ model Photo {
   updatedAt       DateTime         @updatedAt
   coupleId        String?
   isMilestoneOnly Boolean          @default(false)
+  isPublic        Boolean          @default(true)
   milestones      MilestonePhoto[]
   album           Album?           @relation(fields: [albumId], references: [id])
   couple          Couple?          @relation(fields: [coupleId], references: [id])
@@ -134,6 +135,7 @@ model Photo {
   @@index([createdAt])
   @@index([takenAt])
   @@index([isFavorite])
+  @@index([isPublic])
   @@index([albumId, createdAt])
   @@index([uploadedById, createdAt])
   @@index([isFavorite, createdAt])

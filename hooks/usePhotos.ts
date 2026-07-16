@@ -72,6 +72,7 @@ export function useUpdatePhoto() {
       caption?: string;
       albumId?: string | null;
       isFavorite?: boolean;
+      isPublic?: boolean;
     }) => {
       const res = await fetch(`/api/photos/${id}`, {
         method: "PUT",
@@ -157,7 +158,7 @@ export function useUploadPhoto() {
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ file, albumId }: { file: File; albumId?: string }) => {
+    mutationFn: async ({ file, albumId, isPublic }: { file: File; albumId?: string; isPublic?: boolean }) => {
       const { uploadFileSimple } = await import("@/lib/chunked-upload");
 
       const result = await uploadFileSimple(file, () => {}, undefined);
@@ -174,6 +175,7 @@ export function useUploadPhoto() {
           fileSize: result.bytes,
           isVideo: result.format?.includes("mp4") || result.format?.includes("mov") || result.isVideo || false,
           albumId,
+          isPublic,
         }),
       });
 

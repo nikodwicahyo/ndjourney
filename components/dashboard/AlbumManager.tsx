@@ -13,9 +13,11 @@ export default function AlbumManager() {
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [isPublic, setIsPublic] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
+  const [editIsPublic, setEditIsPublic] = useState(true);
 
   const { data: albums, isLoading } = useQuery({
     queryKey: ["albums", "all"],
@@ -28,7 +30,7 @@ export default function AlbumManager() {
   });
 
   const createAlbum = useMutation({
-    mutationFn: async (data: { name: string; description?: string }) => {
+    mutationFn: async (data: { name: string; description?: string; isPublic: boolean }) => {
       const res = await fetch("/api/albums", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -44,6 +46,7 @@ export default function AlbumManager() {
       setShowForm(false);
       setName("");
       setDescription("");
+      setIsPublic(true);
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : "Gagal membuat album"),
   });
@@ -53,15 +56,17 @@ export default function AlbumManager() {
       id,
       name,
       description,
+      isPublic,
     }: {
       id: string;
       name: string;
       description?: string;
+      isPublic?: boolean;
     }) => {
       const res = await fetch(`/api/albums/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, description: description || undefined }),
+        body: JSON.stringify({ name, description: description || undefined, isPublic }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Gagal mengupdate album");
@@ -93,12 +98,14 @@ export default function AlbumManager() {
     setEditingId(album.id);
     setEditName(album.name);
     setEditDescription(album.description ?? "");
+    setEditIsPublic(album.isPublic);
   }
 
   function cancelEditing() {
     setEditingId(null);
     setEditName("");
     setEditDescription("");
+    setEditIsPublic(true);
   }
 
   function saveEdit() {
@@ -107,6 +114,7 @@ export default function AlbumManager() {
       id: editingId,
       name: editName.trim(),
       description: editDescription.trim() || undefined,
+      isPublic: editIsPublic,
     });
   }
 
@@ -148,8 +156,22 @@ export default function AlbumManager() {
               placeholder="Deskripsi (opsional)"
               className="flex h-10 w-full rounded-xl border border-input bg-background px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
+            <label className="flex items-center justify-between gap-3 rounded-xl border border-input bg-background px-4 py-2.5 text-sm">
+              <span className="flex flex-col">
+                <span className="font-medium">Publik</span>
+                <span className="text-xs text-muted-foreground">
+                  Tampilkan di gallery publik
+                </span>
+              </span>
+              <input
+                type="checkbox"
+                checked={isPublic}
+                onChange={(e) => setIsPublic(e.target.checked)}
+                className="h-4 w-4 accent-primary"
+              />
+            </label>
             <Button
-              onClick={() => createAlbum.mutate({ name: name.trim(), description: description.trim() || undefined })}
+              onClick={() => createAlbum.mutate({ name: name.trim(), description: description.trim() || undefined, isPublic })}
               disabled={!name.trim() || createAlbum.isPending}
               className="w-full gap-2"
             >
@@ -200,6 +222,15 @@ export default function AlbumManager() {
                     placeholder="Deskripsi (opsional)"
                     className="h-8 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   />
+                  <label className="flex items-center justify-between gap-3 rounded-lg border border-input bg-background px-3 py-1.5 text-sm">
+                    <span className="font-medium">Publik</span>
+                    <input
+                      type="checkbox"
+                      checked={editIsPublic}
+                      onChange={(e) => setEditIsPublic(e.target.checked)}
+                      className="h-4 w-4 accent-primary"
+                    />
+                  </label>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={saveEdit}
@@ -224,13 +255,22 @@ export default function AlbumManager() {
               ) : (
                 <>
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
+                     <div className="min-w-0 flex-1">
                       <h3 className="truncate font-medium">
                         {album.name}
                         <span className="ml-1 text-xs font-normal text-muted-foreground">
                           ({album._count ? album._count.photos : "—"} file)
                         </span>
                       </h3>
+                      <span
+                        className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                          album.isPublic
+                            ? "bg-primary/10 text-primary"
+                            : "bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        {album.isPublic ? "Publik" : "Privat"}
+                      </span>
                       {album.description && (
                         <p className="mt-1.5 line-clamp-2 text-xs text-muted-foreground/70 leading-relaxed">
                           {album.description}

@@ -15,7 +15,7 @@ type UploadResult = {
 };
 
 interface UseUploadPhotosReturn {
-  uploadFiles: (files: File[], albumId?: string, fileIds?: string[]) => Promise<UploadResult>;
+  uploadFiles: (files: File[], albumId?: string, fileIds?: string[], isPublic?: boolean) => Promise<UploadResult>;
   queue: QueuedUpload[];
   isUploading: boolean;
   cancelUpload: (id: string) => void;
@@ -38,7 +38,8 @@ interface UseUploadPhotosReturn {
 async function savePhotoToDb(
   u: QueuedUpload,
   albumId: string | undefined,
-  qc: ReturnType<typeof useQueryClient>
+  qc: ReturnType<typeof useQueryClient>,
+  isPublic?: boolean
 ): Promise<Photo> {
   const res = await fetch("/api/photos", {
     method: "POST",
@@ -56,6 +57,7 @@ async function savePhotoToDb(
         u.result!.isVideo ||
         false,
       albumId,
+      isPublic,
     }),
   });
 
@@ -119,7 +121,7 @@ export function useUploadPhotos(): UseUploadPhotosReturn {
   }, []);
 
   const uploadFiles = useCallback(
-    async (files: File[], albumId?: string, fileIds?: string[]): Promise<UploadResult> => {
+    async (files: File[], albumId?: string, fileIds?: string[], isPublic?: boolean): Promise<UploadResult> => {
       const uploadQueue = queueRef.current!;
       albumIdRef.current = albumId;
 
@@ -140,7 +142,7 @@ export function useUploadPhotos(): UseUploadPhotosReturn {
           const u = await promise;
           itemId = u.id;
           if (u.status === "complete" && u.result) {
-            const savedPhoto = await savePhotoToDb(u, albumId, qc);
+            const savedPhoto = await savePhotoToDb(u, albumId, qc, isPublic);
             return { status: "fulfilled" as const, value: savedPhoto };
           } else if (u.status === "interrupted" || u.status === "error") {
             throw new Error(u.error || "Upload gagal");

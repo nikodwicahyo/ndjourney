@@ -10,12 +10,14 @@ export const createPhotoSchema = z.object({
   height: z.number().int().positive().optional(),
   isVideo: z.boolean().default(false),
   albumId: z.string().cuid().optional(),
+  isPublic: z.boolean().optional(),
 });
 
 export const updatePhotoSchema = z.object({
   caption: z.string().max(500).optional(),
   albumId: z.string().cuid().nullable().optional(),
   isFavorite: z.boolean().optional(),
+  isPublic: z.boolean().optional(),
 });
 
 export const createAlbumSchema = z.object({

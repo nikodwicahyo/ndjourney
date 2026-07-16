@@ -43,6 +43,7 @@ export async function GET(
         height: true,
         isVideo: true,
         isFavorite: true,
+        isPublic: true,
         albumId: true,
         uploadedById: true,
         isMilestoneOnly: true,
@@ -68,6 +69,8 @@ export async function GET(
         if (!album || !album.isPublic) {
           return NextResponse.json({ error: "Media tidak ditemukan" }, { status: 404 });
         }
+      } else if (!photo.isPublic) {
+        return NextResponse.json({ error: "Media tidak ditemukan" }, { status: 404 });
       }
     }
 
@@ -123,7 +126,7 @@ export async function PUT(
       );
     }
 
-    const ALLOWED_COLUMNS = new Set(["caption", "albumId", "isFavorite"]);
+    const ALLOWED_COLUMNS = new Set(["caption", "albumId", "isFavorite", "isPublic"]);
 
     const updateData: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(parsed.data)) {
@@ -150,6 +153,7 @@ export async function PUT(
         height: true,
         isVideo: true,
         isFavorite: true,
+        isPublic: true,
         albumId: true,
         uploadedById: true,
         createdAt: true,

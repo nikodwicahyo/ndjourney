@@ -45,7 +45,9 @@ export async function GET(request: Request) {
     const sqlParams: unknown[] = [];
 
     if (!isAuthed) {
-      conditions.push(`"albumId" IN (SELECT "id" FROM "Album" WHERE "isPublic" = true)`);
+      conditions.push(
+        `(("albumId" IS NULL AND "isPublic" = true) OR "albumId" IN (SELECT "id" FROM "Album" WHERE "isPublic" = true))`,
+      );
     }
 
     if (albumId) {
@@ -153,7 +155,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { url, publicId, thumbnailUrl, caption, takenAt, width, height, isVideo, albumId } = parsed.data;
+    const { url, publicId, thumbnailUrl, caption, takenAt, width, height, isVideo, albumId, isPublic } = parsed.data;
     if (!isAllowedCloudinaryUrl(url) || !publicIdBelongsToUser(publicId, session.user.id)) {
       return NextResponse.json({ error: "Media tidak valid atau tidak diizinkan" }, { status: 400 });
     }
@@ -182,6 +184,7 @@ export async function POST(request: Request) {
       height ?? null,
       isVideo ?? false,
       albumId ?? null,
+      isPublic ?? true,
       session.user.id,
       coupleId,
       now,

@@ -133,10 +133,10 @@ export async function parseResponseBody(res: Response): Promise<string> {
       const json = await res.json();
       return json.error || json.message || res.statusText;
     } catch {
-      return res.statusText || "Upload failed";
+      return res.statusText || "Gagal upload";
     }
   }
   const text = await res.text();
   const cleaned = text.replace(/<[^>]*>/g, "").trim().substring(0, 200);
-  return cleaned || res.statusText || "Upload failed";
+  return cleaned || res.statusText || "Gagal upload";
 }

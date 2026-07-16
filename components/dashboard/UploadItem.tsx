@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, memo } from "react";
 import { cn } from "@/lib/utils";
-import { Loader2, CheckCircle, AlertCircle, X, FileVideo, RotateCcw, Trash, Clock, Image as ImageIcon } from "lucide-react";
+import { Loader2, CheckCircle, AlertCircle, X, FileVideo, RotateCcw, Trash, Clock, Image as ImageIcon, WifiOff } from "lucide-react";
 import { formatBytes, formatTime } from "@/lib/upload-config";
 import type { UploadFileItem } from "@/components/dashboard/GalleryManager";
 
@@ -17,16 +17,20 @@ interface UploadItemProps {
 const statusIcons = {
   pending: <Clock className="h-4 w-4 text-muted-foreground" />,
   uploading: <Loader2 className="h-4 w-4 animate-spin text-primary" />,
+  retrying: <Loader2 className="h-4 w-4 animate-spin text-amber-500" />,
   complete: <CheckCircle className="h-4 w-4 text-green-500" />,
   error: <AlertCircle className="h-4 w-4 text-destructive" />,
+  interrupted: <WifiOff className="h-4 w-4 text-destructive" />,
   cancelled: <X className="h-4 w-4 text-muted-foreground" />,
 } as const;
 
 const statusColors = {
   pending: "bg-muted border-border",
   uploading: "bg-primary/5 border-primary/30",
+  retrying: "bg-amber-500/5 border-amber-500/30",
   complete: "bg-green-500/5 border-green-500/30",
   error: "bg-destructive/5 border-destructive/30",
+  interrupted: "bg-destructive/5 border-destructive/30",
   cancelled: "bg-muted border-border opacity-50",
 } as const;
 
@@ -153,11 +157,12 @@ function UploadItemInner({ item, onCancel, onRetry, onRemove, isUploading }: Upl
   }, [isVisible, isImage, item.file]);
 
   const percent = Math.round(item.progress.percent);
-  const showCancel = item.status === "uploading";
-  const showRetry = (item.status === "error" || item.status === "cancelled") && !isUploading;
+  const showCancel = item.status === "uploading" || item.status === "retrying";
+  const showRetry = item.status === "error" && !isUploading;
   const showRemove = !isUploading;
+  const isInterrupted = item.status === "interrupted";
 
-  const isUploadingItem = item.status === "uploading";
+  const isUploadingItem = item.status === "uploading" || item.status === "retrying";
   const isCompleted = item.status === "complete";
 
   return (
@@ -218,10 +223,16 @@ function UploadItemInner({ item, onCancel, onRetry, onRemove, isUploading }: Upl
             </>
           )}
         </div>
-        {item.error && (
+        {item.status === "retrying" && (
+          <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 truncate">
+            Mencoba ulang otomatis…
+          </p>
+        )}
+        {item.error && item.status !== "retrying" && (
           <p className="text-xs text-destructive mt-1 truncate" title={item.error}>
-            {item.error.includes("timeout") || item.error.includes("habis") ? "Waktu habis, coba lagi" :
-             item.error.includes("network") || item.error.includes("Network") || item.error.includes("Failed to fetch") || item.error.includes("Koneksi") ? "Koneksi terputus" :
+            {isInterrupted ? "Upload terhenti. Pilih ulang file untuk mencoba lagi." :
+             item.error.includes("timeout") || item.error.includes("habis") ? "Waktu habis, coba lagi" :
+             item.error.includes("network") || item.error.includes("Network") || item.error.includes("Failed to fetch") || item.error.includes("Koneksi") || item.error.includes("terputus") ? "Koneksi terputus" :
              item.error.includes("limit") || item.error.includes("exceeds") || item.error.includes("terlalu besar") || item.error.includes("melebihi") ? "Ukuran file terlalu besar" :
              item.error}
           </p>

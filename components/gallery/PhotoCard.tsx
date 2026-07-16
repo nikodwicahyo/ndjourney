@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import Image from "next/image";
 import { File, Heart, Play, Lock, CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -29,6 +29,17 @@ export default function PhotoCard({
   const [loaded, setLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [useOriginal, setUseOriginal] = useState(false);
+  const imgRef = useRef<HTMLImageElement | null>(null);
+
+  // If the image is already loaded from cache by the time React attaches the
+  // ref (so onLoad never fires), reveal it immediately to avoid being stuck
+  // on the lazy-loading placeholder.
+  const handleImgRef = useCallback((node: HTMLImageElement | null) => {
+    imgRef.current = node;
+    if (node && node.complete && node.naturalWidth > 0) {
+      setLoaded(true);
+    }
+  }, []);
 
   const aspectRatio = photo.width && photo.height ? photo.width / photo.height : 3 / 4;
   const rawDisplayUrl = useMemo(() => {
@@ -111,7 +122,9 @@ export default function PhotoCard({
             sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
             priority={isPrioritized}
             loading={isPrioritized ? "eager" : "lazy"}
+            ref={handleImgRef}
             onLoad={() => setLoaded(true)}
+            onLoadingComplete={() => setLoaded(true)}
             onError={() => {
               if (!useOriginal && photo.thumbnailUrl) {
                 setUseOriginal(true);

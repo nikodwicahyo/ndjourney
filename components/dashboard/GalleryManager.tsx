@@ -40,7 +40,7 @@ export interface UploadFileItem {
   id: string;
   file: File;
   previewUrl?: string;
-  status: "pending" | "uploading" | "complete" | "error" | "cancelled";
+  status: "pending" | "uploading" | "retrying" | "complete" | "error" | "interrupted" | "cancelled";
   progress: { loaded: number; total: number; percent: number; speed: number; eta: number };
   error?: string;
   result?: { url: string; publicId: string; secureUrl: string; width: number; height: number; format: string; bytes: number; duration?: number };
@@ -288,6 +288,7 @@ export default function GalleryManager() {
 
   const clearQueue = useCallback(() => {
     uploadPhotos.cancelAllUploads();
+    uploadPhotos.clearAllItems();
     setPendingFiles([]);
     setFileErrors([]);
     setIsSubmitting(false);
@@ -329,27 +330,12 @@ export default function GalleryManager() {
         const firstError = result.failed[0]?.error || "";
         const detail = firstError.includes("timeout") ? " (waktu habis)" : firstError.includes("limit") || firstError.includes("exceeds") || firstError.includes("melebihi") || firstError.includes("terlalu besar") ? " (melebihi batas)" : "";
         toast.error(`${failCount} ${l} gagal${detail}. Klik tombol retry untuk mencoba lagi.`);
-        const failedIds = new Set(result.failed.map((f) => f.id));
-        setPendingFiles((prev) =>
-          prev
-            .filter((u) => failedIds.has(u.id))
-            .map((u) => ({
-              ...u,
-              status: "error",
-              error: result.failed.find((f) => f.id === u.id)?.error || "Upload gagal",
-            }))
-        );
+        setPendingFiles([]);
         setFileErrors([]);
       } else {
         toast.error(`Semua ${l} gagal diupload`);
-        const failedMap = new Map(result.failed.map((f) => [f.id, f]));
-        setPendingFiles((prev) =>
-          prev.map((u) => ({
-            ...u,
-            status: "error",
-            error: failedMap.get(u.id)?.error || "Upload gagal",
-          }))
-        );
+        setPendingFiles([]);
+        setFileErrors([]);
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Gagal upload";
@@ -390,21 +376,28 @@ export default function GalleryManager() {
   }, [deletePhoto, photos.length]);
 
   const uploadQueue = useMemo(() => {
-    if (!isSubmitting) return pendingFiles;
-    return uploadPhotos.queue.map((q) => ({
-      id: q.id,
-      file: q.file,
-      status: q.status,
-      progress: q.progress,
-      error: q.error,
-      result: q.result,
-    })) as UploadFileItem[];
+    const persistent = uploadPhotos.queue;
+    // Once there are items in the persistent (background-safe) upload queue,
+    // always reflect it — even after navigating away and back — so in-flight
+    // uploads remain visible and resumable.
+    if (persistent.length > 0) {
+      return persistent.map((q) => ({
+        id: q.id,
+        file: q.file,
+        status: q.status,
+        progress: q.progress,
+        error: q.error,
+        result: q.result,
+      })) as UploadFileItem[];
+    }
+    return pendingFiles;
   }, [isSubmitting, pendingFiles, uploadPhotos.queue]);
 
   const pendingCount = uploadQueue.filter((u) => u.status === "pending").length;
   const uploadingCount = uploadQueue.filter((u) => u.status === "uploading").length;
+  const retryingCount = uploadQueue.filter((u) => u.status === "retrying").length;
   const completeCount = uploadQueue.filter((u) => u.status === "complete").length;
-  const errorCount = uploadQueue.filter((u) => u.status === "error").length;
+  const errorCount = uploadQueue.filter((u) => u.status === "error" || u.status === "interrupted").length;
   const totalCount = uploadQueue.length;
 
   const totalBytes = uploadQueue.reduce((sum, u) => sum + u.file.size, 0);
@@ -440,23 +433,26 @@ export default function GalleryManager() {
       <section>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-heading text-lg font-semibold">Upload Foto & Video</h2>
-          <Button
-            size="sm"
-            onClick={() => {
-              const closing = showUploader;
-              setShowUploader(!showUploader);
-              if (closing) clearQueue();
-            }}
-            className="gap-2 relative"
-          >
-            <ImagePlus className="h-4 w-4" />
-            {showUploader ? "Tutup" : "Upload"}
-            {totalCount > 0 && !showUploader && (
-              <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-medium">
-                {totalCount > 9 ? "9+" : totalCount}
-              </span>
-            )}
-          </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                const closing = showUploader;
+                setShowUploader(!showUploader);
+                if (closing) clearQueue();
+              }}
+              className="gap-2 relative"
+            >
+              <ImagePlus className="h-4 w-4" />
+              {showUploader ? "Tutup" : "Upload"}
+              {totalCount > 0 && !showUploader && (
+                <span className={cn(
+                  "absolute -top-1 -right-1 h-5 min-w-5 px-1 rounded-full text-primary-foreground text-[10px] flex items-center justify-center font-medium",
+                  (uploadingCount > 0 || retryingCount > 0) ? "bg-primary animate-pulse" : "bg-muted-foreground"
+                )}>
+                  {totalCount > 9 ? "9+" : totalCount}
+                </span>
+              )}
+            </Button>
         </div>
 
         {showUploader && (
@@ -469,7 +465,7 @@ export default function GalleryManager() {
                       <div className="h-full bg-primary transition-all duration-300" style={{ width: `${overallProgress}%` }} />
                     </div>
                     <span className="whitespace-nowrap text-xs font-medium text-primary sm:text-sm">
-                      {formatBytes(uploadedBytes)}/{formatBytes(totalBytes)} {uploadingCount > 0 ? `(${uploadingCount} mengupload)` : pendingCount > 0 ? `(${pendingCount} antrian)` : ""}
+                      {formatBytes(uploadedBytes)}/{formatBytes(totalBytes)} {uploadingCount > 0 ? `(${uploadingCount} file diupload)` : retryingCount > 0 ? `(mencoba ulang ${retryingCount})` : pendingCount > 0 ? `(${pendingCount} antrian)` : ""}
                     </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1 lg:shrink-0">
@@ -599,7 +595,7 @@ export default function GalleryManager() {
         <AlbumManager />
       </section>
 
-      <section>
+      <section className={cn(selectedIds.size > 0 && "pb-24")}>
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="font-heading text-lg font-semibold">Gallery ({data?.pages[0]?.total ?? photos.length})</h2>
           <div className="flex flex-wrap items-center gap-2">
@@ -671,45 +667,46 @@ export default function GalleryManager() {
         </div>
 
         {selectedIds.size > 0 && (
-          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card p-3">
-            <span className="text-sm font-medium">{selectedIds.size} media dipilih</span>
-            {albums && albums.length > 0 && (
-              <div className="flex items-center gap-2 ml-auto">
-                <select
-                  value={moveAlbumId}
-                  onChange={(e) => setMoveAlbumId(e.target.value)}
-                  className="h-8 rounded-lg border border-input bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <option value="">Pindahkan ke album</option>
-                  {albums.map((a) => (
-                    <option key={a.id} value={a.id}>{a.name}</option>
-                  ))}
-                </select>
-                <Button
-                  size="sm"
-                  onClick={handleBatchMove}
-                  disabled={!moveAlbumId}
-                  className="gap-2"
-                >
-                  Pindahkan
-                </Button>
-              </div>
-            )}
-            <Button
-              size="sm"
-              variant="destructive"
-              onClick={handleBatchDelete}
-              className="gap-2"
-            >
-              <Trash2 className="h-4 w-4" />
-              Hapus
-            </Button>
-            <Button size="sm" variant="outline" onClick={clearSelection}>
-              Batal
-            </Button>
+          <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
+            <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-3 px-4 py-3">
+              <span className="text-sm font-medium">{selectedIds.size} media dipilih</span>
+              {albums && albums.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <select
+                    value={moveAlbumId}
+                    onChange={(e) => setMoveAlbumId(e.target.value)}
+                    className="h-8 rounded-lg border border-input bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <option value="">Pindahkan ke album</option>
+                    {albums.map((a) => (
+                      <option key={a.id} value={a.id}>{a.name}</option>
+                    ))}
+                  </select>
+                  <Button
+                    size="sm"
+                    onClick={handleBatchMove}
+                    disabled={!moveAlbumId}
+                    className="gap-2"
+                  >
+                    Pindahkan
+                  </Button>
+                </div>
+              )}
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={handleBatchDelete}
+                className="gap-2"
+              >
+                <Trash2 className="h-4 w-4" />
+                Hapus
+              </Button>
+              <Button size="sm" variant="outline" onClick={clearSelection} className="ml-auto">
+                Batal
+              </Button>
+            </div>
           </div>
         )}
-
         {isLoading ? (
           <div className="columns-2 gap-3 md:columns-3 lg:columns-4">
             {Array.from({ length: 8 }).map((_, i) => (

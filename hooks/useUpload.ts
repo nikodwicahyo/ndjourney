@@ -1,15 +1,13 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { queryKeys } from "@/lib/query-keys";
 import type { Photo, CloudinaryUsage } from "@/types";
-import { createUploadQueue, QueuedUpload } from "@/lib/upload-queue";
+import { getUploadQueue, type QueuedUpload } from "@/lib/upload-queue";
 import { getResourceType, generatePublicId } from "@/lib/upload-config";
 import { parseResponseBody } from "@/lib/utils";
-
-const photoKeys = queryKeys.photos;
 
 type UploadResult = {
   uploaded: Photo[];
@@ -23,6 +21,7 @@ interface UseUploadPhotosReturn {
   cancelUpload: (id: string) => void;
   cancelAllUploads: () => void;
   clearCompleted: () => void;
+  clearAllItems: () => void;
   removeUpload: (id: string) => void;
   retryUpload: (id: string) => void;
   overallProgress: {
@@ -35,50 +34,102 @@ interface UseUploadPhotosReturn {
   };
 }
 
+/** Saves a completed upload to the database; resilient and independent of UI. */
+async function savePhotoToDb(
+  u: QueuedUpload,
+  albumId: string | undefined,
+  qc: ReturnType<typeof useQueryClient>
+): Promise<Photo> {
+  const res = await fetch("/api/photos", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      url: u.result!.url,
+      publicId: u.result!.publicId,
+      thumbnailUrl: u.result!.thumbnailUrl,
+      width: u.result!.width,
+      height: u.result!.height,
+      fileSize: u.result!.bytes,
+      isVideo:
+        u.result!.format?.includes("mp4") ||
+        u.result!.format?.includes("mov") ||
+        u.result!.isVideo ||
+        false,
+      albumId,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await parseResponseBody(res);
+    throw new Error(err || "Gagal menyimpan foto");
+  }
+
+  const data = await res.json();
+  const savedPhoto = data.data as Photo;
+
+  qc.setQueryData<CloudinaryUsage>(["storage", "usage"], (old) => {
+    if (!old) return old;
+    return {
+      ...old,
+      storageUsed: old.storageUsed + (u.result?.bytes ?? 0),
+      resourcesCount: old.resourcesCount + 1,
+    };
+  });
+
+  return savedPhoto;
+}
+
+function invalidateAfterSave(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: queryKeys.photos.all, refetchType: "all" });
+  qc.invalidateQueries({ queryKey: queryKeys.albums.all, refetchType: "all" });
+  qc.invalidateQueries({ queryKey: ["storage", "usage"], refetchType: "all" });
+  qc.invalidateQueries({ queryKey: ["dashboard", "stats"], refetchType: "all" });
+  qc.invalidateQueries({ queryKey: ["dashboard", "activity"], refetchType: "all" });
+}
+
 export function useUploadPhotos(): UseUploadPhotosReturn {
   const qc = useQueryClient();
   const { data: session } = useSession();
   const [queue, setQueue] = useState<QueuedUpload[]>([]);
-  const queueRef = useRef<ReturnType<typeof createUploadQueue> | null>(null);
+  const queueRef = useRef<ReturnType<typeof getUploadQueue> | null>(null);
+  const albumIdRef = useRef<string | undefined>(undefined);
 
-  const getOrCreateQueue = useCallback(() => {
-    if (!queueRef.current) {
-      queueRef.current = createUploadQueue({
-        maxConcurrency: 4,
-        chunkSize: 8 * 1024 * 1024,
-        folder: "ndjourney-web",
-        onProgress: () => {
-          if (queueRef.current) setQueue(queueRef.current.getAll());
-        },
-        onComplete: () => {
-          if (queueRef.current) setQueue(queueRef.current.getAll());
-        },
-        onError: () => {
-          if (queueRef.current) setQueue(queueRef.current.getAll());
-        },
-        onAllComplete: () => {
-          if (queueRef.current) setQueue(queueRef.current.getAll());
-        },
-      });
-    }
-    return queueRef.current;
+  if (!queueRef.current) {
+    queueRef.current = getUploadQueue();
+  }
+
+  // Keep React state in sync with the persistent singleton queue.
+  useEffect(() => {
+    const q = queueRef.current!;
+    const sync = () => setQueue(q.getAll());
+    // Auto-clear successfully completed items once the whole batch finishes,
+    // regardless of whether the component is still mounted (uploads continue
+    // in the background while navigating away / minimizing the tab).
+    // Failed/interrupted items are kept so the user can retry them.
+    const onAllComplete = () => {
+      q.clearCompleted();
+      setQueue(q.getAll());
+    };
+    q.setListeners({ onProgress: sync, onComplete: sync, onError: sync, onAllComplete });
+    sync();
+    return () => {
+      // Intentionally do NOT destroy the singleton on unmount — it must outlive
+      // navigation so background uploads keep running.
+    };
   }, []);
 
   const uploadFiles = useCallback(
     async (files: File[], albumId?: string, fileIds?: string[]): Promise<UploadResult> => {
-      const uploadQueue = getOrCreateQueue();
-
-      // Clear any stale items from previous upload sessions
-      uploadQueue.clearAll();
-      setQueue([]);
+      const uploadQueue = queueRef.current!;
+      albumIdRef.current = albumId;
 
       const userId = session?.user?.id || "temp";
       const publicIds = files.map((file) => generatePublicId(file.name, userId));
       const resourceTypes = files.map((file) => getResourceType(file.type));
 
-      // addMultiple returns a Promise<QueuedUpload>[] — each resolves/rejects when that specific file finishes
+      // addMultiple returns a Promise<QueuedUpload>[] — each resolves/rejects when that file finishes.
       const uploadPromises = files.map((file, idx) =>
-        uploadQueue.add(file, publicIds[idx], resourceTypes[idx], fileIds?.[idx])
+        uploadQueue.add(file, publicIds[idx], resourceTypes[idx], fileIds?.[idx], albumId)
       );
       setQueue(uploadQueue.getAll());
 
@@ -89,60 +140,23 @@ export function useUploadPhotos(): UseUploadPhotosReturn {
           const u = await promise;
           itemId = u.id;
           if (u.status === "complete" && u.result) {
-            // Save to database immediately
-            const photoRes = await fetch("/api/photos", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                url: u.result.url,
-                publicId: u.result.publicId,
-                thumbnailUrl: u.result.thumbnailUrl,
-                width: u.result.width,
-                height: u.result.height,
-                fileSize: u.result.bytes,
-                isVideo:
-                  u.result.format?.includes("mp4") ||
-                  u.result.format?.includes("mov") ||
-                  u.result.isVideo ||
-                  false,
-                albumId,
-              }),
-            });
-
-            if (!photoRes.ok) {
-              const err = await parseResponseBody(photoRes);
-              throw new Error(err || "Gagal menyimpan foto");
-            }
-
-            const resData = await photoRes.json();
-            const savedPhoto = resData.data as Photo;
-
-            qc.setQueryData<CloudinaryUsage>(["storage", "usage"], (old) => {
-              if (!old) return old;
-              return {
-                ...old,
-                storageUsed: old.storageUsed + (u.result?.bytes ?? 0),
-                resourcesCount: old.resourcesCount + 1,
-              };
-            });
-
-            return { status: "fulfilled", value: savedPhoto };
-          } else {
+            const savedPhoto = await savePhotoToDb(u, albumId, qc);
+            return { status: "fulfilled" as const, value: savedPhoto };
+          } else if (u.status === "interrupted" || u.status === "error") {
             throw new Error(u.error || "Upload gagal");
+          } else {
+            // cancelled / not completed
+            throw new Error(u.error || "Upload dibatalkan");
           }
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : "Upload gagal";
-          return { status: "rejected", reason: { id: itemId, name: file.name, error: errorMessage } };
+          return { status: "rejected" as const, reason: { id: itemId, name: file.name, error: errorMessage } };
         }
       });
 
       const results = await Promise.all(savePromises);
 
-      qc.invalidateQueries({ queryKey: photoKeys.all, refetchType: "all" });
-      qc.invalidateQueries({ queryKey: queryKeys.albums.all, refetchType: "all" });
-      qc.invalidateQueries({ queryKey: ["storage", "usage"], refetchType: "all" });
-      qc.invalidateQueries({ queryKey: ["dashboard", "stats"], refetchType: "all" });
-      qc.invalidateQueries({ queryKey: ["dashboard", "activity"], refetchType: "all" });
+      invalidateAfterSave(qc);
 
       const uploaded = results
         .filter((r): r is { status: "fulfilled"; value: Photo } => r.status === "fulfilled")
@@ -150,14 +164,14 @@ export function useUploadPhotos(): UseUploadPhotosReturn {
 
       const failed = results
         .filter((r): r is { status: "rejected"; reason: { id: string; name: string; error: string } } => r.status === "rejected")
-        .map((r) => r.reason);
+        .map((r) => r.reason)
+        .filter((r): r is { id: string; name: string; error: string } => !!r);
 
-      // Sync UI state immediately
       setQueue(uploadQueue.getAll());
 
       return { uploaded, failed };
     },
-    [getOrCreateQueue, qc, session]
+    [qc, session]
   );
 
   const cancelUpload = useCallback((id: string) => {
@@ -184,6 +198,14 @@ export function useUploadPhotos(): UseUploadPhotosReturn {
     }
   }, []);
 
+  const clearAllItems = useCallback(() => {
+    const q = queueRef.current;
+    if (q) {
+      q.clearAllItems();
+      setQueue(q.getAll());
+    }
+  }, []);
+
   const removeUpload = useCallback((id: string) => {
     const q = queueRef.current;
     if (q) {
@@ -192,7 +214,7 @@ export function useUploadPhotos(): UseUploadPhotosReturn {
     }
   }, []);
 
-  const retryUpload = useCallback(async (id: string) => {
+  const retryUpload = useCallback((id: string) => {
     const q = queueRef.current;
     if (!q) return;
     const task = q.getById(id);
@@ -205,7 +227,7 @@ export function useUploadPhotos(): UseUploadPhotosReturn {
   const overallProgress = {
     total: queue.length,
     completed: queue.filter((u) => u.status === "complete").length,
-    failed: queue.filter((u) => u.status === "error").length,
+    failed: queue.filter((u) => u.status === "error" || u.status === "interrupted").length,
     percent:
       queue.length > 0
         ? Math.round(
@@ -222,10 +244,11 @@ export function useUploadPhotos(): UseUploadPhotosReturn {
   return {
     uploadFiles,
     queue,
-    isUploading: queue.some((u) => u.status === "uploading" || u.status === "pending"),
+    isUploading: queue.some((u) => u.status === "uploading" || u.status === "pending" || u.status === "retrying"),
     cancelUpload,
     cancelAllUploads,
     clearCompleted,
+    clearAllItems,
     removeUpload,
     retryUpload,
     overallProgress,
@@ -267,12 +290,7 @@ export function useUploadPhoto() {
 
       const data = await photoRes.json();
 
-      // Force gallery to refetch immediately (bypass stale time)
-      qc.invalidateQueries({ queryKey: photoKeys.all, refetchType: "all" });
-      qc.invalidateQueries({ queryKey: queryKeys.albums.all, refetchType: "all" });
-      qc.invalidateQueries({ queryKey: ["storage", "usage"], refetchType: "all" });
-      qc.invalidateQueries({ queryKey: ["dashboard", "stats"], refetchType: "all" });
-      qc.invalidateQueries({ queryKey: ["dashboard", "activity"], refetchType: "all" });
+      invalidateAfterSave(qc);
 
       return data;
     },

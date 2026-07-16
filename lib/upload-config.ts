@@ -96,13 +96,13 @@ export function validateFileSize(file: File): { valid: boolean; error?: string }
   const type = getResourceType(file.type);
 
   if (type === "image" && size > MAX_IMAGE_SIZE) {
-    return { valid: false, error: `Image exceeds ${formatBytes(MAX_IMAGE_SIZE)} limit` };
+    return { valid: false, error: `Ukuran gambar melebihi batas ${formatBytes(MAX_IMAGE_SIZE)}` };
   }
   if (type === "video" && size > MAX_VIDEO_SIZE) {
-    return { valid: false, error: `Video exceeds ${formatBytes(MAX_VIDEO_SIZE)} limit` };
+    return { valid: false, error: `Ukuran video melebihi batas ${formatBytes(MAX_VIDEO_SIZE)}` };
   }
   if (type === "auto" && size > MAX_RAW_SIZE) {
-    return { valid: false, error: `File exceeds ${formatBytes(MAX_RAW_SIZE)} limit` };
+    return { valid: false, error: `Ukuran file melebihi batas ${formatBytes(MAX_RAW_SIZE)}` };
   }
   return { valid: true };
 }
@@ -112,10 +112,10 @@ export function validateImageDimensions(width: number, height: number): { valid:
   const megapixels = (width * height) / 1_000_000;
 
   if (megapixels > MAX_IMAGE_MEGAPIXELS) {
-    return { valid: false, error: `Image exceeds ${MAX_IMAGE_MEGAPIXELS} MP limit (${megapixels.toFixed(1)} MP)` };
+    return { valid: false, error: `Gambar melebihi batas ${MAX_IMAGE_MEGAPIXELS} MP (${megapixels.toFixed(1)} MP)` };
   }
   if (megapixels > MAX_TOTAL_MEGAPIXELS) {
-    return { valid: false, error: `Image exceeds ${MAX_TOTAL_MEGAPIXELS} MP total frames limit` };
+    return { valid: false, error: `Gambar melebihi batas total ${MAX_TOTAL_MEGAPIXELS} MP` };
   }
   return { valid: true };
 }

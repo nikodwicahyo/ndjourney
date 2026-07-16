@@ -2,7 +2,7 @@
 
 import { useRef, useState, useEffect } from "react";
 import { motion, useInView } from "framer-motion";
-import { Quote, RotateCcw } from "lucide-react";
+import { Quote } from "lucide-react";
 import { getQuoteOfTheDay, QUOTES, loadShownQuoteIndices, saveShownQuoteIndex, resetShownQuotes } from "@/lib/quotes";
 import { getJakartaParts } from "@/lib/date";
 
@@ -11,16 +11,19 @@ export default function QuoteOfTheDay() {
   const isInView = useInView(ref, { once: true, margin: "-40px" });
   const [quote, setQuote] = useState<string>("");
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [shownCount, setShownCount] = useState(() => loadShownQuoteIndices().length);
+  // Gate dynamic content on mount so server HTML and first client render match
+  // (the quote depends on localStorage/random, which differ).
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
+
     function update() {
       const shown = loadShownQuoteIndices();
       const q = getQuoteOfTheDay(shown);
       setQuote(q);
       const idx = QUOTES.indexOf(q);
       if (idx !== -1) saveShownQuoteIndex(idx);
-      setShownCount(shown.length + (idx !== -1 && !shown.includes(idx) ? 1 : 0));
     }
 
     function scheduleNext() {
@@ -39,8 +42,6 @@ export default function QuoteOfTheDay() {
     };
   }, []);
 
-  const allShown = shownCount >= QUOTES.length;
-
   return (
     <motion.div
       ref={ref}
@@ -55,15 +56,6 @@ export default function QuoteOfTheDay() {
         </p>
         <div className="mt-4 flex items-center justify-center gap-3">
           <p className="text-xs text-muted-foreground">Quote of the Day</p>
-          {allShown && (
-            <button
-              onClick={() => { resetShownQuotes(); setShownCount(0); setQuote(getQuoteOfTheDay()); }}
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-            >
-              <RotateCcw className="h-3 w-3" />
-              Mulai Ulang
-            </button>
-          )}
         </div>
       </div>
     </motion.div>

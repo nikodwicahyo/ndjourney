@@ -39,6 +39,88 @@ interface CloudinaryUploadResponse {
   resource_type: string;
 }
 
+/**
+ * A "stall" timeout that does NOT count time while the tab is hidden.
+ * Browsers throttle timers and may pause in-flight requests when a tab is
+ * backgrounded or minimized, so aborting on a fixed timer there would kill an
+ * otherwise-recoverable upload. While hidden we pause the clock; the request
+ * is only aborted after STALL_TIMEOUT of *active* (visible) stalled time.
+ */
+const STALL_TIMEOUT = 120_000;
+
+export function createStallTimeout(signal?: AbortSignal): {
+  signal: AbortSignal;
+  clear: () => void;
+  onProgress: () => void;
+  isAborted: () => boolean;
+} {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let elapsedVisible = 0;
+  let lastTick = Date.now();
+  let aborted = false;
+  let hidden = typeof document !== "undefined" && document.visibilityState === "hidden";
+
+  const controller = new AbortController();
+  if (signal) {
+    signal.addEventListener("abort", () => controller.abort());
+  }
+
+  const arm = () => {
+    if (timer || aborted || controller.signal.aborted) return;
+    timer = setTimeout(() => {
+      timer = null;
+      elapsedVisible += Date.now() - lastTick;
+      lastTick = Date.now();
+      if (elapsedVisible >= STALL_TIMEOUT) {
+        aborted = true;
+        controller.abort();
+      } else if (!hidden) {
+        arm();
+      }
+    }, Math.min(STALL_TIMEOUT - elapsedVisible, 5000));
+  };
+
+  const onVisibility = () => {
+    const now = Date.now();
+    if (hidden && !document.hidden) {
+      // became visible again: resume counting
+    } else if (!hidden && document.hidden) {
+      // became hidden: stop counting, keep whatever timer was pending
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+        elapsedVisible += now - lastTick;
+      }
+    }
+    hidden = document.hidden;
+    lastTick = now;
+    if (!hidden && !aborted && !controller.signal.aborted) arm();
+  };
+
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", onVisibility);
+    if (!hidden) arm();
+  }
+
+  return {
+    signal: controller.signal,
+    clear: () => {
+      if (timer) clearTimeout(timer);
+      timer = null;
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", onVisibility);
+      }
+    },
+    onProgress: () => {
+      const now = Date.now();
+      if (!hidden) elapsedVisible = 0;
+      lastTick = now;
+      if (!hidden && !aborted && !controller.signal.aborted) arm();
+    },
+    isAborted: () => aborted || controller.signal.aborted,
+  };
+}
+
 function buildTransformedDeliveryUrl(
   secureUrl: string,
   transformation: string,
@@ -136,20 +218,15 @@ async function uploadToServer(file: File, folder: string, signal?: AbortSignal):
   formData.append("file", file);
   formData.append("folder", folder);
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 300000);
-
-  if (signal) {
-    signal.addEventListener("abort", () => controller.abort());
-  }
+  const stall = createStallTimeout(signal);
 
   try {
     const response = await fetch("/api/upload/server", {
       method: "POST",
       body: formData,
-      signal: controller.signal,
+      signal: stall.signal,
     });
-    clearTimeout(timeoutId);
+    stall.clear();
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -158,7 +235,7 @@ async function uploadToServer(file: File, folder: string, signal?: AbortSignal):
 
     return await response.json();
   } catch (error) {
-    clearTimeout(timeoutId);
+    stall.clear();
     if (error instanceof DOMException && error.name === "AbortError") {
       if (signal?.aborted) {
         throw createUploadError("Server upload aborted", { isAborted: true, cause: error });
@@ -197,12 +274,7 @@ async function uploadChunk(
   
   formData.append("file", chunk);
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 mins timeout per chunk
-
-  if (signal) {
-    signal.addEventListener("abort", () => controller.abort());
-  }
+  const stall = createStallTimeout(signal);
 
   try {
     const response = await fetch(uploadUrl, {
@@ -212,17 +284,19 @@ async function uploadChunk(
         "X-Unique-Upload-Id": uniqueUploadId,
       },
       body: formData,
-      signal: controller.signal,
+      signal: stall.signal,
     });
+    stall.clear();
     return response;
   } catch (error) {
-    clearTimeout(timeoutId);
+    stall.clear();
     
     if (error instanceof DOMException && error.name === "AbortError") {
       if (signal?.aborted) {
         throw createUploadError("Upload aborted", { isAborted: true, cause: error, uploadUrl });
       }
-      throw createUploadError("Upload timeout", { isTimeout: true, cause: error, uploadUrl });
+      // Stalled (timeout) or backgrounded: treat as retryable network error.
+      throw createUploadError("Upload timeout", { isTimeout: true, isNetworkError: true, cause: error, uploadUrl });
     }
 
     if (isCorsError(error)) {
@@ -239,7 +313,7 @@ async function uploadChunk(
       { isNetworkError: true, cause: error instanceof Error ? error : undefined, uploadUrl }
     );
   } finally {
-    clearTimeout(timeoutId);
+    stall.clear();
   }
 }
 
@@ -426,27 +500,23 @@ async function uploadSimple(
   
   formData.append("file", file);
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 120000);
-
-  if (signal) {
-    signal.addEventListener("abort", () => controller.abort());
-  }
+  const stall = createStallTimeout(signal);
 
   try {
     const response = await fetch(uploadUrl, {
       method: "POST",
       body: formData,
-      signal: controller.signal,
+      signal: stall.signal,
     });
+    stall.clear();
     return response;
   } catch (error) {
-    clearTimeout(timeoutId);
+    stall.clear();
     if (error instanceof DOMException && error.name === "AbortError") {
       if (signal?.aborted) {
         throw createUploadError("Upload aborted", { isAborted: true, cause: error, uploadUrl });
       }
-      throw createUploadError("Upload timeout", { isTimeout: true, cause: error, uploadUrl });
+      throw createUploadError("Upload timeout", { isTimeout: true, isNetworkError: true, cause: error, uploadUrl });
     }
     if (isCorsError(error)) {
       throw createUploadError("CORS Error", { isCorsError: true, isNetworkError: true, cause: error as Error, uploadUrl });
@@ -456,7 +526,7 @@ async function uploadSimple(
       { isNetworkError: true, cause: error instanceof Error ? error : undefined, uploadUrl }
     );
   } finally {
-    clearTimeout(timeoutId);
+    stall.clear();
   }
 }
 
@@ -477,10 +547,9 @@ async function uploadSimpleWithXHR(
     formData.append("file", file);
 
     const xhr = new XMLHttpRequest();
-    const timeoutMs = 120000;
 
     const cleanup = () => {
-      clearTimeout(timeoutId);
+      stall.clear();
       xhr.onload = null;
       xhr.onerror = null;
       xhr.onabort = null;
@@ -497,16 +566,13 @@ async function uploadSimpleWithXHR(
       signal.addEventListener("abort", onAbort);
     }
 
-    const timeoutId = setTimeout(() => {
-      xhr.abort();
-      cleanup();
-      reject(createUploadError("Upload timeout", { isTimeout: true, uploadUrl }));
-    }, timeoutMs);
+    const stall = createStallTimeout(signal);
 
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) {
         onProgress(e.loaded, e.total);
       }
+      stall.onProgress();
     };
 
     xhr.onload = () => {
@@ -535,7 +601,7 @@ async function uploadSimpleWithXHR(
       if (signal?.aborted) {
         reject(createUploadError("Upload aborted", { isAborted: true, uploadUrl }));
       } else {
-        reject(createUploadError("Upload timeout", { isTimeout: true, uploadUrl }));
+        reject(createUploadError("Upload timeout", { isTimeout: true, isNetworkError: true, uploadUrl }));
       }
     };
 

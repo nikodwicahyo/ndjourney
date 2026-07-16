@@ -30,7 +30,7 @@ export async function GET(request: Request) {
     const mediaType = searchParams.get("mediaType");
     const sort = searchParams.get("sort");
     const cursor = searchParams.get("cursor");
-    const limit = parseInt(searchParams.get("limit") || "50");
+    const limit = parseInt(searchParams.get("limit") || "30");
 
     const scope = isAuthed ? "auth" : "public";
     const cacheK = cacheKey("photos", "list", scope, albumId ?? "", year ?? "", isFavorite ?? "", mediaType ?? "", sort ?? "", cursor ?? "0", String(limit));
@@ -166,10 +166,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid video media URL" }, { status: 400 });
     }
 
+    const coupleId = await getUserCoupleId(session.user.id);
+
     const selectCols = buildPhotoSelect();
     const now = new Date();
     const result = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(
-      `INSERT INTO "Photo" ("id", "url", "publicId", "thumbnailUrl", "caption", "takenAt", "width", "height", "isVideo", "albumId", "uploadedById", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING ${selectCols}`,
+      `INSERT INTO "Photo" ("id", "url", "publicId", "thumbnailUrl", "caption", "takenAt", "width", "height", "isVideo", "albumId", "uploadedById", "coupleId", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING ${selectCols}`,
       generateId(),
       url,
       publicId,
@@ -181,6 +183,7 @@ export async function POST(request: Request) {
       isVideo ?? false,
       albumId ?? null,
       session.user.id,
+      coupleId,
       now,
       now,
     );
@@ -189,9 +192,9 @@ export async function POST(request: Request) {
       invalidateCache("photos:*"),
       invalidateCache("albums:*"),
       invalidateCache("dashboard:*"),
+      invalidateCache("storage:*"),
     ]);
 
-    const coupleId = await getUserCoupleId(session.user.id);
     if (coupleId) {
       triggerCoupleEvent(coupleId, 'GALLERY');
     }

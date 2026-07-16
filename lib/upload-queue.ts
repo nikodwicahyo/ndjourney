@@ -62,9 +62,10 @@ export class UploadQueue {
   add(
     file: File,
     publicId: string,
-    resourceType: "image" | "video" | "raw" | "auto"
+    resourceType: "image" | "video" | "raw" | "auto",
+    existingId?: string
   ): Promise<QueuedUpload> {
-    const id = `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+    const id = existingId || `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
     const upload: QueuedUpload = {
       id,
       file,
@@ -97,6 +98,24 @@ export class UploadQueue {
   getById(id: string): QueuedUpload | undefined {
     const task = this.queue.find((t) => t.upload.id === id);
     return task?.upload;
+  }
+
+  resetToPending(id: string): boolean {
+    const task = this.queue.find((t) => t.upload.id === id);
+    if (!task || (task.upload.status !== "error" && task.upload.status !== "cancelled")) return false;
+
+    task.upload.status = "pending";
+    task.upload.error = undefined;
+    task.upload.progress = {
+      loaded: 0,
+      total: task.upload.file.size,
+      percent: 0,
+      speed: 0,
+      eta: 0,
+    };
+    this.options.onProgress(task.upload);
+    this.process();
+    return true;
   }
 
   getActiveCount(): number {
@@ -134,13 +153,19 @@ export class UploadQueue {
     const task = this.queue.find((t) => t.upload.id === id);
     if (!task) return false;
 
-    if (task.upload.status === "uploading") {
+    const wasUploading = task.upload.status === "uploading";
+    if (wasUploading) {
       const controller = this.abortControllers.get(id);
       controller?.abort();
     }
 
     task.upload.status = "cancelled";
     this.options.onProgress(task.upload);
+    if (wasUploading) {
+      this.activeCount = Math.max(0, this.activeCount - 1);
+    }
+    task.resolve(task.upload);
+    this.process();
     return true;
   }
 
@@ -151,8 +176,10 @@ export class UploadQueue {
         controller?.abort();
         task.upload.status = "cancelled";
         this.options.onProgress(task.upload);
+        task.resolve(task.upload);
       }
     });
+    this.activeCount = 0;
   }
 
   clearCompleted(): void {
@@ -171,6 +198,12 @@ export class UploadQueue {
       const controller = this.abortControllers.get(id);
       controller?.abort();
     }
+    if (task.upload.status === "pending") {
+      task.resolve(task.upload);
+    }
+    if (task.upload.status === "uploading") {
+      this.activeCount = Math.max(0, this.activeCount - 1);
+    }
 
     this.queue.splice(index, 1);
     return true;
@@ -181,6 +214,10 @@ export class UploadQueue {
       if (task.upload.status === "uploading") {
         const controller = this.abortControllers.get(task.upload.id);
         controller?.abort();
+      }
+      if (task.upload.status === "pending" || task.upload.status === "uploading") {
+        task.upload.status = "cancelled";
+        task.resolve(task.upload);
       }
     });
     this.queue = [];
@@ -258,8 +295,7 @@ export class UploadQueue {
             medium: 200 * 1024 * 1024,
             large: 500 * 1024 * 1024,
           },
-          SINGLE_FILE_MAX_SIZE: 25 * 1024 * 1024,
-          MAX_RETRIES: 1,
+          MAX_RETRIES: 3,
           RETRY_DELAY_MS: 1000,
           PROGRESS_THROTTLE_MS: 200,
           DEFAULT_CONCURRENCY: this.options.maxConcurrency,

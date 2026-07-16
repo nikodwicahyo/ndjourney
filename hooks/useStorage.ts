@@ -15,6 +15,6 @@ export function useStorageUsage() {
       const json = await res.json();
       return json.data as CloudinaryUsage;
     },
-    staleTime: 60_000,
+    staleTime: 30_000,
   });
 }

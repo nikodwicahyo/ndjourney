@@ -8,8 +8,8 @@ type UploadPolicy = {
 };
 
 const MB = 1024 * 1024;
-const MAX_IMAGE_BYTES = 25 * MB;
-const MAX_VIDEO_BYTES = 500 * MB;
+const MAX_IMAGE_BYTES = 10 * MB;
+const MAX_VIDEO_BYTES = 100 * MB;
 
 const BLOCKED_EXTENSIONS = new Set([
   "apk",

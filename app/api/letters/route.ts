@@ -131,6 +131,7 @@ export async function POST(request: Request) {
       data: {
         ...parsed.data,
         authorId: session.user.id,
+        coupleId: membership?.couple?.id ?? null,
         unlockAt: parsed.data.unlockAt
           ? new Date(parsed.data.unlockAt)
           : null,

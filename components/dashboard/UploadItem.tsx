@@ -186,9 +186,10 @@ function UploadItemInner({ item, onCancel, onRetry, onRemove, isUploading }: Upl
           <FileVideo className="h-5 w-5 text-muted-foreground" />
         )}
       </div>
-      <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="truncate text-sm font-medium">{item.file.name}</span>
+          <span className="shrink-0 text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-mono tabular-nums">{formatBytes(item.file.size)}</span>
           {statusIcons[item.status]}
         </div>
         <div className="flex items-center gap-2 mt-1">
@@ -217,7 +218,14 @@ function UploadItemInner({ item, onCancel, onRetry, onRemove, isUploading }: Upl
             </>
           )}
         </div>
-        {item.error && <p className="text-xs text-destructive mt-1">{item.error}</p>}
+        {item.error && (
+          <p className="text-xs text-destructive mt-1 truncate" title={item.error}>
+            {item.error.includes("timeout") ? "Waktu habis, coba lagi" :
+             item.error.includes("network") || item.error.includes("Network") || item.error.includes("Failed to fetch") ? "Koneksi terputus" :
+             item.error.includes("limit") || item.error.includes("exceeds") ? "Ukuran file terlalu besar" :
+             item.error}
+          </p>
+        )}
       </div>
       
       {/* Action Buttons */}

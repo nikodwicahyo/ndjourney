@@ -54,3 +54,13 @@ export function getImageSrcSet(
     .map(({ width, url }) => `${url} ${width}w`)
     .join(", ");
 }
+
+export function getVideoPosterUrl(videoUrl: string, width = 800): string {
+  const match = videoUrl.match(/^(https:\/\/res\.cloudinary\.com\/[^/]+)\/video\/upload\/(.*)$/);
+  if (!match) return videoUrl;
+  const [, base, rest] = match;
+  const firstSlash = rest.indexOf("/");
+  const publicId = rest.includes(",") && firstSlash >= 0 ? rest.slice(firstSlash + 1) : rest;
+  const baseName = publicId.replace(/\.[^.]+$/, "");
+  return `${base}/image/upload/so_0,w_${width},c_limit,q_auto,f_auto/${baseName}.jpg`;
+}

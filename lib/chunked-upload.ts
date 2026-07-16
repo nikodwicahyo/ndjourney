@@ -1,4 +1,4 @@
-import { UploadConfig, getChunkSize, calculateTotalChunks } from "./upload-config";
+import { UploadConfig } from "./upload-config";
 
 export interface ChunkUploadProgress {
   fileName: string;
@@ -253,8 +253,13 @@ export async function uploadFileChunked(
   const fileName = file.name;
   const fileSize = file.size;
   const fileType = file.type;
-  const chunkSize = getChunkSize(fileSize);
-  const totalChunks = calculateTotalChunks(fileSize);
+  const { CHUNK_SIZES, CHUNK_THRESHOLDS } = cfg;
+  const chunkSize =
+    fileSize <= CHUNK_THRESHOLDS.small ? CHUNK_SIZES.small :
+    fileSize <= CHUNK_THRESHOLDS.medium ? CHUNK_SIZES.medium :
+    fileSize <= CHUNK_THRESHOLDS.large ? CHUNK_SIZES.large :
+    CHUNK_SIZES.xlarge;
+  const totalChunks = Math.ceil(fileSize / chunkSize);
 
   let uploadedBytes = 0;
   let completedChunks = 0;
@@ -387,7 +392,7 @@ export async function uploadFileChunked(
   } catch (error) {
     const uploadError = error as UploadError;
     
-    if ((uploadError.isCorsError || uploadError.isNetworkError || !usedFallback) && !usedFallback && fileSize <= 100 * 1024 * 1024) {
+    if ((uploadError.isCorsError || uploadError.isNetworkError || uploadError.isTimeout) && !usedFallback && fileSize <= 100 * 1024 * 1024) {
       usedFallback = true;
       updateProgress("fallback", "Direct upload failed. Using server-side fallback...");
       
@@ -422,7 +427,7 @@ async function uploadSimple(
   formData.append("file", file);
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 mins timeout
+  const timeoutId = setTimeout(() => controller.abort(), 120000);
 
   if (signal) {
     signal.addEventListener("abort", () => controller.abort());
@@ -453,6 +458,90 @@ async function uploadSimple(
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+async function uploadSimpleWithXHR(
+  uploadUrl: string,
+  uploadParams: Record<string, string>,
+  file: File,
+  onProgress: (loaded: number, total: number) => void,
+  signal?: AbortSignal
+): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const formData = new FormData();
+    Object.entries(uploadParams).forEach(([key, value]) => {
+      if (value !== undefined && value !== "") {
+        formData.append(key, value);
+      }
+    });
+    formData.append("file", file);
+
+    const xhr = new XMLHttpRequest();
+    const timeoutMs = 120000;
+
+    const cleanup = () => {
+      clearTimeout(timeoutId);
+      xhr.onload = null;
+      xhr.onerror = null;
+      xhr.onabort = null;
+      xhr.upload.onprogress = null;
+      if (signal) {
+        signal.removeEventListener("abort", onAbort);
+      }
+    };
+
+    const onAbort = () => {
+      xhr.abort();
+    };
+    if (signal) {
+      signal.addEventListener("abort", onAbort);
+    }
+
+    const timeoutId = setTimeout(() => {
+      xhr.abort();
+      cleanup();
+      reject(createUploadError("Upload timeout", { isTimeout: true, uploadUrl }));
+    }, timeoutMs);
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        onProgress(e.loaded, e.total);
+      }
+    };
+
+    xhr.onload = () => {
+      cleanup();
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(new Response(xhr.responseText, {
+          status: xhr.status,
+          statusText: xhr.statusText,
+          headers: { "Content-Type": "application/json" },
+        }));
+      } else {
+        reject(createUploadError(
+          `Upload failed: ${xhr.status} ${xhr.statusText}`,
+          { status: xhr.status, uploadUrl }
+        ));
+      }
+    };
+
+    xhr.onerror = () => {
+      cleanup();
+      reject(createUploadError("CORS Error", { isCorsError: true, isNetworkError: true, uploadUrl }));
+    };
+
+    xhr.onabort = () => {
+      cleanup();
+      if (signal?.aborted) {
+        reject(createUploadError("Upload aborted", { isAborted: true, uploadUrl }));
+      } else {
+        reject(createUploadError("Upload timeout", { isTimeout: true, uploadUrl }));
+      }
+    };
+
+    xhr.open("POST", uploadUrl);
+    xhr.send(formData);
+  });
 }
 
 export async function uploadFileSimple(
@@ -494,7 +583,31 @@ export async function uploadFileSimple(
         "ndjourney-web"
       );
 
-      const response = await uploadSimple(uploadUrl, uploadParams, file, signal);
+      const response = await uploadSimpleWithXHR(
+        uploadUrl,
+        uploadParams,
+        file,
+        (loaded, total) => {
+          const speed = 0;
+          const elapsed = 0;
+          const timedProgress = {
+            fileName,
+            fileSize,
+            loaded,
+            total,
+            uploadedBytes: loaded,
+            totalChunks: 1,
+            completedChunks: 0,
+            currentChunk: 1,
+            progress: total > 0 ? Math.round((loaded / total) * 100) : 0,
+            speed,
+            eta: 0,
+            status: "uploading" as const,
+          };
+          onProgress(timedProgress);
+        },
+        signal
+      );
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Upload failed: ${response.status} ${errorText}`);

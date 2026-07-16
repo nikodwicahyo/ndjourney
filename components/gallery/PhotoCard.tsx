@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import Image from "next/image";
 import { File, Heart, Play, Lock, CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getBlurImageUrl } from "@/lib/cloudinary-urls";
+import { getOptimizedImageUrl, getBlurImageUrl, getVideoPosterUrl } from "@/lib/cloudinary-urls";
 import type { Photo } from "@/types";
 
 type PhotoCardProps = {
@@ -31,10 +31,24 @@ export default function PhotoCard({
   const [useOriginal, setUseOriginal] = useState(false);
 
   const aspectRatio = photo.width && photo.height ? photo.width / photo.height : 3 / 4;
-  const displayUrl = useOriginal || !photo.thumbnailUrl ? photo.url : photo.thumbnailUrl;
+  const rawDisplayUrl = useMemo(() => {
+    if (photo.isVideo) {
+      return photo.thumbnailUrl || getVideoPosterUrl(photo.url, 600);
+    }
+    return useOriginal || !photo.thumbnailUrl ? photo.url : photo.thumbnailUrl;
+  }, [photo.isVideo, photo.url, photo.thumbnailUrl, useOriginal]);
+  const displayUrl = useMemo(() => {
+    if (!rawDisplayUrl) return "";
+    try {
+      return getOptimizedImageUrl(rawDisplayUrl, 600, { crop: "limit" });
+    } catch {
+      return rawDisplayUrl;
+    }
+  }, [rawDisplayUrl]);
   const canPreviewAsImage =
     photo.url.includes("/image/upload/") ||
     photo.thumbnailUrl?.includes("/image/upload/") ||
+    rawDisplayUrl.includes("/image/upload/") ||
     photo.isVideo;
 
   useEffect(() => {

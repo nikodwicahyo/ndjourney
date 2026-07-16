@@ -15,7 +15,7 @@ type MasonryGridProps = {
     mediaType?: string;
     sort?: string;
   };
-  onPhotoClick?: (photo: Photo, index: number, allPhotos: Photo[]) => void;
+  onPhotoClick?: (photo: Photo, index: number, allPhotos: Photo[], fetchNextPage?: () => void, hasNextPage?: boolean) => void;
   isPublic?: boolean;
 };
 
@@ -143,7 +143,7 @@ export default function MasonryGrid({ filters, onPhotoClick, isPublic }: Masonry
             <div key={photo.id} className="mb-3 break-inside-avoid">
               <PhotoCard
                 photo={photo}
-                onClick={(p) => onPhotoClick?.(p, origIndex, allPhotos)}
+                onClick={(p) => onPhotoClick?.(p, origIndex, allPhotos, fetchNextPage, !!hasNextPage)}
                 onFavoriteToggle={(id, isFavorite) =>
                   updatePhoto.mutate({ id, isFavorite })
                 }

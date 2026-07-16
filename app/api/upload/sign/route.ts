@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { v2 as cloudinary } from "cloudinary";
 import { getChunkSize } from "@/lib/upload-config";
 import { sanitizeFileName, UPLOAD_FOLDER, validateUploadRequest } from "@/lib/upload-policy";
+import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -14,10 +15,12 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const rateCheck = await withRateLimit(request, { maxRequests: 120, windowSeconds: 3600, keyPrefix: "upload:sign" });
+    if (!rateCheck.allowed) {
+      return rateCheck.response;
     }
+
+    const session = rateCheck.session;
 
     const body = await request.json();
     const { fileName, fileSize, fileType, folder = UPLOAD_FOLDER } = body;

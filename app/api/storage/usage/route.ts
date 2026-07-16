@@ -1,8 +1,7 @@
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { getCloudinaryUsage } from "@/lib/cloudinary";
-import { getCached, setCached, cacheKey } from "@/lib/redis";
-import { checkRateLimit } from "@/lib/redis";
+import { getCached, setCached, cacheKey, checkRateLimit } from "@/lib/redis";
 import type { CloudinaryUsage } from "@/types";
 
 const CACHE_TTL = 60;
@@ -16,7 +15,7 @@ export async function GET() {
 
     const { allowed } = await checkRateLimit(
       `storage:usage:${session.user.id}`,
-      60,
+      120,
       3600,
     );
 

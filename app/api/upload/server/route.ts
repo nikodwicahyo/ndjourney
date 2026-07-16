@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { v2 as cloudinary } from "cloudinary";
 import { sanitizeFileName, UPLOAD_FOLDER, validateUploadRequest } from "@/lib/upload-policy";
+import { withRateLimit } from "@/lib/rate-limit";
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -46,10 +47,12 @@ function getThumbnailUrl(result: CloudinaryUploadResponse): string {
 
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const rateCheck = await withRateLimit(request, { maxRequests: 30, windowSeconds: 3600, keyPrefix: "upload:server" });
+    if (!rateCheck.allowed) {
+      return rateCheck.response;
     }
+
+    const session = rateCheck.session;
 
     const formData = await request.formData();
     const file = formData.get("file") as File;

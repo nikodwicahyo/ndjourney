@@ -7,13 +7,13 @@ import { useStorageUsage } from "@/hooks/useStorage";
 import AlbumManager from "./AlbumManager";
 import { Button, StorageUsageBar } from "@/components/ui";
 import UploadItem from "./UploadItem";
-import { Upload, ImagePlus, Loader2, ChevronDown, FileWarning, Image as ImageIcon, Video, ArrowUpDown, Trash2, CheckSquare, Heart } from "lucide-react";
+import { Upload, ImagePlus, Loader2, FileWarning, Image as ImageIcon, Video, ArrowUpDown, Trash2, CheckSquare, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { showDeleteConfirm } from "@/lib/swal";
 import dynamic from "next/dynamic";
 import type { Photo } from "@/types";
 import PhotoCard from "@/components/gallery/PhotoCard";
-import { formatBytes, formatTime } from "@/lib/upload-config";
+import { formatBytes, formatTime, getMaxFileSize } from "@/lib/upload-config";
 import { toast } from "sonner";
 
 const Lightbox = dynamic(() => import("../gallery/Lightbox"), { ssr: false });
@@ -65,16 +65,31 @@ export default function GalleryManager() {
   const [pendingFiles, setPendingFiles] = useState<UploadFileItem[]>([]);
 
   const [lightboxIndex, setLightboxIndex] = useState(-1);
-  const [lightboxPhotos, setLightboxPhotos] = useState<Photo[]>([]);
+  const [isLoadingAll, setIsLoadingAll] = useState(false);
+  const isLoadingAllRef = useRef(false);
   const lightboxIndexRef = useRef(-1);
-  const lightboxPhotosRef = useRef<Photo[]>([]);
 
-  const handlePhotoClick = useCallback((photosList: Photo[], index: number) => {
-    lightboxPhotosRef.current = photosList;
+  const handlePhotoClick = useCallback(async (photosList: Photo[], index: number) => {
+    if (isLoadingAllRef.current) return;
     lightboxIndexRef.current = index;
-    setLightboxPhotos(photosList);
+    if (hasNextPage) {
+      isLoadingAllRef.current = true;
+      setIsLoadingAll(true);
+      const toastId = toast.loading("Memuat semua media...");
+      let more = true;
+      let pageCount = 0;
+      while (more && pageCount < 20) {
+        const result = await fetchNextPage();
+        const lastPage = result.data?.pages?.[result.data.pages.length - 1];
+        more = lastPage?.hasMore ?? false;
+        pageCount++;
+      }
+      toast.dismiss(toastId);
+      isLoadingAllRef.current = false;
+      setIsLoadingAll(false);
+    }
     setLightboxIndex(index);
-  }, []);
+  }, [fetchNextPage, hasNextPage]);
 
   const handleLightboxNavigate = useCallback((index: number) => {
     lightboxIndexRef.current = index;
@@ -93,6 +108,25 @@ export default function GalleryManager() {
   const photos = useMemo(() => data?.pages.flatMap((p) => p.data || []) ?? [], [data]);
 
   const [colCount, setColCount] = useState(2);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  const handleObserver = useCallback(
+    (entries: IntersectionObserverEntry[]) => {
+      const target = entries[0];
+      if (target.isIntersecting && hasNextPage && !isFetchingNextPage) {
+        fetchNextPage();
+      }
+    },
+    [hasNextPage, isFetchingNextPage, fetchNextPage],
+  );
+
+  useEffect(() => {
+    const el = loadMoreRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(handleObserver, { rootMargin: "200px" });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [handleObserver]);
 
   useEffect(() => {
     const onResize = () => {
@@ -105,6 +139,10 @@ export default function GalleryManager() {
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [mediaType, sort, albumFilter, favoriteFilter]);
 
   const toReadingOrder = useCallback(function <T>(items: T[], cols: number) {
     const rows = Math.ceil(items.length / cols);
@@ -211,21 +249,31 @@ export default function GalleryManager() {
         errors.push(`${file.name}: File kosong tidak bisa diupload`);
         continue;
       }
+      const maxSize = getMaxFileSize(file.type);
+      if (file.size > maxSize) {
+        errors.push(`${file.name}: Melebihi batas ${formatBytes(maxSize)} (${formatBytes(file.size)})`);
+        continue;
+      }
       newFiles.push(file);
     }
 
     if (errors.length > 0) setFileErrors(errors);
 
     setPendingFiles((prev) => {
+      const existingNames = new Set(prev.map((u) => u.file.name));
+      const deduped = newFiles.filter((f) => !existingNames.has(f.name));
       const availableSlots = MAX_FILES - prev.length;
       if (availableSlots <= 0) return prev;
-      const filesToAdd = newFiles.slice(0, availableSlots);
+      const filesToAdd = deduped.slice(0, availableSlots);
       const newItems: UploadFileItem[] = filesToAdd.map((file) => ({
         id: `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`,
         file,
         status: "pending",
         progress: { loaded: 0, total: file.size, percent: 0, speed: 0, eta: 0 },
       }));
+      if (deduped.length < newFiles.length) {
+        setFileErrors((prev) => [...prev, `${newFiles.length - deduped.length} file dilewati (nama duplikat)`]);
+      }
       return [...prev, ...newItems];
     });
 
@@ -258,7 +306,8 @@ export default function GalleryManager() {
     try {
       const result = await uploadPhotos.uploadFiles(
         pendingFiles.map((u) => u.file),
-        selectedAlbumId || undefined
+        selectedAlbumId || undefined,
+        pendingFiles.map((u) => u.id)
       );
 
       const successCount = result.uploaded.length;
@@ -275,30 +324,42 @@ export default function GalleryManager() {
         }
       } else if (successCount > 0 && failCount > 0) {
         toast.success(`${successCount} ${l} berhasil diupload`);
-        toast.error(`${failCount} ${l} gagal`);
-        const failedNames = new Set(result.failed.map((f) => f.name));
+        const firstError = result.failed[0]?.error || "";
+        const detail = firstError.includes("timeout") ? " (waktu habis)" : firstError.includes("limit") || firstError.includes("exceeds") ? " (melebihi batas)" : "";
+        toast.error(`${failCount} ${l} gagal${detail}. Klik tombol retry untuk mencoba lagi.`);
+        const failedIds = new Set(result.failed.map((f) => f.id));
         setPendingFiles((prev) =>
           prev
-            .filter((u) => failedNames.has(u.file.name))
+            .filter((u) => failedIds.has(u.id))
             .map((u) => ({
               ...u,
               status: "error",
-              error: result.failed.find((f) => f.name === u.file.name)?.error || "Upload failed",
+              error: result.failed.find((f) => f.id === u.id)?.error || "Upload failed",
             }))
         );
         setFileErrors([]);
       } else {
         toast.error(`Semua ${l} gagal diupload`);
+        const failedMap = new Map(result.failed.map((f) => [f.id, f]));
         setPendingFiles((prev) =>
           prev.map((u) => ({
             ...u,
             status: "error",
-            error: result.failed.find((f) => f.name === u.file.name)?.error || "Upload failed",
+            error: failedMap.get(u.id)?.error || "Upload failed",
           }))
         );
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : `Gagal upload`);
+      const msg = err instanceof Error ? err.message : "Gagal upload";
+      if (msg.includes("timeout")) {
+        toast.error("Upload timeout. Coba lagi atau upload file yang lebih kecil.");
+      } else if (msg.includes("limit") || msg.includes("exceeds")) {
+        toast.error("File melebihi batas ukuran yang diizinkan.");
+      } else if (msg.includes("network") || msg.includes("fetch")) {
+        toast.error("Koneksi terputus. Periksa koneksi internet Anda.");
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -307,31 +368,24 @@ export default function GalleryManager() {
   const handleDelete = useCallback(async (id: string) => {
     const confirmed = await showDeleteConfirm({ title: "Hapus Media", text: "Apakah Anda yakin ingin menghapus media ini?" });
     if (confirmed) {
+      const idx = lightboxIndexRef.current;
+      const total = photos.length;
       deletePhoto.mutate(id, {
         onSuccess: () => {
-          const currentPhotos = lightboxPhotosRef.current;
-          const deletedIndex = currentPhotos.findIndex((photo) => photo.id === id);
-          const remainingPhotos = currentPhotos.filter((photo) => photo.id !== id);
-
-          if (deletedIndex !== -1) {
-            const currentIndex = lightboxIndexRef.current;
-            const nextIndex = remainingPhotos.length === 0
-              ? -1
-              : deletedIndex < currentIndex
-                ? currentIndex - 1
-                : Math.min(currentIndex, remainingPhotos.length - 1);
-
-            lightboxPhotosRef.current = remainingPhotos;
-            lightboxIndexRef.current = nextIndex;
-            setLightboxPhotos(remainingPhotos);
-            setLightboxIndex(nextIndex);
+          if (total <= 1) {
+            setLightboxIndex(-1);
+            lightboxIndexRef.current = -1;
+          } else if (idx >= total - 1) {
+            const next = idx - 1;
+            lightboxIndexRef.current = next;
+            setLightboxIndex(next);
           }
           toast.success("Media dihapus");
         },
         onError: () => toast.error("Gagal menghapus media"),
       });
     }
-  }, [deletePhoto]);
+  }, [deletePhoto, photos.length]);
 
   const uploadQueue = useMemo(() => {
     if (!isSubmitting) return pendingFiles;
@@ -351,7 +405,12 @@ export default function GalleryManager() {
   const errorCount = uploadQueue.filter((u) => u.status === "error").length;
   const totalCount = uploadQueue.length;
 
-  const overallProgress = totalCount > 0 ? Math.round((completeCount / totalCount) * 100) : 0;
+  const totalBytes = uploadQueue.reduce((sum, u) => sum + u.file.size, 0);
+  const uploadedBytes = uploadQueue.reduce((sum, u) => {
+    if (u.status === "complete" || u.status === "error") return sum + u.file.size;
+    return sum + (u.progress.loaded || 0);
+  }, 0);
+  const overallProgress = totalBytes > 0 ? Math.round((uploadedBytes / totalBytes) * 100) : 0;
   const totalSpeed = useMemo(() => uploadQueue.reduce((sum, u) => sum + (u.progress.speed || 0), 0), [uploadQueue]);
   const uploadingItems = useMemo(() => uploadQueue.filter((u) => u.status === "uploading"), [uploadQueue]);
   const avgEta = uploadingItems.length > 0
@@ -396,7 +455,7 @@ export default function GalleryManager() {
                       <div className="h-full bg-primary transition-all duration-300" style={{ width: `${overallProgress}%` }} />
                     </div>
                     <span className="whitespace-nowrap text-xs font-medium text-primary sm:text-sm">
-                      {completeCount}/{totalCount} file {uploadingCount > 0 ? `(mengupload ${uploadingCount} file)` : pendingCount > 0 && totalCount > 0 ? `(${pendingCount} antrian)` : ""}
+                      {formatBytes(uploadedBytes)}/{formatBytes(totalBytes)} {uploadingCount > 0 ? `(${uploadingCount} mengupload)` : pendingCount > 0 ? `(${pendingCount} antrian)` : ""}
                     </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1 lg:shrink-0">
@@ -483,6 +542,17 @@ export default function GalleryManager() {
                     {err}
                   </p>
                 ))}
+              </div>
+            )}
+
+            {pendingCount > 0 && pendingFiles.some(
+              f => f.file.size > getMaxFileSize(f.file.type) * 0.8
+            ) && (
+              <div className="mt-3 rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-3">
+                <p className="flex items-center gap-1.5 text-xs text-yellow-600 dark:text-yellow-400">
+                  <FileWarning className="h-3 w-3 shrink-0" />
+                  Beberapa file berukuran besar. Upload mungkin memakan waktu lebih lama.
+                </p>
               </div>
             )}
 
@@ -660,26 +730,31 @@ export default function GalleryManager() {
               })}
             </div>
 
-            {hasNextPage && (
-              <div className="mt-6 flex justify-center">
-                <Button variant="outline" onClick={() => fetchNextPage()} disabled={isFetchingNextPage} className="gap-2">
-                  {isFetchingNextPage ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronDown className="h-4 w-4" />}
-                  Lihat Lebih Banyak
-                </Button>
-              </div>
-            )}
+            <div ref={loadMoreRef} className="py-8">
+              {isFetchingNextPage && (
+                <div className="columns-2 gap-3 md:columns-3 lg:columns-4">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="mb-3 break-inside-avoid">
+                      <div className="aspect-[3/4] w-full animate-pulse rounded-2xl bg-muted" />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </>
         )}
       </section>
 
       <Lightbox
-        photos={lightboxPhotos}
+        photos={photos}
         currentIndex={lightboxIndex}
         isOpen={lightboxIndex >= 0}
         onClose={handleLightboxClose}
         onNavigate={handleLightboxNavigate}
         onDelete={handleDelete}
         showAlbumMove={true}
+        fetchNextPage={fetchNextPage}
+        hasNextPage={hasNextPage}
       />
     </div>
   );

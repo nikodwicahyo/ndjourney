@@ -215,6 +215,7 @@ export async function DELETE(
       invalidateCache("photos:*"),
       invalidateCache("albums:*"),
       invalidateCache("dashboard:*"),
+      invalidateCache("storage:*"),
     ]);
 
     const coupleId = await getUserCoupleId(userId);

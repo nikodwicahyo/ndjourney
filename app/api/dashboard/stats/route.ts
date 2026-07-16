@@ -5,7 +5,7 @@ import { getCached, setCached, cacheKey } from "@/lib/redis";
 import { getNextBirthday, getAge } from "@/lib/date";
 import { getCloudinaryUsage } from "@/lib/cloudinary";
 
-const CACHE_TTL = 300;
+const CACHE_TTL = 30;
 
 export async function GET() {
   try {
@@ -28,6 +28,32 @@ export async function GET() {
       });
     }
 
+    const coupleMember = await prisma.coupleMember.findUnique({
+      where: { userId: session.user.id },
+      select: { coupleId: true },
+    });
+
+    const coupleId = coupleMember?.coupleId;
+
+    const zeroStats = {
+      photoCount: 0,
+      videoCount: 0,
+      letterCount: 0,
+      unreadLetterCount: 0,
+      milestoneCount: 0,
+      daysSinceAnniversary: 0,
+      daysUntilBirthday1: 0,
+      daysUntilBirthday2: 0,
+      birthday1Age: null,
+      birthday2Age: null,
+      storageUsed: 0,
+      storageLimit: 0,
+    };
+
+    if (!coupleId) {
+      return NextResponse.json({ data: zeroStats });
+    }
+
     const rows = await prisma.$queryRaw<Array<{
       photoCount: bigint;
       videoCount: bigint;
@@ -39,11 +65,11 @@ export async function GET() {
       birthDate2: Date | null;
     }>>`
       SELECT
-        (SELECT COUNT(*) FROM "Photo")::int AS "photoCount",
-        (SELECT COUNT(*) FROM "Photo" WHERE "isVideo" = true)::int AS "videoCount",
-        (SELECT COUNT(*) FROM "Letter")::int AS "letterCount",
-        (SELECT COUNT(*) FROM "Letter" WHERE "recipientId" = ${session.user.id} AND "isOpened" = false)::int AS "unreadLetterCount",
-        (SELECT COUNT(*) FROM "Milestone")::int AS "milestoneCount",
+        (SELECT COUNT(*)::int FROM "Photo" WHERE "isVideo" = false AND "isMilestoneOnly" = false AND "uploadedById" IN (SELECT "userId" FROM "CoupleMember" WHERE "coupleId" = ${coupleId})) AS "photoCount",
+        (SELECT COUNT(*)::int FROM "Photo" WHERE "isVideo" = true AND "isMilestoneOnly" = false AND "uploadedById" IN (SELECT "userId" FROM "CoupleMember" WHERE "coupleId" = ${coupleId})) AS "videoCount",
+        (SELECT COUNT(*)::int FROM "Letter" WHERE "authorId" IN (SELECT "userId" FROM "CoupleMember" WHERE "coupleId" = ${coupleId}) OR "recipientId" IN (SELECT "userId" FROM "CoupleMember" WHERE "coupleId" = ${coupleId})) AS "letterCount",
+        (SELECT COUNT(*)::int FROM "Letter" WHERE "recipientId" = ${session.user.id} AND "isOpened" = false AND "authorId" IN (SELECT "userId" FROM "CoupleMember" WHERE "coupleId" = ${coupleId})) AS "unreadLetterCount",
+        (SELECT COUNT(*)::int FROM "Milestone" WHERE "createdById" IN (SELECT "userId" FROM "CoupleMember" WHERE "coupleId" = ${coupleId})) AS "milestoneCount",
         (SELECT "anniversaryDate" FROM "CoupleConfig" LIMIT 1) AS "anniversaryDate",
         (SELECT "birthDate1" FROM "CoupleConfig" LIMIT 1) AS "birthDate1",
         (SELECT "birthDate2" FROM "CoupleConfig" LIMIT 1) AS "birthDate2"

@@ -15,7 +15,7 @@ export function useDashboardStats() {
       const json = await res.json();
       return json.data as DashboardStats;
     },
-    staleTime: 600_000,
+    staleTime: 30_000,
   });
 }
 

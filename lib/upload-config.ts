@@ -10,7 +10,6 @@ export interface UploadConfig {
     medium: number;
     large: number;
   };
-  SINGLE_FILE_MAX_SIZE: number;
   MAX_RETRIES: number;
   RETRY_DELAY_MS: number;
   PROGRESS_THROTTLE_MS: number;
@@ -34,7 +33,6 @@ export const UploadConfig: UploadConfig = {
     medium: 50 * 1024 * 1024,
     large: 100 * 1024 * 1024,
   },
-  SINGLE_FILE_MAX_SIZE: 25 * 1024 * 1024,
   MAX_RETRIES: 3,
   RETRY_DELAY_MS: 1000,
   PROGRESS_THROTTLE_MS: 200,

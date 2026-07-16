@@ -115,6 +115,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Tanggal milestone tidak valid" }, { status: 400 });
     }
 
+    const coupleId = await getUserCoupleId(session.user.id);
+
     // Create Photo records for newly uploaded images
     const createdPhotoIds: string[] = [];
     if (photoUploads?.length) {
@@ -139,6 +141,7 @@ export async function POST(request: Request) {
         ...milestoneData,
         date,
         createdById: session.user.id,
+        coupleId,
         photos: allPhotoIds.length
           ? {
               create: allPhotoIds.map((photoId) => ({ photoId })),
@@ -174,7 +177,6 @@ export async function POST(request: Request) {
     await invalidateCache("milestones:*");
     await invalidateCache("dashboard:*");
 
-    const coupleId = await getUserCoupleId(session.user.id);
     if (coupleId) {
       triggerCoupleEvent(coupleId, 'TIMELINE');
     }

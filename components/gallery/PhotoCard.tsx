@@ -126,7 +126,6 @@ export default function PhotoCard({
             loading={isPrioritized ? "eager" : "lazy"}
             ref={handleImgRef}
             onLoad={() => setLoaded(true)}
-            onLoadingComplete={() => setLoaded(true)}
             onError={() => {
               if (!useOriginal && photo.thumbnailUrl) {
                 setUseOriginal(true);

@@ -166,13 +166,24 @@ export default function GalleryManager() {
     if (!confirmed) return;
     const ids = Array.from(selectedIds);
     const results = await Promise.allSettled(
-      ids.map((id) =>
-        fetch(`/api/photos/${id}`, { method: "DELETE" }).then((r) => {
-          if (!r.ok) throw new Error("Gagal menghapus");
-        }),
-      ),
+      ids.map(async (id) => {
+        const r = await fetch(`/api/photos/${id}`, { method: "DELETE" });
+        if (!r.ok) {
+          let message = "Gagal menghapus media";
+          try {
+            const body = await r.json();
+            if (body?.error) message = body.error;
+          } catch {
+            // ignore parse errors
+          }
+          if (r.status === 403) message = "Kamu tidak punya akses untuk menghapus media ini";
+          else if (r.status === 404) message = "Media tidak ditemukan atau sudah dihapus";
+          else if (r.status === 429) message = "Terlalu banyak permintaan, coba lagi nanti";
+          throw new Error(message);
+        }
+      }),
     );
-    const failed = results.filter((r) => r.status === "rejected").length;
+    const failed = results.filter((r) => r.status === "rejected");
     const succeeded = results.filter((r) => r.status === "fulfilled").length;
     if (succeeded > 0) {
       toast.success(`${succeeded} media dihapus`);
@@ -182,7 +193,17 @@ export default function GalleryManager() {
       queryClient.invalidateQueries({ queryKey: ["dashboard", "stats"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard", "activity"] });
     }
-    if (failed > 0) toast.error(`${failed} media gagal dihapus`);
+    if (failed.length > 0) {
+      const reason = failed[0].status === "rejected" ? (failed[0].reason as Error)?.message : "";
+      const allSame = failed.every(
+        (f) => f.status === "rejected" && (f.reason as Error)?.message === reason,
+      );
+      toast.error(
+        allSame && reason
+          ? `${failed.length} media gagal dihapus: ${reason}`
+          : `${failed.length} media gagal dihapus`,
+      );
+    }
     clearSelection();
   }, [selectedIds, queryClient, clearSelection]);
 
@@ -363,7 +384,7 @@ export default function GalleryManager() {
           }
           toast.success("Media dihapus");
         },
-        onError: () => toast.error("Gagal menghapus media"),
+        onError: (err) => toast.error(err instanceof Error ? err.message : "Gagal menghapus media"),
       });
     }
   }, [deletePhoto, photos.length]);

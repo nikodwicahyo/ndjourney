@@ -125,7 +125,23 @@ export function useDeletePhoto() {
   return useMutation({
     mutationFn: async (id: string) => {
       const res = await fetch(`/api/photos/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Gagal menghapus media");
+      if (!res.ok) {
+        let message = "Gagal menghapus media";
+        try {
+          const body = await res.json();
+          if (body?.error) message = body.error;
+        } catch {
+          // ignore JSON parse errors, keep default message
+        }
+        if (res.status === 403) {
+          message = "Kamu tidak punya akses untuk menghapus media ini";
+        } else if (res.status === 404) {
+          message = "Media tidak ditemukan atau sudah dihapus";
+        } else if (res.status === 429) {
+          message = "Terlalu banyak permintaan, coba lagi nanti";
+        }
+        throw new Error(message);
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: photoKeys.all, refetchType: 'all' });

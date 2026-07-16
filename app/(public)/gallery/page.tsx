@@ -30,7 +30,7 @@ export default function GalleryPage() {
         <PublicGallery />
       </Suspense>
 
-      <ScrollToTopButton />
+      <ScrollToTopButton variant="public" />
     </PageTransition>
   );
 }

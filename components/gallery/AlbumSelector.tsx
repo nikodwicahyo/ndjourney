@@ -2,7 +2,8 @@
 
 import { useAlbums } from "@/hooks/usePhotos";
 import { cn } from "@/lib/utils";
-import { Folder, Heart, X, Image, Video, ArrowUpDown } from "lucide-react";
+import { Heart, X, Image, Video, ArrowUpDown } from "lucide-react";
+import AlbumDropdown from "./AlbumDropdown";
 
 type FilterState = {
   albumId?: string;
@@ -86,29 +87,14 @@ export default function AlbumSelector({
         Favorit
       </button>
 
-      <div className="relative">
-        <select
-          value={filters.albumId || ""}
-          onChange={(e) =>
-            onFiltersChange({ ...filters, albumId: e.target.value || undefined })
-          }
-          className={cn(
-            "appearance-none rounded-full border px-3 py-1.5 pr-7 text-xs font-medium outline-none transition-colors",
-            filters.albumId
-              ? "border-primary bg-primary/10 text-primary"
-              : "border-border text-muted-foreground hover:bg-accent",
-          )}
-        >
-          <option value="">Semua Album</option>
-          {isLoading && <option disabled>Memuat...</option>}
-          {albums?.map((album) => (
-            <option key={album.id} value={album.id} title={album.description || album.name}>
-              {album.name} ({album._count.photos})
-            </option>
-          ))}
-        </select>
-        <Folder className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
-      </div>
+      <AlbumDropdown
+        albums={albums}
+        value={filters.albumId || ""}
+        onChange={(albumId) =>
+          onFiltersChange({ ...filters, albumId: albumId || undefined })
+        }
+        placeholder="Semua Album"
+      />
 
       {/* Sort toggle */}
       <button

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { usePhotos, useUpdatePhoto } from "@/hooks/usePhotos";
+import { usePhotos } from "@/hooks/usePhotos";
 import PhotoCard from "./PhotoCard";
 import { Button } from "@/components/ui";
 import { ImageIcon } from "lucide-react";
@@ -58,7 +58,6 @@ export default function MasonryGrid({ filters, onPhotoClick, isPublic }: Masonry
     refetch,
   } = usePhotos({ ...filters, isPublic });
 
-  const updatePhoto = useUpdatePhoto();
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const [colCount, setColCount] = useState(2);
 
@@ -144,9 +143,6 @@ export default function MasonryGrid({ filters, onPhotoClick, isPublic }: Masonry
               <PhotoCard
                 photo={photo}
                 onClick={(p) => onPhotoClick?.(p, origIndex, allPhotos, fetchNextPage, !!hasNextPage)}
-                onFavoriteToggle={(id, isFavorite) =>
-                  updatePhoto.mutate({ id, isFavorite })
-                }
                 isPrioritized={origIndex < 8}
               />
             </div>

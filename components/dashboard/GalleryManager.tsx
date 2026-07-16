@@ -7,12 +7,13 @@ import { useStorageUsage } from "@/hooks/useStorage";
 import AlbumManager from "./AlbumManager";
 import { Button, StorageUsageBar } from "@/components/ui";
 import UploadItem from "./UploadItem";
-import { Upload, ImagePlus, Loader2, FileWarning, Image as ImageIcon, Video, ArrowUpDown, Trash2, CheckSquare, Heart } from "lucide-react";
+import { Upload, ImagePlus, Loader2, FileWarning, Image as ImageIcon, Video, ArrowUpDown, Trash2, CheckSquare, Heart, Globe, EyeOff, X, Folder } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { showDeleteConfirm } from "@/lib/swal";
 import dynamic from "next/dynamic";
 import type { Photo } from "@/types";
 import PhotoCard from "@/components/gallery/PhotoCard";
+import AlbumDropdown from "@/components/gallery/AlbumDropdown";
 import { formatBytes, formatTime, getMaxFileSize } from "@/lib/upload-config";
 import { toast } from "sonner";
 
@@ -51,7 +52,8 @@ export default function GalleryManager() {
   const [sort, setSort] = useState<string | undefined>();
   const [albumFilter, setAlbumFilter] = useState<string | undefined>();
   const [favoriteFilter, setFavoriteFilter] = useState(false);
-  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = usePhotos({ limit: 30, mediaType, sort, albumId: albumFilter, isFavorite: favoriteFilter || undefined });
+  const [visibilityFilter, setVisibilityFilter] = useState<"public" | "private">("public");
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = usePhotos({ limit: 30, mediaType, sort, albumId: albumFilter, isFavorite: favoriteFilter || undefined, visibility: visibilityFilter === "private" ? "private" : undefined });
   const { data: storage, refetch: refetchStorage, isFetching: isFetchingStorage } = useStorageUsage();
   const uploadPhotos = useUploadPhotos();
   const deletePhoto = useDeletePhoto();
@@ -91,6 +93,11 @@ export default function GalleryManager() {
 
   const [colCount, setColCount] = useState(2);
   const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    document.documentElement.toggleAttribute("data-select-mode", selectedIds.size > 0);
+    return () => document.documentElement.removeAttribute("data-select-mode");
+  }, [selectedIds.size]);
 
   const handleObserver = useCallback(
     (entries: IntersectionObserverEntry[]) => {
@@ -522,20 +529,42 @@ export default function GalleryManager() {
             )}
 
             {!selectedAlbumId && (
-              <label className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-input bg-background px-4 py-2.5 text-sm">
+              <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-input bg-background px-4 py-2.5 text-sm">
                 <span className="flex flex-col">
-                  <span className="font-medium">Publik (tanpa album)</span>
+                  <span className="font-medium">Visibilitas (tanpa album)</span>
                   <span className="text-xs text-muted-foreground">
-                    Tampilkan di gallery publik
+                    Tampil di gallery publik/privat
                   </span>
                 </span>
-                <input
-                  type="checkbox"
-                  checked={photoPublic}
-                  onChange={(e) => setPhotoPublic(e.target.checked)}
-                  className="h-4 w-4 accent-primary"
-                />
-              </label>
+                <div className="flex items-center gap-1 rounded-full border border-border p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setPhotoPublic(true)}
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                      photoPublic
+                        ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <Globe className="h-3.5 w-3.5" />
+                    Publik
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPhotoPublic(false)}
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                      !photoPublic
+                        ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <EyeOff className="h-3.5 w-3.5" />
+                    Privat
+                  </button>
+                </div>
+              </div>
             )}
 
             <input
@@ -639,7 +668,7 @@ export default function GalleryManager() {
         <AlbumManager />
       </section>
 
-      <section className={cn(selectedIds.size > 0 && "pb-24")}>
+      <section className={cn(selectedIds.size > 0 && "pb-28 sm:pb-24 lg:pb-20")}>
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="font-heading text-lg font-semibold">Gallery ({data?.pages[0]?.total ?? photos.length})</h2>
           <div className="flex flex-wrap items-center gap-2">
@@ -672,23 +701,40 @@ export default function GalleryManager() {
               <Heart className={cn("h-3.5 w-3.5", favoriteFilter && "fill-primary")} />
               Favorit
             </button>
+            <button
+              onClick={() =>
+                setVisibilityFilter((prev) => (prev === "private" ? "public" : "private"))
+              }
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                visibilityFilter === "private"
+                  ? "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                  : "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+              )}
+            >
+              {visibilityFilter === "private" ? (
+                <EyeOff className="h-3.5 w-3.5" />
+              ) : (
+                <Globe className="h-3.5 w-3.5" />
+              )}
+              {visibilityFilter === "private" ? "Privat" : "Publik"}
+            </button>
             {albums && albums.length > 0 && (
-              <select
+              <AlbumDropdown
+                albums={albums}
                 value={albumFilter ?? ""}
-                onChange={(e) => setAlbumFilter(e.target.value || undefined)}
-                className="h-8 rounded-full border border-border bg-background px-3 text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <option value="">Semua Album</option>
-                {albums.map((a) => (
-                  <option key={a.id} value={a.id}>{a.name} ({a._count.photos})</option>
-                ))}
-              </select>
+                onChange={(id) => setAlbumFilter(id || undefined)}
+                placeholder="Semua Album"
+                direction="down"
+              />
             )}
             <button
               onClick={() => setSort(sort === "oldest" ? undefined : "oldest")}
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-                sort === "oldest" ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-accent"
+                sort === "oldest"
+                  ? "border-violet-500/40 bg-violet-500/10 text-violet-600 dark:text-violet-400"
+                  : "border-primary bg-primary/10 text-primary"
               )}
             >
               <ArrowUpDown className="h-3.5 w-3.5" />
@@ -711,60 +757,75 @@ export default function GalleryManager() {
         </div>
 
         {selectedIds.size > 0 && (
-          <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
-            <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-3 px-4 py-3">
-              <span className="text-sm font-medium">{selectedIds.size} media dipilih</span>
+          <div className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
+            <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3 lg:flex-row lg:flex-nowrap">
+              <span className="inline-flex shrink-0 items-center gap-2 text-sm font-medium">
+                <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground">
+                  {selectedIds.size}
+                </span>
+                <span className="hidden sm:inline">media dipilih</span>
+              </span>
+
               {albums && albums.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <select
+                <div className="flex items-stretch gap-1.5 sm:gap-2">
+                  <AlbumDropdown
+                    albums={albums}
                     value={moveAlbumId}
-                    onChange={(e) => setMoveAlbumId(e.target.value)}
-                    className="h-8 rounded-lg border border-input bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    <option value="">Pindahkan ke album</option>
-                    {albums.map((a) => (
-                      <option key={a.id} value={a.id}>{a.name}</option>
-                    ))}
-                  </select>
+                    onChange={setMoveAlbumId}
+                    placeholder="Pindahkan ke album"
+                    direction="up"
+                  />
                   <Button
                     size="sm"
                     onClick={handleBatchMove}
                     disabled={!moveAlbumId}
-                    className="gap-2"
+                    className="gap-1.5"
                   >
-                    Pindahkan
+                    <Folder className="h-4 w-4" />
+                    <span className="hidden sm:inline">Pindahkan</span>
                   </Button>
                 </div>
               )}
+
+              <div className="flex items-center gap-1 rounded-full border border-border p-0.5">
+                <button
+                  onClick={() => handleBatchVisibility(true)}
+                  title="Jadikan publik"
+                  aria-label="Jadikan publik"
+                  className="inline-flex items-center justify-center gap-1.5 rounded-full border border-emerald-500/40 px-2.5 py-1.5 text-xs font-medium text-emerald-600 transition-colors hover:bg-emerald-500/10 dark:text-emerald-400"
+                >
+                  <Globe className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Publik</span>
+                </button>
+                <button
+                  onClick={() => handleBatchVisibility(false)}
+                  title="Jadikan privat"
+                  aria-label="Jadikan privat"
+                  className="inline-flex items-center justify-center gap-1.5 rounded-full border border-amber-500/40 px-2.5 py-1.5 text-xs font-medium text-amber-600 transition-colors hover:bg-amber-500/10 dark:text-amber-400"
+                >
+                  <EyeOff className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Privat</span>
+                </button>
+              </div>
+
               <Button
                 size="sm"
                 variant="destructive"
                 onClick={handleBatchDelete}
-                className="gap-2"
+                className="gap-1.5"
               >
                 <Trash2 className="h-4 w-4" />
-                Hapus
+                <span className="hidden sm:inline">Hapus</span>
               </Button>
-              <div className="flex items-center gap-1">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleBatchVisibility(true)}
-                  title="Jadikan publik"
-                >
-                  Publik
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleBatchVisibility(false)}
-                  title="Jadikan privat"
-                >
-                  Privat
-                </Button>
-              </div>
-              <Button size="sm" variant="outline" onClick={clearSelection} className="ml-auto">
-                Batal
+
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={clearSelection}
+                className="ml-auto rounded-full border-foreground/30 text-foreground hover:bg-accent hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+                <span className="hidden sm:inline">Batal</span>
               </Button>
             </div>
           </div>
@@ -793,6 +854,7 @@ export default function GalleryManager() {
                       photo={photo}
                       onClick={(p) => handlePhotoClick(photos, origIndex)}
                       onFavoriteToggle={(id, isFavorite) => updatePhoto.mutate({ id, isFavorite })}
+                      onPublicToggle={(id, isPublic) => updatePhoto.mutate({ id, isPublic })}
                       isPrioritized={origIndex < 8}
                       selectable={selectMode}
                       isSelected={selectedIds.has(photo.id)}

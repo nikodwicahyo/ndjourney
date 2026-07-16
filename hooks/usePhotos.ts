@@ -18,6 +18,7 @@ export function usePhotos(filters?: {
   year?: number;
   isFavorite?: boolean;
   isPublic?: boolean;
+  visibility?: "public" | "private";
   limit?: number;
   mediaType?: string;
   sort?: string;
@@ -30,6 +31,7 @@ export function usePhotos(filters?: {
       if (filters?.year) params.set("year", String(filters.year));
       if (filters?.isFavorite) params.set("isFavorite", "true");
       if (filters?.isPublic) params.set("public", "true");
+      if (filters?.visibility) params.set("visibility", filters.visibility);
       if (filters?.mediaType) params.set("mediaType", filters.mediaType);
       if (filters?.sort) params.set("sort", filters.sort);
       if (pageParam) params.set("cursor", pageParam);

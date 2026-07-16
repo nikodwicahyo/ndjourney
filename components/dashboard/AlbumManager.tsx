@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button, Skeleton } from "@/components/ui";
-import { Plus, Loader2, X, Trash2, Pencil, Check } from "lucide-react";
+import { Plus, Loader2, X, Trash2, Pencil, Check, Globe, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { showDeleteConfirm } from "@/lib/swal";
+import { cn } from "@/lib/utils";
 import type { AlbumWithCount } from "@/types";
 
 export default function AlbumManager() {
@@ -156,20 +157,42 @@ export default function AlbumManager() {
               placeholder="Deskripsi (opsional)"
               className="flex h-10 w-full rounded-xl border border-input bg-background px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
-            <label className="flex items-center justify-between gap-3 rounded-xl border border-input bg-background px-4 py-2.5 text-sm">
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-input bg-background px-4 py-2.5 text-sm">
               <span className="flex flex-col">
-                <span className="font-medium">Publik</span>
+                <span className="font-medium">Visibilitas</span>
                 <span className="text-xs text-muted-foreground">
-                  Tampilkan di gallery publik
+                  Tampil di gallery publik/privat
                 </span>
               </span>
-              <input
-                type="checkbox"
-                checked={isPublic}
-                onChange={(e) => setIsPublic(e.target.checked)}
-                className="h-4 w-4 accent-primary"
-              />
-            </label>
+              <div className="flex items-center gap-1 rounded-full border border-border p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setIsPublic(true)}
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                    isPublic
+                      ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <Globe className="h-3.5 w-3.5" />
+                  Publik
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsPublic(false)}
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                    !isPublic
+                      ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <EyeOff className="h-3.5 w-3.5" />
+                  Privat
+                </button>
+              </div>
+            </div>
             <Button
               onClick={() => createAlbum.mutate({ name: name.trim(), description: description.trim() || undefined, isPublic })}
               disabled={!name.trim() || createAlbum.isPending}
@@ -222,15 +245,37 @@ export default function AlbumManager() {
                     placeholder="Deskripsi (opsional)"
                     className="h-8 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   />
-                  <label className="flex items-center justify-between gap-3 rounded-lg border border-input bg-background px-3 py-1.5 text-sm">
-                    <span className="font-medium">Publik</span>
-                    <input
-                      type="checkbox"
-                      checked={editIsPublic}
-                      onChange={(e) => setEditIsPublic(e.target.checked)}
-                      className="h-4 w-4 accent-primary"
-                    />
-                  </label>
+                  <div className="flex items-center justify-between gap-3 rounded-lg border border-input bg-background px-3 py-1.5 text-sm">
+                    <span className="font-medium">Visibilitas</span>
+                    <div className="flex items-center gap-1 rounded-full border border-border p-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setEditIsPublic(true)}
+                        className={cn(
+                          "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors",
+                          editIsPublic
+                            ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        <Globe className="h-3 w-3" />
+                        Publik
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditIsPublic(false)}
+                        className={cn(
+                          "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors",
+                          !editIsPublic
+                            ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        <EyeOff className="h-3 w-3" />
+                        Privat
+                      </button>
+                    </div>
+                  </div>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={saveEdit}

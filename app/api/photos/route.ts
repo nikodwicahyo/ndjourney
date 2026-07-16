@@ -15,7 +15,7 @@ export const runtime = "nodejs";
 const CACHE_TTL = 60;
 
 function buildPhotoSelect() {
-  return `"id", "url", "publicId", "thumbnailUrl", "caption", "takenAt", "width", "height", "isVideo", "isFavorite", "albumId", "uploadedById", "createdAt", "updatedAt"`;
+  return `"id", "url", "publicId", "thumbnailUrl", "caption", "takenAt", "width", "height", "isVideo", "isFavorite", "isPublic", "albumId", "uploadedById", "createdAt", "updatedAt"`;
 }
 
 export async function GET(request: Request) {
@@ -28,12 +28,13 @@ export async function GET(request: Request) {
     const year = searchParams.get("year");
     const isFavorite = searchParams.get("isFavorite");
     const mediaType = searchParams.get("mediaType");
+    const visibility = searchParams.get("visibility");
     const sort = searchParams.get("sort");
     const cursor = searchParams.get("cursor");
     const limit = parseInt(searchParams.get("limit") || "30");
 
     const scope = isAuthed ? "auth" : "public";
-    const cacheK = cacheKey("photos", "list", scope, albumId ?? "", year ?? "", isFavorite ?? "", mediaType ?? "", sort ?? "", cursor ?? "0", String(limit));
+    const cacheK = cacheKey("photos", "list", scope, albumId ?? "", year ?? "", isFavorite ?? "", mediaType ?? "", visibility ?? "", sort ?? "", cursor ?? "0", String(limit));
     const cached = await getCached<unknown>(cacheK);
     if (cached) {
       return NextResponse.json(cached, {
@@ -57,6 +58,10 @@ export async function GET(request: Request) {
 
     if (isFavorite === "true") {
       conditions.push(`"isFavorite" = true`);
+    }
+
+    if (isAuthed && visibility === "private") {
+      conditions.push(`"isPublic" = false`);
     }
 
     if (year) {

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import Image from "next/image";
-import { File, Heart, Play, Lock, CheckCircle } from "lucide-react";
+import { File, Heart, Play, Lock, CheckCircle, Globe, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getOptimizedImageUrl, getBlurImageUrl, getVideoPosterUrl } from "@/lib/cloudinary-urls";
 import type { Photo } from "@/types";
@@ -10,6 +10,7 @@ import type { Photo } from "@/types";
 type PhotoCardProps = {
   photo: Photo;
   onFavoriteToggle?: (id: string, isFavorite: boolean) => void;
+  onPublicToggle?: (id: string, isPublic: boolean) => void;
   onClick?: (photo: Photo) => void;
   isPrioritized?: boolean;
   selectable?: boolean;
@@ -20,6 +21,7 @@ type PhotoCardProps = {
 export default function PhotoCard({
   photo,
   onFavoriteToggle,
+  onPublicToggle,
   onClick,
   isPrioritized,
   selectable,
@@ -175,27 +177,55 @@ export default function PhotoCard({
         )}
       </div>
 
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onFavoriteToggle?.(photo.id, !photo.isFavorite);
-        }}
-        className={cn(
-          "absolute top-3 right-3 rounded-full p-1.5 backdrop-blur-sm transition-all duration-200",
-          photo.isFavorite
-            ? "bg-primary/25 text-primary shadow-sm shadow-primary/10"
-            : "bg-black/30 text-white/70 hover:bg-black/50 hover:text-white hover:scale-110",
-        )}
-        aria-label={photo.isFavorite ? "Remove from favorites" : "Add to favorites"}
-      >
-        <Heart
-          className={cn(
-            "h-4 w-4 transition-transform",
-            photo.isFavorite && "fill-primary scale-110",
+      {!selectable && (onPublicToggle || onFavoriteToggle) && (
+        <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5">
+          {onPublicToggle && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onPublicToggle?.(photo.id, !photo.isPublic);
+              }}
+              className={cn(
+                "rounded-full p-1.5 backdrop-blur-sm transition-all duration-200",
+                photo.isPublic
+                  ? "bg-black/30 text-white/70 hover:bg-black/50 hover:text-white hover:scale-110"
+                  : "bg-primary text-primary-foreground shadow-sm shadow-primary/20",
+              )}
+              aria-label={photo.isPublic ? "Jadikan privat" : "Jadikan publik"}
+              title={photo.isPublic ? "Publik" : "Privat"}
+            >
+              {photo.isPublic ? (
+                <Globe className="h-4 w-4" />
+              ) : (
+                <EyeOff className="h-4 w-4" />
+              )}
+            </button>
           )}
-          style={photo.isFavorite ? { animation: "heartBeat 0.4s ease-out" } : undefined}
-        />
-      </button>
+          {onFavoriteToggle && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onFavoriteToggle?.(photo.id, !photo.isFavorite);
+              }}
+              className={cn(
+                "rounded-full p-1.5 backdrop-blur-sm transition-all duration-200",
+                photo.isFavorite
+                  ? "bg-primary/25 text-primary shadow-sm shadow-primary/10"
+                  : "bg-black/30 text-white/70 hover:bg-black/50 hover:text-white hover:scale-110",
+              )}
+              aria-label={photo.isFavorite ? "Remove from favorites" : "Add to favorites"}
+            >
+              <Heart
+                className={cn(
+                  "h-4 w-4 transition-transform",
+                  photo.isFavorite && "fill-primary scale-110",
+                )}
+                style={photo.isFavorite ? { animation: "heartBeat 0.4s ease-out" } : undefined}
+              />
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

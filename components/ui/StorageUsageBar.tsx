@@ -188,7 +188,7 @@ export default function StorageUsageBar({
 
           {resourcesCount > 0 && estimatedRemainingFiles > 0 && (
             <p className="mt-2 text-xs text-muted-foreground">
-              Sisa ruang cukup untuk sekitar <span className="font-medium text-foreground">{friendlyEstimate}</span> file lagi{avgLabel ? ` (${avgLabel})` : ""}.
+              Sisa ruang cukup untuk <span className="font-medium text-foreground">~{friendlyEstimate}</span> file lagi{avgLabel ? ` (${avgLabel})` : ""}.
             </p>
           )}
         </>

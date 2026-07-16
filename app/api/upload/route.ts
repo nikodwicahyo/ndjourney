@@ -52,7 +52,7 @@ export async function POST(request: Request) {
 
     if (!allowed) {
       return NextResponse.json(
-        { error: "Upload limit reached. Try again later." },
+        { error: "Batas upload tercapai. Coba lagi nanti." },
         { status: 429 },
       );
     }
@@ -61,26 +61,26 @@ export async function POST(request: Request) {
     const file = formData.get("file") as File | null;
 
     if (!file) {
-      return NextResponse.json({ error: "No file provided" }, { status: 400 });
+      return NextResponse.json({ error: "Tidak ada file yang dikirim" }, { status: 400 });
     }
 
     if (file.size > MAX_SIZE) {
       return NextResponse.json(
-        { error: "File too large. Max 200MB." },
+        { error: "Ukuran file terlalu besar. Maksimal 200MB." },
         { status: 400 },
       );
     }
 
     if (!ALLOWED_TYPES.includes(file.type)) {
       return NextResponse.json(
-        { error: "File type not supported" },
+        { error: "Format file tidak didukung" },
         { status: 400 },
       );
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
     if (buffer.length === 0) {
-      return NextResponse.json({ error: "Empty file" }, { status: 400 });
+      return NextResponse.json({ error: "File kosong" }, { status: 400 });
     }
 
     // Check more bytes for video files (up to 16 bytes) since headers vary
@@ -91,7 +91,7 @@ export async function POST(request: Request) {
     if (validSignatures && !validSignatures.some((sig) => hex.includes(sig))) {
       console.warn("Magic bytes mismatch:", { fileName: file.name, fileType: file.type, hex: hex.substring(0, 32) });
       return NextResponse.json(
-        { error: "File content does not match declared type" },
+        { error: "Isi file tidak sesuai dengan format yang dipilih" },
         { status: 400 },
       );
     }
@@ -108,7 +108,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Upload error:", error);
-    const message = error instanceof Error ? error.message : "Upload failed";
+    const message = error instanceof Error ? error.message : "Upload gagal";
     return NextResponse.json(
       { error: message },
       { status: 500 },

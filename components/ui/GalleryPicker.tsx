@@ -37,7 +37,7 @@ async function fetchPhotos(cursor: string | null): Promise<{
   });
   if (cursor) params.set("cursor", cursor);
   const res = await fetch(`/api/photos?${params.toString()}`);
-  if (!res.ok) throw new Error("Failed to load gallery");
+  if (!res.ok) throw new Error("Gagal memuat galeri");
   const json = await res.json();
   const data: GalleryPickerPhoto[] = (json.data || []).map((p: any) => ({
     id: p.id,

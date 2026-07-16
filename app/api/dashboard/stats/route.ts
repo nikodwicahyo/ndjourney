@@ -117,7 +117,7 @@ export async function GET() {
   } catch (error) {
     console.error("Error fetching dashboard stats:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Terjadi kesalahan pada server. Coba lagi nanti." },
       { status: 500 },
     );
   }

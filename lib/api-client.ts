@@ -98,7 +98,7 @@ export const api = {
 
       if (!res.ok) {
         return {
-          error: json.error || `Upload failed with status ${res.status}`,
+          error: json.error || `Upload gagal dengan status ${res.status}`,
           status: res.status,
         };
       }
@@ -109,7 +109,7 @@ export const api = {
         return { error: "Upload timed out", status: 0 };
       }
       return {
-        error: err instanceof Error ? err.message : "Upload failed",
+        error: err instanceof Error ? err.message : "Upload gagal",
         status: 0,
       };
     }

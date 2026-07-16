@@ -27,7 +27,7 @@ export async function POST(request: Request) {
 
     if (!fileName || !fileSize || !fileType || folder !== UPLOAD_FOLDER) {
       return NextResponse.json(
-        { error: "Missing required parameters" },
+        { error: "Parameter yang dibutuhkan tidak lengkap" },
         { status: 400 }
       );
     }
@@ -78,7 +78,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Sign upload error:", error);
     return NextResponse.json(
-      { error: "Failed to generate upload signature" },
+      { error: "Gagal membuat tanda tangan upload" },
       { status: 500 }
     );
   }

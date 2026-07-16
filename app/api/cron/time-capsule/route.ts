@@ -112,7 +112,7 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error("Time capsule cron error:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Terjadi kesalahan pada server. Coba lagi nanti." },
       { status: 500 },
     );
   }

@@ -41,14 +41,14 @@ export async function GET(
     });
 
     if (!letter) {
-      return NextResponse.json({ error: "Letter not found" }, { status: 404 });
+      return NextResponse.json({ error: "Surat tidak ditemukan" }, { status: 404 });
     }
 
     if (
       letter.recipientId !== session.user.id &&
       letter.authorId !== session.user.id
     ) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return NextResponse.json({ error: "Kamu tidak punya akses untuk melihat surat ini" }, { status: 403 });
     }
 
     const userMap = await batchLoadUsers([letter.authorId, letter.recipientId]);
@@ -102,7 +102,7 @@ headers: { "Cache-Control": "private, no-cache" },
   } catch (error) {
     console.error("Error fetching letter:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Terjadi kesalahan pada server. Coba lagi nanti." },
       { status: 500 },
     );
   }
@@ -126,11 +126,11 @@ export async function DELETE(
     });
 
     if (!letter) {
-      return NextResponse.json({ error: "Letter not found" }, { status: 404 });
+      return NextResponse.json({ error: "Surat tidak ditemukan" }, { status: 404 });
     }
 
     if (letter.authorId !== session.user.id) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return NextResponse.json({ error: "Kamu tidak punya akses untuk menghapus surat ini" }, { status: 403 });
     }
 
     await prisma.letter.delete({ where: { id } });
@@ -147,7 +147,7 @@ export async function DELETE(
   } catch (error) {
     console.error("Error deleting letter:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Terjadi kesalahan pada server. Coba lagi nanti." },
       { status: 500 },
     );
   }

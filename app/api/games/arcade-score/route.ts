@@ -14,7 +14,7 @@ export async function POST(request: Request) {
 
     if (!parsed.success) {
       return NextResponse.json(
-        { error: parsed.error.issues[0]?.message || "Validation failed" },
+        { error: parsed.error.issues[0]?.message || "Validasi gagal" },
         { status: 400 },
       );
     }
@@ -69,7 +69,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Error recording arcade score:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Terjadi kesalahan pada server. Coba lagi nanti." },
       { status: 500 },
     );
   }

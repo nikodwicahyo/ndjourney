@@ -45,7 +45,7 @@ export default function AlbumManager() {
       setName("");
       setDescription("");
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "Gagal"),
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Gagal membuat album"),
   });
 
   const updateAlbum = useMutation({
@@ -74,7 +74,7 @@ export default function AlbumManager() {
       setEditName("");
       setEditDescription("");
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "Gagal"),
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Gagal mengupdate album"),
   });
 
   const deleteAlbum = useMutation({

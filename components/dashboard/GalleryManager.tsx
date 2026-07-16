@@ -327,7 +327,7 @@ export default function GalleryManager() {
       } else if (successCount > 0 && failCount > 0) {
         toast.success(`${successCount} ${l} berhasil diupload`);
         const firstError = result.failed[0]?.error || "";
-        const detail = firstError.includes("timeout") ? " (waktu habis)" : firstError.includes("limit") || firstError.includes("exceeds") ? " (melebihi batas)" : "";
+        const detail = firstError.includes("timeout") ? " (waktu habis)" : firstError.includes("limit") || firstError.includes("exceeds") || firstError.includes("melebihi") || firstError.includes("terlalu besar") ? " (melebihi batas)" : "";
         toast.error(`${failCount} ${l} gagal${detail}. Klik tombol retry untuk mencoba lagi.`);
         const failedIds = new Set(result.failed.map((f) => f.id));
         setPendingFiles((prev) =>
@@ -336,7 +336,7 @@ export default function GalleryManager() {
             .map((u) => ({
               ...u,
               status: "error",
-              error: result.failed.find((f) => f.id === u.id)?.error || "Upload failed",
+              error: result.failed.find((f) => f.id === u.id)?.error || "Upload gagal",
             }))
         );
         setFileErrors([]);
@@ -347,7 +347,7 @@ export default function GalleryManager() {
           prev.map((u) => ({
             ...u,
             status: "error",
-            error: failedMap.get(u.id)?.error || "Upload failed",
+            error: failedMap.get(u.id)?.error || "Upload gagal",
           }))
         );
       }
@@ -355,7 +355,7 @@ export default function GalleryManager() {
       const msg = err instanceof Error ? err.message : "Gagal upload";
       if (msg.includes("timeout")) {
         toast.error("Upload timeout. Coba lagi atau upload file yang lebih kecil.");
-      } else if (msg.includes("limit") || msg.includes("exceeds")) {
+      } else if (msg.includes("limit") || msg.includes("exceeds") || msg.includes("terlalu besar") || msg.includes("melebihi")) {
         toast.error("File melebihi batas ukuran yang diizinkan.");
       } else if (msg.includes("network") || msg.includes("fetch")) {
         toast.error("Koneksi terputus. Periksa koneksi internet Anda.");

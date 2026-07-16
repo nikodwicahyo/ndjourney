@@ -22,7 +22,7 @@ export async function PUT(
 
     if (!parsed.success) {
       return NextResponse.json(
-        { error: parsed.error.issues[0]?.message || "Validation failed" },
+        { error: parsed.error.issues[0]?.message || "Validasi gagal" },
         { status: 400 },
       );
     }
@@ -53,7 +53,7 @@ export async function PUT(
   } catch (error) {
     console.error("Error updating question:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Terjadi kesalahan pada server. Coba lagi nanti." },
       { status: 500 },
     );
   }
@@ -95,7 +95,7 @@ export async function DELETE(
   } catch (error) {
     console.error("Error deleting question:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Terjadi kesalahan pada server. Coba lagi nanti." },
       { status: 500 },
     );
   }

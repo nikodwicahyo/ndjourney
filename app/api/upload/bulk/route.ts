@@ -57,18 +57,18 @@ type BulkUploadResult = {
 
 async function validateAndPrepareFile(file: File): Promise<{ buffer: Buffer; isVideo: boolean } | string> {
   if (file.size > MAX_SIZE) {
-    return `File too large. Max 200MB.`;
+    return `Ukuran file terlalu besar. Maksimal 200MB.`;
   }
 
   if (!ALLOWED_TYPES.includes(file.type)) {
-    return `File type not supported: ${file.type}`;
+    return `Format file tidak didukung: ${file.type}`;
   }
 
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
   if (buffer.length === 0) {
-    return `Empty file.`;
+    return `File kosong.`;
   }
 
   // Check more bytes for video files (up to 16 bytes) since headers vary
@@ -78,7 +78,7 @@ async function validateAndPrepareFile(file: File): Promise<{ buffer: Buffer; isV
 
   if (validSignatures && !validSignatures.some((sig) => hex.includes(sig))) {
     console.warn("Magic bytes mismatch:", { fileName: file.name, fileType: file.type, hex: hex.substring(0, 32) });
-    return `File content does not match declared type: ${file.type}`;
+    return `Isi file tidak sesuai dengan format yang dipilih: ${file.type}`;
   }
 
   return { buffer, isVideo: file.type.startsWith("video/") };
@@ -97,12 +97,12 @@ export async function POST(request: Request) {
     const files = formData.getAll("files") as File[];
 
     if (!files || files.length === 0) {
-      return NextResponse.json({ error: "No files provided" }, { status: 400 });
+      return NextResponse.json({ error: "Tidak ada file yang dikirim" }, { status: 400 });
     }
 
     if (files.length > MAX_FILES_PER_REQUEST) {
       return NextResponse.json(
-        { error: `Too many files. Maximum ${MAX_FILES_PER_REQUEST} per request.` },
+        { error: `Terlalu banyak file. Maksimal ${MAX_FILES_PER_REQUEST} per permintaan.` },
         { status: 400 },
       );
     }
@@ -159,7 +159,7 @@ export async function POST(request: Request) {
           results.push({
             fileName: "unknown",
             success: false,
-            error: result.reason instanceof Error ? result.reason.message : "Upload failed",
+            error: result.reason instanceof Error ? result.reason.message : "Upload gagal",
           });
         }
       }
@@ -177,7 +177,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Bulk upload error:", error);
-    const message = error instanceof Error ? error.message : "Bulk upload failed";
+    const message = error instanceof Error ? error.message : "Upload massal gagal";
     return NextResponse.json(
       { error: message },
       { status: 500 },

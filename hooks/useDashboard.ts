@@ -12,7 +12,7 @@ export function useDashboardStats() {
     queryKey: dashboardKeys.stats(),
     queryFn: async ({ signal }) => {
       const res = await fetch("/api/dashboard/stats", { signal });
-      if (!res.ok) throw new Error("Failed to fetch dashboard stats");
+      if (!res.ok) throw new Error("Gagal memuat statistik dashboard");
       const json = await res.json();
       return json.data as DashboardStats;
     },

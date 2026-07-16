@@ -220,9 +220,9 @@ function UploadItemInner({ item, onCancel, onRetry, onRemove, isUploading }: Upl
         </div>
         {item.error && (
           <p className="text-xs text-destructive mt-1 truncate" title={item.error}>
-            {item.error.includes("timeout") ? "Waktu habis, coba lagi" :
-             item.error.includes("network") || item.error.includes("Network") || item.error.includes("Failed to fetch") ? "Koneksi terputus" :
-             item.error.includes("limit") || item.error.includes("exceeds") ? "Ukuran file terlalu besar" :
+            {item.error.includes("timeout") || item.error.includes("habis") ? "Waktu habis, coba lagi" :
+             item.error.includes("network") || item.error.includes("Network") || item.error.includes("Failed to fetch") || item.error.includes("Koneksi") ? "Koneksi terputus" :
+             item.error.includes("limit") || item.error.includes("exceeds") || item.error.includes("terlalu besar") || item.error.includes("melebihi") ? "Ukuran file terlalu besar" :
              item.error}
           </p>
         )}

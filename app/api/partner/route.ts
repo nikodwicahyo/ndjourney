@@ -29,7 +29,7 @@ export async function GET() {
 
     if (!partner) {
       return NextResponse.json(
-        { error: "No partner found" },
+        { error: "Pasangan belum ditemukan" },
         { status: 404 },
       );
     }
@@ -38,7 +38,7 @@ export async function GET() {
   } catch (error) {
     console.error("Error fetching partner:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Terjadi kesalahan pada server. Coba lagi nanti." },
       { status: 500 },
     );
   }

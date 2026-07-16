@@ -64,7 +64,7 @@ export function useSubmitScore() {
         body: JSON.stringify({ questionId, isCorrect, playerName }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed to submit score");
+      if (!res.ok) throw new Error(json.error || "Gagal mengirim skor");
       return json.data;
     },
     onSuccess: () => {
@@ -85,7 +85,7 @@ export function useSubmitArcadeScore() {
         body: JSON.stringify(data),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed to submit score");
+      if (!res.ok) throw new Error(json.error || "Gagal mengirim skor");
       return json.data;
     },
     onSuccess: () => {

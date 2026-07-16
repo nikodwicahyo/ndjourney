@@ -50,7 +50,7 @@ export async function DELETE(
   } catch (error) {
     console.error("Error deleting note:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Terjadi kesalahan pada server. Coba lagi nanti." },
       { status: 500 },
     );
   }

@@ -40,18 +40,18 @@ export async function DELETE(
 
     if (!photo) {
       return NextResponse.json(
-        { error: "No matching media found for this user" },
+        { error: "Media tidak ditemukan untuk pengguna ini" },
         { status: 404 },
       );
     }
 
     await deleteFromCloudinary(publicId, resourceType);
 
-    return NextResponse.json({ message: "File deleted from Cloudinary" });
+    return NextResponse.json({ message: "File berhasil dihapus dari Cloudinary" });
   } catch (error) {
     console.error("Error deleting from Cloudinary:", error);
     return NextResponse.json(
-      { error: "Failed to delete file from Cloudinary" },
+      { error: "Gagal menghapus file dari Cloudinary" },
       { status: 500 },
     );
   }

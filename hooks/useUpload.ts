@@ -111,7 +111,7 @@ export function useUploadPhotos(): UseUploadPhotosReturn {
 
             if (!photoRes.ok) {
               const err = await parseResponseBody(photoRes);
-              throw new Error(err || "Failed to save photo");
+              throw new Error(err || "Gagal menyimpan foto");
             }
 
             const resData = await photoRes.json();
@@ -128,10 +128,10 @@ export function useUploadPhotos(): UseUploadPhotosReturn {
 
             return { status: "fulfilled", value: savedPhoto };
           } else {
-            throw new Error(u.error || "Upload failed");
+            throw new Error(u.error || "Upload gagal");
           }
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : "Upload failed";
+          const errorMessage = error instanceof Error ? error.message : "Upload gagal";
           return { status: "rejected", reason: { id: itemId, name: file.name, error: errorMessage } };
         }
       });

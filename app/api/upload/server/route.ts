@@ -59,7 +59,7 @@ export async function POST(request: Request) {
     const folder = (formData.get("folder") as string) || UPLOAD_FOLDER;
 
     if (!file || folder !== UPLOAD_FOLDER) {
-      return NextResponse.json({ error: "No file provided" }, { status: 400 });
+      return NextResponse.json({ error: "Tidak ada file yang dikirim" }, { status: 400 });
     }
 
     const validation = validateUploadRequest({
@@ -78,7 +78,7 @@ export async function POST(request: Request) {
     const result = await new Promise<CloudinaryUploadResponse>((resolve, reject) => {
       const timeout = resourceType === "video" ? 300000 : 120000;
       const timeoutId = setTimeout(() => {
-        reject(new Error(`Upload timeout after ${timeout / 1000}s`));
+        reject(new Error(`Waktu upload habis setelah ${timeout / 1000} detik`));
       }, timeout);
 
       const uploadStream = cloudinary.uploader.upload_stream(
@@ -93,7 +93,7 @@ export async function POST(request: Request) {
         (error, result) => {
           clearTimeout(timeoutId);
           if (error || !result) {
-            reject(error || new Error("Upload failed"));
+            reject(error || new Error("Upload gagal"));
             return;
           }
           resolve({
@@ -128,7 +128,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Server upload error:", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Upload failed" },
+      { error: error instanceof Error ? error.message : "Upload gagal" },
       { status: 500 }
     );
   }

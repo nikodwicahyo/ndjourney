@@ -38,7 +38,7 @@ export async function GET(
 
     if (!milestone) {
       return NextResponse.json(
-        { error: "Milestone not found" },
+        { error: "Milestone tidak ditemukan" },
         { status: 404 },
       );
     }
@@ -46,7 +46,7 @@ export async function GET(
     // Enforce visibility rules for unauthenticated callers matching the list endpoint
     if (!isAuthed && !milestone.isPublic) {
       return NextResponse.json(
-        { error: "Milestone not found" },
+        { error: "Milestone tidak ditemukan" },
         { status: 404 },
       );
     }
@@ -77,7 +77,7 @@ export async function GET(
     });
   } catch (error) {
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Terjadi kesalahan pada server. Coba lagi nanti." },
       { status: 500 },
     );
   }
@@ -101,10 +101,10 @@ export async function PUT(
       select: { createdById: true },
     });
     if (!existingMilestone) {
-      return NextResponse.json({ error: "Milestone not found" }, { status: 404 });
+      return NextResponse.json({ error: "Milestone tidak ditemukan" }, { status: 404 });
     }
     if (existingMilestone.createdById !== session.user.id) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return NextResponse.json({ error: "Kamu tidak punya akses untuk mengubah milestone ini" }, { status: 403 });
     }
 
     const body = await request.json();
@@ -112,7 +112,7 @@ export async function PUT(
 
     if (!parsed.success) {
       return NextResponse.json(
-        { error: parsed.error.issues[0]?.message || "Validation failed" },
+        { error: parsed.error.issues[0]?.message || "Data milestone tidak valid" },
         { status: 400 },
       );
     }
@@ -239,7 +239,7 @@ export async function PUT(
     });
   } catch (error) {
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Terjadi kesalahan pada server. Coba lagi nanti." },
       { status: 500 },
     );
   }
@@ -263,10 +263,10 @@ export async function DELETE(
       select: { createdById: true },
     });
     if (!existingMilestone) {
-      return NextResponse.json({ error: "Milestone not found" }, { status: 404 });
+      return NextResponse.json({ error: "Milestone tidak ditemukan" }, { status: 404 });
     }
     if (existingMilestone.createdById !== userId) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return NextResponse.json({ error: "Kamu tidak punya akses untuk menghapus milestone ini" }, { status: 403 });
     }
 
     // Fetch milestone-only photos to clean from Cloudinary
@@ -304,7 +304,7 @@ export async function DELETE(
     return NextResponse.json({ message: "Milestone deleted" });
   } catch (error) {
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Terjadi kesalahan pada server. Coba lagi nanti." },
       { status: 500 },
     );
   }

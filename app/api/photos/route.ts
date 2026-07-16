@@ -128,7 +128,7 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error("Error fetching photos:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Terjadi kesalahan pada server. Coba lagi nanti." },
       { status: 500 },
     );
   }
@@ -148,22 +148,22 @@ export async function POST(request: Request) {
 
     if (!parsed.success) {
       return NextResponse.json(
-        { error: parsed.error.issues[0]?.message || "Validation failed" },
+        { error: parsed.error.issues[0]?.message || "Data foto tidak valid" },
         { status: 400 },
       );
     }
 
     const { url, publicId, thumbnailUrl, caption, takenAt, width, height, isVideo, albumId } = parsed.data;
     if (!isAllowedCloudinaryUrl(url) || !publicIdBelongsToUser(publicId, session.user.id)) {
-      return NextResponse.json({ error: "Invalid uploaded media" }, { status: 400 });
+      return NextResponse.json({ error: "Media tidak valid atau tidak diizinkan" }, { status: 400 });
     }
 
     if (thumbnailUrl && !isAllowedCloudinaryUrl(thumbnailUrl)) {
-      return NextResponse.json({ error: "Invalid thumbnail URL" }, { status: 400 });
+      return NextResponse.json({ error: "URL thumbnail tidak valid" }, { status: 400 });
     }
 
     if (isVideo && !url.includes("/video/upload/")) {
-      return NextResponse.json({ error: "Invalid video media URL" }, { status: 400 });
+      return NextResponse.json({ error: "URL video tidak valid" }, { status: 400 });
     }
 
     const coupleId = await getUserCoupleId(session.user.id);
@@ -203,7 +203,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Error creating photo:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Terjadi kesalahan pada server. Coba lagi nanti." },
       { status: 500 },
     );
   }

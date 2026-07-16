@@ -179,7 +179,7 @@ export function useUploadPhoto() {
 
       if (!photoRes.ok) {
         const err = await photoRes.json();
-        throw new Error(err.error || "Failed to save photo");
+        throw new Error(err.error || "Gagal menyimpan foto");
       }
 
       return photoRes.json();

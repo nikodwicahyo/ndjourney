@@ -100,7 +100,7 @@ export default function GameManager() {
       setOpen(false);
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : "Gagal"),
+      toast.error(err instanceof Error ? err.message : "Gagal membuat pertanyaan"),
   });
 
   const deleteQuestion = useMutation({
@@ -152,7 +152,7 @@ export default function GameManager() {
       setOpen(false);
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : "Gagal"),
+      toast.error(err instanceof Error ? err.message : "Gagal mengubah pertanyaan"),
   });
 
   async function handleSubmit(e: React.FormEvent) {

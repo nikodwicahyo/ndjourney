@@ -20,8 +20,8 @@ export function useMilestones() {
     queryFn: async () => {
       const res = await fetch("/api/milestones", { cache: "no-store" });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "Failed to fetch milestones" }));
-        throw new Error(err.error || "Failed to fetch milestones");
+        const err = await res.json().catch(() => ({ error: "Gagal memuat milestone" }));
+        throw new Error(err.error || "Gagal memuat milestone");
       }
       const json: { data?: MilestoneWithRelations[] } = await res.json();
       return json.data ?? [];

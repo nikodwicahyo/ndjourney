@@ -52,13 +52,13 @@ export async function GET(
     });
 
     if (!photo) {
-      return NextResponse.json({ error: "Photo not found" }, { status: 404 });
+      return NextResponse.json({ error: "Media tidak ditemukan" }, { status: 404 });
     }
 
     // Enforce visibility rules for unauthenticated callers matching the list endpoint
     if (!isAuthed) {
       if (photo.isMilestoneOnly) {
-        return NextResponse.json({ error: "Photo not found" }, { status: 404 });
+        return NextResponse.json({ error: "Media tidak ditemukan" }, { status: 404 });
       }
       if (photo.albumId) {
         const album = await prisma.album.findUnique({
@@ -66,7 +66,7 @@ export async function GET(
           select: { isPublic: true },
         });
         if (!album || !album.isPublic) {
-          return NextResponse.json({ error: "Photo not found" }, { status: 404 });
+          return NextResponse.json({ error: "Media tidak ditemukan" }, { status: 404 });
         }
       }
     }
@@ -83,7 +83,7 @@ export async function GET(
   } catch (error) {
     console.error("Error fetching photo:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Terjadi kesalahan pada server. Coba lagi nanti." },
       { status: 500 },
     );
   }
@@ -107,10 +107,10 @@ export async function PUT(
       select: { uploadedById: true },
     });
     if (!existing) {
-      return NextResponse.json({ error: "Photo not found" }, { status: 404 });
+      return NextResponse.json({ error: "Media tidak ditemukan" }, { status: 404 });
     }
     if (existing.uploadedById !== userId) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return NextResponse.json({ error: "Kamu tidak punya akses untuk mengubah media ini" }, { status: 403 });
     }
 
     const body = await request.json();
@@ -118,7 +118,7 @@ export async function PUT(
 
     if (!parsed.success) {
       return NextResponse.json(
-        { error: parsed.error.issues[0]?.message || "Validation failed" },
+        { error: parsed.error.issues[0]?.message || "Data tidak valid" },
         { status: 400 },
       );
     }
@@ -133,7 +133,7 @@ export async function PUT(
     }
 
     if (Object.keys(updateData).length === 0) {
-      return NextResponse.json({ error: "No fields to update" }, { status: 400 });
+      return NextResponse.json({ error: "Tidak ada perubahan yang dikirim" }, { status: 400 });
     }
 
     const photo = await prisma.photo.update({
@@ -176,7 +176,7 @@ export async function PUT(
   } catch (error) {
     console.error("Error updating photo:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Terjadi kesalahan pada server. Coba lagi nanti." },
       { status: 500 },
     );
   }
@@ -201,10 +201,10 @@ export async function DELETE(
     });
 
     if (!photo) {
-      return NextResponse.json({ error: "Photo not found" }, { status: 404 });
+      return NextResponse.json({ error: "Media tidak ditemukan" }, { status: 404 });
     }
     if (photo.uploadedById !== userId) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return NextResponse.json({ error: "Kamu tidak punya akses untuk menghapus media ini" }, { status: 403 });
     }
 
     // Do not remove the database record unless Cloudinary confirms deletion.
@@ -227,7 +227,7 @@ export async function DELETE(
   } catch (error) {
     console.error("Error deleting photo:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Terjadi kesalahan pada server. Coba lagi nanti." },
       { status: 500 },
     );
   }

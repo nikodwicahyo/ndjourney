@@ -57,7 +57,7 @@ export default function ErrorPage({
           Ada yang salah
         </h1>
         <p className="text-muted-foreground">
-          {error.message || "Terjadi kesalahan yang tidak terduga"}
+          Terjadi kesalahan saat memuat halaman ini.
         </p>
         <p className="text-sm text-muted-foreground">
           Silakan coba lagi. Jika masalah berlanjut, hubungi pasanganmu.

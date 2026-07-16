@@ -27,20 +27,20 @@ export async function PUT(
     });
 
     if (!letter) {
-      return NextResponse.json({ error: "Letter not found" }, { status: 404 });
+      return NextResponse.json({ error: "Surat tidak ditemukan" }, { status: 404 });
     }
 
     if (letter.recipientId !== session.user.id) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return NextResponse.json({ error: "Kamu tidak punya akses untuk membuka surat ini" }, { status: 403 });
     }
 
     if (letter.isOpened) {
-      return NextResponse.json({ error: "Already opened" }, { status: 400 });
+      return NextResponse.json({ error: "Surat ini sudah dibuka" }, { status: 400 });
     }
 
     if (letter.isTimeCapsule && letter.unlockAt && letter.unlockAt > new Date()) {
       return NextResponse.json(
-        { error: "Time capsule is still locked" },
+        { error: "Time capsule masih terkunci sampai waktu yang ditentukan" },
         { status: 423 },
       );
     }
@@ -88,7 +88,7 @@ export async function PUT(
   } catch (error) {
     console.error("Error opening letter:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Terjadi kesalahan pada server. Coba lagi nanti." },
       { status: 500 },
     );
   }

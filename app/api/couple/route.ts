@@ -39,7 +39,7 @@ export async function GET() {
 
     if (!config) {
       return NextResponse.json(
-        { error: "Couple config not found" },
+        { error: "Konfigurasi pasangan tidak ditemukan" },
         { status: 404 },
       );
     }
@@ -52,7 +52,7 @@ export async function GET() {
   } catch (error) {
     console.error("Error fetching couple config:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Terjadi kesalahan pada server. Coba lagi nanti." },
       { status: 500 },
     );
   }
@@ -69,7 +69,7 @@ export async function PUT(request: Request) {
     const parsed = updateCoupleSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
-        { error: parsed.error.issues[0]?.message || "Validation failed" },
+        { error: parsed.error.issues[0]?.message || "Data pasangan tidak valid" },
         { status: 400 },
       );
     }
@@ -81,7 +81,7 @@ export async function PUT(request: Request) {
 
     if (!config) {
       return NextResponse.json(
-        { error: "Couple config not found" },
+        { error: "Konfigurasi pasangan tidak ditemukan" },
         { status: 404 },
       );
     }
@@ -169,7 +169,7 @@ export async function PUT(request: Request) {
   } catch (error) {
     console.error("Error updating couple config:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Terjadi kesalahan pada server. Coba lagi nanti." },
       { status: 500 },
     );
   }

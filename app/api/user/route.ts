@@ -95,7 +95,7 @@ export async function PUT(request: Request) {
   } catch (error) {
     console.error("Error updating user:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Terjadi kesalahan pada server. Coba lagi nanti." },
       { status: 500 },
     );
   }

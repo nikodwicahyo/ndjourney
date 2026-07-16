@@ -11,7 +11,7 @@ export function useStorageUsage() {
     queryKey: storageKeys.usage(),
     queryFn: async ({ signal }) => {
       const res = await fetch("/api/storage/usage", { signal });
-      if (!res.ok) throw new Error("Failed to fetch storage usage");
+      if (!res.ok) throw new Error("Gagal memuat penggunaan penyimpanan");
       const json = await res.json();
       return json.data as CloudinaryUsage;
     },

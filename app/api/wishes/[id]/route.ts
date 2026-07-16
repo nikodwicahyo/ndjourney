@@ -23,7 +23,7 @@ export async function PUT(
 
     if (!parsed.success) {
       return NextResponse.json(
-        { error: parsed.error.issues[0]?.message || "Validation failed" },
+        { error: parsed.error.issues[0]?.message || "Data wish tidak valid" },
         { status: 400 },
       );
     }
@@ -76,7 +76,7 @@ export async function PUT(
   } catch (error) {
     console.error("Error updating wish:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Terjadi kesalahan pada server. Coba lagi nanti." },
       { status: 500 },
     );
   }
@@ -118,7 +118,7 @@ export async function DELETE(
   } catch (error) {
     console.error("Error deleting wish:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Terjadi kesalahan pada server. Coba lagi nanti." },
       { status: 500 },
     );
   }

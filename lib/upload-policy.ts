@@ -70,33 +70,33 @@ export function validateUploadRequest(input: {
   const fileType = input.fileType.trim().toLowerCase();
   const extension = getExtension(input.fileName);
 
-  if (!input.fileName.trim()) return { valid: false, error: "File name is required" };
-  if (!Number.isFinite(fileSize) || fileSize <= 0) return { valid: false, error: "File is empty or invalid" };
-  if (!fileType) return { valid: false, error: "File type is required" };
-  if (BLOCKED_EXTENSIONS.has(extension)) return { valid: false, error: "File type is not allowed" };
+  if (!input.fileName.trim()) return { valid: false, error: "Nama file wajib diisi" };
+  if (!Number.isFinite(fileSize) || fileSize <= 0) return { valid: false, error: "File kosong atau tidak valid" };
+  if (!fileType) return { valid: false, error: "Tipe file wajib diisi" };
+  if (BLOCKED_EXTENSIONS.has(extension)) return { valid: false, error: "Tipe file tidak diizinkan" };
 
   if (fileType.startsWith("image/")) {
     if (fileSize > DEFAULT_LIMITS.image) {
-      return { valid: false, error: `Image exceeds ${formatBytes(DEFAULT_LIMITS.image)} limit` };
+      return { valid: false, error: `Ukuran gambar melebihi batas ${formatBytes(DEFAULT_LIMITS.image)}` };
     }
     return { valid: true, policy: { maxBytes: DEFAULT_LIMITS.image, resourceType: "image" } };
   }
 
   if (fileType.startsWith("video/")) {
     if (fileSize > DEFAULT_LIMITS.video) {
-      return { valid: false, error: `Video exceeds ${formatBytes(DEFAULT_LIMITS.video)} limit` };
+      return { valid: false, error: `Ukuran video melebihi batas ${formatBytes(DEFAULT_LIMITS.video)}` };
     }
     return { valid: true, policy: { maxBytes: DEFAULT_LIMITS.video, resourceType: "video" } };
   }
 
   if (fileType.startsWith("audio/")) {
     if (fileSize > DEFAULT_LIMITS.video) {
-      return { valid: false, error: `Audio exceeds ${formatBytes(DEFAULT_LIMITS.video)} limit` };
+      return { valid: false, error: `Ukuran audio melebihi batas ${formatBytes(DEFAULT_LIMITS.video)}` };
     }
     return { valid: true, policy: { maxBytes: DEFAULT_LIMITS.video, resourceType: "raw" } };
   }
 
-  return { valid: false, error: "Only image and video files are allowed in gallery" };
+  return { valid: false, error: "Hanya file gambar dan video yang diizinkan di galeri" };
 }
 
 export function isAllowedCloudinaryUrl(url: string): boolean {

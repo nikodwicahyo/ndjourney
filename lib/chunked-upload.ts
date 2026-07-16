@@ -118,8 +118,8 @@ export async function getSignedUploadParams(
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: "Failed to get signed upload params" }));
-    throw new Error(error.error || "Failed to get signed upload params");
+    const error = await response.json().catch(() => ({ error: "Gagal mendapatkan parameter upload bertanda tangan" }));
+    throw new Error(error.error || "Gagal mendapatkan parameter upload bertanda tangan");
   }
 
   const data = await response.json();

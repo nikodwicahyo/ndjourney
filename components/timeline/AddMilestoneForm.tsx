@@ -4,6 +4,7 @@ import { useState, useRef } from "react";
 import Image from "next/image";
 import { useCreateMilestone, useUpdateMilestone } from "@/hooks/useMilestones";
 import { Button } from "@/components/ui";
+import GalleryPicker from "@/components/ui/GalleryPicker";
 import { X, Loader2, Upload, ImagePlus } from "lucide-react";
 import { toast } from "sonner";
 import type { MilestoneWithRelations } from "@/hooks/useMilestones";
@@ -52,10 +53,6 @@ export default function AddMilestoneForm({
   >(milestone?.photos?.map((p) => ({ ...p.photo, publicId: undefined })) || []);
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [showGalleryPicker, setShowGalleryPicker] = useState(false);
-  const [galleryPhotos, setGalleryPhotos] = useState<
-    Array<{ id: string; url: string; thumbnailUrl: string | null }>
-  >([]);
-  const [loadingGallery, setLoadingGallery] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -88,17 +85,6 @@ export default function AddMilestoneForm({
 
   async function openGalleryPicker() {
     setShowGalleryPicker(true);
-    if (galleryPhotos.length === 0) {
-      setLoadingGallery(true);
-      try {
-        const res = await fetch("/api/photos?limit=100&sort=newest");
-        const json = await res.json();
-        setGalleryPhotos(json.data || []);
-      } catch {
-        toast.error("Gagal memuat galeri");
-      }
-      setLoadingGallery(false);
-    }
   }
 
   function toggleGalleryPhoto(photo: { id: string; url: string; thumbnailUrl: string | null }) {
@@ -267,7 +253,8 @@ export default function AddMilestoneForm({
                     <button
                       type="button"
                       onClick={() => removePhoto(photo.id || photo.publicId || photo.url)}
-                      className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100"
+                      aria-label="Hapus foto"
+                      className="absolute inset-0 flex items-center justify-center bg-black/50 transition-opacity"
                     >
                       <X className="h-4 w-4 text-white" />
                     </button>
@@ -337,83 +324,20 @@ export default function AddMilestoneForm({
           </div>
         </form>
 
-{showGalleryPicker && (
-          <div className="absolute inset-0 z-10 flex flex-col rounded-2xl border border-border bg-card">
-            <div className="flex-shrink-0 border-b border-border p-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-heading text-base font-semibold">
-                  Pilih Foto dari Galeri
-                </h3>
-                <button
-                  onClick={() => setShowGalleryPicker(false)}
-                  className="rounded-full p-1 transition-colors hover:bg-muted"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4">
-              {loadingGallery ? (
-                <div className="flex items-center justify-center h-full">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                </div>
-              ) : galleryPhotos.length === 0 ? (
-                <div className="flex h-full items-center justify-center">
-                  <p className="text-sm text-muted-foreground">
-                    Belum ada foto di galeri
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-1.5 w-full">
-                  {galleryPhotos.map((photo) => {
-                    const selected = isPhotoSelected(photo.id);
-                    return (
-                      <button
-                        key={photo.id}
-                        type="button"
-                        onClick={() => toggleGalleryPhoto(photo)}
-                        className={`relative w-full overflow-hidden rounded-lg transition-all ${
-                          selected
-                            ? "ring-2 ring-primary ring-offset-2 ring-offset-card"
-                            : "hover:ring-1 hover:ring-primary/50"
-                        }`}
-                        style={{ aspectRatio: "1 / 1" }}
-                      >
-                        <div className="absolute inset-0">
-                          <Image
-                            src={photo.thumbnailUrl || photo.url}
-                            alt=""
-                            fill
-                            sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
-                            className="object-cover"
-                          />
-                        </div>
-{selected && (
-                            <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
-                              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-white text-sm shadow-lg">
-                                ✓
-                              </div>
-                            </div>
-                          )}
-                        </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            <div className="flex-shrink-0 border-t border-border p-4">
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                onClick={() => setShowGalleryPicker(false)}
-              >
-                Selesai
-              </Button>
-            </div>
-          </div>
+        {showGalleryPicker && (
+          <GalleryPicker
+            open={showGalleryPicker}
+            multi
+            selectedIds={selectedPhotos.map((p) => p.id).filter(Boolean) as string[]}
+            onClose={() => setShowGalleryPicker(false)}
+            onSelect={(photo) =>
+              toggleGalleryPhoto({
+                id: photo.id,
+                url: photo.url,
+                thumbnailUrl: photo.thumbnailUrl,
+              })
+            }
+          />
         )}
       </div>
     </div>

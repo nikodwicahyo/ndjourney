@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import { useCreateWish, useUpdateWish, useDeleteWish } from "@/hooks/useWishes";
 import { Button } from "@/components/ui";
+import GalleryPicker from "@/components/ui/GalleryPicker";
 import { Plus, Loader2, X, Upload, ImagePlus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { showDeleteConfirm } from "@/lib/swal";
@@ -37,10 +38,6 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
   const [imageUploading, setImageUploading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showGalleryPicker, setShowGalleryPicker] = useState(false);
-  const [galleryPhotos, setGalleryPhotos] = useState<
-    Array<{ id: string; url: string; thumbnailUrl: string | null }>
-  >([]);
-  const [loadingGallery, setLoadingGallery] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const localPreviewUrlRef = useRef("");
   const uploadRequestRef = useRef(0);
@@ -145,17 +142,6 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
 
   async function openGalleryPicker() {
     setShowGalleryPicker(true);
-    if (galleryPhotos.length === 0) {
-      setLoadingGallery(true);
-      try {
-        const res = await fetch("/api/photos?limit=100&sort=newest");
-        const json = await res.json();
-        setGalleryPhotos(json.data || []);
-      } catch {
-        toast.error("Gagal memuat galeri");
-      }
-      setLoadingGallery(false);
-    }
   }
 
   function selectGalleryPhoto(photo: { id: string; url: string; thumbnailUrl: string | null }) {
@@ -326,9 +312,10 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
                         setImageUrl("");
                       }}
                       disabled={imageUploading}
+                      aria-label="Hapus foto"
                       className="absolute right-2 top-2 z-10 rounded-full bg-black/50 p-1 text-white transition-colors hover:bg-black/70"
                     >
-                      <X className="h-3.5 w-3.5" />
+                      <X className="h-4 w-4" />
                     </button>
                   </div>
                 ) : null}
@@ -419,79 +406,17 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
             </form>
 
             {showGalleryPicker && (
-              <div className="absolute inset-0 z-10 flex flex-col rounded-2xl border border-border bg-card">
-                <div className="flex-shrink-0 border-b border-border p-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-heading text-base font-semibold">
-                      Pilih Foto dari Galeri
-                    </h3>
-                    <button
-                      onClick={() => setShowGalleryPicker(false)}
-                      className="rounded-full p-1 transition-colors hover:bg-muted"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex-1 overflow-y-auto p-4">
-                  {loadingGallery ? (
-                    <div className="flex h-full items-center justify-center">
-                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : galleryPhotos.length === 0 ? (
-                    <div className="flex h-full items-center justify-center">
-                      <p className="text-sm text-muted-foreground">
-                        Belum ada foto di galeri
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="grid w-full grid-cols-2 gap-1.5 sm:grid-cols-3">
-                      {galleryPhotos.map((photo) => (
-                        <button
-                          key={photo.id}
-                          type="button"
-                          onClick={() => selectGalleryPhoto(photo)}
-                          className={`relative w-full overflow-hidden rounded-lg transition-all ${
-                            imageUrl === photo.url
-                              ? "ring-2 ring-primary ring-offset-2 ring-offset-card"
-                              : "hover:ring-1 hover:ring-primary/50"
-                          }`}
-                          style={{ aspectRatio: "1 / 1" }}
-                        >
-                          <div className="absolute inset-0">
-                            <Image
-                              src={photo.thumbnailUrl || photo.url}
-                              alt=""
-                              fill
-                              sizes="(max-width: 640px) 50vw, 33vw"
-                              className="object-cover"
-                            />
-                          </div>
-                          {imageUrl === photo.url && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-primary/20">
-                              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm text-white shadow-lg">
-                                ✓
-                              </div>
-                            </div>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex-shrink-0 border-t border-border p-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => setShowGalleryPicker(false)}
-                  >
-                    Selesai
-                  </Button>
-                </div>
-              </div>
+              <GalleryPicker
+                open={showGalleryPicker}
+                onClose={() => setShowGalleryPicker(false)}
+                onSelect={(photo) =>
+                  selectGalleryPhoto({
+                    id: photo.id,
+                    url: photo.url,
+                    thumbnailUrl: photo.thumbnailUrl,
+                  })
+                }
+              />
             )}
           </div>
         </div>

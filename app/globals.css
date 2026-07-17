@@ -398,6 +398,114 @@
   margin-top: 0.25rem !important;
 }
 
+/* ── Leaflet map overrides ──────────────────────────────────── */
+
+.leaflet-container {
+  font-family: var(--font-body), system-ui, sans-serif;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 12px !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
+}
+
+.leaflet-popup-content {
+  margin: 10px 14px !important;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.leaflet-popup-tip {
+  box-shadow: none !important;
+}
+
+.dark .leaflet-popup-content-wrapper {
+  background: #1e293b !important;
+  color: #f1f5f9 !important;
+}
+
+.dark .leaflet-popup-tip {
+  background: #1e293b !important;
+}
+
+.dark .leaflet-control-zoom a {
+  background: #1e293b !important;
+  color: #f1f5f9 !important;
+  border-color: #334155 !important;
+}
+
+.dark .leaflet-control-zoom a:hover {
+  background: #334155 !important;
+}
+
+.dark .leaflet-control-attribution {
+  background: rgba(15, 23, 42, 0.85) !important;
+  color: #94a3b8 !important;
+}
+
+.dark .leaflet-control-attribution a {
+  color: #60a5fa !important;
+}
+
+/* Animated dashed line for map connecting polyline */
+@keyframes dash-move {
+  to {
+    stroke-dashoffset: -40;
+  }
+}
+
+.leaflet-connecting-line {
+  animation: dash-move 1s linear infinite;
+}
+
+/* Map tile dark mode filter (applied via CSS, cleaner than mix-blend-mode) */
+.dark .leaflet-tile-pane {
+  filter: brightness(0.7) hue-rotate(210deg) saturate(0.6);
+}
+
+/* Fix Leaflet tile rendering in dark mode */
+.dark .leaflet-layer {
+  filter: brightness(0.75) hue-rotate(200deg) saturate(0.5);
+}
+
+@keyframes leaflet-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.35;
+  }
+  50% {
+    transform: scale(1.8);
+    opacity: 0.12;
+  }
+}
+
+/* Smooth avatar marker transitions */
+.leaflet-marker-icon {
+  transition: transform 0.3s ease;
+}
+
+/* Map popup improvements */
+.leaflet-popup-close-button {
+  top: 8px !important;
+  right: 8px !important;
+  font-size: 18px !important;
+}
+
+/* Scale control styling */
+.leaflet-control-scale {
+  font-size: 10px !important;
+  color: var(--muted-foreground) !important;
+}
+
+.dark .leaflet-control-scale-line {
+  background: rgba(15, 23, 42, 0.8) !important;
+  border-color: #334155 !important;
+  color: #94a3b8 !important;
+}
+
+/* ── SweetAlert overrides ───────────────────────────────────── */
+
 .swal-confirm-btn {
   border-radius: 9999px !important;
   padding: 0.5rem 1.25rem !important;

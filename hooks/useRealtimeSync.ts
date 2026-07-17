@@ -71,6 +71,13 @@ export function useRealtimeSync(coupleId: string | undefined) {
           queryClient.invalidateQueries({ queryKey: queryKeys.couple.all, refetchType: 'all' });
           queryClient.invalidateQueries({ queryKey: queryKeys.partner.all(), refetchType: 'all' });
           break;
+        case 'LOCATION':
+          // Live location changed (share toggle or position update): refresh the
+          // location query so the map, distance and "Meet" state update in real
+          // time. Polling in usePartnerLocation covers Pusher disconnects.
+          queryClient.invalidateQueries({ queryKey: queryKeys.location.all, refetchType: 'all' });
+          queryClient.invalidateQueries({ queryKey: queryKeys.partner.all(), refetchType: 'all' });
+          break;
         case 'PROFILE':
           // Profile photo (or name) changed: refresh every query that embeds a
           // user image so avatars update live across notes, letters, milestones,

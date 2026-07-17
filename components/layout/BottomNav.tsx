@@ -15,6 +15,7 @@ import {
   MessageCircleHeart,
   LayoutDashboard,
   LogIn,
+  MapPin,
 } from "lucide-react";
 
 const navItems = [
@@ -25,6 +26,7 @@ const navItems = [
   { href: "/notes", label: "Daily Note", short: "Note", icon: StickyNote },
   { href: "/wishlist", label: "Wish List", short: "Wish", icon: Gift },
   { href: "/letters", label: "Letters", short: "Letters", icon: MessageCircleHeart },
+  { href: "/dashboard/location", label: "Location", short: "Loc", icon: MapPin, auth: true },
   { href: "/dashboard", label: "Dashboard", short: "Dash", icon: LayoutDashboard, auth: true },
   { href: "/login", label: "Login", short: "Login", icon: LogIn, guest: true },
 ];

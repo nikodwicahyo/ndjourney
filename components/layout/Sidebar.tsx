@@ -16,12 +16,14 @@ import {
   Image,
   CalendarDays,
   User,
+  MapPin,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui";
 
 export const sidebarLinks = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/dashboard/gallery", label: "Gallery", icon: Image },
+  { href: "/dashboard/location", label: "Location", icon: MapPin },
   { href: "/dashboard/timeline", label: "Timeline", icon: CalendarDays },
   { href: "/dashboard/games", label: "Games", icon: Gamepad2 },
   { href: "/dashboard/notes", label: "Daily Note", icon: StickyNote },

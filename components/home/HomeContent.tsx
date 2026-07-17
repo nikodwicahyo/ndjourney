@@ -11,6 +11,7 @@ import DailyLoveTask from "./DailyLoveTask";
 import BottleLetter from "./BottleLetter";
 import MemoryMatch from "./MemoryMatch";
 import ClickHearts from "./ClickHearts";
+import LocationWidget from "@/components/location/LocationWidget";
 import type { GalleryPhoto } from "./GallerySlideshow";
 import type { HomeSummaries } from "./HomeStats";
 import type { LoveMeterState } from "@/lib/love-meter";
@@ -61,6 +62,10 @@ export default function HomeContent({
         tagline={coupleConfig?.tagline}
         heroPhotoUrl={coupleConfig?.heroPhotoUrl}
       />
+
+      <div className="mx-auto max-w-3xl px-1">
+        <LocationWidget />
+      </div>
 
       <div className="space-y-16 md:space-y-24">
         <section>

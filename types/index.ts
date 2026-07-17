@@ -162,7 +162,8 @@ export type SyncScope =
   | 'DASHBOARD'
   | 'GAMES_LEADERBOARD'
   | 'GAMES_QUESTIONS'
-  | 'PROFILE';
+  | 'PROFILE'
+  | 'LOCATION';
 
 export type SyncAction = 'REFRESH';
 

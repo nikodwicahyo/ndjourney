@@ -54,4 +54,7 @@ export const queryKeys = {
   partner: {
     all: () => ["partner"] as const,
   },
+  location: {
+    all: ["location"] as const,
+  },
 } as const;

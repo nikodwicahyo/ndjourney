@@ -9,5 +9,6 @@ export { default as LeaderBoard } from "./LeaderBoard";
 export { default as GalleryManager } from "./GalleryManager";
 export { default as TimelineManager } from "./TimelineManager";
 export { default as NotesManager } from "./NotesManager";
+export { default as LocationManager } from "./LocationManager";
 export { default as WishlistManager } from "./WishlistManager";
 export { default as ProfileContent } from "./ProfileContent";

@@ -19,7 +19,10 @@ model User {
   updatedAt       DateTime      @updatedAt
   accounts        Account[]
   coupleMembers   CoupleMember?
-  dailyNotes      DailyNote[]
+  locationShare   LocationShare?
+  userLocation      UserLocation?
+  userLocationHistory UserLocationHistory[]
+  dailyNotes        DailyNote[]
   gameScores      GameScore[]
   gameArcadeScores GameArcadeScore[]
   letters         Letter[]      @relation("LetterAuthor")
@@ -73,6 +76,9 @@ model Couple {
   milestones Milestone[]
   photos     Photo[]
   wishes     WishItem[]
+  locationShares     LocationShare[]
+  userLocations      UserLocation[]
+  userLocationHistory UserLocationHistory[]
 }
 
 model CoupleMember {
@@ -275,6 +281,55 @@ model GameArcadeScore {
   @@index([userId])
   @@index([gameType])
   @@index([gameType, score])
+}
+
+model LocationShare {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  coupleId  String
+  isSharing Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  couple    Couple   @relation(fields: [coupleId], references: [id], onDelete: Cascade)
+
+  @@index([coupleId])
+}
+
+model UserLocation {
+  id         String    @id @default(cuid())
+  userId     String    @unique
+  coupleId   String
+  latitude   Float
+  longitude  Float
+  accuracy   Float?
+  heading    Float?
+  speed      Float?
+  altitude   Float?
+  deviceType String
+  updatedAt  DateTime  @updatedAt
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  couple     Couple    @relation(fields: [coupleId], references: [id], onDelete: Cascade)
+
+  @@index([coupleId])
+}
+
+model UserLocationHistory {
+  id        String   @id @default(cuid())
+  userId    String
+  coupleId  String
+  latitude  Float
+  longitude Float
+  accuracy  Float?
+  heading   Float?
+  speed     Float?
+  altitude  Float?
+  deviceType String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  couple    Couple   @relation(fields: [coupleId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([coupleId])
 }
 
 model WishItem {

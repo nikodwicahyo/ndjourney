@@ -34,6 +34,7 @@ import {
   User,
   Menu,
   X,
+  MapPin,
 } from "lucide-react";
 
 const navLinks = [
@@ -41,12 +42,13 @@ const navLinks = [
   { href: "/gallery", label: "Gallery", icon: Image },
   { href: "/timeline", label: "Timeline", icon: CalendarDays },
   { href: "/games", label: "Games", icon: Gamepad2 },
-  { href: "/notes", label: "Daily Note", icon: StickyNote },
-  { href: "/wishlist", label: "Wish List", icon: Gift },
+  { href: "/notes", label: "Note", icon: StickyNote },
+  { href: "/wishlist", label: "Wish", icon: Gift },
   { href: "/letters", label: "Letters", icon: MessageCircleHeart },
 ];
 
 const privateLinks = [
+  { href: "/dashboard/location", label: "Location", icon: MapPin },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
 ];
 

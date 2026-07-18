@@ -24,9 +24,13 @@ type Pin = {
 };
 
 const TILE_URL =
-  "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
+  "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png";
 const TILE_ATTR =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';
+const FALLBACK_TILE_URL =
+  "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+const FALLBACK_TILE_ATTR =
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
 const NOMINATIM_CACHE = new Map<string, string>();
 const NOMINATIM_CACHE_MAX = 50;
@@ -184,9 +188,15 @@ export default function PartnerMap({
   useEffect(() => {
     if (mapRef.current || !containerRef.current) return;
 
+    const container = containerRef.current;
+    const rect = container.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) {
+      container.style.minHeight = "420px";
+    }
+
     const center =
       self?.point ?? partner?.point ?? { lat: -6.2, lng: 106.816 };
-    const map = L.map(containerRef.current, {
+    const map = L.map(container, {
       center: [center.lat, center.lng],
       zoom: 15,
       zoomControl: false,
@@ -206,7 +216,7 @@ export default function PartnerMap({
       minZoom: 2,
       subdomains: "abcd",
       attribution: TILE_ATTR,
-      detectRetina: true,
+      detectRetina: false,
     }).addTo(map);
     tileLayerRef.current = tile;
 
@@ -230,6 +240,7 @@ export default function PartnerMap({
 .leaflet-control-scale-line{background:#fff!important;border:1px solid #ccc!important;border-top:none!important;color:#333!important;padding:0 6px 1px!important;font-size:11px!important;font-weight:500!important;width:fit-content!important;text-shadow:none!important;box-shadow:none!important}
 @keyframes leaflet-line-dash{to{stroke-dashoffset:-24}}
 .leaflet-connecting-line{animation:leaflet-line-dash 1.5s linear infinite}
+@keyframes leaflet-pulse{0%{transform:scale(1);opacity:.2}50%{transform:scale(2);opacity:0}100%{transform:scale(1);opacity:.2}}
 `;
     containerRef.current?.appendChild(scaleStyle);
 
@@ -333,29 +344,111 @@ export default function PartnerMap({
 
     mapRef.current = map;
 
-    function ensureSize() {
+    function tryInvalidate(attempt = 0): void {
       if (!mapRef.current) return;
-      mapRef.current.invalidateSize();
+      mapRef.current.invalidateSize({ debounceMoveend: true });
       const size = mapRef.current.getSize();
-      if (size.x === 0 || size.y === 0) {
-        requestAnimationFrame(ensureSize);
+      if ((size.x === 0 || size.y === 0) && attempt < 60) {
+        const delay = Math.min(100 * Math.pow(1.15, attempt), 5000);
+        setTimeout(() => tryInvalidate(attempt + 1), delay);
       }
     }
 
-    const raf = requestAnimationFrame(ensureSize);
-    const timeouts: ReturnType<typeof setTimeout>[] = [];
-    timeouts.push(setTimeout(ensureSize, 200));
-    timeouts.push(setTimeout(ensureSize, 600));
+    tryInvalidate();
+    map.whenReady(() => tryInvalidate());
+
+    let tileErrors = 0;
+    let tileRecoveryTimer: ReturnType<typeof setTimeout> | null = null;
+    let useFallback = false;
+    tile.on("tileerror", () => {
+      tileErrors++;
+      if (tileErrors >= 3 && !tileRecoveryTimer) {
+        tileRecoveryTimer = setTimeout(() => {
+          tileRecoveryTimer = null;
+          if (mapRef.current && tileLayerRef.current) {
+            useFallback = !useFallback;
+            const url = useFallback ? FALLBACK_TILE_URL : TILE_URL;
+            const attr = useFallback ? FALLBACK_TILE_ATTR : TILE_ATTR;
+            mapRef.current.removeLayer(tileLayerRef.current);
+            tileLayerRef.current = L.tileLayer(url, {
+              maxZoom: 20,
+              minZoom: 2,
+              subdomains: "abcd",
+              attribution: attr,
+              detectRetina: false,
+            }).addTo(mapRef.current);
+          }
+        }, 3000);
+      }
+    });
+
+    function recoverTiles() {
+      if (tileRecoveryTimer || !mapRef.current) return;
+      tileErrors = 3;
+      mapRef.current.invalidateSize({ debounceMoveend: true });
+      tileRecoveryTimer = setTimeout(() => {
+        tileRecoveryTimer = null;
+        if (mapRef.current && tileLayerRef.current) {
+          useFallback = !useFallback;
+          const url = useFallback ? FALLBACK_TILE_URL : TILE_URL;
+          const attr = useFallback ? FALLBACK_TILE_ATTR : TILE_ATTR;
+          mapRef.current.removeLayer(tileLayerRef.current);
+          tileLayerRef.current = L.tileLayer(url, {
+            maxZoom: 20,
+            minZoom: 2,
+            subdomains: "abcd",
+            attribution: attr,
+            detectRetina: false,
+          }).addTo(mapRef.current);
+        }
+      }, 500);
+    }
+
+    const tileCheckTimer = setTimeout(() => {
+      if (!mapRef.current) return;
+      const tileContainer = mapRef.current.getContainer();
+      const loadedTiles = tileContainer.querySelectorAll(".leaflet-tile-loaded");
+      if (loadedTiles.length === 0 && mapRef.current.getSize().x > 0 && mapRef.current.getSize().y > 0) {
+        recoverTiles();
+      }
+    }, 4000);
 
     const ro = new ResizeObserver(() => {
-      if (mapRef.current) mapRef.current.invalidateSize();
+      if (mapRef.current) mapRef.current.invalidateSize({ debounceMoveend: true });
     });
     if (containerRef.current) ro.observe(containerRef.current);
 
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting && mapRef.current) {
+            mapRef.current.invalidateSize({ debounceMoveend: true });
+          }
+        }
+      },
+      { threshold: [0, 0.1, 0.25, 0.5, 0.75, 1] },
+    );
+    if (containerRef.current) io.observe(containerRef.current);
+
+    const onResize = () => {
+      if (mapRef.current) mapRef.current.invalidateSize({ debounceMoveend: true });
+    };
+    window.addEventListener("resize", onResize);
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && mapRef.current) {
+        mapRef.current.invalidateSize({ debounceMoveend: true });
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
     return () => {
-      cancelAnimationFrame(raf);
-      timeouts.forEach(clearTimeout);
+      if (tileRecoveryTimer) clearTimeout(tileRecoveryTimer);
+      clearTimeout(tileCheckTimer);
       ro.disconnect();
+      io.disconnect();
+      window.removeEventListener("resize", onResize);
+      document.removeEventListener("visibilitychange", onVisible);
       if (scaleStyle.parentNode) scaleStyle.parentNode.removeChild(scaleStyle);
       map.remove();
       mapRef.current = null;
@@ -368,7 +461,8 @@ export default function PartnerMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Update history trail
+  // Update history trail — with fitBounds to show trail + markers when ON,
+  // and re-fit to markers when OFF
   useEffect(() => {
     const map = mapRef.current;
     const hLayerUntyped = historyLayerRef.current;
@@ -377,37 +471,63 @@ export default function PartnerMap({
 
     hLayer.clearLayers();
 
-    if (!showHistory || !history || history.length < 2) return;
+    const pins = [self, partner].filter(Boolean) as Pin[];
+    const markerLatLngs = pins.map(
+      (p) => [p.point.lat, p.point.lng] as L.LatLngExpression,
+    );
 
-    const selfHistory = history.filter((h) => {
-      const isSelfUser = session?.user?.id;
-      return h.userId === isSelfUser;
-    });
-    const partnerHistory = history.filter((h) => {
-      const isSelfUser = session?.user?.id;
-      return h.userId !== isSelfUser;
-    });
+    const fitMarkerBounds = () => {
+      if (pins.length === 2) {
+        map.fitBounds(L.latLngBounds(markerLatLngs), {
+          padding: [80, 80],
+          maxZoom: 16,
+          animate: true,
+        });
+      } else if (pins.length === 1) {
+        map.setView(markerLatLngs[0], 16, { animate: true });
+      }
+    };
 
-    function addTrail(points: LocationHistoryPoint[], color: string, layer: L.LayerGroup) {
+    if (!showHistory || !history || history.length < 2) {
+      fitMarkerBounds();
+      return;
+    }
+
+    const selfId = session?.user?.id;
+    const selfHistory = history.filter((h) => h.userId === selfId);
+    const partnerHistory = history.filter((h) => h.userId !== selfId);
+
+    const allTrailLatLngs: L.LatLngExpression[] = [];
+
+    function addTrail(
+      points: LocationHistoryPoint[],
+      color: string,
+      layer: L.LayerGroup,
+    ) {
       if (points.length < 2) return;
       const latlngs = points.map(
         (p) => [p.latitude, p.longitude] as L.LatLngExpression,
       );
+      allTrailLatLngs.push(...latlngs);
+
       L.polyline(latlngs, {
         color,
-        weight: 2,
-        opacity: 0.35,
-        dashArray: "4 6",
+        weight: 3,
+        opacity: 0.6,
       }).addTo(layer);
 
-      points.forEach((p) => {
+      points.forEach((p, i) => {
+        const isFirst = i === 0;
+        const isLast = i === points.length - 1;
+        const radius = isFirst || isLast ? 5 : 3;
+        const fillOpacity = isFirst || isLast ? 0.8 : 0.4;
         L.circleMarker([p.latitude, p.longitude] as L.LatLngTuple, {
-          radius: 2.5,
+          radius,
           color,
           fillColor: color,
-          fillOpacity: 0.5,
-          weight: 1,
-          opacity: 0.4,
+          fillOpacity,
+          weight: 1.5,
+          opacity: 0.5,
           interactive: false,
         }).addTo(layer);
       });
@@ -416,8 +536,12 @@ export default function PartnerMap({
     addTrail(selfHistory, "#3b82f6", hLayer);
     addTrail(partnerHistory, "#F43F5E", hLayer);
 
-    requestAnimationFrame(() => map.invalidateSize());
-  }, [history, showHistory, session?.user?.id]);
+    const bounds = L.latLngBounds(allTrailLatLngs);
+    if (markerLatLngs.length > 0) {
+      markerLatLngs.forEach((ll) => bounds.extend(ll));
+    }
+    map.fitBounds(bounds, { padding: [80, 80], maxZoom: 16, animate: true });
+  }, [history, showHistory, session?.user?.id, self, partner]);
 
   // Update markers (animated)
   useEffect(() => {
@@ -529,6 +653,10 @@ export default function PartnerMap({
     });
 
     // Connecting line + distance + ETA
+    if (pins.length >= 1) {
+      map.invalidateSize({ debounceMoveend: true });
+    }
+
     if (pins.length === 2) {
       lineRef.current = L.polyline(latlngs, {
         color: "#F43F5E",
@@ -570,8 +698,6 @@ export default function PartnerMap({
       // No pins, show default view
       map.setView([-6.2, 106.816], 14, { animate: true });
     }
-
-    requestAnimationFrame(() => map.invalidateSize());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [self, partner, addressCache]);
 
@@ -594,6 +720,13 @@ export default function PartnerMap({
   useEffect(() => {
     const handler = () => {
       setIsFullscreen(!!document.fullscreenElement);
+      requestAnimationFrame(() => {
+        if (mapRef.current) {
+          mapRef.current.invalidateSize();
+          setTimeout(() => mapRef.current?.invalidateSize(), 300);
+          setTimeout(() => mapRef.current?.invalidateSize(), 700);
+        }
+      });
     };
     document.addEventListener("fullscreenchange", handler);
     return () => document.removeEventListener("fullscreenchange", handler);
@@ -619,12 +752,12 @@ export default function PartnerMap({
             ? "fixed inset-0 z-[9999] rounded-none border-0"
             : "h-[420px] sm:h-[560px]"
         }
-        transition-all duration-300
+        transition-[border,border-radius] duration-300
       `}
     >
       <div
         ref={containerRef}
-        className="h-full w-full"
+        className="h-full w-full min-h-[420px]"
         style={{
           background: "#eef2f7",
         }}

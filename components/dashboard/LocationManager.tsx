@@ -210,7 +210,7 @@ export default function LocationManager() {
                 showHistory={showHistory}
               />
               {/* Map controls */}
-              {bothSharing && historyData && historyData.length > 0 && (
+              {historyData && historyData.length > 0 && (
                 <div className="flex items-center gap-2">
                   <Button
                     variant="ghost"

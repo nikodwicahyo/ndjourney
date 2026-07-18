@@ -29,6 +29,7 @@ import {
   type TravelMode,
 } from "@/lib/geo";
 import type { LocationState } from "@/hooks/useLocation";
+import DeviceBadge from "./DeviceBadge";
 
 const MODES: { mode: TravelMode; icon: typeof Footprints; label: string }[] = [
   { mode: "walking", icon: Footprints, label: "Jalan kaki" },
@@ -70,12 +71,14 @@ function PersonAvatar({
   fallback,
   isLive,
   statusText,
+  deviceType,
 }: {
   name: string;
   image: string | null;
   fallback: string;
   isLive: boolean;
   statusText: string;
+  deviceType: string | null;
 }) {
   return (
     <div className="flex flex-col items-center gap-1.5">
@@ -90,11 +93,14 @@ function PersonAvatar({
           }`}
         />
       </div>
-      <div className="text-center">
+      <div className="flex flex-col items-center gap-0.5">
         <p className="text-[11px] font-medium text-foreground leading-tight truncate max-w-[72px]">{name}</p>
-        <span className={`text-[9px] ${isLive ? "text-emerald-500" : "text-muted-foreground"}`}>
-          {statusText}
-        </span>
+        <div className="flex items-center gap-1">
+          {deviceType && <DeviceBadge deviceType={deviceType} />}
+          <span className={`text-[9px] ${isLive ? "text-emerald-500" : "text-muted-foreground"}`}>
+            {statusText}
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -108,6 +114,7 @@ function PersonInfoBox({
   isStale,
   locationAgeSeconds,
   accuracy,
+  deviceType,
 }: {
   name: string;
   image: string | null;
@@ -116,6 +123,7 @@ function PersonInfoBox({
   isStale: boolean;
   locationAgeSeconds: number | null;
   accuracy: number | null;
+  deviceType: string | null;
 }) {
   const age = timeAgo(locationAgeSeconds);
   const dotColor = isStale ? "bg-amber-500" : "bg-emerald-500";
@@ -130,6 +138,7 @@ function PersonInfoBox({
           <AvatarFallback className="text-[8px] font-medium">{fallback}</AvatarFallback>
         </Avatar>
         <span className="text-xs font-medium text-foreground">{name}</span>
+        {deviceType && <DeviceBadge deviceType={deviceType} />}
       </div>
       {isSharing ? (
         <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
@@ -208,9 +217,7 @@ export default function DistanceCard({
 
       <CardContent className="relative space-y-3 p-3 sm:p-4">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-pink-500/20 to-blue-500/20 shrink-0">
-            <Heart className="h-4 w-4 fill-pink-500 text-pink-500" />
-          </div>
+          <MapPin className="h-5 w-5 shrink-0 text-pink-500" />
           <div className="min-w-0">
             <p className="text-sm font-semibold text-foreground">Jarak Antar Kita</p>
             {distance !== null && bothSharing ? (
@@ -232,6 +239,7 @@ export default function DistanceCard({
             fallback={selfInitial}
             isLive={selfLive}
             statusText={selfLive ? "Live" : self.isSharing ? "Stale" : "Off"}
+            deviceType={self.deviceType}
           />
           <div className="relative flex flex-col items-center px-2">
             <AnimatePresence>
@@ -281,6 +289,7 @@ export default function DistanceCard({
             fallback={partnerInitial}
             isLive={partnerLive}
             statusText={partnerLive ? "Live" : partner.isSharing ? "Stale" : "Off"}
+            deviceType={partner.deviceType}
           />
         </div>
 
@@ -293,6 +302,7 @@ export default function DistanceCard({
             isStale={self.isStale}
             locationAgeSeconds={self.locationAgeSeconds}
             accuracy={self.location?.accuracy ?? null}
+            deviceType={self.deviceType}
           />
           <PersonInfoBox
             name={partner.name}
@@ -302,6 +312,7 @@ export default function DistanceCard({
             isStale={partner.isStale}
             locationAgeSeconds={partner.locationAgeSeconds}
             accuracy={partner.location?.accuracy ?? null}
+            deviceType={partner.deviceType}
           />
         </div>
 
@@ -402,7 +413,7 @@ export default function DistanceCard({
         {partnerHasLoc && (
           <div className="flex items-center justify-center gap-2 text-[10px] text-muted-foreground border-t border-border/40 pt-2">
             <Clock className="h-3 w-3" />
-            <span>Terakhir diperbarui {timeAgo(partner.locationAgeSeconds)}</span>
+            <span>Terakhir diperbarui: {timeAgo(partner.locationAgeSeconds)}</span>
             {partner.location?.accuracy && (
               <>
                 <span className="text-muted-foreground/30">·</span>

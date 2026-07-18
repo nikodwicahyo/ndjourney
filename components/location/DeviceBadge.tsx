@@ -1,16 +1,16 @@
 "use client";
 
-import { Monitor, Smartphone, Tablet, Wifi, Signal, SignalHigh, SignalLow } from "lucide-react";
+import { Monitor, Smartphone, Tablet, HelpCircle, Wifi, Signal, SignalHigh, SignalLow } from "lucide-react";
 import { Badge } from "@/components/ui";
 import type { DeviceType } from "@/lib/device";
 
 const DEVICE_CONFIG: Record<
   DeviceType,
-  { icon: typeof Smartphone; label: string }
+  { icon: typeof Smartphone }
 > = {
-  mobile: { icon: Smartphone, label: "Mobile" },
-  tablet: { icon: Tablet, label: "Tablet" },
-  desktop: { icon: Monitor, label: "Desktop" },
+  mobile: { icon: Smartphone },
+  tablet: { icon: Tablet },
+  desktop: { icon: Monitor },
 };
 
 function ConnectionIcon({ type }: { type: string }) {
@@ -43,7 +43,7 @@ export default function DeviceBadge({
   if (!deviceType) {
     return (
       <Badge variant="secondary" className={className}>
-        Perangkat?
+        <HelpCircle className="h-3 w-3" />
       </Badge>
     );
   }
@@ -52,20 +52,18 @@ export default function DeviceBadge({
   if (!config) {
     return (
       <Badge variant="secondary" className={className}>
-        {deviceType}
+        <Monitor className="h-3 w-3" />
       </Badge>
     );
   }
 
-  const { icon: Icon, label } = config;
+  const { icon: Icon } = config;
 
   return (
     <Badge variant="secondary" className={`inline-flex items-center gap-1 ${className ?? ""}`}>
       <Icon className="h-3 w-3" />
-      {label}
       {connectionType && (
         <>
-          <span className="opacity-40">·</span>
           <ConnectionIcon type={connectionType} />
         </>
       )}

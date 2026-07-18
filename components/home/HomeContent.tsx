@@ -63,11 +63,10 @@ export default function HomeContent({
         heroPhotoUrl={coupleConfig?.heroPhotoUrl}
       />
 
-      <div className="mx-auto max-w-3xl px-1">
-        <LocationWidget />
-      </div>
-
       <div className="space-y-16 md:space-y-24">
+        <section>
+          <LocationWidget />
+        </section>
         <section>
           <CountdownTimer
             anniversaryDate={coupleConfig?.anniversaryDate ?? new Date().toISOString()}

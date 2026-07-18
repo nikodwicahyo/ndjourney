@@ -427,49 +427,48 @@ export default function PartnerMap({
     let tileErrors = 0;
     let tileRecoveryTimer: ReturnType<typeof setTimeout> | null = null;
     let useFallback = false;
+    let fallbackPinned = false;
+
+    function switchTileLayer(url: string, attr: string) {
+      if (!mapRef.current || !tileLayerRef.current) return;
+      console.warn("[PartnerMap] switching tiles to", url.replace(/\{.*\}/, "…"));
+      mapRef.current.removeLayer(tileLayerRef.current);
+      tileLayerRef.current = L.tileLayer(url, {
+        maxZoom: 20,
+        minZoom: 2,
+        subdomains: "abcd",
+        attribution: attr,
+        detectRetina: false,
+      }).addTo(mapRef.current);
+    }
+
     tile.on("tileerror", (e: unknown) => {
       tileErrors++;
       const err = e as { tile?: HTMLImageElement; url?: string };
       if (tileErrors <= 3) console.warn("[PartnerMap] tileerror #" + tileErrors, err?.url || "(no url)", err?.tile?.src?.slice(0, 80) || "");
-      if (tileErrors >= 3 && !tileRecoveryTimer) {
+
+      // ponytail: pin to fallback once switched — don't flip-flop back to primary
+      if (tileErrors >= 3 && !tileRecoveryTimer && !fallbackPinned) {
         tileRecoveryTimer = setTimeout(() => {
           tileRecoveryTimer = null;
-          if (mapRef.current && tileLayerRef.current) {
-            useFallback = !useFallback;
-            const url = useFallback ? FALLBACK_TILE_URL : TILE_URL;
-            const attr = useFallback ? FALLBACK_TILE_ATTR : TILE_ATTR;
-            mapRef.current.removeLayer(tileLayerRef.current);
-            tileLayerRef.current = L.tileLayer(url, {
-              maxZoom: 20,
-              minZoom: 2,
-              subdomains: "abcd",
-              attribution: attr,
-              detectRetina: false,
-            }).addTo(mapRef.current);
-          }
+          if (useFallback) return; // already on fallback, don't retoggle
+          useFallback = true;
+          fallbackPinned = true;
+          switchTileLayer(FALLBACK_TILE_URL, FALLBACK_TILE_ATTR);
         }, 3000);
       }
     });
 
     function recoverTiles() {
-      if (tileRecoveryTimer || !mapRef.current) return;
+      if (tileRecoveryTimer || !mapRef.current || fallbackPinned) return;
       tileErrors = 3;
       mapRef.current.invalidateSize({ debounceMoveend: true });
       tileRecoveryTimer = setTimeout(() => {
         tileRecoveryTimer = null;
-        if (mapRef.current && tileLayerRef.current) {
-          useFallback = !useFallback;
-          const url = useFallback ? FALLBACK_TILE_URL : TILE_URL;
-          const attr = useFallback ? FALLBACK_TILE_ATTR : TILE_ATTR;
-          mapRef.current.removeLayer(tileLayerRef.current);
-          tileLayerRef.current = L.tileLayer(url, {
-            maxZoom: 20,
-            minZoom: 2,
-            subdomains: "abcd",
-            attribution: attr,
-            detectRetina: false,
-          }).addTo(mapRef.current);
-        }
+        if (useFallback) return;
+        useFallback = true;
+        fallbackPinned = true;
+        switchTileLayer(FALLBACK_TILE_URL, FALLBACK_TILE_ATTR);
       }, 500);
     }
 

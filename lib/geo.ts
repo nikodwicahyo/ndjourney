@@ -49,10 +49,8 @@ export function haversineMeters(
 }
 
 const DIRECTION_NAMES_ID = [
-  "Utara", "Utara Timur Laut", "Timur Laut", "Timur Timur Laut",
-  "Timur", "Timur Tenggara", "Tenggara", "Selatan Tenggara",
-  "Selatan", "Selatan Barat Daya", "Barat Daya", "Barat Barat Daya",
-  "Barat", "Barat Barat Laut", "Barat Laut", "Utara Barat Laut",
+  "Utara", "Timur Laut", "Timur", "Tenggara",
+  "Selatan", "Barat Daya", "Barat", "Barat Laut",
 ] as const;
 
 export function bearing(
@@ -72,12 +70,12 @@ export function bearing(
 }
 
 export function formatBearing(degrees: number): string {
-  const index = Math.round(degrees / 22.5) % 16;
+  const index = Math.round(degrees / 45) % 8;
   return `${DIRECTION_NAMES_ID[index]} ${Math.round(degrees)}°`;
 }
 
 export function formatBearingId(degrees: number): string {
-  const index = Math.round(degrees / 22.5) % 16;
+  const index = Math.round(degrees / 45) % 8;
   return DIRECTION_NAMES_ID[index];
 }
 

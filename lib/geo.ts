@@ -48,13 +48,6 @@ export function haversineMeters(
   return 2 * EARTH_RADIUS_M * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
-const DIRECTION_NAMES = [
-  "N", "NNE", "NE", "ENE",
-  "E", "ESE", "SE", "SSE",
-  "S", "SSW", "SW", "WSW",
-  "W", "WNW", "NW", "NNW",
-] as const;
-
 const DIRECTION_NAMES_ID = [
   "Utara", "Utara Timur Laut", "Timur Laut", "Timur Timur Laut",
   "Timur", "Timur Tenggara", "Tenggara", "Selatan Tenggara",
@@ -80,8 +73,7 @@ export function bearing(
 
 export function formatBearing(degrees: number): string {
   const index = Math.round(degrees / 22.5) % 16;
-  const dir = DIRECTION_NAMES[index];
-  return `${dir} ${Math.round(degrees)}°`;
+  return `${DIRECTION_NAMES_ID[index]} ${Math.round(degrees)}°`;
 }
 
 export function formatBearingId(degrees: number): string {

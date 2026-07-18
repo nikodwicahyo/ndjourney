@@ -23,6 +23,7 @@ const STATIC_EXT = /\.(png|jpg|jpeg|gif|svg|webp|ico|css|js|woff2?)$/i;
 const CLOUDINARY_RE = /res\.cloudinary\.com/;
 const IMAGE_EXT = /\.(png|jpg|jpeg|gif|svg|webp|avif|ico)$/i;
 const LOCATION_API_RE = /\/api\/location$/;
+const TILE_CDN_RE = /\.basemaps\.cartocdn\.com|\.tile\.openstreetmap\.org$/i;
 
 const PUBLIC_API_PATHS = [
   "/api/couple",
@@ -161,6 +162,12 @@ self.addEventListener("message", (event) => {
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
+
+  // Skip non-http(s) requests (e.g., chrome-extension://)
+  if (url.protocol !== "http:" && url.protocol !== "https:") return;
+
+  // Skip map tile CDN requests — loaded as <img> under img-src, bypass SW connect-src CSP
+  if (TILE_CDN_RE.test(url.hostname)) return;
 
   if (request.method !== "GET") {
     // For POST to /api/location, attempt to queue if offline

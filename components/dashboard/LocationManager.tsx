@@ -29,7 +29,10 @@ import DeviceBadge from "@/components/location/DeviceBadge";
 import FloatingHeart from "@/components/location/FloatingHeart";
 import NearbySuggestion from "@/components/location/NearbySuggestion";
 
-const PartnerMap = dynamic(() => import("@/components/location/PartnerMap"), {
+const PartnerMap = dynamic(() => import("@/components/location/PartnerMap").catch((err) => {
+  console.error("[LocationManager] PartnerMap dynamic import failed:", err);
+  return { default: () => <div className="flex h-[420px] w-full items-center justify-center rounded-2xl border border-border text-sm text-muted-foreground sm:h-[560px]">Peta gagal dimuat</div> };
+}), {
   ssr: false,
   loading: () => (
     <div className="space-y-3">

@@ -188,11 +188,33 @@ export default function PartnerMap({
     });
   }, [self?.point?.lat, self?.point?.lng, partner?.point?.lat, partner?.point?.lng]);
 
-  // Init map
+  // ponytail: triple-fallback leaflet CSS — import in globals.css + LocationManager.tsx + inline here
   useEffect(() => {
     if (mapRef.current || !containerRef.current) return;
 
     const container = containerRef.current;
+
+    // Fallback: inject leaflet CSS if missing (production builds sometimes drop CSS imports)
+    if (!document.querySelector('[data-leaflet-css]')) {
+      if (typeof window !== "undefined") console.log("[PartnerMap] injecting fallback leaflet CSS");
+      const style = document.createElement("style");
+      style.setAttribute("data-leaflet-css", "");
+      style.textContent = `
+.leaflet-container{background:#ddd;outline:0;overflow:hidden}
+.leaflet-container .leaflet-overlay-pane,.leaflet-container .leaflet-marker-pane,.leaflet-container .leaflet-shadow-pane,.leaflet-container .leaflet-tile-pane,.leaflet-container .leaflet-popup-pane{position:absolute;left:0;top:0}
+.leaflet-container img.leaflet-tile{max-width:none!important}
+.leaflet-tile{filter:inherit;visibility:hidden}
+.leaflet-tile-loaded{visibility:inherit}
+.leaflet-zoom-box{width:0;height:0}
+.leaflet-control{position:relative;z-index:800;float:left;clear:both;pointer-events:auto}
+.leaflet-top{top:0}.leaflet-bottom{bottom:0}.leaflet-left{left:0}.leaflet-right{right:0}
+.leaflet-fade-anim .leaflet-tile{will-change:opacity;transition:opacity .2s}
+.leaflet-fade-anim .leaflet-popup{opacity:0;transition:opacity .2s}
+.leaflet-fade-anim .leaflet-map-pane .leaflet-popup{opacity:1}
+`;
+      document.head.appendChild(style);
+    }
+
     const rect = container.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) {
       container.style.minHeight = "420px";
@@ -200,34 +222,53 @@ export default function PartnerMap({
 
     const center =
       self?.point ?? partner?.point ?? { lat: -6.2, lng: 106.816 };
-    const map = L.map(container, {
-      center: [center.lat, center.lng],
-      zoom: 15,
-      zoomControl: false,
-      attributionControl: true,
-      scrollWheelZoom: true,
-      doubleClickZoom: true,
-      touchZoom: true,
-      boxZoom: true,
-      keyboard: true,
-      dragging: true,
-      zoomSnap: 0.5,
-      zoomDelta: 0.5,
-    });
 
-    const tile = L.tileLayer(TILE_URL, {
-      maxZoom: 20,
-      minZoom: 2,
-      subdomains: "abcd",
-      attribution: TILE_ATTR,
-      detectRetina: false,
-    }).addTo(map);
+    let map: L.Map;
+    try {
+      map = L.map(container, {
+        center: [center.lat, center.lng],
+        zoom: 15,
+        zoomControl: false,
+        attributionControl: true,
+        scrollWheelZoom: true,
+        doubleClickZoom: true,
+        touchZoom: true,
+        boxZoom: true,
+        keyboard: true,
+        dragging: true,
+        zoomSnap: 0.5,
+        zoomDelta: 0.5,
+      });
+    } catch (err) {
+      console.error("[PartnerMap] L.map() failed:", err);
+      container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#666;font-size:14px;">Peta gagal dimuat</div>';
+      return;
+    }
+
+    let tile: L.TileLayer;
+    try {
+      tile = L.tileLayer(TILE_URL, {
+        maxZoom: 20,
+        minZoom: 2,
+        subdomains: "abcd",
+        attribution: TILE_ATTR,
+        detectRetina: false,
+      }).addTo(map);
+    } catch (err) {
+      console.error("[PartnerMap] tileLayer failed:", err);
+      return;
+    }
     tileLayerRef.current = tile;
 
-    accuracyLayerRef.current = L.layerGroup().addTo(map);
-    historyLayerRef.current = L.layerGroup().addTo(map);
-    markerLayerRef.current = L.layerGroup().addTo(map);
-    headingLayerRef.current = L.layerGroup().addTo(map);
+    try {
+      accuracyLayerRef.current = L.layerGroup().addTo(map);
+      historyLayerRef.current = L.layerGroup().addTo(map);
+      markerLayerRef.current = L.layerGroup().addTo(map);
+      headingLayerRef.current = L.layerGroup().addTo(map);
+    } catch (err) {
+      console.error("[PartnerMap] layerGroup failed:", err);
+      return;
+    }
 
     L.control
       .scale({
@@ -386,8 +427,10 @@ export default function PartnerMap({
     let tileErrors = 0;
     let tileRecoveryTimer: ReturnType<typeof setTimeout> | null = null;
     let useFallback = false;
-    tile.on("tileerror", () => {
+    tile.on("tileerror", (e: unknown) => {
       tileErrors++;
+      const err = e as { tile?: HTMLImageElement; url?: string };
+      if (tileErrors <= 3) console.warn("[PartnerMap] tileerror #" + tileErrors, err?.url || "(no url)", err?.tile?.src?.slice(0, 80) || "");
       if (tileErrors >= 3 && !tileRecoveryTimer) {
         tileRecoveryTimer = setTimeout(() => {
           tileRecoveryTimer = null;

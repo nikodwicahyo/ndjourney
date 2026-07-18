@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import L from "leaflet";
-import "leaflet/dist/leaflet.css";
 import { useSession } from "next-auth/react";
 import {
   formatDistance,
@@ -82,9 +81,11 @@ function timeAgo(iso: string): string {
 
 function accuracyLabel(meters: number | null): string {
   if (meters === null) return "";
-  if (meters <= 10) return "Akurasi tinggi";
-  if (meters <= 50) return "Akurasi sedang";
-  return "Akurasi rendah";
+  if (meters <= 10) return "Akurat";
+  if (meters <= 30) return "Cukup akurat";
+  if (meters <= 65) return "Kurang akurat";
+  if (meters <= 150) return "Tidak akurat";
+  return "Sangat tidak akurat";
 }
 
 function createAvatarIcon(
@@ -165,6 +166,9 @@ export default function PartnerMap({
   selfRef.current = self;
   partnerRef.current = partner;
 
+  const historyFittedRef = useRef(false);
+  const markersFittedRef = useRef(false);
+
   const [addressCache, setAddressCache] = useState<
     Record<string, string | null>
   >({});
@@ -220,9 +224,9 @@ export default function PartnerMap({
     }).addTo(map);
     tileLayerRef.current = tile;
 
-    markerLayerRef.current = L.layerGroup().addTo(map);
     accuracyLayerRef.current = L.layerGroup().addTo(map);
     historyLayerRef.current = L.layerGroup().addTo(map);
+    markerLayerRef.current = L.layerGroup().addTo(map);
     headingLayerRef.current = L.layerGroup().addTo(map);
 
     L.control
@@ -315,6 +319,28 @@ export default function PartnerMap({
               () => {},
               { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 },
             );
+          }
+        },
+      ),
+    );
+    actionBar.appendChild(
+      makeControlBtn(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:-5px;"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>`,
+        "Pusatkan ke pasangan",
+        () => {
+          if (selfRef.current?.point && partnerRef.current?.point) {
+            map.fitBounds(
+              L.latLngBounds([
+                [selfRef.current.point.lat, selfRef.current.point.lng],
+                [partnerRef.current.point.lat, partnerRef.current.point.lng],
+              ]),
+              { padding: [80, 80], maxZoom: 16, animate: true, duration: 1.2 },
+            );
+          } else if (selfRef.current?.point) {
+            map.flyTo([selfRef.current.point.lat, selfRef.current.point.lng], 16, { duration: 1.2 });
+          } else if (partnerRef.current?.point) {
+            map.flyTo([partnerRef.current.point.lat, partnerRef.current.point.lng], 16, { duration: 1.2 });
           }
         },
       ),
@@ -477,25 +503,38 @@ export default function PartnerMap({
     );
 
     const fitMarkerBounds = () => {
+      if (markersFittedRef.current) return;
       if (pins.length === 2) {
         map.fitBounds(L.latLngBounds(markerLatLngs), {
           padding: [80, 80],
           maxZoom: 16,
           animate: true,
         });
+        markersFittedRef.current = true;
       } else if (pins.length === 1) {
         map.setView(markerLatLngs[0], 16, { animate: true });
+        markersFittedRef.current = true;
       }
     };
 
-    if (!showHistory || !history || history.length < 2) {
+    if (!showHistory) {
+      historyFittedRef.current = false;
+      fitMarkerBounds();
+      return;
+    }
+    if (!history || history.length === 0) {
       fitMarkerBounds();
       return;
     }
 
     const selfId = session?.user?.id;
-    const selfHistory = history.filter((h) => h.userId === selfId);
-    const partnerHistory = history.filter((h) => h.userId !== selfId);
+    if (!selfId) { fitMarkerBounds(); return; }
+
+    const sorted = [...history].sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+    );
+    const selfHistory = sorted.filter((h) => h.userId === selfId);
+    const partnerHistory = sorted.filter((h) => h.userId !== selfId);
 
     const allTrailLatLngs: L.LatLngExpression[] = [];
 
@@ -504,30 +543,29 @@ export default function PartnerMap({
       color: string,
       layer: L.LayerGroup,
     ) {
-      if (points.length < 2) return;
+      if (points.length === 0) return;
       const latlngs = points.map(
         (p) => [p.latitude, p.longitude] as L.LatLngExpression,
       );
       allTrailLatLngs.push(...latlngs);
 
-      L.polyline(latlngs, {
-        color,
-        weight: 3,
-        opacity: 0.6,
-      }).addTo(layer);
+      if (points.length >= 2) {
+        L.polyline(latlngs, {
+          color,
+          weight: 4,
+          opacity: 0.6,
+        }).addTo(layer);
+      }
 
       points.forEach((p, i) => {
-        const isFirst = i === 0;
         const isLast = i === points.length - 1;
-        const radius = isFirst || isLast ? 5 : 3;
-        const fillOpacity = isFirst || isLast ? 0.8 : 0.4;
         L.circleMarker([p.latitude, p.longitude] as L.LatLngTuple, {
-          radius,
+          radius: isLast ? 14 : 9,
           color,
           fillColor: color,
-          fillOpacity,
-          weight: 1.5,
-          opacity: 0.5,
+          fillOpacity: 0.4,
+          weight: 2.5,
+          opacity: 0.7,
           interactive: false,
         }).addTo(layer);
       });
@@ -536,11 +574,19 @@ export default function PartnerMap({
     addTrail(selfHistory, "#3b82f6", hLayer);
     addTrail(partnerHistory, "#F43F5E", hLayer);
 
+    if (allTrailLatLngs.length === 0) {
+      fitMarkerBounds();
+      historyFittedRef.current = false;
+      return;
+    }
     const bounds = L.latLngBounds(allTrailLatLngs);
     if (markerLatLngs.length > 0) {
       markerLatLngs.forEach((ll) => bounds.extend(ll));
     }
-    map.fitBounds(bounds, { padding: [80, 80], maxZoom: 16, animate: true });
+    if (!historyFittedRef.current) {
+      map.fitBounds(bounds, { padding: [80, 80], maxZoom: 16, animate: true });
+      historyFittedRef.current = true;
+    }
   }, [history, showHistory, session?.user?.id, self, partner]);
 
   // Update markers (animated)
@@ -688,14 +734,19 @@ export default function PartnerMap({
 
       const bearingId = bearingDeg !== null ? formatBearingId(bearingDeg) : "";
 
-      const bounds = L.latLngBounds(latlngs);
-      map.fitBounds(bounds, { padding: [80, 80], maxZoom: 16, animate: true });
+      if (!markersFittedRef.current) {
+        map.fitBounds(L.latLngBounds(latlngs), { padding: [80, 80], maxZoom: 16, animate: true });
+        markersFittedRef.current = true;
+      }
     } else if (pins.length === 1) {
-      map.setView([pins[0].point.lat, pins[0].point.lng], 16, {
-        animate: true,
-      });
-    } else {
-      // No pins, show default view
+      if (!markersFittedRef.current) {
+        map.setView([pins[0].point.lat, pins[0].point.lng], 16, {
+          animate: true,
+        });
+        markersFittedRef.current = true;
+      }
+    } else if (!markersFittedRef.current) {
+      // No pins, show default view (once)
       map.setView([-6.2, 106.816], 14, { animate: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -762,6 +813,12 @@ export default function PartnerMap({
           background: "#eef2f7",
         }}
       />
+
+      {showHistory && (
+        <div className="absolute left-3 top-3 z-[1001] rounded-full bg-background/75 px-3 py-1 text-xs font-medium text-foreground shadow-sm backdrop-blur-sm">
+          🗺️ Riwayat lokasi
+        </div>
+      )}
 
       {/* Bottom info bar */}
       <div className="absolute bottom-6 left-2 right-2 z-[1001]">

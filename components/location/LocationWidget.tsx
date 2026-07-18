@@ -1,21 +1,19 @@
 "use client";
 
-import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useSession } from "next-auth/react";
-import { Heart, MapPin, Loader2, Clock } from "lucide-react";
-import { Button, Card, Avatar, AvatarImage, AvatarFallback } from "@/components/ui";
+import { MapPin, Loader2, Clock } from "lucide-react";
+import { Card, Avatar, AvatarImage, AvatarFallback } from "@/components/ui";
 import {
   useLocationSettings,
   useDistance,
   useIsMeeting,
   useShareLocation,
   useFloatingHearts,
-  useSendHeart,
 } from "@/hooks/useLocation";
 import DeviceBadge from "./DeviceBadge";
 import FloatingHeart from "./FloatingHeart";
-import { formatDistance } from "@/lib/geo";
+import { formatDistance, formatDistanceCategory } from "@/lib/geo";
 
 function timeAgo(seconds: number | null): string {
   if (seconds === null) return "—";
@@ -26,17 +24,6 @@ function timeAgo(seconds: number | null): string {
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs} jam lalu`;
   return `${Math.floor(hrs / 24)} hari lalu`;
-}
-
-function distanceCategory(meters: number): string {
-  if (meters <= 5) return "Saling berdekatan";
-  if (meters <= 20) return "Sangat dekat";
-  if (meters <= 50) return "Dekat";
-  if (meters <= 100) return "Dalam jangkauan";
-  if (meters <= 500) return "Beberapa ratus meter";
-  if (meters <= 1000) return "Kurang dari 1 km";
-  if (meters <= 5000) return "Dalam kota";
-  return "Luar kota";
 }
 
 export default function LocationWidget() {
@@ -95,13 +82,12 @@ export default function LocationWidget() {
           <MapPin className="h-5 w-5 text-pink-500" />
           <span className="text-sm font-semibold text-foreground">Jarak Antar Kita</span>
         </div>
-        <SendHeartButton />
       </div>
 
       {/* Category */}
       {distance !== null && bothSharing && (
         <p className="mt-1 text-xs text-muted-foreground justify-center text-center">
-          {distanceCategory(distance)}
+          {formatDistanceCategory(distance)}
         </p>
       )}
 
@@ -195,7 +181,7 @@ export default function LocationWidget() {
       {partnerHasLoc && bothSharing && (
         <div className="mt-4 flex items-center justify-center gap-2 border-t border-border/40 pt-3 text-[12px] text-muted-foreground">
           <Clock className="h-3 w-3" />
-          <span>Terakhir diperbarui: {timeAgo(partner.locationAgeSeconds)}</span>
+          <span>Lokasi bersama diperbarui: {timeAgo(partner.locationAgeSeconds)}</span>
         </div>
       )}
 
@@ -218,24 +204,4 @@ export default function LocationWidget() {
   );
 }
 
-function SendHeartButton() {
-  const [burst, setBurst] = useState(false);
-  const sendHeart = useSendHeart();
 
-  return (
-    <Button
-      variant="ghost"
-      size="icon"
-      aria-label="Kirim hati"
-      onClick={() => {
-        void sendHeart.mutate("❤️");
-        setBurst(true);
-        setTimeout(() => setBurst(false), 400);
-      }}
-    >
-      <motion.span animate={burst ? { scale: [1, 1.4, 1] } : {}}>
-        <Heart className="h-4 w-4 text-primary" />
-      </motion.span>
-    </Button>
-  );
-}

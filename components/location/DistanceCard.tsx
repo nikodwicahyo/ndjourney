@@ -19,6 +19,7 @@ import {
 import { Avatar, AvatarImage, AvatarFallback, Card, CardContent } from "@/components/ui";
 import {
   formatDistance,
+  formatDistanceCategory,
   bearing,
   formatBearingId,
   directionEmoji,
@@ -46,17 +47,6 @@ function timeAgo(seconds: number | null): string {
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs} jam lalu`;
   return `${Math.floor(hrs / 24)} hari lalu`;
-}
-
-function distanceCategory(meters: number): string {
-  if (meters <= 5) return "Saling berdekatan";
-  if (meters <= 20) return "Sangat dekat";
-  if (meters <= 50) return "Dekat";
-  if (meters <= 100) return "Dalam jangkauan";
-  if (meters <= 500) return "Beberapa ratus meter";
-  if (meters <= 1000) return "Kurang dari 1 km";
-  if (meters <= 5000) return "Dalam kota";
-  return "Luar kota";
 }
 
 function AnimatedNumber({ value }: { value: number }) {
@@ -221,7 +211,7 @@ export default function DistanceCard({
           <div className="min-w-0">
             <p className="text-sm font-semibold text-foreground">Jarak Antar Kita</p>
             {distance !== null && bothSharing ? (
-              <p className="text-[10px] text-muted-foreground">{distanceCategory(distance)}</p>
+              <p className="text-[10px] text-muted-foreground">{formatDistanceCategory(distance)}</p>
             ) : (
               <p className="text-[10px] text-muted-foreground">
                 {self.isSharing && !partner.isSharing
@@ -401,9 +391,9 @@ export default function DistanceCard({
             {self.location?.accuracy && (
               <div className="flex items-center justify-center gap-1.5 text-[10px] text-muted-foreground border-t border-pink-500/10 pt-2">
                 <Crosshair className="h-3 w-3" />
-                <span>Akurasi posisi: {accuracyLabel(self.location.accuracy)}</span>
-                {partner.location?.accuracy && (
-                  <span>(±{Math.round(partner.location.accuracy)}m)</span>
+                <span>Akurasi: {accuracyLabel(self.location.accuracy)} (±{Math.round(self.location.accuracy)}m)</span>
+                {partner.location?.accuracy && partner.location.accuracy !== self.location.accuracy && (
+                  <span className="text-muted-foreground">| ±{Math.round(partner.location.accuracy)}m (pasangan)</span>
                 )}
               </div>
             )}
@@ -411,16 +401,11 @@ export default function DistanceCard({
         )}
 
         {partnerHasLoc && (
-          <div className="flex items-center justify-center gap-2 text-[10px] text-muted-foreground border-t border-border/40 pt-2">
-            <Clock className="h-3 w-3" />
-            <span>Terakhir diperbarui: {timeAgo(partner.locationAgeSeconds)}</span>
-            {partner.location?.accuracy && (
-              <>
-                <span className="text-muted-foreground/30">·</span>
-                <MapPin className="h-3 w-3" />
-                <span>±{Math.round(partner.location.accuracy)}m</span>
-              </>
-            )}
+          <div className="flex items-center justify-center gap-1.5 text-[10px] text-muted-foreground border-t border-border/40 pt-2">
+            <Clock className="h-3 w-3 shrink-0" />
+            <span className={partner.locationAgeSeconds !== null && partner.locationAgeSeconds > 3600 ? "text-amber-500" : ""}>
+              Lokasi bersama diperbarui: {timeAgo(partner.locationAgeSeconds)}
+            </span>
           </div>
         )}
 
@@ -441,10 +426,9 @@ export default function DistanceCard({
 
 function accuracyLabel(meters: number | null): string {
   if (meters === null) return "—";
-  if (meters <= 15) return "Sangat Tinggi";
-  if (meters <= 30) return "Tinggi";
-  if (meters <= 65) return "Sedang";
-  if (meters <= 150) return "Cukup";
-  if (meters <= 500) return "Kurang";
-  return "Rendah";
+  if (meters <= 10) return "Akurat";
+  if (meters <= 30) return "Cukup akurat";
+  if (meters <= 65) return "Kurang akurat";
+  if (meters <= 150) return "Tidak akurat";
+  return "Sangat tidak akurat";
 }

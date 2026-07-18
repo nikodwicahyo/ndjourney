@@ -24,7 +24,7 @@ export async function GET() {
     const history = await prisma.userLocationHistory.findMany({
       where: { userId: { in: [userId, (await getPartnerId(userId, coupleId))].filter(Boolean) as string[] } },
       orderBy: { createdAt: "desc" },
-      take: 50,
+      take: 100,
       select: {
         userId: true,
         latitude: true,

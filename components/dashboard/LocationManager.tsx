@@ -1,28 +1,26 @@
 "use client";
 
+import "leaflet/dist/leaflet.css";
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import {
   AlertTriangle,
-  Heart,
   MapPin,
   ShieldCheck,
-  Bell,
   History,
-  Activity,
-  Signal,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, Skeleton, Button } from "@/components/ui";
+import { Skeleton, Button } from "@/components/ui";
 import {
   useLocationSettings,
   useDistance,
   useIsMeeting,
   useShareLocation,
   useFloatingHearts,
-  useSendHeart,
   useLocationHistory,
 } from "@/hooks/useLocation";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/query-keys";
 import type { ShareStatus } from "@/hooks/useBackgroundLocation";
 import LocationToggle from "@/components/location/LocationToggle";
 import DistanceCard from "@/components/location/DistanceCard";
@@ -87,6 +85,7 @@ export default function LocationManager() {
   const { data, isLoading, error } = useLocationSettings();
   const { data: historyData } = useLocationHistory();
   const [showHistory, setShowHistory] = useState(false);
+  const qc = useQueryClient();
   const prevDistanceRef = useRef<number | null>(null);
   const previousDistance = prevDistanceRef.current;
 
@@ -201,32 +200,15 @@ export default function LocationManager() {
       {/* Main grid */}
       <div className="grid gap-6 lg:grid-cols-5">
         <div className="lg:col-span-3">
-          {self.isSharing || partner.isSharing ? (
-            <div className="space-y-2">
-              <PartnerMap
-                self={selfPin}
-                partner={partnerPin}
-                history={historyData}
-                showHistory={showHistory}
-              />
-              {/* Map controls */}
-              {historyData && historyData.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowHistory(!showHistory)}
-                    className="text-xs"
-                  >
-                    <History className="mr-1 h-3 w-3" />
-                    {showHistory ? "Sembunyikan riwayat" : "Tampilkan riwayat"}
-                  </Button>
-                </div>
-              )}
-            </div>
-          ) : (
-            <Card>
-              <CardContent className="flex h-[420px] flex-col items-center justify-center gap-3 p-6 text-center text-sm text-muted-foreground sm:h-[560px]">
+          <div className="relative space-y-2">
+            <PartnerMap
+              self={selfPin}
+              partner={partnerPin}
+              history={historyData}
+              showHistory={showHistory}
+            />
+            {!self.isSharing && !partner.isSharing && (
+              <div className="absolute inset-0 z-[1002] flex flex-col items-center justify-center gap-3 rounded-2xl bg-background/60 p-6 text-center text-sm text-muted-foreground backdrop-blur-sm">
                 <MapPin className="h-8 w-8 text-primary/50" />
                 <p>Peta muncul saat kamu berbagi lokasi.</p>
                 <div className="flex flex-wrap items-center justify-center gap-2">
@@ -234,9 +216,26 @@ export default function LocationManager() {
                   <span className="text-xs text-muted-foreground">·</span>
                   <DeviceBadge deviceType={partner.deviceType} />
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              </div>
+            )}
+            {/* Map controls */}
+            {historyData && historyData.length > 0 && (self.isSharing || partner.isSharing) && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    if (!showHistory) qc.invalidateQueries({ queryKey: [...queryKeys.location.all, "history"] });
+                    setShowHistory(!showHistory);
+                  }}
+                  className="text-xs"
+                >
+                  <History className="mr-1 h-3 w-3" />
+                  {showHistory ? "Sembunyikan riwayat" : "Tampilkan riwayat"}
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="space-y-4 lg:col-span-2">
@@ -245,8 +244,6 @@ export default function LocationManager() {
             distance={distance}
             previousDistance={previousDistance ?? null}
           />
-
-          {bothSharing && <HeartSender />}
 
           {meeting && bothSharing && <NearbySuggestion />}
         </div>
@@ -260,16 +257,4 @@ export default function LocationManager() {
   );
 }
 
-function HeartSender() {
-  const sendHeart = useSendHeart();
-  return (
-    <button
-      type="button"
-      onClick={() => void sendHeart.mutate("❤️")}
-      className="flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-card p-3 text-sm font-medium text-foreground transition-colors hover:bg-accent"
-    >
-      <Heart className="h-4 w-4 fill-primary text-primary" />
-      Kirim hati ke pasangan
-    </button>
-  );
-}
+

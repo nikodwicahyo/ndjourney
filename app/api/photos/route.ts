@@ -5,7 +5,7 @@ import { createPhotoSchema } from "@/lib/validations/photo";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { getCached, setCached, invalidateCache, cacheKey } from "@/lib/redis";
 import { jakartaYearStart } from "@/lib/date";
-import { generateId, encodeCompositeCursor, decodeCompositeCursor } from "@/lib/utils";
+import { encodeCompositeCursor, decodeCompositeCursor } from "@/lib/utils";
 import { isAllowedCloudinaryUrl, publicIdBelongsToUser } from "@/lib/upload-policy";
 import { getUserCoupleId } from "@/lib/couple";
 import { triggerCoupleEvent } from "@/lib/pusher-server";
@@ -162,7 +162,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { url, publicId, thumbnailUrl, caption, takenAt, width, height, isVideo, albumId, isPublic } = parsed.data;
+    const { url, publicId, thumbnailUrl, caption, takenAt, width, height, isVideo, fileSize, albumId, isPublic } = parsed.data;
     if (!isAllowedCloudinaryUrl(url) || !publicIdBelongsToUser(publicId, session.user.id)) {
       return NextResponse.json({ error: "Media tidak valid atau tidak diizinkan" }, { status: 400 });
     }
@@ -177,26 +177,24 @@ export async function POST(request: Request) {
 
     const coupleId = await getUserCoupleId(session.user.id);
 
-    const selectCols = buildPhotoSelect();
-    const now = new Date();
-    const result = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(
-      `INSERT INTO "Photo" ("id", "url", "publicId", "thumbnailUrl", "caption", "takenAt", "width", "height", "isVideo", "albumId", "uploadedById", "coupleId", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING ${selectCols}`,
-      generateId(),
-      url,
-      publicId,
-      thumbnailUrl ?? null,
-      caption ?? null,
-      takenAt ? new Date(takenAt) : null,
-      width ?? null,
-      height ?? null,
-      isVideo ?? false,
-      albumId ?? null,
-      isPublic ?? true,
-      session.user.id,
-      coupleId,
-      now,
-      now,
-    );
+    // ponytail: prisma.create instead of raw INSERT (raw had 14 cols / 15 values, isPublic shifted into uploadedById -> every save 500d)
+    const created = await prisma.photo.create({
+      data: {
+        url,
+        publicId,
+        thumbnailUrl: thumbnailUrl ?? null,
+        caption: caption ?? null,
+        takenAt: takenAt ? new Date(takenAt) : null,
+        width: width ?? null,
+        height: height ?? null,
+        fileSize: fileSize ?? null,
+        isVideo: isVideo ?? false,
+        isPublic: isPublic ?? true,
+        albumId: albumId ?? null,
+        uploadedById: session.user.id,
+        coupleId,
+      },
+    });
 
     await Promise.all([
       invalidateCache("photos:*"),
@@ -209,9 +207,13 @@ export async function POST(request: Request) {
       triggerCoupleEvent(coupleId, 'GALLERY');
     }
 
-    return NextResponse.json({ data: result[0] }, { status: 201 });
+    return NextResponse.json({ data: created }, { status: 201 });
   } catch (error) {
     console.error("Error creating photo:", error);
+    // ponytail: stale albumId FK -> 400, not generic 500
+    if (error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "P2003") {
+      return NextResponse.json({ error: "Album tidak ditemukan" }, { status: 400 });
+    }
     return NextResponse.json(
       { error: "Terjadi kesalahan pada server. Coba lagi nanti." },
       { status: 500 },

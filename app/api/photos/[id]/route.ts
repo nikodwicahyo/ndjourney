@@ -160,6 +160,7 @@ export async function PUT(
         takenAt: true,
         width: true,
         height: true,
+        fileSize: true,
         isVideo: true,
         isFavorite: true,
         isPublic: true,
@@ -191,6 +192,10 @@ export async function PUT(
     return NextResponse.json({ data: photo });
   } catch (error) {
     console.error("Error updating photo:", error);
+    // ponytail: stale albumId FK -> 400, not generic 500
+    if (error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "P2003") {
+      return NextResponse.json({ error: "Album tidak ditemukan" }, { status: 400 });
+    }
     return NextResponse.json(
       { error: "Terjadi kesalahan pada server. Coba lagi nanti." },
       { status: 500 },

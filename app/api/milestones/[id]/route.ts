@@ -128,21 +128,28 @@ export async function PUT(
       date = parsed;
     }
 
-    // Create Photo records for newly uploaded images
+    // ponytail: per-item isolation — one bad upload must not 500 the whole update
     const createdPhotoIds: string[] = [];
+    const failedPhotos: { publicId: string; error: string }[] = [];
     if (photoUploads?.length) {
-      for (const upload of photoUploads) {
-        const photo = await prisma.photo.create({
-          data: {
-            url: upload.url,
-            publicId: upload.publicId,
-            thumbnailUrl: upload.thumbnailUrl ?? null,
-            uploadedById: session.user.id,
-            isMilestoneOnly: true,
-          },
-        });
-        createdPhotoIds.push(photo.id);
-      }
+      const settled = await Promise.allSettled(
+        photoUploads.map((upload) =>
+          prisma.photo.create({
+            data: {
+              url: upload.url,
+              publicId: upload.publicId,
+              thumbnailUrl: upload.thumbnailUrl ?? null,
+              uploadedById: session.user.id,
+              isMilestoneOnly: true,
+            },
+            select: { id: true },
+          }),
+        ),
+      );
+      settled.forEach((r, i) => {
+        if (r.status === "fulfilled") createdPhotoIds.push(r.value.id);
+        else failedPhotos.push({ publicId: photoUploads[i].publicId, error: r.reason instanceof Error ? r.reason.message : "Gagal menyimpan foto" });
+      });
     }
 
     const allPhotoIds = [...(photoIds ?? []), ...createdPhotoIds];
@@ -236,6 +243,7 @@ export async function PUT(
         createdBy: userMap ?? null,
         photos,
       },
+      ...(failedPhotos.length > 0 ? { failedPhotos } : {}),
     });
   } catch (error) {
     return NextResponse.json(

@@ -117,21 +117,28 @@ export async function POST(request: Request) {
 
     const coupleId = await getUserCoupleId(session.user.id);
 
-    // Create Photo records for newly uploaded images
+    // ponytail: per-item isolation — one bad upload must not 500 the whole milestone
     const createdPhotoIds: string[] = [];
+    const failedPhotos: { publicId: string; error: string }[] = [];
     if (photoUploads?.length) {
-      for (const upload of photoUploads) {
-        const photo = await prisma.photo.create({
-          data: {
-            url: upload.url,
-            publicId: upload.publicId,
-            thumbnailUrl: upload.thumbnailUrl ?? null,
-            uploadedById: session.user.id,
-            isMilestoneOnly: true,
-          },
-        });
-        createdPhotoIds.push(photo.id);
-      }
+      const settled = await Promise.allSettled(
+        photoUploads.map((upload) =>
+          prisma.photo.create({
+            data: {
+              url: upload.url,
+              publicId: upload.publicId,
+              thumbnailUrl: upload.thumbnailUrl ?? null,
+              uploadedById: session.user.id,
+              isMilestoneOnly: true,
+            },
+            select: { id: true },
+          }),
+        ),
+      );
+      settled.forEach((r, i) => {
+        if (r.status === "fulfilled") createdPhotoIds.push(r.value.id);
+        else failedPhotos.push({ publicId: photoUploads[i].publicId, error: r.reason instanceof Error ? r.reason.message : "Gagal menyimpan foto" });
+      });
     }
 
     const allPhotoIds = [...(photoIds ?? []), ...createdPhotoIds];
@@ -181,6 +188,9 @@ export async function POST(request: Request) {
       triggerCoupleEvent(coupleId, 'TIMELINE');
     }
 
+    if (failedPhotos.length > 0) {
+      return NextResponse.json({ data, failedPhotos }, { status: 207 });
+    }
     return NextResponse.json({ data }, { status: 201 });
   } catch (error) {
     console.error("Error creating milestone:", error);

@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { uploadBufferToCloudinary } from "@/lib/cloudinary";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
+import { validateUploadRequest } from "@/lib/upload-policy";
 
 export const runtime = "nodejs";
 
@@ -20,7 +21,6 @@ const ALLOWED_TYPES = [
   "audio/mpeg",
 ];
 
-const MAX_SIZE = 200 * 1024 * 1024;
 const MAX_FILES_PER_REQUEST = 30;
 
 const MAGIC_BYTES: Record<string, string[]> = {
@@ -56,9 +56,9 @@ type BulkUploadResult = {
 };
 
 async function validateAndPrepareFile(file: File): Promise<{ buffer: Buffer; isVideo: boolean } | string> {
-  if (file.size > MAX_SIZE) {
-    return `Ukuran file terlalu besar. Maksimal 200MB.`;
-  }
+  // ponytail: single source of truth for limits (10MB image / 100MB video), consistent with /sign + /server
+  const policy = validateUploadRequest({ fileName: file.name, fileType: file.type, fileSize: file.size });
+  if (!policy.valid) return policy.error;
 
   if (!ALLOWED_TYPES.includes(file.type)) {
     return `Format file tidak didukung: ${file.type}`;
@@ -109,10 +109,15 @@ export async function POST(request: Request) {
 
     const albumId = formData.get("albumId") as string | null;
 
+    // ponytail: per-file catch — one corrupt arrayBuffer must not 500 the whole batch
     const validationResults = await Promise.all(
       files.map(async (file) => {
-        const validation = await validateAndPrepareFile(file);
-        return { file, validation };
+        try {
+          const validation = await validateAndPrepareFile(file);
+          return { file, validation };
+        } catch (e) {
+          return { file, validation: e instanceof Error ? e.message : "Validasi gagal" as const };
+        }
       }),
     );
 
@@ -133,43 +138,30 @@ export async function POST(request: Request) {
 
     const CONCURRENCY = 3;
 
+    // ponytail: each item catches its own error so identity is never lost (no "unknown", no fail-all)
     for (let i = 0; i < validFiles.length; i += CONCURRENCY) {
       const batch = validFiles.slice(i, i + CONCURRENCY);
 
-      const batchResults = await Promise.allSettled(
+      const batchResults: BulkUploadResult[] = await Promise.all(
         batch.map(async ({ file, buffer, isVideo }) => {
-          const cloudinaryResult = await uploadBufferToCloudinary(buffer, "ndjourney-web", isVideo);
-
-          return {
-            fileName: file.name,
-            success: true,
-            result: {
-              ...cloudinaryResult,
-              isVideo,
-              fileSize: file.size,
-            },
-          } satisfies BulkUploadResult;
+          try {
+            const cloudinaryResult = await uploadBufferToCloudinary(buffer, "ndjourney-web", isVideo);
+            return {
+              fileName: file.name,
+              success: true,
+              result: { ...cloudinaryResult, isVideo, fileSize: file.size },
+            } satisfies BulkUploadResult;
+          } catch (e) {
+            return {
+              fileName: file.name,
+              success: false,
+              error: e instanceof Error ? e.message : "Upload gagal",
+            } satisfies BulkUploadResult;
+          }
         }),
       );
-
-      for (const result of batchResults) {
-        if (result.status === "fulfilled") {
-          results.push(result.value);
-        } else {
-          results.push({
-            fileName: "unknown",
-            success: false,
-            error: result.reason instanceof Error ? result.reason.message : "Upload gagal",
-          });
-        }
-      }
+      results.push(...batchResults);
     }
-
-    results.sort((a, b) => {
-      const aIndex = files.findIndex((f) => f.name === a.fileName);
-      const bIndex = files.findIndex((f) => f.name === b.fileName);
-      return aIndex - bIndex;
-    });
 
     return NextResponse.json({
       results,

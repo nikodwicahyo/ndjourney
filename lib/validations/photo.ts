@@ -9,6 +9,7 @@ export const createPhotoSchema = z.object({
   width: z.number().int().positive().optional(),
   height: z.number().int().positive().optional(),
   isVideo: z.boolean().default(false),
+  fileSize: z.number().int().nonnegative().optional(),
   albumId: z.string().cuid().optional(),
   isPublic: z.boolean().optional(),
 });

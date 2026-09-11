@@ -2,8 +2,12 @@ import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { getCached, setCached, cacheKey } from "@/lib/redis";
 import { batchLoadUsers } from "@/lib/batch";
+import { z } from "zod";
 
 const CACHE_TTL = 300;
+
+// ponytail: guard enum before raw cast — invalid ?type= was 500
+const gameTypeParam = z.enum(["WOULD_YOU_RATHER", "TRIVIA", "SPIN_THE_WHEEL", "TRUTH_OR_DARE", "SLIDING_PUZZLE", "MEMORY_BLOCK_BLAST"]);
 
 type RawRow = { userId: string; totalPlayed: bigint; totalCorrect: bigint };
 
@@ -11,6 +15,9 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get("type");
+    if (type && !gameTypeParam.safeParse(type).success) {
+      return NextResponse.json({ error: "Tipe game tidak valid" }, { status: 400 });
+    }
     const cacheSegment = type || "all";
 
     const cacheK = cacheKey("games", "leaderboard", cacheSegment);

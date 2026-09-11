@@ -49,51 +49,62 @@ export async function GET(request: Request) {
       }
     }
 
-    const results: Array<{ letterId: string; emailSent: boolean }> = [];
+    const results: Array<{ letterId: string; emailSent: boolean; error?: string }> = [];
 
+    // ponytail: per-letter isolation — one failing send/update must not skip the rest
     for (const letter of unlockedLetters) {
-      if (letter.recipient.email) {
-        const emailResult = await sendEmail({
-          to: letter.recipient.email,
-          subject: `🎁 Time Capsule dari ${letter.author.name || "Pasangan"} telah terbuka!`,
-          html: timeCapsuleNotificationHtml(
-            letter.author.name || "Pasangan",
-            letter.title,
-            `${process.env.NEXTAUTH_URL}/letters/${letter.id}`,
-          ),
-        });
+      try {
+        if (letter.recipient.email) {
+          const emailResult = await sendEmail({
+            to: letter.recipient.email,
+            subject: `🎁 Time Capsule dari ${letter.author.name || "Pasangan"} telah terbuka!`,
+            html: timeCapsuleNotificationHtml(
+              letter.author.name || "Pasangan",
+              letter.title,
+              `${process.env.NEXTAUTH_URL}/letters/${letter.id}`,
+            ),
+          });
 
-        const emailSent = !emailResult?.error;
+          const emailSent = !emailResult?.error;
 
-        if (emailResult?.error) {
-          console.error(
-            `Failed to send time-capsule notification for letter ${letter.id} to ${letter.recipient.email}:`,
-            emailResult.error,
-          );
-        }
+          if (emailResult?.error) {
+            console.error(
+              `Failed to send time-capsule notification for letter ${letter.id} to ${letter.recipient.email}:`,
+              emailResult.error,
+            );
+          }
 
-        if (emailSent) {
+          if (emailSent) {
+            await prisma.letter.update({
+              where: { id: letter.id },
+              data: { notificationSentAt: now },
+              select: { id: true },
+            });
+          }
+
+          results.push({
+            letterId: letter.id,
+            emailSent,
+            ...(emailResult?.error ? { error: String(emailResult.error) } : {}),
+          });
+        } else {
           await prisma.letter.update({
             where: { id: letter.id },
             data: { notificationSentAt: now },
             select: { id: true },
           });
+
+          results.push({
+            letterId: letter.id,
+            emailSent: false,
+          });
         }
-
-        results.push({
-          letterId: letter.id,
-          emailSent,
-        });
-      } else {
-        await prisma.letter.update({
-          where: { id: letter.id },
-          data: { notificationSentAt: now },
-          select: { id: true },
-        });
-
+      } catch (e) {
+        console.error(`Time-capsule letter ${letter.id} failed, continuing:`, e);
         results.push({
           letterId: letter.id,
           emailSent: false,
+          error: e instanceof Error ? e.message : "Gagal memproses",
         });
       }
     }

@@ -553,7 +553,8 @@ let singleton: UploadQueue | null = null;
 export function getUploadQueue(options?: Partial<UploadQueueOptions>): UploadQueue {
   if (!singleton) {
     singleton = new UploadQueue({
-      maxConcurrency: 5,
+      // ponytail: 3 matches server bulk CONCURRENCY + DEFAULT_CONCURRENCY; 5 tripped sign/server rate limits on 50-file batches
+      maxConcurrency: 3,
       chunkSize: 5 * 1024 * 1024,
       folder: "ndjourney-web",
       onProgress: () => {},

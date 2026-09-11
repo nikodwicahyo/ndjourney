@@ -63,6 +63,13 @@ async function savePhotoToDb(
 
   if (!res.ok) {
     const err = await parseResponseBody(res);
+    // ponytail: DB save failed after Cloudinary success -> delete orphan so storage doesn't leak
+    const publicId = u.result!.publicId;
+    try {
+      await fetch(`/api/upload/${encodeURIComponent(publicId)}`, { method: "DELETE" });
+    } catch {
+      // best-effort only, surfaced error stays the DB error
+    }
     throw new Error(err || "Gagal menyimpan foto");
   }
 

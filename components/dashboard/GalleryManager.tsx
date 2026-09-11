@@ -433,8 +433,10 @@ export default function GalleryManager() {
   const totalCount = uploadQueue.length;
 
   const totalBytes = uploadQueue.reduce((sum, u) => sum + u.file.size, 0);
+  // ponytail: only completed bytes count as done; errors show 0 so bar never fakes 100% before DB save
   const uploadedBytes = uploadQueue.reduce((sum, u) => {
-    if (u.status === "complete" || u.status === "error") return sum + u.file.size;
+    if (u.status === "complete") return sum + u.file.size;
+    if (u.status === "error" || u.status === "interrupted" || u.status === "cancelled") return sum;
     return sum + (u.progress.loaded || 0);
   }, 0);
   const overallProgress = totalBytes > 0 ? Math.round((uploadedBytes / totalBytes) * 100) : 0;

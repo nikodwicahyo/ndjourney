@@ -52,6 +52,10 @@ export async function PUT(
     return NextResponse.json({ data: album });
   } catch (error) {
     console.error("Error updating album:", error);
+    // ponytail: missing album -> 404, not 500
+    if (error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "P2025") {
+      return NextResponse.json({ error: "Album tidak ditemukan" }, { status: 404 });
+    }
     return NextResponse.json(
       { error: "Terjadi kesalahan pada server. Coba lagi nanti." },
       { status: 500 },
@@ -71,12 +75,14 @@ export async function DELETE(
 
     const { id } = await params;
 
-    await prisma.photo.updateMany({
-      where: { albumId: id },
-      data: { albumId: null },
-    });
-
-    await prisma.album.delete({ where: { id } });
+    // ponytail: atomic detach+delete — no partial state if delete throws after detach
+    await prisma.$transaction([
+      prisma.photo.updateMany({
+        where: { albumId: id },
+        data: { albumId: null },
+      }),
+      prisma.album.delete({ where: { id } }),
+    ]);
 
     await invalidateCache("albums:*");
     await invalidateCache("photos:*");
@@ -89,6 +95,10 @@ export async function DELETE(
     return NextResponse.json({ message: "Album deleted" });
   } catch (error) {
     console.error("Error deleting album:", error);
+    // ponytail: missing album -> 404, not 500
+    if (error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "P2025") {
+      return NextResponse.json({ error: "Album tidak ditemukan" }, { status: 404 });
+    }
     return NextResponse.json(
       { error: "Terjadi kesalahan pada server. Coba lagi nanti." },
       { status: 500 },

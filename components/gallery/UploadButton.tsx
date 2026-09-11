@@ -5,6 +5,7 @@ import { useDropZone } from "@/hooks/useDropZone";
 import { Button } from "@/components/ui";
 import { Upload, X, Loader2, ImagePlus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getMaxFileSize, formatBytes } from "@/lib/upload-config";
 
 type UploadButtonProps = {
   onUpload: (file: File) => Promise<void>;
@@ -15,7 +16,8 @@ type UploadButtonProps = {
 export default function UploadButton({
   onUpload,
   maxFiles = 50,
-  maxSizeMB = 200,
+  // ponytail: deprecated, kept for compat — limits now come from getMaxFileSize() per type
+  maxSizeMB: _maxSizeMB = 200,
 }: UploadButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
@@ -39,10 +41,12 @@ export default function UploadButton({
           continue;
         }
 
-        if (file.size > maxSizeMB * 1024 * 1024) {
+        // ponytail: per-type limit (10MB image / 100MB video), consistent with server policy — flat maxSizeMB lied
+        const maxSize = getMaxFileSize(file.type);
+        if (file.size > maxSize) {
           setErrors((prev) => [
             ...prev,
-            `${file.name}: Maksimal ${maxSizeMB}MB`,
+            `${file.name}: Maksimal ${formatBytes(maxSize)}`,
           ]);
           continue;
         }
@@ -55,7 +59,7 @@ export default function UploadButton({
         return combined.slice(0, maxFiles);
       });
     },
-    [maxFiles, maxSizeMB],
+    [maxFiles],
   );
 
   const { isDragging } = useDropZone({
@@ -157,7 +161,7 @@ export default function UploadButton({
                     : "Klik atau drag & drop media"}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  JPG, PNG, WEBP, HEIC, MP4, MOV max {maxSizeMB}MB
+                  JPG, PNG, WEBP, HEIC, MP4, MOV — foto 10MB, video 100MB
                 </p>
               </div>
             </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { cn, formatBytes } from "@/lib/utils";
-import { HardDrive, RefreshCw, Image, Video, File } from "lucide-react";
+import { HardDrive, RefreshCw, Image, Video, File, ChevronDown } from "lucide-react";
 
 type Props = {
   used: number;
@@ -15,6 +15,10 @@ type Props = {
   rawBytes?: number;
   className?: string;
   compact?: boolean;
+  collapsible?: boolean;
+  defaultOpen?: boolean;
+  isOpen?: boolean;
+  onToggle?: () => void;
   onRefresh?: () => void;
   isRefreshing?: boolean;
 };
@@ -43,9 +47,15 @@ export default function StorageUsageBar({
   rawBytes,
   className,
   compact = false,
+  collapsible = false,
+  defaultOpen = false,
+  isOpen: controlledOpen,
+  onToggle,
   onRefresh,
   isRefreshing,
 }: Props) {
+  const isOpen = controlledOpen ?? defaultOpen;
+
   const ratio = limit > 0 ? used / limit : 0;
   const percent = limit > 0 ? Math.min(Math.round(ratio * 10000) / 100, 100) : 0;
   const threshold = getThreshold(ratio);
@@ -87,14 +97,122 @@ export default function StorageUsageBar({
     );
   }
 
+  const summary = (
+    <div className="mb-3 flex items-center justify-between text-xs">
+      <span className="text-muted-foreground">
+        {percent === 0 || percent >= 1 ? `${Math.round(percent)}` : percent.toFixed(1)}% terpakai
+      </span>
+      <span className="font-medium text-muted-foreground">
+        {formatBytes(remainingBytes)} tersisa
+      </span>
+    </div>
+  );
+
+  const hasDetail =
+    imagesBytes !== undefined || videosBytes !== undefined || rawBytes !== undefined;
+
+  if (!collapsible) {
+    return (
+      <div className={cn("rounded-2xl border border-border bg-card p-5", className)}>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+              style={{ backgroundColor: "#6366F1" + "15" }}
+            >
+              <HardDrive className="h-5 w-5" style={{ color: "#6366F1" }} />
+            </div>
+            <div className="min-w-0">
+              <p className="font-heading text-sm font-semibold">Penyimpanan</p>
+              <p className="text-xs text-muted-foreground">
+                {formatBytes(used)}{limit > 0 ? ` dari ${formatBytes(limit)}` : ""}
+              </p>
+            </div>
+          </div>
+          {onRefresh && (
+            <button
+              type="button"
+              onClick={onRefresh}
+              disabled={isRefreshing}
+              className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")} />
+              {isRefreshing ? "Memuat..." : "Refresh"}
+            </button>
+          )}
+        </div>
+        {limit > 0 && (
+          <>
+            <div className="mt-3 mb-2 h-3 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className={cn("h-full rounded-full transition-all duration-500", threshold.color)}
+                style={{ width: `${percent}%` }}
+              />
+            </div>
+            {summary}
+          </>
+        )}
+        {hasDetail && (
+          <div className="mt-3 space-y-1.5 border-t border-border pt-3">
+            <p className="text-xs font-medium text-muted-foreground">Rincian Penyimpanan:</p>
+            {imagesBytes !== undefined && (
+              <div className="flex items-center justify-between text-xs">
+                <span className="flex items-center gap-1.5 text-muted-foreground">
+                  <Image className="h-3.5 w-3.5" />
+                  Foto
+                  {imagesCount !== undefined && (
+                    <span className="text-muted-foreground/70">({imagesCount.toLocaleString("id-ID")})</span>
+                  )}
+                </span>
+                <span className="font-medium">{formatBytes(imagesBytes)}</span>
+              </div>
+            )}
+            {videosBytes !== undefined && (
+              <div className="flex items-center justify-between text-xs">
+                <span className="flex items-center gap-1.5 text-muted-foreground">
+                  <Video className="h-3.5 w-3.5" />
+                  Video
+                  {videosCount !== undefined && (
+                    <span className="text-muted-foreground/70">({videosCount.toLocaleString("id-ID")})</span>
+                  )}
+                </span>
+                <span className="font-medium">{formatBytes(videosBytes)}</span>
+              </div>
+            )}
+            {rawBytes !== undefined && (
+              <div className="flex items-center justify-between text-xs">
+                <span className="flex items-center gap-1.5 text-muted-foreground">
+                  <File className="h-3.5 w-3.5" />
+                  Raw
+                  {rawCount !== undefined && (
+                    <span className="text-muted-foreground/70">({rawCount.toLocaleString("id-ID")})</span>
+                  )}
+                </span>
+                <span className="font-medium">{formatBytes(rawBytes)}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between border-t border-border/50 pt-1.5 text-xs">
+              <span className="font-medium text-foreground">Total</span>
+              <span className="font-medium">{formatBytes(used)}</span>
+            </div>
+          </div>
+        )}
+        {resourcesCount > 0 && estimatedRemainingFiles > 0 && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            Sisa ruang cukup untuk <span className="font-medium text-foreground">~{friendlyEstimate}</span> file lagi{avgLabel ? ` (${avgLabel})` : ""}.
+          </p>
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div
-      className={cn(
-        "rounded-2xl border border-border bg-card p-5",
-        className,
-      )}
-    >
-      <div className="mb-3 flex items-center justify-between gap-3">
+    <div className={cn("rounded-2xl border border-border bg-card", className)}>
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center justify-between gap-3 p-4 text-left sm:p-5"
+      >
         <div className="flex items-center gap-3 min-w-0">
           <div
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
@@ -103,95 +221,106 @@ export default function StorageUsageBar({
             <HardDrive className="h-5 w-5" style={{ color: "#6366F1" }} />
           </div>
           <div className="min-w-0">
-            <p className="font-heading text-sm font-semibold">Penyimpanan Terpakai</p>
+            <p className="font-heading text-sm font-semibold">Penyimpanan</p>
             <p className="text-xs text-muted-foreground">
-              {formatBytes(used)}
-              {limit > 0 ? ` dari ${formatBytes(limit)}` : ""}
+              {formatBytes(used)}{limit > 0 ? ` dari ${formatBytes(limit)}` : ""}
             </p>
           </div>
         </div>
-        {onRefresh && (
-          <button
-            onClick={onRefresh}
-            disabled={isRefreshing}
-            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
-          >
-            <RefreshCw className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")} />
-            {isRefreshing ? "Memuat..." : "Refresh"}
-          </button>
-        )}
-      </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {onRefresh && (
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={(e) => { e.stopPropagation(); onRefresh(); }}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); onRefresh(); } }}
+              className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")} />
+              {isRefreshing ? "Memuat..." : "Refresh"}
+            </span>
+          )}
+          <ChevronDown
+            className={cn(
+              "h-4 w-4 shrink-0 text-white transition-transform duration-200",
+              isOpen && "rotate-180"
+            )}
+          />
+        </div>
+      </button>
 
       {limit > 0 && (
-        <>
+        <div className="px-4 sm:px-5">
           <div className="mb-2 h-3 w-full overflow-hidden rounded-full bg-muted">
             <div
               className={cn("h-full rounded-full transition-all duration-500", threshold.color)}
               style={{ width: `${percent}%` }}
             />
           </div>
+          {summary}
+        </div>
+      )}
 
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-muted-foreground">
-              {percent === 0 || percent >= 1 ? `${Math.round(percent)}` : percent.toFixed(2)}% terpakai
-            </span>
-            <span className="font-medium text-muted-foreground">
-              {formatBytes(remainingBytes)} tersisa
-            </span>
-          </div>
-
-          {(imagesBytes !== undefined || videosBytes !== undefined || rawBytes !== undefined) && (
-            <div className="mt-3 space-y-1.5 border-t border-border pt-3">
-              <p className="text-xs font-medium text-muted-foreground">Rincian Penyimpanan:</p>
-              {imagesBytes !== undefined && (
-                <div className="flex items-center justify-between text-xs">
-                  <span className="flex items-center gap-1.5 text-muted-foreground">
-                    <Image className="h-3.5 w-3.5" />
-                    Foto
-                    {imagesCount !== undefined && (
-                      <span className="text-muted-foreground/70">({imagesCount.toLocaleString("id-ID")})</span>
-                    )}
-                  </span>
-                  <span className="font-medium">{formatBytes(imagesBytes)}</span>
+      {(hasDetail || resourcesCount > 0) && (
+        <div
+          className="grid transition-[grid-template-rows] duration-200 ease-in-out"
+          style={{ gridTemplateRows: isOpen ? "1fr" : "0fr" }}
+        >
+          <div className="overflow-hidden">
+            <div className="px-4 pb-4 pt-3 sm:px-5 sm:pb-5">
+              {hasDetail && (
+                <div className="space-y-1.5 border-t border-border pt-3">
+                  <p className="text-xs font-medium text-muted-foreground">Rincian Penyimpanan:</p>
+                  {imagesBytes !== undefined && (
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="flex items-center gap-1.5 text-muted-foreground">
+                        <Image className="h-3.5 w-3.5" />
+                        Foto
+                        {imagesCount !== undefined && (
+                          <span className="text-muted-foreground/70">({imagesCount.toLocaleString("id-ID")})</span>
+                        )}
+                      </span>
+                      <span className="font-medium">{formatBytes(imagesBytes)}</span>
+                    </div>
+                  )}
+                  {videosBytes !== undefined && (
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="flex items-center gap-1.5 text-muted-foreground">
+                        <Video className="h-3.5 w-3.5" />
+                        Video
+                        {videosCount !== undefined && (
+                          <span className="text-muted-foreground/70">({videosCount.toLocaleString("id-ID")})</span>
+                        )}
+                      </span>
+                      <span className="font-medium">{formatBytes(videosBytes)}</span>
+                    </div>
+                  )}
+                  {rawBytes !== undefined && (
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="flex items-center gap-1.5 text-muted-foreground">
+                        <File className="h-3.5 w-3.5" />
+                        Raw
+                        {rawCount !== undefined && (
+                          <span className="text-muted-foreground/70">({rawCount.toLocaleString("id-ID")})</span>
+                        )}
+                      </span>
+                      <span className="font-medium">{formatBytes(rawBytes)}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between border-t border-border/50 pt-1.5 text-xs">
+                    <span className="font-medium text-foreground">Total</span>
+                    <span className="font-medium">{formatBytes(used)}</span>
+                  </div>
                 </div>
               )}
-              {videosBytes !== undefined && (
-                <div className="flex items-center justify-between text-xs">
-                  <span className="flex items-center gap-1.5 text-muted-foreground">
-                    <Video className="h-3.5 w-3.5" />
-                    Video
-                    {videosCount !== undefined && (
-                      <span className="text-muted-foreground/70">({videosCount.toLocaleString("id-ID")})</span>
-                    )}
-                  </span>
-                  <span className="font-medium">{formatBytes(videosBytes)}</span>
-                </div>
+              {resourcesCount > 0 && estimatedRemainingFiles > 0 && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Sisa ruang cukup untuk <span className="font-medium text-foreground">~{friendlyEstimate}</span> file lagi{avgLabel ? ` (${avgLabel})` : ""}.
+                </p>
               )}
-              {rawBytes !== undefined && (
-                <div className="flex items-center justify-between text-xs">
-                  <span className="flex items-center gap-1.5 text-muted-foreground">
-                    <File className="h-3.5 w-3.5" />
-                    Raw
-                    {rawCount !== undefined && (
-                      <span className="text-muted-foreground/70">({rawCount.toLocaleString("id-ID")})</span>
-                    )}
-                  </span>
-                  <span className="font-medium">{formatBytes(rawBytes)}</span>
-                </div>
-              )}
-              <div className="flex items-center justify-between border-t border-border/50 pt-1.5 text-xs">
-                <span className="font-medium text-foreground">Total</span>
-                <span className="font-medium">{formatBytes(used)}</span>
-              </div>
             </div>
-          )}
-
-          {resourcesCount > 0 && estimatedRemainingFiles > 0 && (
-            <p className="mt-2 text-xs text-muted-foreground">
-              Sisa ruang cukup untuk <span className="font-medium text-foreground">~{friendlyEstimate}</span> file lagi{avgLabel ? ` (${avgLabel})` : ""}.
-            </p>
-          )}
-        </>
+          </div>
+        </div>
       )}
     </div>
   );

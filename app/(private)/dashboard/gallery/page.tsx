@@ -11,7 +11,7 @@ export default function GalleryManagerPage() {
   return (
     <PageTransition>
       <div>
-        <div className="mb-8">
+        <div className="mb-6">
           <h1 className="font-heading text-xl sm:text-2xl lg:text-3xl break-words">Kelola Gallery</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Upload dan kelola media, dan album

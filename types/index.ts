@@ -38,6 +38,13 @@ export type {
 
 export type AlbumWithCount = Album & { _count: { photos: number } };
 
+export type PhotoWithUploader = Photo & {
+  uploadedByName?: string | null;
+  uploadedByImage?: string | null;
+  uploadedBy?: { id: string; name: string | null; image: string | null } | null;
+  fileSize?: number | null;
+};
+
 // ── API Response Types ────────────────────
 
 export type ApiResponse<T> = {

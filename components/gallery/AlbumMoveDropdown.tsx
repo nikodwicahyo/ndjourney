@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useAlbums, useUpdatePhoto } from "@/hooks/usePhotos";
-import { Folder, Loader2, Check, Plus } from "lucide-react";
+import { Folder, Loader2, Check, X } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 type AlbumMoveDropdownProps = {
   photoId: string;
@@ -15,16 +16,17 @@ export default function AlbumMoveDropdown({
   currentAlbumId,
 }: AlbumMoveDropdownProps) {
   const [open, setOpen] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(currentAlbumId ?? null);
   const { data: albums, isLoading } = useAlbums();
   const updatePhoto = useUpdatePhoto();
 
-  async function handleMove(albumId: string | null) {
-    if (albumId === currentAlbumId) {
+  async function handleMove() {
+    if (selectedId === currentAlbumId) {
       setOpen(false);
       return;
     }
     try {
-      await updatePhoto.mutateAsync({ id: photoId, albumId });
+      await updatePhoto.mutateAsync({ id: photoId, albumId: selectedId });
       toast.success("Media dipindahkan 📁");
       setOpen(false);
     } catch {
@@ -32,10 +34,15 @@ export default function AlbumMoveDropdown({
     }
   }
 
+  function handleOpen() {
+    setSelectedId(currentAlbumId ?? null);
+    setOpen(true);
+  }
+
   return (
-    <div className="relative">
+    <>
       <button
-        onClick={() => setOpen(!open)}
+        onClick={handleOpen}
         className="rounded-full p-2 text-white/80 transition-colors hover:bg-white/10"
         aria-label="Pindahkan ke album"
       >
@@ -43,61 +50,138 @@ export default function AlbumMoveDropdown({
       </button>
 
       {open && (
-        <>
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={() => setOpen(false)}
+        >
           <div
-            className="fixed inset-0 z-40"
-            onClick={() => setOpen(false)}
-          />
-          <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border border-border bg-popover p-1 shadow-lg">
-            <p className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-              Pindahkan ke album
-            </p>
+            className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-5 flex items-center justify-between">
+              <h2 className="font-heading text-lg font-semibold">Pindahkan ke Album</h2>
+              <button
+                onClick={() => setOpen(false)}
+                className="rounded-full p-1 transition-colors hover:bg-muted"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
 
-            <button
-              onClick={() => handleMove(null)}
-              className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-accent ${
-                !currentAlbumId ? "text-primary" : "text-foreground"
-              }`}
-            >
-              <Check className={`h-4 w-4 ${!currentAlbumId ? "opacity-100" : "opacity-0"}`} />
-              Tidak ada album
-            </button>
+            <div className="max-h-64 space-y-1.5 overflow-y-auto">
+              <button
+                type="button"
+                onClick={() => setSelectedId(null)}
+                className={cn(
+                  "flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-colors",
+                  selectedId === null
+                    ? "bg-primary/10 text-primary"
+                    : "text-foreground hover:bg-accent",
+                )}
+              >
+                {selectedId === null ? (
+                  <Check className="h-4 w-4 shrink-0 text-primary" />
+                ) : (
+                  <div className="h-4 w-4 shrink-0" />
+                )}
+                Tanpa album
+              </button>
 
-            {isLoading ? (
-              <div className="flex items-center justify-center py-3">
-                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-              </div>
-            ) : (
-              albums?.map((album) => (
-                <button
-                  key={album.id}
-                  onClick={() => handleMove(album.id)}
-                  className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-accent ${
-                    album.id === currentAlbumId
-                      ? "text-primary"
-                      : "text-foreground"
-                  }`}
-                >
-                  <Check
-                    className={`h-4 w-4 ${
-                      album.id === currentAlbumId ? "opacity-100" : "opacity-0"
-                    }`}
-                  />
-                  <Folder className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="flex-1 text-left">
-                    <span className="block truncate">{album.name}</span>
-                    {album.description && (
-                      <span className="block truncate text-[10px] font-normal text-muted-foreground">
-                        {album.description}
-                      </span>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-3">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                albums?.map((album) => (
+                  <button
+                    key={album.id}
+                    type="button"
+                    onClick={() => setSelectedId(album.id)}
+                    className={cn(
+                      "flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-colors",
+                      selectedId === album.id
+                        ? "bg-primary/10 text-primary"
+                        : "text-foreground hover:bg-accent",
                     )}
-                  </span>
-                </button>
-              ))
-            )}
+                  >
+                    {selectedId === album.id ? (
+                      <Check className="h-4 w-4 shrink-0 text-primary" />
+                    ) : (
+                      <div className="h-4 w-4 shrink-0" />
+                    )}
+                    <Folder className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <div className="min-w-0 flex-1">
+                      <span className="block truncate">{album.name}</span>
+                      {album.description && (
+                        <span className="block truncate text-[10px] font-normal text-muted-foreground">
+                          {album.description}
+                        </span>
+                      )}
+                    </div>
+                    <span className="shrink-0 text-xs text-muted-foreground/60">
+                      {album._count.photos} file
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+
+            <div className="mt-5 flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setOpen(false)}
+              >
+                Batal
+              </Button>
+              <Button
+                className="flex-1 gap-1.5"
+                onClick={handleMove}
+                disabled={selectedId === currentAlbumId || updatePhoto.isPending}
+              >
+                {updatePhoto.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Folder className="h-4 w-4" />
+                )}
+                Pindahkan
+              </Button>
+            </div>
           </div>
-        </>
+        </div>
       )}
-    </div>
+    </>
+  );
+}
+
+function Button({
+  children,
+  className,
+  disabled,
+  onClick,
+  variant,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  disabled?: boolean;
+  onClick?: () => void;
+  variant?: string;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center justify-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition-colors",
+        variant === "outline"
+          ? "border border-border bg-background text-foreground hover:bg-accent"
+          : "bg-primary text-primary-foreground hover:bg-primary/90",
+        disabled && "pointer-events-none opacity-50",
+        className,
+      )}
+    >
+      {children}
+    </button>
   );
 }

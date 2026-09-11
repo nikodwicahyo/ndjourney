@@ -48,7 +48,7 @@ const navLinks = [
 ];
 
 const privateLinks = [
-  { href: "/dashboard/location", label: "Location", icon: MapPin },
+  { href: "/location", label: "Location", icon: MapPin },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
 ];
 

@@ -14,8 +14,9 @@ export const runtime = "nodejs";
 
 const CACHE_TTL = 60;
 
-function buildPhotoSelect() {
-  return `"id", "url", "publicId", "thumbnailUrl", "caption", "takenAt", "width", "height", "isVideo", "isFavorite", "isPublic", "albumId", "uploadedById", "createdAt", "updatedAt"`;
+function buildPhotoSelect(alias = "") {
+  const p = alias ? `${alias}.` : "";
+  return `${p}"id", ${p}"url", ${p}"publicId", ${p}"thumbnailUrl", ${p}"caption", ${p}"takenAt", ${p}"width", ${p}"height", ${p}"isVideo", ${p}"isFavorite", ${p}"isPublic", ${p}"albumId", ${p}"uploadedById", ${p}"createdAt", ${p}"updatedAt", u."name" AS "uploadedByName", u."image" AS "uploadedByImage"`;
 }
 
 export async function GET(request: Request) {
@@ -83,27 +84,28 @@ export async function GET(request: Request) {
     const orderDir = isOldest ? "ASC" : "DESC";
     const cmpOp = isOldest ? ">" : "<";
 
+    const baseWhereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
     // Composite cursor: (createdAt, id) matching ORDER BY "createdAt", "id"
+    const allParams = [...sqlParams];
+    let cursorCondition = "";
     if (cursor) {
       const decoded = decodeCompositeCursor(cursor);
       if (decoded) {
-        const caIdx = sqlParams.length + 1;
-        const idIdx = sqlParams.length + 2;
-        conditions.push(
-          `("createdAt", "id") ${cmpOp} ($${caIdx}::timestamptz, $${idIdx})`,
-        );
-        sqlParams.push(new Date(decoded.createdAt), decoded.id);
+        const caIdx = allParams.length + 1;
+        const idIdx = allParams.length + 2;
+        cursorCondition = ` AND (p."createdAt", p."id") ${cmpOp} ($${caIdx}::timestamptz, $${idIdx})`;
+        allParams.push(new Date(decoded.createdAt), decoded.id);
       }
     }
 
-    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-    const selectCols = buildPhotoSelect();
-    const limitParamIdx = sqlParams.length + 1;
+    const selectCols = buildPhotoSelect("p");
+    const limitParamIdx = allParams.length + 1;
 
-    const query = `SELECT ${selectCols} FROM "Photo" ${whereClause} ORDER BY "createdAt" ${orderDir}, "id" ${orderDir} LIMIT $${limitParamIdx}`;
-    sqlParams.push(limit + 1);
+    const query = `SELECT ${selectCols} FROM "Photo" p LEFT JOIN "User" u ON p."uploadedById" = u."id" ${baseWhereClause}${cursorCondition} ORDER BY p."createdAt" ${orderDir}, p."id" ${orderDir} LIMIT $${limitParamIdx}`;
+    allParams.push(limit + 1);
 
-    const photos = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(query, ...sqlParams);
+    const photos = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(query, ...allParams);
 
     const hasMore = photos.length > limit;
     const data = hasMore ? photos.slice(0, limit) : photos;
@@ -113,16 +115,16 @@ export async function GET(request: Request) {
       : null;
 
     // total count from cache key hash or compute
-    const countQuery = `SELECT COUNT(*)::int as cnt FROM "Photo" ${whereClause}`;
-    const countResult = await prisma.$queryRawUnsafe<{ cnt: number }[]>(countQuery, ...sqlParams.slice(0, sqlParams.length - 1));
+    const countQuery = `SELECT COUNT(*)::int as cnt FROM "Photo" ${baseWhereClause}`;
+    const countResult = await prisma.$queryRawUnsafe<{ cnt: number }[]>(countQuery, ...sqlParams);
     const total = countResult[0]?.cnt ?? data.length;
 
-    const fotoQuery = `SELECT COUNT(*)::int as cnt FROM "Photo" ${whereClause}${whereClause ? " AND" : "WHERE"} "isVideo" = false`;
-    const fotoResult = await prisma.$queryRawUnsafe<{ cnt: number }[]>(fotoQuery, ...sqlParams.slice(0, sqlParams.length - 1));
+    const fotoQuery = `SELECT COUNT(*)::int as cnt FROM "Photo" ${baseWhereClause}${baseWhereClause ? " AND" : "WHERE"} "isVideo" = false`;
+    const fotoResult = await prisma.$queryRawUnsafe<{ cnt: number }[]>(fotoQuery, ...sqlParams);
     const fotoTotal = fotoResult[0]?.cnt ?? 0;
 
-    const videoQuery = `SELECT COUNT(*)::int as cnt FROM "Photo" ${whereClause}${whereClause ? " AND" : "WHERE"} "isVideo" = true`;
-    const videoResult = await prisma.$queryRawUnsafe<{ cnt: number }[]>(videoQuery, ...sqlParams.slice(0, sqlParams.length - 1));
+    const videoQuery = `SELECT COUNT(*)::int as cnt FROM "Photo" ${baseWhereClause}${baseWhereClause ? " AND" : "WHERE"} "isVideo" = true`;
+    const videoResult = await prisma.$queryRawUnsafe<{ cnt: number }[]>(videoQuery, ...sqlParams);
     const videoTotal = videoResult[0]?.cnt ?? 0;
 
     const response = { data, nextCursor, hasMore, total, fotoTotal, videoTotal };

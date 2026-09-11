@@ -14,15 +14,20 @@ import {
   ZoomIn,
   ZoomOut,
   RefreshCw,
+  Info,
+  Calendar,
+  User,
+  Ruler,
+  HardDrive,
 } from "lucide-react";
-import { cn, formatDate } from "@/lib/utils";
+import { cn, formatDate, formatBytes } from "@/lib/utils";
 import {
   getOptimizedImageUrl,
   getImageSrcSet,
   getOptimizedVideoUrl,
   getBlurImageUrl,
 } from "@/lib/cloudinary-urls";
-import type { Photo } from "@/types";
+import type { PhotoWithUploader } from "@/types";
 import AlbumMoveDropdown from "./AlbumMoveDropdown";
 
 function dispatchBgEvent(type: "pause" | "resume") {
@@ -49,7 +54,7 @@ function cleanupPreloads() {
 type MediaState = "loading" | "loaded" | "error";
 
 type LightboxProps = {
-  photos: Photo[];
+  photos: PhotoWithUploader[];
   currentIndex: number;
   isOpen: boolean;
   onClose: () => void;
@@ -78,6 +83,7 @@ function Lightbox({
   const [mediaState, setMediaState] = useState<MediaState>("loading");
   const [retryKey, setRetryKey] = useState(0);
   const [isZoomed, setIsZoomed] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
   const [direction, setDirection] = useState(1);
   const photo = photos[currentIndex];
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -256,6 +262,7 @@ function Lightbox({
   useEffect(() => {
     setMediaState("loading");
     setIsZoomed(false);
+    setShowInfo(false);
   }, [photo?.id]);
 
   useEffect(() => {
@@ -369,6 +376,16 @@ function Lightbox({
               aria-label="Download"
             >
               <Download className="h-5 w-5" />
+            </button>
+            <button
+              onClick={() => setShowInfo(!showInfo)}
+              className={cn(
+                "rounded-full p-2 transition-colors",
+                showInfo ? "text-white bg-white/20" : "text-white/80 hover:bg-white/10"
+              )}
+              aria-label="Info"
+            >
+              <Info className="h-5 w-5" />
             </button>
             {onDelete && (
               <button
@@ -530,21 +547,115 @@ function Lightbox({
           </div>
         </div>
 
-        <div className="flex items-center justify-between px-6 py-4">
-          <div className="flex-1">
-            {photo.caption && (
-              <p className="text-sm text-white/90">{photo.caption}</p>
-            )}
-            <div className="mt-1 flex items-center gap-3 text-xs text-white/50">
-              {photo.takenAt && <span>{formatDate(photo.takenAt)}</span>}
-              {photo.width && photo.height && (
-                <span>
-                  {photo.width} x {photo.height}
-                </span>
+        <div className="px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex-1 min-w-0">
+              {photo.caption && (
+                <p className="text-sm text-white/90 truncate">{photo.caption}</p>
               )}
+              <div className="mt-1 flex items-center gap-3 text-xs text-white/50">
+                {photo.takenAt && <span>{formatDate(photo.takenAt)}</span>}
+                {photo.width && photo.height && (
+                  <span>
+                    {photo.width} x {photo.height}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </div>
+
+        {showInfo && (
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+            onClick={() => setShowInfo(false)}
+          >
+            <div
+              className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="mb-5 flex items-center justify-between">
+                <h2 className="font-heading text-lg font-semibold">Detail Media</h2>
+                <button
+                  onClick={() => setShowInfo(false)}
+                  className="rounded-full p-1 transition-colors hover:bg-muted"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                    <User className="h-4.5 w-4.5 text-primary" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs text-muted-foreground">Diupload oleh</p>
+                    <p className="text-sm font-medium truncate">
+                      {photo.uploadedBy?.name || photo.uploadedByName || "Tidak diketahui"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                    <Calendar className="h-4.5 w-4.5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Tanggal upload</p>
+                    <p className="text-sm font-medium">{formatDate(photo.createdAt)}</p>
+                  </div>
+                </div>
+
+                {photo.takenAt && (
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                      <Calendar className="h-4.5 w-4.5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Tanggal diambil</p>
+                      <p className="text-sm font-medium">{formatDate(photo.takenAt)}</p>
+                    </div>
+                  </div>
+                )}
+
+                {photo.width && photo.height && (
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                      <Ruler className="h-4.5 w-4.5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Resolusi</p>
+                      <p className="text-sm font-medium">{photo.width} x {photo.height} px</p>
+                    </div>
+                  </div>
+                )}
+
+                {photo.fileSize && (
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                      <HardDrive className="h-4.5 w-4.5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Ukuran file</p>
+                      <p className="text-sm font-medium">{formatBytes(photo.fileSize)}</p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                    <File className="h-4.5 w-4.5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Tipe</p>
+                    <p className="text-sm font-medium">{photo.isVideo ? "Video" : "Foto"}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </motion.div>
     </AnimatePresence>
   );

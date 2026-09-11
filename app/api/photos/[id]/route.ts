@@ -41,6 +41,7 @@ export async function GET(
         takenAt: true,
         width: true,
         height: true,
+        fileSize: true,
         isVideo: true,
         isFavorite: true,
         isPublic: true,
@@ -49,6 +50,9 @@ export async function GET(
         isMilestoneOnly: true,
         createdAt: true,
         updatedAt: true,
+        uploadedBy: {
+          select: { id: true, name: true, image: true },
+        },
       },
     });
 
@@ -107,12 +111,17 @@ export async function PUT(
 
     const existing = await prisma.photo.findUnique({
       where: { id },
-      select: { uploadedById: true },
+      select: { coupleId: true, uploadedById: true },
     });
     if (!existing) {
       return NextResponse.json({ error: "Media tidak ditemukan" }, { status: 404 });
     }
-    if (existing.uploadedById !== userId) {
+    if (existing.coupleId) {
+      const userCoupleId = await getUserCoupleId(userId);
+      if (existing.coupleId !== userCoupleId) {
+        return NextResponse.json({ error: "Kamu tidak punya akses untuk mengubah media ini" }, { status: 403 });
+      }
+    } else if (existing.uploadedById !== userId) {
       return NextResponse.json({ error: "Kamu tidak punya akses untuk mengubah media ini" }, { status: 403 });
     }
 
@@ -158,6 +167,9 @@ export async function PUT(
         uploadedById: true,
         createdAt: true,
         updatedAt: true,
+        uploadedBy: {
+          select: { id: true, name: true, image: true },
+        },
       },
     });
 
@@ -201,13 +213,18 @@ export async function DELETE(
 
     const photo = await prisma.photo.findUnique({
       where: { id },
-      select: { publicId: true, uploadedById: true, isVideo: true },
+      select: { publicId: true, coupleId: true, uploadedById: true, isVideo: true },
     });
 
     if (!photo) {
       return NextResponse.json({ error: "Media tidak ditemukan" }, { status: 404 });
     }
-    if (photo.uploadedById !== userId) {
+    if (photo.coupleId) {
+      const userCoupleId = await getUserCoupleId(userId);
+      if (photo.coupleId !== userCoupleId) {
+        return NextResponse.json({ error: "Kamu tidak punya akses untuk menghapus media ini" }, { status: 403 });
+      }
+    } else if (photo.uploadedById !== userId) {
       return NextResponse.json({ error: "Kamu tidak punya akses untuk menghapus media ini" }, { status: 403 });
     }
 

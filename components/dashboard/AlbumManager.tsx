@@ -3,13 +3,18 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button, Skeleton } from "@/components/ui";
-import { Plus, Loader2, X, Trash2, Pencil, Check, Globe, EyeOff } from "lucide-react";
+import { Plus, Loader2, X, Trash2, Pencil, Check, Globe, EyeOff, ChevronDown, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
 import { showDeleteConfirm } from "@/lib/swal";
 import { cn } from "@/lib/utils";
 import type { AlbumWithCount } from "@/types";
 
-export default function AlbumManager() {
+type Props = {
+  isOpen: boolean;
+  onToggle: () => void;
+};
+
+export default function AlbumManager({ isOpen, onToggle }: Props) {
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
@@ -29,6 +34,8 @@ export default function AlbumManager() {
     },
     staleTime: 60_000,
   });
+
+  const albumCount = albums?.length ?? 0;
 
   const createAlbum = useMutation({
     mutationFn: async (data: { name: string; description?: string; isPublic: boolean }) => {
@@ -120,12 +127,35 @@ export default function AlbumManager() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="font-medium text-lg">Album</h2>
+    <div className="rounded-2xl border border-border bg-card">
+      <div className="flex items-center justify-between p-4 sm:p-5">
+        <button
+          type="button"
+          onClick={onToggle}
+          className="flex items-center gap-2.5 min-w-0 cursor-pointer"
+        >
+          <div
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+            style={{ backgroundColor: "#F59E0B" + "15" }}
+          >
+            <FolderOpen className="h-5 w-5" style={{ color: "#F59E0B" }} />
+          </div>
+          <h2 className="font-heading text-sm sm:text-base font-semibold">Album</h2>
+          {albumCount > 0 && (
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/10 px-1.5 text-xs font-medium text-primary">
+              {albumCount}
+            </span>
+          )}
+          <ChevronDown
+            className={cn(
+              "h-4 w-4 shrink-0 text-white transition-transform duration-200",
+              isOpen && "rotate-180"
+            )}
+          />
+        </button>
         <Button
           size="sm"
-          onClick={() => setShowForm(!showForm)}
+          onClick={(e) => { e.stopPropagation(); setShowForm(!showForm); }}
           className="gap-2"
         >
           <Plus className="h-4 w-4" />
@@ -134,7 +164,7 @@ export default function AlbumManager() {
       </div>
 
       {showForm && (
-        <div className="rounded-2xl border border-border bg-card p-4">
+        <div className="mx-4 mb-4 sm:mx-5 sm:mb-5 rounded-2xl border border-border bg-background p-4">
           <div className="mb-3 flex items-center justify-between">
             <p className="text-sm font-medium">Buat Album Baru</p>
             <button
@@ -209,148 +239,157 @@ export default function AlbumManager() {
         </div>
       )}
 
-      {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-32 rounded-2xl" />
-          ))}
+      <div
+        className="grid transition-[grid-template-rows] duration-200 ease-in-out"
+        style={{ gridTemplateRows: isOpen ? "1fr" : "0fr" }}
+      >
+        <div className="overflow-hidden">
+          <div className="px-4 pb-4 sm:px-5 sm:pb-5">
+            {isLoading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Skeleton key={i} className="h-32 rounded-2xl" />
+                ))}
+              </div>
+            ) : !albums || albums.length === 0 ? (
+              <p className="py-4 text-center text-sm text-muted-foreground">
+                Belum ada album
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                {albums.map((album) => (
+                  <div
+                    key={album.id}
+                    className="group relative rounded-2xl border border-border bg-background p-4 shadow-sm transition-all hover:shadow-md"
+                  >
+                    {editingId === album.id ? (
+                      <div className="space-y-2">
+                        <input
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) saveEdit();
+                            if (e.key === "Escape") cancelEditing();
+                          }}
+                          placeholder="Nama album"
+                          autoFocus
+                          className="h-8 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        />
+                        <input
+                          value={editDescription}
+                          onChange={(e) => setEditDescription(e.target.value)}
+                          placeholder="Deskripsi (opsional)"
+                          className="h-8 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        />
+                        <div className="flex items-center justify-between gap-3 rounded-lg border border-input bg-background px-3 py-1.5 text-sm">
+                          <span className="font-medium">Visibilitas</span>
+                          <div className="flex items-center gap-1 rounded-full border border-border p-0.5">
+                            <button
+                              type="button"
+                              onClick={() => setEditIsPublic(true)}
+                              className={cn(
+                                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors",
+                                editIsPublic
+                                  ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                                  : "text-muted-foreground hover:text-foreground"
+                              )}
+                            >
+                              <Globe className="h-3 w-3" />
+                              Publik
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditIsPublic(false)}
+                              className={cn(
+                                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors",
+                                !editIsPublic
+                                  ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                                  : "text-muted-foreground hover:text-foreground"
+                              )}
+                            >
+                              <EyeOff className="h-3 w-3" />
+                              Privat
+                            </button>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={saveEdit}
+                            disabled={!editName.trim() || updateAlbum.isPending}
+                            className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:pointer-events-none disabled:opacity-50"
+                          >
+                            {updateAlbum.isPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Check className="h-4 w-4" />
+                            )}
+                          </button>
+                          <button
+                            onClick={cancelEditing}
+                            disabled={updateAlbum.isPending}
+                            className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-start justify-between gap-2">
+                           <div className="min-w-0 flex-1">
+                            <h3 className="truncate font-medium">
+                              {album.name}
+                              <span className="ml-1 text-xs font-normal text-muted-foreground">
+                                ({album._count ? album._count.photos : "—"} file)
+                              </span>
+                            </h3>
+                            <span
+                              className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                                album.isPublic
+                                  ? "bg-primary/10 text-primary"
+                                  : "bg-muted text-muted-foreground"
+                              }`}
+                            >
+                              {album.isPublic ? "Publik" : "Privat"}
+                            </span>
+                            {album.description && (
+                              <p className="mt-1.5 line-clamp-2 text-xs text-muted-foreground/70 leading-relaxed">
+                                {album.description}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex shrink-0 items-center gap-1">
+                            <button
+                              onClick={() => startEditing(album)}
+                              className="rounded-full p-1.5 text-muted-foreground transition-all hover:bg-muted"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={async () => {
+                                const confirmed = await showDeleteConfirm({
+                                  title: "Hapus Album",
+                                  text: `Apakah Anda yakin ingin menghapus album "${album.name}"?`,
+                                });
+                                if (confirmed) {
+                                  deleteAlbum.mutate(album.id);
+                                }
+                              }}
+                              className="rounded-full p-1.5 text-muted-foreground transition-all hover:bg-destructive/10 hover:text-destructive"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-      ) : !albums || albums.length === 0 ? (
-        <p className="py-4 text-center text-sm text-muted-foreground">
-          Belum ada album
-        </p>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-          {albums.map((album) => (
-            <div
-              key={album.id}
-              className="group relative rounded-2xl border border-border bg-card p-4 shadow-sm transition-all hover:shadow-md"
-            >
-              {editingId === album.id ? (
-                <div className="space-y-2">
-                  <input
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) saveEdit();
-                      if (e.key === "Escape") cancelEditing();
-                    }}
-                    placeholder="Nama album"
-                    autoFocus
-                    className="h-8 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  />
-                  <input
-                    value={editDescription}
-                    onChange={(e) => setEditDescription(e.target.value)}
-                    placeholder="Deskripsi (opsional)"
-                    className="h-8 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  />
-                  <div className="flex items-center justify-between gap-3 rounded-lg border border-input bg-background px-3 py-1.5 text-sm">
-                    <span className="font-medium">Visibilitas</span>
-                    <div className="flex items-center gap-1 rounded-full border border-border p-0.5">
-                      <button
-                        type="button"
-                        onClick={() => setEditIsPublic(true)}
-                        className={cn(
-                          "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors",
-                          editIsPublic
-                            ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-                            : "text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        <Globe className="h-3 w-3" />
-                        Publik
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEditIsPublic(false)}
-                        className={cn(
-                          "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors",
-                          !editIsPublic
-                            ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                            : "text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        <EyeOff className="h-3 w-3" />
-                        Privat
-                      </button>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={saveEdit}
-                      disabled={!editName.trim() || updateAlbum.isPending}
-                      className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:pointer-events-none disabled:opacity-50"
-                    >
-                      {updateAlbum.isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Check className="h-4 w-4" />
-                      )}
-                    </button>
-                    <button
-                      onClick={cancelEditing}
-                      disabled={updateAlbum.isPending}
-                      className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div className="flex items-start justify-between gap-2">
-                     <div className="min-w-0 flex-1">
-                      <h3 className="truncate font-medium">
-                        {album.name}
-                        <span className="ml-1 text-xs font-normal text-muted-foreground">
-                          ({album._count ? album._count.photos : "—"} file)
-                        </span>
-                      </h3>
-                      <span
-                        className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                          album.isPublic
-                            ? "bg-primary/10 text-primary"
-                            : "bg-muted text-muted-foreground"
-                        }`}
-                      >
-                        {album.isPublic ? "Publik" : "Privat"}
-                      </span>
-                      {album.description && (
-                        <p className="mt-1.5 line-clamp-2 text-xs text-muted-foreground/70 leading-relaxed">
-                          {album.description}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1">
-                      <button
-                        onClick={() => startEditing(album)}
-                        className="rounded-full p-1.5 text-muted-foreground transition-all hover:bg-muted"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        onClick={async () => {
-                          const confirmed = await showDeleteConfirm({
-                            title: "Hapus Album",
-                            text: `Apakah Anda yakin ingin menghapus album "${album.name}"?`,
-                          });
-                          if (confirmed) {
-                            deleteAlbum.mutate(album.id);
-                          }
-                        }}
-                        className="rounded-full p-1.5 text-muted-foreground transition-all hover:bg-destructive/10 hover:text-destructive"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+      </div>
     </div>
   );
 }

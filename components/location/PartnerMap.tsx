@@ -23,13 +23,9 @@ type Pin = {
 };
 
 const TILE_URL =
-  "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png";
-const TILE_ATTR =
-  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';
-const FALLBACK_TILE_URL =
   "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
-const FALLBACK_TILE_ATTR =
-  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+const TILE_ATTR =
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 
 const NOMINATIM_CACHE = new Map<string, string>();
 const NOMINATIM_CACHE_MAX = 50;
@@ -203,8 +199,6 @@ export default function PartnerMap({
 .leaflet-container{background:#ddd;outline:0;overflow:hidden}
 .leaflet-container .leaflet-overlay-pane,.leaflet-container .leaflet-marker-pane,.leaflet-container .leaflet-shadow-pane,.leaflet-container .leaflet-tile-pane,.leaflet-container .leaflet-popup-pane{position:absolute;left:0;top:0}
 .leaflet-container img.leaflet-tile{max-width:none!important}
-.leaflet-tile{filter:inherit;visibility:hidden}
-.leaflet-tile-loaded{visibility:inherit}
 .leaflet-zoom-box{width:0;height:0}
 .leaflet-control{position:relative;z-index:800;float:left;clear:both;pointer-events:auto}
 .leaflet-top{top:0}.leaflet-bottom{bottom:0}.leaflet-left{left:0}.leaflet-right{right:0}
@@ -222,6 +216,13 @@ export default function PartnerMap({
 
     const center =
       self?.point ?? partner?.point ?? { lat: -6.2, lng: 106.816 };
+
+    // Strict-mode remount can leave a stale Leaflet id on the container
+    const stale = container as HTMLDivElement & { _leaflet_id?: number };
+    if (stale._leaflet_id) {
+      container.innerHTML = "";
+      delete stale._leaflet_id;
+    }
 
     let map: L.Map;
     try {
@@ -248,14 +249,22 @@ export default function PartnerMap({
     let tile: L.TileLayer;
     try {
       tile = L.tileLayer(TILE_URL, {
-        maxZoom: 20,
+        maxZoom: 19,
         minZoom: 2,
-        subdomains: "abcd",
+        subdomains: "abc",
         attribution: TILE_ATTR,
-        detectRetina: false,
+        detectRetina: true,
       }).addTo(map);
+      tile.on("tileerror", (e: unknown) => {
+        const err = e as { url?: string };
+        console.warn("[PartnerMap] tileerror", err?.url ?? "(no url)");
+      });
+      tile.on("tileload", () => {
+        if (mapRef.current) mapRef.current.invalidateSize({ debounceMoveend: true });
+      });
     } catch (err) {
       console.error("[PartnerMap] tileLayer failed:", err);
+      map.remove();
       return;
     }
     tileLayerRef.current = tile;
@@ -424,63 +433,6 @@ export default function PartnerMap({
     tryInvalidate();
     map.whenReady(() => tryInvalidate());
 
-    let tileErrors = 0;
-    let tileRecoveryTimer: ReturnType<typeof setTimeout> | null = null;
-    let useFallback = false;
-    let fallbackPinned = false;
-
-    function switchTileLayer(url: string, attr: string) {
-      if (!mapRef.current || !tileLayerRef.current) return;
-      console.warn("[PartnerMap] switching tiles to", url.replace(/\{.*\}/, "…"));
-      mapRef.current.removeLayer(tileLayerRef.current);
-      tileLayerRef.current = L.tileLayer(url, {
-        maxZoom: 20,
-        minZoom: 2,
-        subdomains: "abcd",
-        attribution: attr,
-        detectRetina: false,
-      }).addTo(mapRef.current);
-    }
-
-    tile.on("tileerror", (e: unknown) => {
-      tileErrors++;
-      const err = e as { tile?: HTMLImageElement; url?: string };
-      if (tileErrors <= 3) console.warn("[PartnerMap] tileerror #" + tileErrors, err?.url || "(no url)", err?.tile?.src?.slice(0, 80) || "");
-
-      // ponytail: pin to fallback once switched — don't flip-flop back to primary
-      if (tileErrors >= 3 && !tileRecoveryTimer && !fallbackPinned) {
-        tileRecoveryTimer = setTimeout(() => {
-          tileRecoveryTimer = null;
-          if (useFallback) return; // already on fallback, don't retoggle
-          useFallback = true;
-          fallbackPinned = true;
-          switchTileLayer(FALLBACK_TILE_URL, FALLBACK_TILE_ATTR);
-        }, 3000);
-      }
-    });
-
-    function recoverTiles() {
-      if (tileRecoveryTimer || !mapRef.current || fallbackPinned) return;
-      tileErrors = 3;
-      mapRef.current.invalidateSize({ debounceMoveend: true });
-      tileRecoveryTimer = setTimeout(() => {
-        tileRecoveryTimer = null;
-        if (useFallback) return;
-        useFallback = true;
-        fallbackPinned = true;
-        switchTileLayer(FALLBACK_TILE_URL, FALLBACK_TILE_ATTR);
-      }, 500);
-    }
-
-    const tileCheckTimer = setTimeout(() => {
-      if (!mapRef.current) return;
-      const tileContainer = mapRef.current.getContainer();
-      const loadedTiles = tileContainer.querySelectorAll(".leaflet-tile-loaded");
-      if (loadedTiles.length === 0 && mapRef.current.getSize().x > 0 && mapRef.current.getSize().y > 0) {
-        recoverTiles();
-      }
-    }, 4000);
-
     const ro = new ResizeObserver(() => {
       if (mapRef.current) mapRef.current.invalidateSize({ debounceMoveend: true });
     });
@@ -511,8 +463,6 @@ export default function PartnerMap({
     document.addEventListener("visibilitychange", onVisible);
 
     return () => {
-      if (tileRecoveryTimer) clearTimeout(tileRecoveryTimer);
-      clearTimeout(tileCheckTimer);
       ro.disconnect();
       io.disconnect();
       window.removeEventListener("resize", onResize);

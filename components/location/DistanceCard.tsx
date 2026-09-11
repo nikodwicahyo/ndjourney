@@ -393,7 +393,7 @@ export default function DistanceCard({
                 <Crosshair className="h-3 w-3" />
                 <span>Akurasi: {accuracyLabel(self.location.accuracy)} (±{Math.round(self.location.accuracy)}m)</span>
                 {partner.location?.accuracy && partner.location.accuracy !== self.location.accuracy && (
-                  <span className="text-muted-foreground">| ±{Math.round(partner.location.accuracy)}m (pasangan)</span>
+                  <span className="text-muted-foreground"></span>
                 )}
               </div>
             )}

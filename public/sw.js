@@ -1,6 +1,6 @@
-const CACHE_NAME = "ndjourney-v9";
-const API_CACHE_NAME = "ndjourney-api-v9";
-const IMAGE_CACHE_NAME = "ndjourney-images-v9";
+const CACHE_NAME = "ndjourney-v11";
+const API_CACHE_NAME = "ndjourney-api-v11";
+const IMAGE_CACHE_NAME = "ndjourney-images-v11";
 
 const PRECACHE_URLS = [
   "/",
@@ -23,7 +23,7 @@ const STATIC_EXT = /\.(png|jpg|jpeg|gif|svg|webp|ico|css|js|woff2?)$/i;
 const CLOUDINARY_RE = /res\.cloudinary\.com/;
 const IMAGE_EXT = /\.(png|jpg|jpeg|gif|svg|webp|avif|ico)$/i;
 const LOCATION_API_RE = /\/api\/location$/;
-const TILE_CDN_RE = /\.basemaps\.cartocdn\.com|\.tile\.openstreetmap\.org$/i;
+const TILE_CDN_RE = /(^|\.)basemaps\.cartocdn\.com$|(^|\.)tile\.openstreetmap\.org$|^tiles\.openfreemap\.org$/i;
 
 const PUBLIC_API_PATHS = [
   "/api/couple",

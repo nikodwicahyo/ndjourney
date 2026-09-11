@@ -72,7 +72,7 @@ export default function StatsCards() {
       },
       {
         key: "storageUsed" as const,
-        label: "Penyimpanan terpakai",
+        label: "Penyimpanan",
         icon: HardDrive,
         color: "#6366F1",
         bgColor: "#6366F1",

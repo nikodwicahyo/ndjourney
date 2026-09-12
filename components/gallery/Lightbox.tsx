@@ -371,12 +371,12 @@ function Lightbox({
         setPanning(false);
         const tap = tapRef.current;
         tapRef.current = null;
-        // Clean tap on the photo toggles zoom (a drag never toggles).
+        // Clean tap on the photo toggles a quick 2x peek (wheel/pinch go deeper).
         if (tap && Date.now() - tap.t < 500 && (e.target as HTMLElement).closest("img")) {
           if (viewRef.current.s > 1) {
             resetView();
           } else {
-            zoomAt(e.clientX, e.clientY, MAX_ZOOM);
+            zoomAt(e.clientX, e.clientY, 2);
           }
         }
       }
@@ -543,10 +543,11 @@ function Lightbox({
           <div
             onClick={!isZoomed ? handlePrev : undefined}
             className={cn(
-              "flex cursor-pointer items-center justify-start pl-1 sm:pl-2",
+              "flex cursor-pointer items-center justify-start overflow-hidden",
+              !isZoomed && "pl-1 sm:pl-2",
               isZoomed && "cursor-default",
             )}
-            style={{ flex: "1 1 0" }}
+            style={{ flex: isZoomed ? "0 1 0" : "1 1 0" }}
           >
             {!isZoomed && (
               <button
@@ -674,10 +675,11 @@ function Lightbox({
           <div
             onClick={!isZoomed ? handleNext : undefined}
             className={cn(
-              "flex cursor-pointer items-center justify-end pr-1 sm:pr-2",
+              "flex cursor-pointer items-center justify-end overflow-hidden",
+              !isZoomed && "pr-1 sm:pr-2",
               isZoomed && "cursor-default",
             )}
-            style={{ flex: "1 1 0" }}
+            style={{ flex: isZoomed ? "0 1 0" : "1 1 0" }}
           >
             {!isZoomed && (
               <button

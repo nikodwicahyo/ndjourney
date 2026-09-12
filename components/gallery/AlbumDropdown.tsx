@@ -49,7 +49,7 @@ export default function AlbumDropdown({
           "inline-flex h-9 min-w-0 flex-1 items-center gap-1.5 rounded-full border px-3 text-xs font-medium outline-none transition-colors sm:w-44 sm:flex-none",
           value
             ? "border-primary bg-primary/10 text-primary"
-            : "border-input bg-background text-muted-foreground hover:bg-accent",
+            : "border-input bg-card text-muted-foreground hover:bg-accent",
         )}
       >
         <Folder className="h-3.5 w-3.5 shrink-0" />

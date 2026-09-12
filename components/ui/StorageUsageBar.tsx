@@ -240,12 +240,14 @@ export default function StorageUsageBar({
               {isRefreshing ? "Memuat..." : "Refresh"}
             </span>
           )}
-          <ChevronDown
-            className={cn(
-              "h-4 w-4 shrink-0 text-white transition-transform duration-200",
-              isOpen && "rotate-180"
-            )}
-          />
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted">
+            <ChevronDown
+              className={cn(
+                "h-4 w-4 text-muted-foreground transition-transform duration-200",
+                isOpen && "rotate-180"
+              )}
+            />
+          </span>
         </div>
       </button>
 

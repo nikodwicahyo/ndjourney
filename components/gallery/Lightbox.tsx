@@ -11,8 +11,6 @@ import {
   Trash2,
   File,
   ExternalLink,
-  ZoomIn,
-  ZoomOut,
   RefreshCw,
   Info,
   Calendar,
@@ -82,13 +80,20 @@ function Lightbox({
 }: LightboxProps) {
   const [mediaState, setMediaState] = useState<MediaState>("loading");
   const [retryKey, setRetryKey] = useState(0);
-  const [isZoomed, setIsZoomed] = useState(false);
+  const MAX_ZOOM = 8;
+  // Controlled zoom view: scale + translate in STABLE container coords.
+  // The media box never transforms, so its rect is always a valid anchor
+  // frame however deep the layout nests (no measuring transformed boxes).
+  const [view, setView] = useState({ s: 1, tx: 0, ty: 0 });
+  const isZoomed = view.s > 1;
+  // ponytail: ref mirror for gesture handlers (no stale closures, no re-subscribe).
+  const viewRef = useRef(view);
+  viewRef.current = view;
   const [showInfo, setShowInfo] = useState(false);
   const [direction, setDirection] = useState(1);
   const photo = photos[currentIndex];
   const videoRef = useRef<HTMLVideoElement>(null);
   const isVideoRef = useRef(false);
-  const imgRef = useRef<HTMLImageElement>(null);
   const isFetchingRef = useRef(false);
   const currentIndexRef = useRef(currentIndex);
 
@@ -107,9 +112,12 @@ function Lightbox({
     const vw = window.innerWidth;
     const dpr = window.devicePixelRatio || 1;
     const target = Math.round(vw * dpr * 0.85);
-    const clamped = Math.max(640, Math.min(target, 1600));
+    // ponytail: one swap when crossing into zoom (not per tick) — deep zoom
+    // gets headroom without reload storms mid-gesture.
+    const cap = isZoomed ? 3200 : 1600;
+    const clamped = Math.max(640, Math.min(target, cap));
     return Math.min(photo.width, clamped);
-  }, [photo?.width]);
+  }, [photo?.width, isZoomed]);
 
   const optimizedUrl = useMemo(() => {
     if (!photo?.url) return "";
@@ -195,7 +203,7 @@ function Lightbox({
     if (isVideoRef.current) dispatchBgEvent("resume");
     if (currentIndex === 0) return;
     setDirection(-1);
-    setIsZoomed(false);
+      resetView();
     onNavigate(currentIndex - 1);
   }, [currentIndex, onNavigate]);
 
@@ -209,7 +217,7 @@ function Lightbox({
         try {
           await fetchNextPage();
           if (currentIndexRef.current === currentIndex) {
-            setIsZoomed(false);
+            resetView();
             onNavigate(currentIndex + 1);
           }
         } finally {
@@ -218,13 +226,13 @@ function Lightbox({
       }
       return;
     }
-    setIsZoomed(false);
+      resetView();
     onNavigate(currentIndex + 1);
   }, [currentIndex, photos.length, onNavigate, hasNextPage, fetchNextPage]);
 
   const handleClose = useCallback(() => {
     if (isVideoRef.current) dispatchBgEvent("resume");
-    setIsZoomed(false);
+      resetView();
     onClose();
   }, [onClose]);
 
@@ -249,11 +257,147 @@ function Lightbox({
     }
   }, [photo?.url]);
 
-  const toggleZoom = useCallback(() => {
-    if (!photo?.isVideo) {
-      setIsZoomed((prev) => !prev);
+  // Zoom to `newScale` keeping the content point under (clientX, clientY)
+  // exactly where it is. Snap back to center when landing on 1x.
+  const mediaBoxRef = useRef<HTMLDivElement>(null);
+
+  const clampScale = (s: number) =>
+    Math.min(MAX_ZOOM, Math.max(1, Math.round(s * 100) / 100));
+
+  // Zoom to `newScale` keeping the content point under (clientX, clientY)
+  // exactly where it is. Snap back to center when landing on 1x.
+  const zoomAt = useCallback((clientX: number, clientY: number, newScale: number) => {
+    const box = mediaBoxRef.current;
+    if (!box) return;
+    const rect = box.getBoundingClientRect();
+    const px = clientX - rect.left;
+    const py = clientY - rect.top;
+    const v = viewRef.current;
+    const s = clampScale(newScale);
+    const k = s / v.s;
+    let tx = px - (px - v.tx) * k;
+    let ty = py - (py - v.ty) * k;
+    if (s <= 1) {
+      tx = 0;
+      ty = 0;
     }
-  }, [photo?.isVideo]);
+    setView({ s, tx: Math.round(tx), ty: Math.round(ty) });
+  }, []);
+
+  const resetView = useCallback(() => {
+    pointersRef.current.clear();
+    gestureRef.current = null;
+    tapRef.current = null;
+    setPanning(false);
+    setView({ s: 1, tx: 0, ty: 0 });
+  }, []);
+
+  // ponytail: one gesture system for mouse + touch — tracked pointers drive
+  // pan (1 pointer, zoomed) and pinch-zoom (2 pointers); a clean tap toggles.
+  const pointersRef = useRef(new Map<number, { x: number; y: number }>());
+  const gestureRef = useRef<{ pinchDist: number; scale: number; tx: number; ty: number } | null>(null);
+  const tapRef = useRef<{ x: number; y: number; t: number } | null>(null);
+  const [panning, setPanning] = useState(false);
+  const TAP_PX = 8;
+
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (photo?.isVideo) return;
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      try {
+        (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+      } catch {
+        // ignore capture failures (stale target)
+      }
+      pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pointersRef.current.size === 2) {
+        const [a, b] = [...pointersRef.current.values()];
+        const v = viewRef.current;
+        gestureRef.current = {
+          pinchDist: Math.hypot(a.x - b.x, a.y - b.y),
+          scale: v.s,
+          tx: v.tx,
+          ty: v.ty,
+        };
+        tapRef.current = null;
+        setPanning(false);
+      } else if (pointersRef.current.size === 1) {
+        tapRef.current = { x: e.clientX, y: e.clientY, t: Date.now() };
+        if (viewRef.current.s > 1) setPanning(true);
+      }
+    },
+    [photo?.isVideo],
+  );
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    const pts = pointersRef.current;
+    const prev = pts.get(e.pointerId);
+    if (!prev) return;
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (tapRef.current) {
+      if (Math.hypot(e.clientX - tapRef.current.x, e.clientY - tapRef.current.y) > TAP_PX) {
+        tapRef.current = null;
+      }
+    }
+    if (pts.size === 2) {
+      const g = gestureRef.current;
+      if (!g) return;
+      const [a, b] = [...pts.values()];
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      if (dist <= 0 || g.pinchDist <= 0) return;
+      const box = mediaBoxRef.current?.getBoundingClientRect();
+      const px = (a.x + b.x) / 2 - (box?.left ?? 0);
+      const py = (a.y + b.y) / 2 - (box?.top ?? 0);
+      const s = clampScale(g.scale * (dist / g.pinchDist));
+      const k = s / g.scale;
+      let tx = px - (px - g.tx) * k;
+      let ty = py - (py - g.ty) * k;
+      if (s <= 1) {
+        tx = 0;
+        ty = 0;
+      }
+      setView({ s, tx: Math.round(tx), ty: Math.round(ty) });
+    } else if (pts.size === 1 && viewRef.current.s > 1) {
+      const v = viewRef.current;
+      setView({ s: v.s, tx: Math.round(v.tx + (e.clientX - prev.x)), ty: Math.round(v.ty + (e.clientY - prev.y)) });
+    }
+  }, []);
+
+  const endPointer = useCallback(
+    (e: React.PointerEvent) => {
+      pointersRef.current.delete(e.pointerId);
+      if (pointersRef.current.size < 2) gestureRef.current = null;
+      if (pointersRef.current.size === 0) {
+        setPanning(false);
+        const tap = tapRef.current;
+        tapRef.current = null;
+        // Clean tap on the photo toggles zoom (a drag never toggles).
+        if (tap && Date.now() - tap.t < 500 && (e.target as HTMLElement).closest("img")) {
+          if (viewRef.current.s > 1) {
+            resetView();
+          } else {
+            zoomAt(e.clientX, e.clientY, MAX_ZOOM);
+          }
+        }
+      }
+    },
+    [zoomAt, resetView],
+  );
+
+  // Desktop (and mobile) wheel: plain = coarse step, ctrlKey (trackpad
+  // pinch) = fine step. Non-passive so the page never scrolls mid-zoom.
+  useEffect(() => {
+    const el = mediaBoxRef.current;
+    if (!el || photo?.isVideo) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const step = e.ctrlKey ? 0.25 : 0.5;
+      const v = viewRef.current;
+      zoomAt(e.clientX, e.clientY, v.s + (e.deltaY < 0 ? step : -step));
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [photo?.isVideo, zoomAt]);
 
   useEffect(() => {
     isVideoRef.current = photo?.isVideo ?? false;
@@ -261,9 +405,9 @@ function Lightbox({
 
   useEffect(() => {
     setMediaState("loading");
-    setIsZoomed(false);
+    resetView();
     setShowInfo(false);
-  }, [photo?.id]);
+  }, [photo?.id, resetView]);
 
   useEffect(() => {
     if (!photo?.url || photo.isVideo) return;
@@ -292,7 +436,7 @@ function Lightbox({
       switch (e.key) {
         case "Escape":
           if (isZoomed) {
-            setIsZoomed(false);
+            resetView();
           } else {
             handleClose();
           }
@@ -348,13 +492,9 @@ function Lightbox({
 
           <div className="flex items-center gap-1">
             {!photo.isVideo && (
-              <button
-                onClick={toggleZoom}
-                className="rounded-full p-2 text-white/80 transition-colors hover:bg-white/10"
-                aria-label={isZoomed ? "Zoom out" : "Zoom in"}
-              >
-                {isZoomed ? <ZoomOut className="h-5 w-5" /> : <ZoomIn className="h-5 w-5" />}
-              </button>
+              <span className="w-12 text-center text-xs tabular-nums text-white/80">
+                {Math.round(view.s * 100)}%
+              </span>
             )}
             {onFavoriteToggle && (
               <button
@@ -419,11 +559,19 @@ function Lightbox({
           </div>
 
           <div
-            className={cn(
-              "grid shrink-0 place-items-center overflow-hidden",
-              isZoomed ? "overflow-auto" : "",
-            )}
-            style={{ maxWidth: isZoomed ? "100%" : "85%" }}
+            ref={mediaBoxRef}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={endPointer}
+            onPointerCancel={endPointer}
+            className="relative grid min-h-0 shrink-0 place-items-center overflow-hidden"
+            style={{
+              flex: "3 1 0",
+              maxWidth: isZoomed ? "100%" : "85%",
+              // ponytail: fully locked — no scroll, no browser gestures;
+              // zoom is transform-anchored so there is nothing to drag.
+              touchAction: "none",
+            }}
           >
             <AnimatePresence initial={false} custom={direction}>
               <motion.div
@@ -434,7 +582,7 @@ function Lightbox({
                 animate="center"
                 exit="exit"
                 transition={{ x: { duration: 0.35, ease: [0.4, 0, 0.2, 1] } }}
-                className="col-start-1 row-start-1 flex items-center justify-center"
+                className="absolute inset-0 flex items-center justify-center"
                 style={{ willChange: "transform" }}
               >
                 {photo.isVideo ? (
@@ -452,17 +600,18 @@ function Lightbox({
                   />
                 ) : isImage ? (
                   <div
-                    className={cn(
-                      "relative flex items-center justify-center",
-                      isZoomed ? "h-full w-full" : "max-h-[80vh] max-w-full",
-                    )}
+                    className="absolute inset-0 flex items-center justify-center"
+                    style={{
+                      transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.s})`,
+                      transformOrigin: "0 0",
+                    }}
+                  >
+                  <div
+                    className="relative flex max-h-[80vh] max-w-full items-center justify-center"
                   >
                     {mediaState === "loading" && (
                       <div
-                        className={cn(
-                          "absolute inset-0 z-10 animate-pulse bg-white/20",
-                          isZoomed ? "" : "rounded-lg",
-                        )}
+                        className="absolute inset-0 z-10 animate-pulse rounded-lg bg-white/20"
                       />
                     )}
 
@@ -479,32 +628,26 @@ function Lightbox({
                       </div>
                     ) : (
                       <img
-                        ref={imgRef}
                         src={mediaState === "loaded" ? optimizedUrl : blurPlaceholderUrl}
                         alt={photo.caption ?? "Photo"}
+                        draggable={false}
                         srcSet={mediaState === "loaded" ? srcSet : undefined}
-                        sizes={
-                          isZoomed
-                            ? "(max-width: 768px) 100vw, 90vw"
-                            : "(max-width: 768px) 85vw, (max-width: 1200px) 70vw, 60vw"
-                        }
+                        sizes="(max-width: 768px) 85vw, (max-width: 1200px) 70vw, 60vw"
                         decoding="async"
                         fetchPriority={mediaState === "loading" ? "low" : "high"}
-                        onClick={toggleZoom}
                         className={cn(
-                          "transition-opacity duration-500",
+                          "max-h-[80vh] w-auto rounded-lg object-contain transition-opacity duration-500 select-none",
                           mediaState === "loading" ? "opacity-40" : "opacity-100",
-                          isZoomed
-                            ? "h-auto w-full max-w-none object-contain"
-                            : "max-h-[80vh] w-auto rounded-lg object-contain",
+                          !isZoomed
+                            ? "cursor-zoom-in"
+                            : panning
+                              ? "cursor-grabbing"
+                              : "cursor-grab",
                         )}
-                        style={
-                          isZoomed
-                            ? { maxWidth: "none", maxHeight: "none", width: "100%", height: "auto" }
-                            : { maxWidth: "100%", height: "auto" }
-                        }
+                        style={{ maxWidth: "100%", height: "auto" }}
                       />
                     )}
+                  </div>
                   </div>
                 ) : (
                   <div className="flex max-w-sm flex-col items-center gap-4 rounded-lg border border-white/10 bg-white/5 p-6 text-center">

@@ -543,25 +543,20 @@ function Lightbox({
           </div>
         </div>
 
-        <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-1 items-center justify-center gap-1 overflow-hidden">
+          {!isZoomed && (
           <div
-            onClick={!isZoomed ? handlePrev : undefined}
-            className={cn(
-              "flex cursor-pointer items-center justify-start overflow-hidden",
-              !isZoomed && "pl-1 sm:pl-2",
-              isZoomed && "cursor-default",
-            )}
-            style={{ flex: isZoomed ? "0 1 0" : "1 1 0" }}
+            onClick={handlePrev}
+            className="flex shrink-0 cursor-pointer items-center justify-start pl-1 sm:pl-2"
           >
-            {!isZoomed && (
               <button
                 className="rounded-full bg-black/40 p-1.5 text-white/80 transition-colors hover:bg-black/60 hover:text-white sm:p-2"
                 aria-label="Previous"
               >
                 <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />
               </button>
-            )}
           </div>
+          )}
 
           <div
             ref={mediaBoxRef}
@@ -571,7 +566,8 @@ function Lightbox({
             onPointerCancel={endPointer}
             className="relative grid min-h-0 shrink-0 place-items-center overflow-hidden"
             style={{
-              flex: "3 1 0",
+              flex: "1 1 0",
+              minWidth: 0,
               maxWidth: isZoomed ? "100%" : "85%",
               // ponytail: fully locked — no scroll, no browser gestures;
               // zoom is transform-anchored so there is nothing to drag.
@@ -676,24 +672,19 @@ function Lightbox({
             </AnimatePresence>
           </div>
 
+          {!isZoomed && (
           <div
-            onClick={!isZoomed ? handleNext : undefined}
-            className={cn(
-              "flex cursor-pointer items-center justify-end overflow-hidden",
-              !isZoomed && "pr-1 sm:pr-2",
-              isZoomed && "cursor-default",
-            )}
-            style={{ flex: isZoomed ? "0 1 0" : "1 1 0" }}
+            onClick={handleNext}
+            className="flex shrink-0 cursor-pointer items-center justify-end pr-1 sm:pr-2"
           >
-            {!isZoomed && (
               <button
                 className="rounded-full bg-black/40 p-1.5 text-white/80 transition-colors hover:bg-black/60 hover:text-white sm:p-2"
                 aria-label="Next"
               >
                 <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />
               </button>
-            )}
           </div>
+          )}
         </div>
 
         <div className="px-6 py-4">

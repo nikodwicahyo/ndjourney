@@ -114,18 +114,14 @@ export async function GET(request: Request) {
       ? encodeCompositeCursor(new Date(last.createdAt as string), last.id as string)
       : null;
 
-    // total count from cache key hash or compute
-    const countQuery = `SELECT COUNT(*)::int as cnt FROM "Photo" ${baseWhereClause}`;
-    const countResult = await prisma.$queryRawUnsafe<{ cnt: number }[]>(countQuery, ...sqlParams);
-    const total = countResult[0]?.cnt ?? data.length;
-
-    const fotoQuery = `SELECT COUNT(*)::int as cnt FROM "Photo" ${baseWhereClause}${baseWhereClause ? " AND" : "WHERE"} "isVideo" = false`;
-    const fotoResult = await prisma.$queryRawUnsafe<{ cnt: number }[]>(fotoQuery, ...sqlParams);
-    const fotoTotal = fotoResult[0]?.cnt ?? 0;
-
-    const videoQuery = `SELECT COUNT(*)::int as cnt FROM "Photo" ${baseWhereClause}${baseWhereClause ? " AND" : "WHERE"} "isVideo" = true`;
-    const videoResult = await prisma.$queryRawUnsafe<{ cnt: number }[]>(videoQuery, ...sqlParams);
-    const videoTotal = videoResult[0]?.cnt ?? 0;
+    // ponytail: 1 round-trip — counts as subselects (was 1 data + 3 sequential COUNTs).
+    const countQuery = `SELECT (SELECT COUNT(*)::int FROM "Photo" ${baseWhereClause}) AS total,
+      (SELECT COUNT(*)::int FROM "Photo" ${baseWhereClause}${baseWhereClause ? " AND" : "WHERE"} "isVideo" = false) AS "fotoTotal",
+      (SELECT COUNT(*)::int FROM "Photo" ${baseWhereClause}${baseWhereClause ? " AND" : "WHERE"} "isVideo" = true) AS "videoTotal"`;
+    const countResult = await prisma.$queryRawUnsafe<{ total: number; fotoTotal: number; videoTotal: number }[]>(countQuery, ...sqlParams, ...sqlParams, ...sqlParams);
+    const total = countResult[0]?.total ?? data.length;
+    const fotoTotal = countResult[0]?.fotoTotal ?? 0;
+    const videoTotal = countResult[0]?.videoTotal ?? 0;
 
     const response = { data, nextCursor, hasMore, total, fotoTotal, videoTotal };
 
@@ -152,7 +148,8 @@ export async function POST(request: Request) {
 
     const session = rateCheck.session;
 
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
+    if (body == null) return NextResponse.json({ error: "Body JSON tidak valid" }, { status: 400 });
     const parsed = createPhotoSchema.safeParse(body);
 
     if (!parsed.success) {

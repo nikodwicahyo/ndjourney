@@ -9,7 +9,8 @@ import { triggerCoupleEvent } from "@/lib/pusher-server";
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
+    if (body == null) return NextResponse.json({ error: "Body JSON tidak valid" }, { status: 400 });
     const parsed = submitScoreSchema.safeParse(body);
 
     if (!parsed.success) {
@@ -82,6 +83,13 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ data: score }, { status: 201 });
   } catch (error) {
+    // ponytail: unique(userId,questionId) turns a double-submit race into P2002 — same 409.
+    if ((error as { code?: string })?.code === "P2002") {
+      return NextResponse.json(
+        { error: "Kamu sudah menjawab pertanyaan ini" },
+        { status: 409 },
+      );
+    }
     console.error("Error recording score:", error);
     return NextResponse.json(
       { error: "Terjadi kesalahan pada server. Coba lagi nanti." },

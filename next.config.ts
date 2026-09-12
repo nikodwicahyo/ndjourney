@@ -71,6 +71,15 @@ const nextConfig: NextConfig = {
           value: "strict-origin-when-cross-origin",
         },
         {
+          key: "Strict-Transport-Security",
+          value: "max-age=63072000; includeSubDomains; preload",
+        },
+        {
+          // ponytail: least-privilege sensors — location comes from GPS API prompts, not ambient sensors.
+          key: "Permissions-Policy",
+          value: "camera=(), microphone=(), geolocation=(self), payment=(), usb=()",
+        },
+        {
           key: "Cache-Control",
           value: "public, max-age=0, must-revalidate",
         },

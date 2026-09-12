@@ -65,7 +65,14 @@ export async function PUT(request: Request) {
       return rateCheck.response;
     }
 
-    const body = await request.json();
+    // ponytail: singleton config is writable by couple members only.
+    const editorCoupleId = await getUserCoupleId(rateCheck.session.user.id);
+    if (!editorCoupleId) {
+      return NextResponse.json({ error: "Pasangan belum ditemukan" }, { status: 403 });
+    }
+
+    const body = await request.json().catch(() => null);
+    if (body == null) return NextResponse.json({ error: "Body JSON tidak valid" }, { status: 400 });
     const parsed = updateCoupleSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(

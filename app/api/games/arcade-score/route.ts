@@ -9,7 +9,8 @@ import { triggerCoupleEvent } from "@/lib/pusher-server";
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
+    if (body == null) return NextResponse.json({ error: "Body JSON tidak valid" }, { status: 400 });
     const parsed = submitArcadeScoreSchema.safeParse(body);
 
     if (!parsed.success) {
@@ -37,13 +38,21 @@ export async function POST(request: Request) {
       if (!rateCheck.allowed) return rateCheck.response;
     }
 
+    const rawMeta = parsed.data.metadata ?? {};
+    // ponytail: cap metadata size — unbounded JSON bloats the row.
+    if (JSON.stringify(rawMeta).length > 4000) {
+      return NextResponse.json(
+        { error: "Metadata terlalu besar (maks 4KB)" },
+        { status: 400 },
+      );
+    }
     const score = await prisma.gameArcadeScore.create({
       data: {
         userId: isAuthed ? session!.user.id : undefined,
         playerName: isAuthed ? undefined : parsed.data.playerName!,
         gameType: parsed.data.gameType,
         score: parsed.data.score,
-        metadata: JSON.parse(JSON.stringify(parsed.data.metadata ?? {})),
+        metadata: rawMeta as object,
       },
       select: {
         id: true,

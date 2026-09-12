@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { getUserCoupleId } from "@/lib/couple";
-import { pusherServer } from "@/lib/pusher-server";
+import { getPusherServer } from "@/lib/pusher-server";
 
 export const dynamic = "force-dynamic";
 
@@ -26,11 +26,14 @@ export async function POST(request: Request) {
     const emoji = typeof body?.emoji === "string" ? body.emoji : "❤️";
 
     try {
-      await pusherServer.trigger(`private-couple-${coupleId}`, "location-heart", {
-        fromUserId: userId,
-        emoji,
-        at: new Date().toISOString(),
-      });
+      const p = getPusherServer();
+      if (p) {
+        await p.trigger(`private-couple-${coupleId}`, "location-heart", {
+          fromUserId: userId,
+          emoji,
+          at: new Date().toISOString(),
+        });
+      }
     } catch (error) {
       console.error("[PUSHER_HEART_ERROR]", error);
     }

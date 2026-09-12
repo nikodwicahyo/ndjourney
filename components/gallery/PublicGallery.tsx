@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { usePhotos } from "@/hooks/usePhotos";
 import MasonryGrid from "./MasonryGrid";
 import AlbumSelector from "./AlbumSelector";
+import ManagePageButton from "@/components/layout/ManagePageButton";
 import type { Photo } from "@/types";
 
 const Lightbox = dynamic(() => import("./Lightbox"), {
@@ -54,6 +55,7 @@ export default function PublicGallery() {
             Semua kenangan kita
           </p>
         </div>
+        <ManagePageButton href="/dashboard/gallery" label="Kelola Galeri" />
       </div>
 
       <AlbumSelector filters={filters} onFiltersChange={setFilters} isPublic counts={counts} />

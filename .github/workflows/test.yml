@@ -1,0 +1,34 @@
+name: test
+on: [push, pull_request]
+jobs:
+  unit-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npx vitest run tests/unit
+      - run: npx vitest run tests/integration
+        env:
+          TEST_DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          INVITE_TOKEN: test-invite-123
+          CRON_SECRET: test-cron-secret
+  e2e:
+    runs-on: ubuntu-latest
+    needs: unit-integration
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium firefox
+      - run: npm run build
+      - run: npx playwright test
+        env:
+          TEST_DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+          NEXTAUTH_URL: http://localhost:3000
+          PLAYWRIGHT_BASE_URL: http://localhost:3000

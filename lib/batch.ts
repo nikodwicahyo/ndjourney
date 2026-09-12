@@ -1,4 +1,7 @@
 import { prisma } from "./prisma";
+import { toPublicUser, type PublicUser } from "./format";
+
+export { toPublicUser, type PublicUser };
 
 const userSelect = { id: true, name: true, email: true, image: true } as const;
 type UserBasic = { id: string; name: string | null; email: string | null; image: string | null };

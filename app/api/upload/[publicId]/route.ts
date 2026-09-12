@@ -17,7 +17,11 @@ export async function DELETE(
     const session = rateCheck.session;
     const { publicId } = await params;
     const { searchParams } = new URL(request.url);
+    // ponytail: allowlist — unvalidated string flowed into cloudinary destroy.
     const resourceType = searchParams.get("resourceType") || "image";
+    if (!["image", "video", "raw"].includes(resourceType)) {
+      return NextResponse.json({ error: "resourceType tidak valid" }, { status: 400 });
+    }
 
     if (!publicId) {
       return NextResponse.json(

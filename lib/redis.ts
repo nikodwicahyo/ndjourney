@@ -25,6 +25,10 @@ export async function checkRateLimit(
   windowSeconds: number,
 ): Promise<{ allowed: boolean; remaining: number; reset: number }> {
   if (!redis) {
+    // ponytail: fail-open is intentional (dev without redis) — but warn once so prod misconfig is visible.
+    if (process.env.NODE_ENV === "production") {
+      console.warn("[rate-limit] Redis missing — rate limiting DISABLED");
+    }
     return { allowed: true, remaining: maxRequests, reset: 0 };
   }
 
@@ -78,6 +82,8 @@ export async function invalidateCache(pattern: string): Promise<void> {
   try {
     const matchPattern = `${CACHE_PREFIX}${pattern}`;
     let cursor: number | string = 0;
+    // ponytail: pipeline SCAN rounds — was strictly sequential RTTs.
+    const pending: Promise<unknown>[] = [];
 
     do {
       const result = await redis.scan(cursor, { match: matchPattern, count: 100 }) as [string, string[]];
@@ -85,9 +91,12 @@ export async function invalidateCache(pattern: string): Promise<void> {
       const keys = result[1];
 
       if (keys.length > 0) {
-        await redis.del(...keys);
+        pending.push(redis.del(...keys));
+        // bound concurrency so a huge namespace can't fan out unbounded.
+        if (pending.length >= 4) await Promise.all(pending.splice(0));
       }
     } while (Number(cursor) !== 0);
+    if (pending.length > 0) await Promise.all(pending);
   } catch {
   }
 }

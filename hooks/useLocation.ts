@@ -53,7 +53,7 @@ export type LocationHistoryPoint = {
   deviceType: string;
 };
 
-const POLL_INTERVAL_MS = 8000;
+const POLL_INTERVAL_MS = 15_000;
 
 async function fetchLocation(): Promise<LocationState> {
   const res = await fetch("/api/location", { cache: "no-store" });
@@ -69,9 +69,15 @@ export function useLocationSettings() {
   return useQuery({
     queryKey: queryKeys.location.all,
     queryFn: fetchLocation,
-    staleTime: 5_000,
+    staleTime: 10_000,
     refetchInterval: POLL_INTERVAL_MS,
-    refetchIntervalInBackground: true,
+    // ponytail: no background-tab polling — Pusher LOCATION covers live updates.
+    refetchIntervalInBackground: false,
+    retry: (count, err) => {
+      // ponytail: don't loop 401s on every poll.
+      if (err instanceof Error && /401|403|404/.test(err.message)) return false;
+      return count < 2;
+    },
   });
 }
 
@@ -86,7 +92,8 @@ export function useLocationHistory() {
     },
     staleTime: 30_000,
     refetchInterval: 60_000,
-    refetchIntervalInBackground: true,
+    // ponytail: history barely moves — never poll it from background tabs.
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -192,6 +199,8 @@ export function useShareLocation(enabled: boolean) {
 
   useEffect(() => {
     initBackgroundLocation(enabled, qc);
+    // ponytail: cleanup on unmount / enabled flip so a stale watch can't survive.
+    return () => initBackgroundLocation(false, qc);
   }, [enabled, qc]);
 
   const status = useBackgroundLocationStatus();

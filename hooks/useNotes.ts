@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query-keys";
+import { fetchJsonList } from "@/lib/fetch-json";
 import type { DailyNote, User } from "@/types";
 
 export type DailyNoteWithAuthor = DailyNote & {
@@ -15,9 +16,7 @@ export function useDailyNotes(date?: string) {
     queryKey: noteKeys.list(date),
     queryFn: async () => {
       const params = date ? `?date=${date}` : "";
-      const res = await fetch(`/api/notes${params}`);
-      const json = await res.json();
-      return json.data as DailyNoteWithAuthor[];
+      return fetchJsonList<DailyNoteWithAuthor>(`/api/notes${params}`);
     },
     staleTime: 30_000,
   });

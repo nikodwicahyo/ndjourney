@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { uploadBufferToCloudinary } from "@/lib/cloudinary";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { validateUploadRequest } from "@/lib/upload-policy";
+import { checkMagicBytes } from "@/lib/upload-magic";
 
 export const runtime = "nodejs";
 
@@ -22,21 +23,6 @@ const ALLOWED_TYPES = [
 ];
 
 const MAX_FILES_PER_REQUEST = 30;
-
-const MAGIC_BYTES: Record<string, string[]> = {
-  "image/jpeg": ["ffd8ff"],
-  "image/png": ["89504e47"],
-  "image/webp": ["52494646"],
-  "image/heic": ["00000018", "0000001c"],
-  // Video formats have varied headers; use broader signatures + longer check
-  "video/mp4": ["00000018", "0000001c", "66747970", "6d646174", "6d6f6f76", "77696465"],
-  "video/webm": ["1a45dfa3"],
-  "video/quicktime": ["66747970", "6d646174", "6d6f6f76", "77696465"],
-  "video/x-msvideo": ["52494646"],
-  "video/x-matroska": ["1a45dfa3"],
-  "video/ogg": ["4f676753"],
-  "video/mpeg": ["000001ba", "000001b3"],
-};
 
 type BulkUploadResult = {
   fileName: string;
@@ -71,13 +57,9 @@ async function validateAndPrepareFile(file: File): Promise<{ buffer: Buffer; isV
     return `File kosong.`;
   }
 
-  // Check more bytes for video files (up to 16 bytes) since headers vary
-  const checkLength = file.type.startsWith("video/") ? 16 : 8;
-  const hex = buffer.subarray(0, checkLength).toString("hex");
-  const validSignatures = MAGIC_BYTES[file.type];
-
-  if (validSignatures && !validSignatures.some((sig) => hex.includes(sig))) {
-    console.warn("Magic bytes mismatch:", { fileName: file.name, fileType: file.type, hex: hex.substring(0, 32) });
+  // ponytail: shared magic-bytes table (lib/upload-magic) incl. audio/mpeg.
+  if (!checkMagicBytes(buffer, file.type)) {
+    console.warn("Magic bytes mismatch:", { fileName: file.name, fileType: file.type });
     return `Isi file tidak sesuai dengan format yang dipilih: ${file.type}`;
   }
 
@@ -169,9 +151,9 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Bulk upload error:", error);
-    const message = error instanceof Error ? error.message : "Upload massal gagal";
+    // ponytail: never leak SDK internals on 500 (per-item messages stay actionable).
     return NextResponse.json(
-      { error: message },
+      { error: "Upload massal gagal. Coba lagi nanti." },
       { status: 500 },
     );
   }

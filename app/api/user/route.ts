@@ -18,7 +18,8 @@ export async function PUT(request: Request) {
 
     const session = rateCheck.session;
 
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
+    if (body == null) return NextResponse.json({ error: "Body JSON tidak valid" }, { status: 400 });
     const parsed = updateUserSchema.safeParse(body);
 
     if (!parsed.success) {

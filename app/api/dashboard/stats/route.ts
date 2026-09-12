@@ -5,7 +5,7 @@ import { getCached, setCached, cacheKey } from "@/lib/redis";
 import { getNextBirthday, getAge } from "@/lib/date";
 import { getCloudinaryUsage } from "@/lib/cloudinary";
 
-const CACHE_TTL = 10;
+const CACHE_TTL = 180;
 
 export async function GET() {
   try {
@@ -14,26 +14,40 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const cacheK = cacheKey("dashboard", "stats", session.user.id);
-    const cached = await getCached<Record<string, number>>(cacheK);
-    if (cached) {
-      return NextResponse.json({
-        data: {
-          storageUsed: 0,
-          storageLimit: 0,
-          ...cached,
-        },
-      }, {
-        headers: { "Cache-Control": "private, no-cache" },
-      });
-    }
-
+    // ponytail: couple-scoped cache (was per-user: 2 entries, half hit-rate for shared data).
     const coupleMember = await prisma.coupleMember.findUnique({
       where: { userId: session.user.id },
       select: { coupleId: true },
     });
 
     const coupleId = coupleMember?.coupleId;
+
+    const cacheK = cacheKey("dashboard", "stats", coupleId ?? session.user.id);
+    const unreadK = cacheKey("dashboard", "unread", session.user.id);
+    const [cached, cachedUnread] = await Promise.all([
+      getCached<Record<string, number>>(cacheK),
+      getCached<number>(unreadK),
+    ]);
+    if (cached) {
+      // ponytail: unread count is per-user — cached separately (never in the shared couple entry).
+      let unreadLetterCount = cachedUnread;
+      if (unreadLetterCount == null) {
+        unreadLetterCount = await prisma.letter.count({
+          where: { recipientId: session.user.id, isOpened: false },
+        });
+        await setCached(unreadK, unreadLetterCount, 30);
+      }
+      return NextResponse.json({
+        data: {
+          storageUsed: 0,
+          storageLimit: 0,
+          ...cached,
+          unreadLetterCount,
+        },
+      }, {
+        headers: { "Cache-Control": "private, no-cache" },
+      });
+    }
 
     const zeroStats = {
       photoCount: 0,
@@ -58,7 +72,6 @@ export async function GET() {
       photoCount: bigint;
       videoCount: bigint;
       letterCount: bigint;
-      unreadLetterCount: bigint;
       milestoneCount: bigint;
       anniversaryDate: Date | null;
       birthDate1: Date | null;
@@ -68,7 +81,6 @@ export async function GET() {
         (SELECT COUNT(*)::int FROM "Photo" WHERE "isVideo" = false AND "isMilestoneOnly" = false AND "uploadedById" IN (SELECT "userId" FROM "CoupleMember" WHERE "coupleId" = ${coupleId})) AS "photoCount",
         (SELECT COUNT(*)::int FROM "Photo" WHERE "isVideo" = true AND "isMilestoneOnly" = false AND "uploadedById" IN (SELECT "userId" FROM "CoupleMember" WHERE "coupleId" = ${coupleId})) AS "videoCount",
         (SELECT COUNT(*)::int FROM "Letter" WHERE "authorId" IN (SELECT "userId" FROM "CoupleMember" WHERE "coupleId" = ${coupleId}) OR "recipientId" IN (SELECT "userId" FROM "CoupleMember" WHERE "coupleId" = ${coupleId})) AS "letterCount",
-        (SELECT COUNT(*)::int FROM "Letter" WHERE "recipientId" = ${session.user.id} AND "isOpened" = false AND "authorId" IN (SELECT "userId" FROM "CoupleMember" WHERE "coupleId" = ${coupleId})) AS "unreadLetterCount",
         (SELECT COUNT(*)::int FROM "Milestone" WHERE "createdById" IN (SELECT "userId" FROM "CoupleMember" WHERE "coupleId" = ${coupleId})) AS "milestoneCount",
         (SELECT "anniversaryDate" FROM "CoupleConfig" LIMIT 1) AS "anniversaryDate",
         (SELECT "birthDate1" FROM "CoupleConfig" LIMIT 1) AS "birthDate1",
@@ -94,13 +106,19 @@ export async function GET() {
 
     const cloudinaryUsage = await getCloudinaryUsage();
 
+    // ponytail: per-user unread via indexed COUNT (never shared across members).
+    const unreadLetterCount = await prisma.letter.count({
+      where: { recipientId: session.user.id, isOpened: false },
+    });
+    await setCached(unreadK, unreadLetterCount, 30);
+
     const stats = {
       photoCount: Number(row?.photoCount ?? 0),
       videoCount: Number(row?.videoCount ?? 0),
       letterCount: Number(row?.letterCount ?? 0),
       milestoneCount: Number(row?.milestoneCount ?? 0),
       daysSinceAnniversary,
-      unreadLetterCount: Number(row?.unreadLetterCount ?? 0),
+      unreadLetterCount,
       daysUntilBirthday1: daysUntilNextBirthday(row?.birthDate1 ?? null),
       daysUntilBirthday2: daysUntilNextBirthday(row?.birthDate2 ?? null),
       birthday1Age: getAge(row?.birthDate1 ?? null),
@@ -109,7 +127,9 @@ export async function GET() {
       storageLimit: cloudinaryUsage.storageLimit,
     };
 
-    await setCached(cacheK, stats, CACHE_TTL);
+    // ponytail: shared couple entry holds couple-level fields only.
+    const { unreadLetterCount: _mine, ...sharedStats } = stats;
+    await setCached(cacheK, sharedStats, CACHE_TTL);
 
     return NextResponse.json({ data: stats }, {
       headers: { "Cache-Control": "private, no-cache" },

@@ -52,7 +52,10 @@ export async function apiFetch<T>(url: string, options: ApiOptions = {}): Promis
     throw new Error((body as { error?: string }).error ?? `Request failed (${res.status})`);
   }
 
-  return res.json() as Promise<T>;
+  if (res.status === 204) return undefined as T;
+
+  // ponytail: empty/non-JSON success bodies must not throw.
+  return (await res.json().catch(() => undefined)) as T;
 }
 
 export async function apiFetchRaw(url: string, options: ApiOptions = {}): Promise<Response> {

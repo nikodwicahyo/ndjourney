@@ -17,8 +17,19 @@ export async function PUT(
     }
 
     const { id } = await params;
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
+    if (body == null) return NextResponse.json({ error: "Body JSON tidak valid" }, { status: 400 });
     const parsed = updateAlbumSchema.safeParse(body);
+
+    // ponytail: ownership gate — legacy albums have null coupleId (lenient).
+    const albumOwner = await prisma.album.findUnique({
+      where: { id },
+      select: { coupleId: true },
+    });
+    const editorCoupleId = await getUserCoupleId(rateCheck.session.user.id);
+    if (!albumOwner || (albumOwner.coupleId !== null && albumOwner.coupleId !== editorCoupleId)) {
+      return NextResponse.json({ error: "Album tidak ditemukan" }, { status: 404 });
+    }
 
     if (!parsed.success) {
       return NextResponse.json(
@@ -74,6 +85,16 @@ export async function DELETE(
     }
 
     const { id } = await params;
+
+    // ponytail: ownership gate (see PUT above).
+    const doomed = await prisma.album.findUnique({
+      where: { id },
+      select: { coupleId: true },
+    });
+    const deleterCoupleId = await getUserCoupleId(rateCheck.session.user.id);
+    if (!doomed || (doomed.coupleId !== null && doomed.coupleId !== deleterCoupleId)) {
+      return NextResponse.json({ error: "Album tidak ditemukan" }, { status: 404 });
+    }
 
     // ponytail: atomic detach+delete — no partial state if delete throws after detach
     await prisma.$transaction([

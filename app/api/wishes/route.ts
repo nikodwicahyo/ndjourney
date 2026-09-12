@@ -71,7 +71,8 @@ export async function POST(request: Request) {
       return rateCheck.response;
     }
 
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
+    if (body == null) return NextResponse.json({ error: "Body JSON tidak valid" }, { status: 400 });
     const parsed = createWishSchema.safeParse(body);
 
     if (!parsed.success) {
@@ -81,15 +82,17 @@ export async function POST(request: Request) {
       );
     }
 
+    const userId = rateCheck.session.user.id;
+    const wishCoupleId = await getUserCoupleId(userId);
+
     const wish = await prisma.wishItem.create({
-      data: parsed.data,
+      data: { ...parsed.data, coupleId: wishCoupleId },
     });
 
     await invalidateCache("wishes:*");
 
-    const coupleId = await getUserCoupleId(rateCheck.session.user.id);
-    if (coupleId) {
-      triggerCoupleEvent(coupleId, 'WISHLIST');
+    if (wishCoupleId) {
+      triggerCoupleEvent(wishCoupleId, 'WISHLIST');
     }
 
     return NextResponse.json({ data: wish }, { status: 201 });

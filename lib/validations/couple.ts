@@ -1,5 +1,6 @@
 import { z } from "zod/v4";
 import { parseJakartaDateOnly } from "@/lib/date";
+import { httpUrl } from "./http-url";
 
 const dateOnlyString = z
   .string()
@@ -13,7 +14,7 @@ export const updateCoupleSchema = z.object({
   birthDate1: dateOnlyString.nullable().optional(),
   birthDate2: dateOnlyString.nullable().optional(),
   tagline: z.string().max(200).nullable().optional(),
-  heroPhotoUrl: z.string().url().nullable().optional(),
-  spotifyPlaylistUrl: z.string().url().nullable().optional(),
-  backgroundMusicUrl: z.string().url().nullable().optional(),
+  heroPhotoUrl: httpUrl().nullable().optional(),
+  spotifyPlaylistUrl: httpUrl().nullable().optional(),
+  backgroundMusicUrl: httpUrl().nullable().optional(),
 });

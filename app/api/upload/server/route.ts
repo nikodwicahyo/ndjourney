@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { v2 as cloudinary } from "cloudinary";
 import { sanitizeFileName, UPLOAD_FOLDER, validateUploadRequest } from "@/lib/upload-policy";
+import { checkMagicBytes } from "@/lib/upload-magic";
 import { withRateLimit } from "@/lib/rate-limit";
 
 cloudinary.config({
@@ -54,11 +55,17 @@ export async function POST(request: Request) {
 
     const session = rateCheck.session;
 
+    // ponytail: fail closed with 503, not a TypeError 500 downstream.
+    if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+      return NextResponse.json({ error: "Layanan upload belum dikonfigurasi" }, { status: 503 });
+    }
+
     const formData = await request.formData();
-    const file = formData.get("file") as File;
+    const file = formData.get("file");
     const folder = (formData.get("folder") as string) || UPLOAD_FOLDER;
 
-    if (!file || folder !== UPLOAD_FOLDER) {
+    // ponytail: instanceof guard — string field named "file" must 400, not throw on .arrayBuffer().
+    if (!(file instanceof File) || file.size === 0 || folder !== UPLOAD_FOLDER) {
       return NextResponse.json({ error: "Tidak ada file yang dikirim" }, { status: 400 });
     }
 
@@ -72,6 +79,15 @@ export async function POST(request: Request) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
+    if (buffer.length === 0) {
+      return NextResponse.json({ error: "File kosong" }, { status: 400 });
+    }
+
+    // ponytail: bytes are proxied here, so sniffing is cheap — spoofed MIME rejected.
+    if (!checkMagicBytes(buffer, file.type)) {
+      return NextResponse.json({ error: "Isi file tidak sesuai dengan format yang dipilih" }, { status: 400 });
+    }
+
     const resourceType = validation.policy.resourceType;
     const publicId = generatePublicId(file.name, session.user.id);
 
@@ -127,8 +143,9 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Server upload error:", error);
+    // ponytail: never leak Cloudinary/SDK internals to the client.
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Upload gagal" },
+      { error: "Upload gagal. Coba lagi nanti." },
       { status: 500 }
     );
   }

@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { getCached, setCached, cacheKey } from "@/lib/redis";
-import { batchLoadUsers } from "@/lib/batch";
+import { batchLoadUsers, toPublicUser } from "@/lib/batch";
 
 const CACHE_TTL = 300;
 const ARCADE_TYPES = ["SLIDING_PUZZLE", "MEMORY_BLOCK_BLAST"] as const;
@@ -57,7 +57,8 @@ export async function GET(request: NextRequest) {
     const userMap = authedUserIds.length > 0 ? await batchLoadUsers(authedUserIds) : new Map();
 
     const leaderboard = rows.map((row) => ({
-      user: userMap.get(row.userId) ?? null,
+      // ponytail: public endpoint — no emails in response.
+      user: toPublicUser(userMap.get(row.userId)),
       playerName: null,
       totalScore: Number(row.totalScore),
       totalPlayed: Number(row.totalPlayed),

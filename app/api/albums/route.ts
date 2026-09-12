@@ -88,7 +88,8 @@ export async function POST(request: Request) {
       return rateCheck.response;
     }
 
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
+    if (body == null) return NextResponse.json({ error: "Body JSON tidak valid" }, { status: 400 });
     const parsed = createAlbumSchema.safeParse(body);
 
     if (!parsed.success) {
@@ -98,8 +99,10 @@ export async function POST(request: Request) {
       );
     }
 
+    const creatorCoupleId = await getUserCoupleId(rateCheck.session.user.id);
+
     const album = await prisma.album.create({
-      data: parsed.data,
+      data: { ...parsed.data, coupleId: creatorCoupleId },
       select: {
         id: true,
         name: true,
@@ -113,9 +116,8 @@ export async function POST(request: Request) {
 
     await invalidateCache("albums:*");
 
-    const coupleId = await getUserCoupleId(rateCheck.session.user.id);
-    if (coupleId) {
-      triggerCoupleEvent(coupleId, 'GALLERY');
+    if (creatorCoupleId) {
+      triggerCoupleEvent(creatorCoupleId, 'GALLERY');
     }
 
     return NextResponse.json({ data: album }, { status: 201 });

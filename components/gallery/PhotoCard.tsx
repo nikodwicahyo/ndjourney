@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import { memo, useEffect, useState, useMemo, useCallback, useRef } from "react";
 import Image from "next/image";
 import { File, Heart, Play, Lock, CheckCircle, Globe, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -18,7 +18,7 @@ type PhotoCardProps = {
   onSelectToggle?: (id: string) => void;
 };
 
-export default function PhotoCard({
+export default memo(function PhotoCard({
   photo,
   onFavoriteToggle,
   onPublicToggle,
@@ -227,4 +227,4 @@ export default function PhotoCard({
       )}
     </div>
   );
-}
+});

@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { getCached, setCached, cacheKey } from "@/lib/redis";
-import { batchLoadUsers } from "@/lib/batch";
+import { batchLoadUsers, toPublicUser } from "@/lib/batch";
 import { z } from "zod";
 
 const CACHE_TTL = 300;
@@ -68,7 +68,8 @@ export async function GET(request: NextRequest) {
       const totalPlayed = Number(row.totalPlayed);
       const totalCorrect = Number(row.totalCorrect);
       return {
-        user: userMap.get(row.userId) ?? null,
+        // ponytail: public endpoint — no emails in response.
+        user: toPublicUser(userMap.get(row.userId)),
         playerName: null,
         totalPlayed,
         totalCorrect,

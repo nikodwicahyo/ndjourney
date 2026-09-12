@@ -366,7 +366,11 @@ function getEnv(key: string, fallback: string): string {
 async function main() {
   console.log("🌱 Seeding database...");
 
-  const rawPassword = getEnv("SEED_PASSWORD", "couple123");
+  // ponytail: no weak default passwords, no plaintext credential logs.
+  const rawPassword = process.env.SEED_PASSWORD?.trim();
+  if (!rawPassword || rawPassword.length < 12) {
+    throw new Error("SEED_PASSWORD env wajib diisi (min 12 karakter) untuk seeding.");
+  }
   const hashedPassword = await bcrypt.hash(rawPassword, 12);
 
   const adminEmail = getEnv("ADMIN_EMAIL", "admin@couple.app");
@@ -381,7 +385,7 @@ async function main() {
         role: "ADMIN",
       },
     });
-    console.log(`✅ Admin user created: ${adminEmail} / ${rawPassword}`);
+    console.log(`✅ Admin user created: ${adminEmail}`);
   } else {
     console.log(`ℹ️  Admin user already exists, skipping`);
   }
@@ -400,7 +404,7 @@ async function main() {
         role: "PARTNER",
       },
     });
-    console.log(`✅ Partner 1 created: ${partner1Email} / ${rawPassword}`);
+    console.log(`✅ Partner 1 created: ${partner1Email}`);
   } else {
     console.log(`ℹ️  Partner 1 already exists, skipping`);
   }
@@ -414,7 +418,7 @@ async function main() {
         role: "PARTNER",
       },
     });
-    console.log(`✅ Partner 2 created: ${partner2Email} / ${rawPassword}`);
+    console.log(`✅ Partner 2 created: ${partner2Email}`);
   } else {
     console.log(`ℹ️  Partner 2 already exists, skipping`);
   }

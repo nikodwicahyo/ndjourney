@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import { pusherServer } from '@/lib/pusher-server';
+import { getPusherServer } from '@/lib/pusher-server';
 import { prisma } from '@/lib/prisma';
 
 export async function POST(req: Request) {
@@ -28,6 +28,10 @@ export async function POST(req: Request) {
       return new NextResponse('Forbidden Channel Target', { status: 403 });
     }
 
+    const pusherServer = getPusherServer();
+    if (!pusherServer) {
+      return new NextResponse('Realtime not configured', { status: 503 });
+    }
     const authResponse = pusherServer.authenticate(socketId, channelName);
 
     return NextResponse.json(authResponse);

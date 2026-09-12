@@ -20,27 +20,29 @@ export async function GET(request: Request) {
 
     const where = isAuthed ? {} : { isPublic: true };
 
-    const milestones = await prisma.milestone.findMany({
-      where,
-      orderBy: { date: "desc" },
-      skip: (page - 1) * limit,
-      take: limit,
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        date: true,
-        icon: true,
-        color: true,
-        location: true,
-        isPublic: true,
-        createdById: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
-
-    const total = await prisma.milestone.count({ where });
+    // ponytail: 1 round-trip (was 2 sequential).
+    const [milestones, total] = await Promise.all([
+      prisma.milestone.findMany({
+        where,
+        orderBy: { date: "desc" },
+        skip: (page - 1) * limit,
+        take: limit,
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          date: true,
+          icon: true,
+          color: true,
+          location: true,
+          isPublic: true,
+          createdById: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      }),
+      prisma.milestone.count({ where }),
+    ]);
 
     const userIds = milestones.map((m) => m.createdById);
     const milestoneIds = milestones.map((m) => m.id);
@@ -98,7 +100,8 @@ export async function POST(request: Request) {
 
     const session = rateCheck.session;
 
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
+    if (body == null) return NextResponse.json({ error: "Body JSON tidak valid" }, { status: 400 });
     const parsed = createMilestoneSchema.safeParse(body);
 
     if (!parsed.success) {

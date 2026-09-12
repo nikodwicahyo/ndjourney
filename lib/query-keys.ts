@@ -32,6 +32,8 @@ export const queryKeys = {
     questions: (type: string, count?: number, exclude?: string[]) =>
       ["games", "questions", type, count ?? "all", exclude?.join(",") ?? "all"] as const,
     leaderboard: () => ["games", "leaderboard"] as const,
+    // ponytail: canonical key for the merged "Semua" leaderboard tab (was a string literal in 2 places).
+    mergedQaLeaderboard: () => ["leaderboard", "all-qa"] as const,
     arcadeLeaderboard: (type?: string) => ["games", "arcade-leaderboard", type] as const,
     // Prefix used for invalidations. NOTE: do NOT use arcadeLeaderboard()
     // here — when called without an argument it returns a key ending in

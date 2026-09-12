@@ -91,6 +91,15 @@ export default function MasonryGrid({ filters, onPhotoClick, isPublic }: Masonry
 
   const allPhotos = (data?.pages.flatMap((page) => page.data ?? []) ?? []).filter(Boolean) as Photo[];
 
+  // ponytail: stable handler so memo(PhotoCard) actually skips re-renders.
+  const handlePhotoClick = useCallback(
+    (photo: Photo) => {
+      const origIndex = allPhotos.indexOf(photo);
+      onPhotoClick?.(photo, origIndex, allPhotos, fetchNextPage, !!hasNextPage);
+    },
+    [allPhotos, onPhotoClick, fetchNextPage, hasNextPage],
+  );
+
   const orderedPhotos = useMemo(
     () => toReadingOrder(allPhotos, colCount),
     [allPhotos, colCount],
@@ -136,14 +145,13 @@ export default function MasonryGrid({ filters, onPhotoClick, isPublic }: Masonry
   return (
     <>
       <div className="columns-2 gap-3 md:columns-3 lg:columns-4">
-        {orderedPhotos.map((photo) => {
-          const origIndex = allPhotos.indexOf(photo);
+        {orderedPhotos.map((photo, orderIndex) => {
           return (
             <div key={photo.id} className="mb-3 break-inside-avoid">
               <PhotoCard
                 photo={photo}
-                onClick={(p) => onPhotoClick?.(p, origIndex, allPhotos, fetchNextPage, !!hasNextPage)}
-                isPrioritized={origIndex < 8}
+                onClick={handlePhotoClick}
+                isPrioritized={orderIndex < 8}
               />
             </div>
           );

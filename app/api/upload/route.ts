@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { uploadBufferToCloudinary } from "@/lib/cloudinary";
 import { checkRateLimit } from "@/lib/redis";
+import { checkMagicBytes } from "@/lib/upload-magic";
 
 export const runtime = "nodejs";
 
@@ -20,22 +21,8 @@ const ALLOWED_TYPES = [
   "audio/mpeg",
 ];
 
-const MAX_SIZE = 200 * 1024 * 1024;
-
-const MAGIC_BYTES: Record<string, string[]> = {
-  "image/jpeg": ["ffd8ff"],
-  "image/png": ["89504e47"],
-  "image/webp": ["52494646"],
-  "image/heic": ["00000018", "0000001c"],
-  // Video formats have varied headers; use broader signatures + longer check
-  "video/mp4": ["00000018", "0000001c", "66747970", "6d646174", "6d6f6f76", "77696465"],
-  "video/webm": ["1a45dfa3"],
-  "video/quicktime": ["66747970", "6d646174", "6d6f6f76", "77696465"],
-  "video/x-msvideo": ["52494646"],
-  "video/x-matroska": ["1a45dfa3"],
-  "video/ogg": ["4f676753"],
-  "video/mpeg": ["000001ba", "000001b3"],
-};
+// ponytail: aligned with upload-policy (10 MB image / 100 MB video).
+const MAX_SIZE = 100 * 1024 * 1024;
 
 export async function POST(request: Request) {
   try {
@@ -66,7 +53,7 @@ export async function POST(request: Request) {
 
     if (file.size > MAX_SIZE) {
       return NextResponse.json(
-        { error: "Ukuran file terlalu besar. Maksimal 200MB." },
+        { error: "Ukuran file terlalu besar. Maksimal 100MB." },
         { status: 400 },
       );
     }
@@ -83,13 +70,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "File kosong" }, { status: 400 });
     }
 
-    // Check more bytes for video files (up to 16 bytes) since headers vary
-    const checkLength = file.type.startsWith("video/") ? 16 : 8;
-    const hex = buffer.subarray(0, checkLength).toString("hex");
-    const validSignatures = MAGIC_BYTES[file.type];
-
-    if (validSignatures && !validSignatures.some((sig) => hex.includes(sig))) {
-      console.warn("Magic bytes mismatch:", { fileName: file.name, fileType: file.type, hex: hex.substring(0, 32) });
+    // ponytail: verify bytes match the claimed type (shared table in lib/upload-magic).
+    if (!checkMagicBytes(buffer, file.type)) {
+      console.warn("Magic bytes mismatch:", { fileName: file.name, fileType: file.type });
       return NextResponse.json(
         { error: "Isi file tidak sesuai dengan format yang dipilih" },
         { status: 400 },
@@ -108,9 +91,9 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Upload error:", error);
-    const message = error instanceof Error ? error.message : "Upload gagal";
+    // ponytail: never leak Cloudinary/SDK internals to the client.
     return NextResponse.json(
-      { error: message },
+      { error: "Upload gagal. Coba lagi nanti." },
       { status: 500 },
     );
   }

@@ -22,7 +22,13 @@ export async function POST(request: Request) {
 
     const session = rateCheck.session;
 
-    const body = await request.json();
+    // ponytail: fail closed with 503, not a TypeError 500 on `!`.
+    if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+      return NextResponse.json({ error: "Layanan upload belum dikonfigurasi" }, { status: 503 });
+    }
+
+    const body = await request.json().catch(() => null);
+    if (body == null) return NextResponse.json({ error: "Body JSON tidak valid" }, { status: 400 });
     const { fileName, fileSize, fileType, folder = UPLOAD_FOLDER } = body;
 
     if (!fileName || !fileSize || !fileType || folder !== UPLOAD_FOLDER) {
@@ -33,6 +39,13 @@ export async function POST(request: Request) {
     }
 
     const numericFileSize = Number(fileSize);
+    // ponytail: NaN / non-finite must 400 here, not leak into chunk math.
+    if (!Number.isFinite(numericFileSize) || numericFileSize <= 0) {
+      return NextResponse.json(
+        { error: "Ukuran file tidak valid" },
+        { status: 400 }
+      );
+    }
     const validation = validateUploadRequest({ fileName, fileType, fileSize: numericFileSize });
     if (!validation.valid) {
       return NextResponse.json({ error: validation.error }, { status: 400 });

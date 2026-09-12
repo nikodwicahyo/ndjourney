@@ -38,12 +38,29 @@ const BLOCKED_EXTENSIONS = new Set([
   "7z",
   "tar",
   "gz",
+  "svg",
+  "html",
+  "htm",
+  "xhtml",
+  "php",
+  "swf",
 ]);
 
 const DEFAULT_LIMITS = {
   image: MAX_IMAGE_BYTES,
   video: MAX_VIDEO_BYTES,
 };
+
+// ponytail: active-content MIME must never reach storage — SVG/HTML render as
+// script in the browser when served from Cloudinary (stored-XSS vector).
+const BLOCKED_MIME = new Set([
+  "image/svg+xml",
+  "text/html",
+  "application/xhtml+xml",
+  "application/xml",
+  "text/xml",
+  "image/x-icon",
+]);
 
 export const UPLOAD_FOLDER = "ndjourney-web";
 
@@ -73,6 +90,7 @@ export function validateUploadRequest(input: {
   if (!input.fileName.trim()) return { valid: false, error: "Nama file wajib diisi" };
   if (!Number.isFinite(fileSize) || fileSize <= 0) return { valid: false, error: "File kosong atau tidak valid" };
   if (!fileType) return { valid: false, error: "Tipe file wajib diisi" };
+  if (BLOCKED_MIME.has(fileType)) return { valid: false, error: "Tipe file tidak diizinkan" };
   if (BLOCKED_EXTENSIONS.has(extension)) return { valid: false, error: "Tipe file tidak diizinkan" };
 
   if (fileType.startsWith("image/")) {

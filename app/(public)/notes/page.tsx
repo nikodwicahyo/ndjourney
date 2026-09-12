@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { NoteList } from "@/components/notes";
+import ManagePageButton from "@/components/layout/ManagePageButton";
 import PageTransition from "@/components/PageTransition";
 
 export const metadata: Metadata = { title: "Notes" };
@@ -8,11 +9,14 @@ export const metadata: Metadata = { title: "Notes" };
 export default async function NotesPage() {
   return (
     <PageTransition>
-      <div className="mb-8">
-        <h1 className="font-heading text-xl sm:text-2xl lg:text-3xl break-words">Daily Note 📝</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Catatan harian dari Niko & Dzikria
-        </p>
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="font-heading text-xl sm:text-2xl lg:text-3xl break-words">Daily Note 📝</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Catatan harian dari Niko & Dzikria
+          </p>
+        </div>
+        <ManagePageButton href="/dashboard/notes" label="Kelola Catatan" />
       </div>
 
       <div className="mx-auto max-w-lg space-y-8">

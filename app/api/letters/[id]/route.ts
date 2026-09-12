@@ -21,24 +21,45 @@ export async function GET(
 
     const { id } = await params;
 
-    const letter = await prisma.letter.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        title: true,
-        content: true,
-        authorId: true,
-        recipientId: true,
-        isTimeCapsule: true,
-        unlockAt: true,
-        isOpened: true,
-        openedAt: true,
-        mood: true,
-        isPublic: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
+    // ponytail: row cache first — cache-hit path was 2 PG (findUnique + users).
+    // Key lives under letters:* so existing PUT/DELETE/open wipes invalidate it.
+    const rowK = cacheKey("letters", "row", id);
+    let letter = await getCached<{
+      id: string; title: string; content: string; authorId: string; recipientId: string;
+      isTimeCapsule: boolean; unlockAt: string | null; isOpened: boolean; openedAt: string | null;
+      mood: string; isPublic: boolean; createdAt: string; updatedAt: string;
+    }>(rowK);
+    if (!letter) {
+      const row = await prisma.letter.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          title: true,
+          content: true,
+          authorId: true,
+          recipientId: true,
+          isTimeCapsule: true,
+          unlockAt: true,
+          isOpened: true,
+          openedAt: true,
+          mood: true,
+          isPublic: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+      if (!row) {
+        return NextResponse.json({ error: "Surat tidak ditemukan" }, { status: 404 });
+      }
+      letter = {
+        ...row,
+        unlockAt: row.unlockAt?.toISOString() ?? null,
+        openedAt: row.openedAt?.toISOString() ?? null,
+        createdAt: row.createdAt.toISOString(),
+        updatedAt: row.updatedAt.toISOString(),
+      };
+      await setCached(rowK, letter, 60);
+    }
 
     if (!letter) {
       return NextResponse.json({ error: "Surat tidak ditemukan" }, { status: 404 });
@@ -62,7 +83,7 @@ export async function GET(
     const isLocked =
       letter.isTimeCapsule &&
       letter.unlockAt !== null &&
-      letter.unlockAt > new Date() &&
+      new Date(letter.unlockAt).getTime() > Date.now() &&
       !letter.isOpened;
 
     const lockBucket = isLocked ? "locked" : "unlocked";

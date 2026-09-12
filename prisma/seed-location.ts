@@ -6,7 +6,8 @@ async function main() {
   const partners = await prisma.user.findMany({
     where: { role: "PARTNER" },
     orderBy: { createdAt: "asc" },
-    select: { id: true, email: true, name: true },
+    // ponytail: no emails in logs — ids suffice for a dev script.
+    select: { id: true, name: true },
   });
 
   if (partners.length < 2) {
@@ -15,8 +16,8 @@ async function main() {
   }
 
   const [p1, p2] = partners;
-  console.log(`  Partner 1: ${p1.name} (${p1.email})`);
-  console.log(`  Partner 2: ${p2.name} (${p2.email})`);
+  console.log(`  Partner 1: ${p1.name} (${p1.id.slice(0, 8)}…)`);
+  console.log(`  Partner 2: ${p2.name} (${p2.id.slice(0, 8)}…)`);
 
   const member = await prisma.coupleMember.findFirst({
     where: { userId: p1.id },

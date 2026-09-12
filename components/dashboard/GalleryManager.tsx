@@ -578,7 +578,7 @@ export default function GalleryManager() {
               {isSubmitting ? "Mengupload..." : "Klik atau drag file ke sini"}
             </p>
             <p className="mt-0.5 text-[10px] sm:text-xs text-muted-foreground">
-              {SUPPORTED_FORMATS_LABEL} (Maks {MAX_FILES} file)
+              Max 10MB per-foto | Max 100MB per-video | Max {MAX_FILES} file per-upload.
             </p>
           </div>
         </label>

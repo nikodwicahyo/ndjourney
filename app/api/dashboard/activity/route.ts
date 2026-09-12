@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { getCached, setCached, cacheKey } from "@/lib/redis";
 import { batchLoadUsers } from "@/lib/batch";
+import { getUserCoupleId } from "@/lib/couple";
 
 const CACHE_TTL = 120;
 
@@ -13,7 +14,14 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const cacheK = cacheKey("dashboard", "activity", session.user.id);
+    // ponytail: scope feed to caller's couple (was global UNION across all couples).
+    const coupleId = await getUserCoupleId(session.user.id);
+    if (!coupleId) {
+      return NextResponse.json({ data: [] });
+    }
+
+    // ponytail: couple-scoped cache (was per-user: duplicate entries for shared feed).
+    const cacheK = cacheKey("dashboard", "activity", coupleId);
     const cached = await getCached<unknown>(cacheK);
     if (cached) {
       return NextResponse.json({ data: cached }, {
@@ -31,6 +39,7 @@ export async function GET() {
       (
         SELECT id, 'photo' AS type, COALESCE(caption, 'Menambahkan foto baru') AS description, "createdAt", "uploadedById" AS "userId"
         FROM "Photo"
+        WHERE "coupleId" = ${coupleId}
         ORDER BY "createdAt" DESC
         LIMIT 5
       )
@@ -38,6 +47,7 @@ export async function GET() {
       (
         SELECT id, 'letter' AS type, 'Menulis surat: ' || title AS description, "createdAt", "authorId" AS "userId"
         FROM "Letter"
+        WHERE "coupleId" = ${coupleId}
         ORDER BY "createdAt" DESC
         LIMIT 5
       )
@@ -45,6 +55,7 @@ export async function GET() {
       (
         SELECT id, 'milestone' AS type, 'Menambahkan milestone: ' || title AS description, "createdAt", "createdById" AS "userId"
         FROM "Milestone"
+        WHERE "coupleId" = ${coupleId}
         ORDER BY "createdAt" DESC
         LIMIT 5
       )

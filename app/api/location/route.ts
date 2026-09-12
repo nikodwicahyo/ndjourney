@@ -57,7 +57,8 @@ export async function GET() {
       );
     }
 
-    const [selfShare, partnerMember, selfImage, selfLocation] = await Promise.all([
+    // ponytail: avatar comes from the session (refreshed on PROFILE via updateSession) — was a 4th query.
+    const [selfShare, partnerMember, selfLocation] = await Promise.all([
       prisma.locationShare.findUnique({
         where: { userId },
         select: { isSharing: true },
@@ -69,10 +70,6 @@ export async function GET() {
             select: { id: true, name: true, image: true },
           },
         },
-      }),
-      prisma.user.findUnique({
-        where: { id: userId },
-        select: { image: true },
       }),
       prisma.userLocation.findUnique({
         where: { userId },
@@ -88,6 +85,7 @@ export async function GET() {
         },
       }),
     ]);
+    const selfImage = { image: session.user.image ?? null };
 
     const partner = partnerMember?.user ?? null;
     if (!partner) {
@@ -191,7 +189,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
+    if (body == null) return NextResponse.json({ error: "Body JSON tidak valid" }, { status: 400 });
     const parsed = updateLocationSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
@@ -229,15 +228,18 @@ export async function POST(request: Request) {
       },
     });
 
-    // Write to location history (throttled: only if last history entry is >30s old or doesn't exist)
-    const lastHistory = await prisma.userLocationHistory.findFirst({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
-      select: { createdAt: true },
-    });
+    // Write to location history (throttled: only if last history entry is >30s old or doesn't exist).
+    // ponytail: single transaction — concurrent 8s polls from 2 tabs can't duplicate/over-trim.
+    await prisma.$transaction(async (tx) => {
+      const lastHistory = await tx.userLocationHistory.findFirst({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+        select: { createdAt: true },
+      });
 
-    if (!lastHistory || now.getTime() - lastHistory.createdAt.getTime() > 30000) {
-      await prisma.userLocationHistory.create({
+      if (lastHistory && now.getTime() - lastHistory.createdAt.getTime() <= 30000) return;
+
+      await tx.userLocationHistory.create({
         data: {
           userId,
           coupleId,
@@ -251,22 +253,20 @@ export async function POST(request: Request) {
         },
       });
 
-      // Keep only last 50 history points per user
-      const count = await prisma.userLocationHistory.count({ where: { userId } });
-      if (count > 50) {
-        const toDelete = await prisma.userLocationHistory.findMany({
-          where: { userId },
-          orderBy: { createdAt: "asc" },
-          take: count - 50,
-          select: { id: true },
+      // Keep only last 50 history points per user: delete everything older than the 50th newest.
+      const keep = await tx.userLocationHistory.findMany({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+        take: 50,
+        select: { id: true, createdAt: true },
+      });
+      if (keep.length === 50) {
+        const cutoff = keep[keep.length - 1].createdAt;
+        await tx.userLocationHistory.deleteMany({
+          where: { userId, createdAt: { lt: cutoff } },
         });
-        if (toDelete.length > 0) {
-          await prisma.userLocationHistory.deleteMany({
-            where: { id: { in: toDelete.map((r) => r.id) } },
-          });
-        }
       }
-    }
+    });
 
     triggerCoupleEvent(coupleId, "LOCATION");
 

@@ -4,7 +4,7 @@ import { getCloudinaryUsage } from "@/lib/cloudinary";
 import { getCached, setCached, cacheKey, checkRateLimit } from "@/lib/redis";
 import type { CloudinaryUsage } from "@/types";
 
-const CACHE_TTL = 10;
+const CACHE_TTL = 180;
 
 export async function GET(request: NextRequest) {
   try {

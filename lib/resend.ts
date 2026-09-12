@@ -9,6 +9,27 @@ type SendEmailParams = {
   html: string;
 };
 
+// ponytail: email HTML injection guard — sender names/titles are user input.
+export function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => {
+    switch (c) {
+      case "&": return "&amp;";
+      case "<": return "&lt;";
+      case ">": return "&gt;";
+      case '"': return "&quot;";
+      default: return "&#39;";
+    }
+  });
+}
+
+/** Links in emails must stay same-origin (auth-gated app routes). */
+export function safeAppUrl(path: string): string {
+  const base = (process.env.NEXTAUTH_URL || "").replace(/\/+$/, "");
+  const url = new URL(path, base || "http://localhost");
+  if (base && url.origin !== new URL(base).origin) return base;
+  return url.toString();
+}
+
 let transporter: nodemailer.Transporter | null = null;
 
 async function getTransporter(): Promise<nodemailer.Transporter | null> {
@@ -33,7 +54,8 @@ async function getTransporter(): Promise<nodemailer.Transporter | null> {
   try {
     await transporter.verify();
   } catch (error) {
-    console.error("[SMTP] Connection verification failed:", error);
+    // ponytail: log message only — error objects can echo host/credentials.
+    console.error("[SMTP] Connection verification failed:", error instanceof Error ? error.message : error);
     transporter = null;
     return null;
   }
@@ -59,8 +81,9 @@ export async function sendEmail({ to, subject, html }: SendEmailParams) {
 
     return { data: { id: result.messageId } };
   } catch (error) {
-    console.error("[SMTP_ERROR]", error);
-    return { error: String(error) };
+    // ponytail: message only — Nodemailer errors embed recipients/host.
+    console.error("[SMTP_ERROR]", error instanceof Error ? error.message : error);
+    return { error: "Gagal mengirim email" };
   }
 }
 
@@ -70,19 +93,22 @@ export function noteNotificationHtml(
   url: string,
 ): string {
   const preview = content.length > 150 ? content.slice(0, 150) + "..." : content;
+  const safeName = escapeHtml(senderName);
+  const safePreview = escapeHtml(preview);
+  const safeUrl = escapeHtml(url);
   return `
     <div style="font-family: 'Inter', sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px; background: #F0FDF4; border-radius: 16px;">
       <div style="text-align: center; margin-bottom: 24px;">
         <span style="font-size: 48px;">\u{1F4DD}</span>
       </div>
       <h1 style="font-family: 'Playfair Display', serif; color: #16A34A; text-align: center; font-size: 24px; margin-bottom: 8px;">
-        Catatan Baru dari ${senderName}!
+        Catatan Baru dari ${safeName}!
       </h1>
       <p style="color: #14532D; text-align: center; font-size: 16px; margin-bottom: 16px; font-style: italic;">
-        "${preview}"
+        "${safePreview}"
       </p>
       <div style="text-align: center;">
-        <a href="${url}" style="display: inline-block; background: #16A34A; color: white; text-decoration: none; padding: 12px 32px; border-radius: 9999px; font-size: 16px; font-weight: 600;">
+        <a href="${safeUrl}" style="display: inline-block; background: #16A34A; color: white; text-decoration: none; padding: 12px 32px; border-radius: 9999px; font-size: 16px; font-weight: 600;">
           Baca Catatan \u{1F49A}
         </a>
       </div>
@@ -91,19 +117,22 @@ export function noteNotificationHtml(
 }
 
 export function letterNotificationHtml(senderName: string, letterTitle: string, url: string): string {
+  const safeName = escapeHtml(senderName);
+  const safeTitle = escapeHtml(letterTitle);
+  const safeUrl = escapeHtml(url);
   return `
     <div style="font-family: 'Inter', sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px; background: #FFF1F2; border-radius: 16px;">
       <div style="text-align: center; margin-bottom: 24px;">
         <span style="font-size: 48px;">\u{1F48C}</span>
       </div>
       <h1 style="font-family: 'Playfair Display', serif; color: #F43F5E; text-align: center; font-size: 24px; margin-bottom: 8px;">
-        Surat Baru dari ${senderName}!
+        Surat Baru dari ${safeName}!
       </h1>
       <p style="color: #881337; text-align: center; font-size: 16px; margin-bottom: 24px;">
-        "${letterTitle}"
+        "${safeTitle}"
       </p>
       <div style="text-align: center;">
-        <a href="${url}" style="display: inline-block; background: #F43F5E; color: white; text-decoration: none; padding: 12px 32px; border-radius: 9999px; font-size: 16px; font-weight: 600;">
+        <a href="${safeUrl}" style="display: inline-block; background: #F43F5E; color: white; text-decoration: none; padding: 12px 32px; border-radius: 9999px; font-size: 16px; font-weight: 600;">
           Baca Surat \u{2764}\u{FE0F}
         </a>
       </div>
@@ -116,6 +145,9 @@ export function timeCapsuleNotificationHtml(
   letterTitle: string,
   url: string,
 ): string {
+  const safeName = escapeHtml(senderName);
+  const safeTitle = escapeHtml(letterTitle);
+  const safeUrl = escapeHtml(url);
   return `
     <div style="font-family: 'Inter', sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px; background: #FFF7ED; border-radius: 16px;">
       <div style="text-align: center; margin-bottom: 24px;">
@@ -125,10 +157,10 @@ export function timeCapsuleNotificationHtml(
         Time Capsule Terbuka!
       </h1>
       <p style="color: #7C2D12; text-align: center; font-size: 16px; margin-bottom: 8px;">
-        Surat dari ${senderName} — "${letterTitle}" — sudah bisa dibuka!
+        Surat dari ${safeName} — "${safeTitle}" — sudah bisa dibuka!
       </p>
       <div style="text-align: center;">
-        <a href="${url}" style="display: inline-block; background: #F97316; color: white; text-decoration: none; padding: 12px 32px; border-radius: 9999px; font-size: 16px; font-weight: 600;">
+        <a href="${safeUrl}" style="display: inline-block; background: #F97316; color: white; text-decoration: none; padding: 12px 32px; border-radius: 9999px; font-size: 16px; font-weight: 600;">
           Buka Sekarang \u{1F389}
         </a>
       </div>

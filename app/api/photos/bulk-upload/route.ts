@@ -39,7 +39,8 @@ export async function POST(request: Request) {
 
     const session = rateCheck.session;
 
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
+    if (body == null) return NextResponse.json({ error: "Body JSON tidak valid" }, { status: 400 });
     const parsed = bulkUploadSchema.safeParse(body);
 
     if (!parsed.success) {
@@ -146,7 +147,8 @@ export async function POST(request: Request) {
       photos = [];
       settled.forEach((r, i) => {
         if (r.status === "fulfilled") photos.push(r.value as Photo);
-        else failed.push({ publicId: valid[i].publicId, error: r.reason instanceof Error ? r.reason.message : "Save failed" });
+        // ponytail: per-item DB errors stay server-side (Prisma messages leak schema).
+        else failed.push({ publicId: valid[i].publicId, error: "Gagal menyimpan foto" });
       });
       if (photos.length === 0) {
         return NextResponse.json({ error: "All saves failed", failed }, { status: 400 });
@@ -169,9 +171,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ data: photos }, { status: 201 });
   } catch (error) {
     console.error("Error bulk uploading photos:", error);
-    const message = error instanceof Error ? error.message : "Internal server error";
     return NextResponse.json(
-      { error: message },
+      { error: "Terjadi kesalahan pada server. Coba lagi nanti." },
       { status: 500 },
     );
   }

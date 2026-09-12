@@ -70,7 +70,7 @@ export async function PUT(
       });
       if (emailResult?.error) {
         console.error(
-          `Failed to send open notification to ${letter.author.email}:`,
+          `Failed to send open notification for letter ${letter.id}:`,
           emailResult.error,
         );
       }

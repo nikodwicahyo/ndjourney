@@ -12,6 +12,7 @@ export type GalleryPhoto = {
   caption?: string | null;
   takenAt?: string | null;
   isVideo: boolean;
+  isPublic?: boolean;
 };
 
 type GallerySlideshowProps = {
@@ -22,8 +23,14 @@ type MediaState = "loading" | "loaded" | "error";
 
 const MAX_PHOTOS = 50;
 
+// ponytail: single gate — home is public, private rows must never render
+// here even if a caller passes an unfiltered list (isPublic missing = public).
+export function selectSlideshowMedia(photos: GalleryPhoto[]): GalleryPhoto[] {
+  return photos.filter((p) => p.isPublic !== false).slice(0, MAX_PHOTOS);
+}
+
 export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
-  const initialPhotos = useMemo(() => photos.slice(0, MAX_PHOTOS), [photos]);
+  const initialPhotos = useMemo(() => selectSlideshowMedia(photos), [photos]);
   const [displayPhotos, setDisplayPhotos] = useState(initialPhotos);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [direction, setDirection] = useState(1);

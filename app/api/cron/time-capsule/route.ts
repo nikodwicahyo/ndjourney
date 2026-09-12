@@ -3,7 +3,17 @@ import { NextResponse } from "next/server";
 import { sendEmail, timeCapsuleNotificationHtml } from "@/lib/resend";
 import { triggerCoupleEvent } from "@/lib/pusher-server";
 import { invalidateCache } from "@/lib/redis";
+import type { Prisma } from "@/lib/generated/prisma";
 
+type UnlockedLetter = Prisma.LetterGetPayload<{
+  include: {
+    author: { select: { id: true; name: true; email: true } };
+    recipient: { select: { id: true; name: true; email: true } };
+  };
+}>;
+
+
+export const maxDuration = 300;
 
 export async function GET(request: Request) {
   try {
@@ -28,18 +38,45 @@ export async function GET(request: Request) {
 
     const now = new Date();
 
-    const unlockedLetters = await prisma.letter.findMany({
-      where: {
-        isTimeCapsule: true,
-        isOpened: false,
-        notificationSentAt: null,
-        unlockAt: { lte: now },
-      },
-      include: {
-        author: { select: { id: true, name: true, email: true } },
-        recipient: { select: { id: true, name: true, email: true } },
-      },
-    });
+    // ponytail: bounded batches (100/iter, max 10) with keyset pagination —
+    // same "process all" semantics as unbounded findMany, without the
+    // OOM/email-storm ceiling or the degrading notIn:processedIds list.
+    // (cursor API needs a unique — unlockAt isn't one — so keyset via row filter.)
+    const BATCH = 100;
+    const MAX_BATCHES = 10;
+    const unlockedLetters: UnlockedLetter[] = [];
+    let lastUnlockAt: Date | null = null;
+    let lastId = "";
+    for (let i = 0; i < MAX_BATCHES; i++) {
+      const batch: UnlockedLetter[] = await prisma.letter.findMany({
+        where: {
+          isTimeCapsule: true,
+          isOpened: false,
+          notificationSentAt: null,
+          unlockAt: { lte: now },
+          ...(lastUnlockAt
+            ? {
+                OR: [
+                  { unlockAt: { gt: lastUnlockAt } },
+                  { unlockAt: lastUnlockAt, id: { gt: lastId } },
+                ],
+              }
+            : {}),
+        },
+        take: BATCH,
+        orderBy: [{ unlockAt: "asc" }, { id: "asc" }],
+        include: {
+          author: { select: { id: true, name: true, email: true } },
+          recipient: { select: { id: true, name: true, email: true } },
+        },
+      });
+      if (batch.length === 0) break;
+      unlockedLetters.push(...batch);
+      const last = batch[batch.length - 1];
+      lastUnlockAt = last.unlockAt;
+      lastId = last.id;
+      if (batch.length < BATCH) break;
+    }
 
     const affectedCouples = new Set<string>();
 
@@ -68,8 +105,9 @@ export async function GET(request: Request) {
           const emailSent = !emailResult?.error;
 
           if (emailResult?.error) {
+            // ponytail: no recipient PII in logs.
             console.error(
-              `Failed to send time-capsule notification for letter ${letter.id} to ${letter.recipient.email}:`,
+              `Failed to send time-capsule notification for letter ${letter.id}:`,
               emailResult.error,
             );
           }
@@ -109,16 +147,34 @@ export async function GET(request: Request) {
       }
     }
 
-    await invalidateCache("letters:*");
-    await invalidateCache("dashboard:*");
-
-    for (const coupleId of affectedCouples) {
-      triggerCoupleEvent(coupleId, 'LETTERS');
+    // ponytail: no-op runs must not wipe warm caches.
+    if (unlockedLetters.length > 0) {
+      await invalidateCache("letters:*");
+      await invalidateCache("dashboard:*");
     }
+
+    // ponytail: awaited fan-out — floating promises hid realtime failures.
+    for (const coupleId of affectedCouples) {
+      await triggerCoupleEvent(coupleId, 'LETTERS');
+    }
+
+    // ponytail: report if the batch cap left items for the next run.
+    const remaining =
+      unlockedLetters.length >= BATCH * MAX_BATCHES
+        ? await prisma.letter.count({
+            where: {
+              isTimeCapsule: true,
+              isOpened: false,
+              notificationSentAt: null,
+              unlockAt: { lte: now },
+            },
+          })
+        : 0;
 
     return NextResponse.json({
       message: `Processed ${unlockedLetters.length} time capsules`,
       results,
+      ...(remaining > 0 ? { remaining } : {}),
     });
   } catch (error) {
     console.error("Time capsule cron error:", error);

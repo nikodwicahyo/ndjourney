@@ -127,7 +127,14 @@ export async function POST(request: Request) {
       return rateCheck.response;
     }
 
-    const body = await request.json();
+    // ponytail: shared question bank is curated by couple members only.
+    const creatorCoupleId = await getUserCoupleId(rateCheck.session.user.id);
+    if (!creatorCoupleId) {
+      return NextResponse.json({ error: "Pasangan belum ditemukan" }, { status: 403 });
+    }
+
+    const body = await request.json().catch(() => null);
+    if (body == null) return NextResponse.json({ error: "Body JSON tidak valid" }, { status: 400 });
     const parsed = createQuestionSchema.safeParse(body);
 
     if (!parsed.success) {
@@ -153,10 +160,7 @@ export async function POST(request: Request) {
 
     await invalidateCache("games:*");
 
-    const coupleId = await getUserCoupleId(rateCheck.session.user.id);
-    if (coupleId) {
-      await triggerCoupleEvent(coupleId, 'GAMES_QUESTIONS');
-    }
+    await triggerCoupleEvent(creatorCoupleId, 'GAMES_QUESTIONS');
 
     return NextResponse.json({ data: question }, { status: 201 });
   } catch (error) {

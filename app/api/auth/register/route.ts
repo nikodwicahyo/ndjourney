@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { checkRateLimit } from "@/lib/redis";
+import { withAnonymousRateLimit } from "@/lib/rate-limit";
+import { safeTokenEqual } from "@/lib/api-body";
 import { ensureCouple } from "@/lib/auth";
 
 const registerSchema = z.object({
@@ -18,7 +20,8 @@ function normalizeEmail(email: string): string {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
+    if (body == null) return NextResponse.json({ error: "Body JSON tidak valid" }, { status: 400 });
     const parsed = registerSchema.safeParse(body);
 
     if (!parsed.success) {
@@ -30,6 +33,10 @@ export async function POST(request: Request) {
 
     let { name, email, password, inviteToken } = parsed.data;
     email = normalizeEmail(email);
+
+    // ponytail: per-IP gate first (per-email alone is bypassed by rotating emails).
+    const ipRl = await withAnonymousRateLimit(request, { maxRequests: 10, windowSeconds: 3600, keyPrefix: "register" });
+    if (!ipRl.allowed) return ipRl.response ?? NextResponse.json({ error: "Terlalu banyak percobaan registrasi. Coba lagi nanti." }, { status: 429 });
 
     const { allowed } = await checkRateLimit(
       `register:${email}`,
@@ -44,7 +51,8 @@ export async function POST(request: Request) {
       );
     }
 
-    if (inviteToken !== process.env.INVITE_TOKEN) {
+    const expectedInvite = (process.env.INVITE_TOKEN ?? "").trim();
+    if (!expectedInvite || !safeTokenEqual((inviteToken ?? "").trim(), expectedInvite)) {
       return NextResponse.json(
         { error: "Token undangan tidak valid" },
         { status: 403 },
@@ -93,6 +101,13 @@ export async function POST(request: Request) {
       { status: 201 },
     );
   } catch (error) {
+    // ponytail: concurrent same-email registers race findUnique→create; map P2002 to 409.
+    if ((error as { code?: string })?.code === "P2002") {
+      return NextResponse.json(
+        { error: "Email sudah terdaftar" },
+        { status: 409 },
+      );
+    }
     console.error("Registration error:", error);
     return NextResponse.json(
       { error: "Terjadi kesalahan server" },

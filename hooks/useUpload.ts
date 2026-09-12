@@ -66,9 +66,11 @@ async function savePhotoToDb(
     // ponytail: DB save failed after Cloudinary success -> delete orphan so storage doesn't leak
     const publicId = u.result!.publicId;
     try {
-      await fetch(`/api/upload/${encodeURIComponent(publicId)}`, { method: "DELETE" });
-    } catch {
+      const del = await fetch(`/api/upload/${encodeURIComponent(publicId)}`, { method: "DELETE" });
+      if (!del.ok) console.error("[upload] orphan cleanup failed:", publicId, del.status);
+    } catch (e) {
       // best-effort only, surfaced error stays the DB error
+      console.error("[upload] orphan cleanup failed:", publicId, e);
     }
     throw new Error(err || "Gagal menyimpan foto");
   }
@@ -76,7 +78,7 @@ async function savePhotoToDb(
   const data = await res.json();
   const savedPhoto = data.data as Photo;
 
-  qc.setQueryData<CloudinaryUsage>(["storage", "usage"], (old) => {
+  qc.setQueryData<CloudinaryUsage>(queryKeys.storage.usage(), (old) => {
     if (!old) return old;
     return {
       ...old,
@@ -91,9 +93,9 @@ async function savePhotoToDb(
 function invalidateAfterSave(qc: ReturnType<typeof useQueryClient>) {
   qc.invalidateQueries({ queryKey: queryKeys.photos.all, refetchType: "all" });
   qc.invalidateQueries({ queryKey: queryKeys.albums.all, refetchType: "all" });
-  qc.invalidateQueries({ queryKey: ["storage", "usage"], refetchType: "all" });
-  qc.invalidateQueries({ queryKey: ["dashboard", "stats"], refetchType: "all" });
-  qc.invalidateQueries({ queryKey: ["dashboard", "activity"], refetchType: "all" });
+  qc.invalidateQueries({ queryKey: queryKeys.storage.usage(), refetchType: "all" });
+  qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats(), refetchType: "all" });
+  qc.invalidateQueries({ queryKey: queryKeys.dashboard.activity(), refetchType: "all" });
 }
 
 export function useUploadPhotos(): UseUploadPhotosReturn {
@@ -165,11 +167,12 @@ export function useUploadPhotos(): UseUploadPhotosReturn {
 
       const results = await Promise.all(savePromises);
 
-      invalidateAfterSave(qc);
-
       const uploaded = results
         .filter((r): r is { status: "fulfilled"; value: Photo } => r.status === "fulfilled")
         .map((r) => r.value);
+
+      // ponytail: only invalidate caches when at least one save succeeded.
+      if (uploaded.length > 0) invalidateAfterSave(qc);
 
       const failed = results
         .filter((r): r is { status: "rejected"; reason: { id: string; name: string; error: string } } => r.status === "rejected")

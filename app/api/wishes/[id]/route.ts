@@ -18,8 +18,19 @@ export async function PUT(
     }
 
     const { id } = await params;
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
+    if (body == null) return NextResponse.json({ error: "Body JSON tidak valid" }, { status: 400 });
     const parsed = updateWishSchema.safeParse(body);
+
+    // ponytail: ownership gate — legacy rows have null coupleId (lenient), new rows are scoped.
+    const owner = await prisma.wishItem.findUnique({
+      where: { id },
+      select: { coupleId: true },
+    });
+    const callerCoupleId = await getUserCoupleId(rateCheck.session.user.id);
+    if (!owner || (owner.coupleId !== null && owner.coupleId !== callerCoupleId)) {
+      return NextResponse.json({ error: "Wish tidak ditemukan" }, { status: 404 });
+    }
 
     if (!parsed.success) {
       return NextResponse.json(
@@ -94,11 +105,18 @@ export async function DELETE(
 
     const { id } = await params;
 
-    // Fetch imageUrl before deleting so we can clean up Cloudinary
-    const wish = await prisma.wishItem.findUnique({
+    // ponytail: ownership gate (see PUT above).
+    const target = await prisma.wishItem.findUnique({
       where: { id },
-      select: { imageUrl: true },
+      select: { coupleId: true, imageUrl: true },
     });
+    const deleterCoupleId = await getUserCoupleId(rateCheck.session.user.id);
+    if (!target || (target.coupleId !== null && target.coupleId !== deleterCoupleId)) {
+      return NextResponse.json({ error: "Wish tidak ditemukan" }, { status: 404 });
+    }
+
+    // Fetch imageUrl before deleting so we can clean up Cloudinary
+    const wish = target;
 
     await prisma.wishItem.delete({ where: { id } });
 

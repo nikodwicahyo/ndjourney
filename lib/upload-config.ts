@@ -22,10 +22,12 @@ export interface UploadConfig {
 }
 
 export const UploadConfig: UploadConfig = {
+  // ponytail: 5MB floor — 2MB chunks meant 50 serial round-trips for 100MB.
+  // (Cloudinary Content-Range uploads must stay serial; fewer, bigger chunks win.)
   CHUNK_SIZES: {
-    small: 2 * 1024 * 1024,
-    medium: 5 * 1024 * 1024,
-    large: 10 * 1024 * 1024,
+    small: 5 * 1024 * 1024,
+    medium: 10 * 1024 * 1024,
+    large: 20 * 1024 * 1024,
     xlarge: 20 * 1024 * 1024,
   },
   CHUNK_THRESHOLDS: {

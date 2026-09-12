@@ -1,9 +1,17 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { withAnonymousRateLimit } from "@/lib/rate-limit";
+import { safeTokenEqual } from "@/lib/api-body";
 
 export async function POST(request: Request) {
   try {
-    const { inviteToken } = await request.json();
+    // ponytail: single static secret — throttle per-IP or it's a brute-force oracle.
+    const rl = await withAnonymousRateLimit(request, { maxRequests: 10, windowSeconds: 900, keyPrefix: "invite" });
+    if (!rl.allowed) return rl.response ?? NextResponse.json({ error: "Terlalu banyak permintaan. Coba lagi nanti." }, { status: 429 });
+
+    const __b = await request.json().catch(() => null);
+    if (__b == null || typeof __b !== "object") return NextResponse.json({ error: "Body JSON tidak valid" }, { status: 400 });
+    const { inviteToken } = __b as { inviteToken?: string };
 
     const expectedToken = (process.env.INVITE_TOKEN || "").trim();
 
@@ -14,7 +22,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!expectedToken || inviteToken.trim() !== expectedToken) {
+    if (!expectedToken || !safeTokenEqual(inviteToken.trim(), expectedToken)) {
       return NextResponse.json(
         { error: "Token undangan tidak valid" },
         { status: 403 },

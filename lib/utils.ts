@@ -114,7 +114,17 @@ export function generateId(): string {
 
 export function isVideoUrl(url?: string | null): boolean {
   if (!url) return false;
-  return /\.(mp4|webm|mov|avi|mkv|m3u8)(\?|$)/i.test(url);
+  // ponytail: extension OR delivery path — Cloudinary video URLs are often
+  // extensionless (…/video/upload/v123/…), so the path marker must count.
+  return /\.(mp4|webm|mov|avi|mkv|m3u8)(\?|$)/i.test(url) || /\/video\/upload\//i.test(url);
+}
+
+// Still image a browser <img> can actually render (excludes HEIC/HEIF:
+// iPhone uploads browsers cannot decode → would show as broken card).
+export function isRenderableImageUrl(url?: string | null): boolean {
+  if (!url || !/^https?:\/\//i.test(url)) return false;
+  if (isVideoUrl(url)) return false;
+  return !/\.(heic|heif)(\?|$)/i.test(url);
 }
 
 export function getInitials(name: string): string {

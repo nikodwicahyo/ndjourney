@@ -56,8 +56,8 @@ export function useRealtimeSync(coupleId: string | undefined) {
           queryClient.invalidateQueries({ queryKey: queryKeys.games.leaderboard(), refetchType: 'all' });
           // Arcade leaderboards (per-type keys are prefixed by the arcade prefix).
           queryClient.invalidateQueries({ queryKey: queryKeys.games.arcadeLeaderboardPrefix, refetchType: 'all' });
-          // Merged "Semua" tab (note: key does not start with "games").
-          queryClient.invalidateQueries({ queryKey: ["leaderboard", "all-qa"], refetchType: 'all' });
+          // Merged "Semua" tab (canonical key in queryKeys).
+          queryClient.invalidateQueries({ queryKey: queryKeys.games.mergedQaLeaderboard(), refetchType: 'all' });
           break;
         case 'GAMES_QUESTIONS':
           // Literal prefix (not queryKeys.games.questions()) — the factory

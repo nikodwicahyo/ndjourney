@@ -5,8 +5,13 @@ let client: PusherClient | null = null;
 export function getPusherClient(): PusherClient {
   if (client) return client;
 
-  client = new PusherClient(process.env.NEXT_PUBLIC_PUSHER_APP_KEY!, {
-    cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
+  const key = process.env.NEXT_PUBLIC_PUSHER_APP_KEY;
+  const cluster = process.env.NEXT_PUBLIC_PUSHER_CLUSTER;
+  if (!key || !cluster) {
+    throw new Error("Pusher env missing (NEXT_PUBLIC_PUSHER_APP_KEY / NEXT_PUBLIC_PUSHER_CLUSTER)");
+  }
+  client = new PusherClient(key, {
+    cluster,
     forceTLS: true,
     authEndpoint: '/api/pusher/auth',
   });

@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
+import { fetchJsonList } from "@/lib/fetch-json";
 import type { Letter, User, LetterMood } from "@/types";
 
 export type LetterWithUsers = Letter & {
@@ -43,9 +44,7 @@ export function useLetters(type: LetterListType) {
   return useQuery({
     queryKey: letterKeys.list(type),
     queryFn: async () => {
-      const res = await fetch(`/api/letters?type=${type}`);
-      const json = await res.json();
-      return (json.data ?? []) as LetterWithUsers[];
+      return fetchJsonList<LetterWithUsers>(`/api/letters?type=${type}`);
     },
     staleTime: 30_000,
   });
@@ -56,8 +55,9 @@ export function useLetter(id: string) {
     queryKey: letterKeys.detail(id),
     queryFn: async () => {
       const res = await fetch(`/api/letters/${id}`);
-      if (!res.ok) return null;
-      const json = await res.json();
+      if (res.status === 404) return null;
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error ?? `Gagal memuat surat (${res.status})`);
       return (json.data ?? null) as LetterWithUsers | null;
     },
     enabled: !!id,

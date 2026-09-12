@@ -149,9 +149,9 @@ export function useDeletePhoto() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: photoKeys.all, refetchType: 'all' });
       qc.invalidateQueries({ queryKey: albumKeys.all, refetchType: 'all' });
-      qc.invalidateQueries({ queryKey: ["storage", "usage"], refetchType: 'all' });
-      qc.invalidateQueries({ queryKey: ["dashboard", "stats"], refetchType: 'all' });
-      qc.invalidateQueries({ queryKey: ["dashboard", "activity"], refetchType: 'all' });
+      qc.invalidateQueries({ queryKey: queryKeys.storage.usage(), refetchType: 'all' });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats(), refetchType: 'all' });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.activity(), refetchType: 'all' });
     },
   });
 }
@@ -191,9 +191,9 @@ export function useUploadPhoto() {
     onSuccess: () => {
       // refetchType: "all" forces a fresh fetch even within stale time
       qc.invalidateQueries({ queryKey: photoKeys.all, refetchType: "all" });
-      qc.invalidateQueries({ queryKey: ["storage", "usage"], refetchType: "all" });
-      qc.invalidateQueries({ queryKey: ["dashboard", "stats"], refetchType: "all" });
-      qc.invalidateQueries({ queryKey: ["dashboard", "activity"], refetchType: "all" });
+      qc.invalidateQueries({ queryKey: queryKeys.storage.usage(), refetchType: "all" });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats(), refetchType: "all" });
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard.activity(), refetchType: "all" });
     },
   });
 }
@@ -224,8 +224,9 @@ export function useAlbums() {
     queryKey: albumKeys.list(),
     queryFn: async () => {
       const res = await fetch("/api/albums");
-      const json = await res.json();
-      return json.data as AlbumWithCount[];
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error ?? `Gagal memuat album (${res.status})`);
+      return (json.data ?? []) as AlbumWithCount[];
     },
     staleTime: 60_000,
   });

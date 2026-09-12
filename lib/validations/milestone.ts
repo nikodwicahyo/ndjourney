@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { parseJakartaDateOnly } from "@/lib/date";
+import { httpUrl } from "./http-url";
 
 const dateOnlyString = z
   .string()
@@ -7,9 +8,9 @@ const dateOnlyString = z
   .refine((v) => parseJakartaDateOnly(v) !== null, "Tanggal tidak valid");
 
 const photoUploadSchema = z.object({
-  url: z.string().url(),
+  url: httpUrl(),
   publicId: z.string().min(1),
-  thumbnailUrl: z.string().url().optional(),
+  thumbnailUrl: httpUrl().optional(),
 });
 
 export const createMilestoneSchema = z.object({

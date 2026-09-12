@@ -35,7 +35,7 @@ async function getGallerySummary() {
     const cached = await getCached<{
       photoCount: number;
       videoCount: number;
-      latestPhotos: Array<{ id: string; url: string; caption: string | null; takenAt: string | null; isVideo: boolean }>;
+      latestPhotos: Array<{ id: string; url: string; caption: string | null; takenAt: string | null; isVideo: boolean; isPublic: boolean }>;
     } | null>(cacheKey("home", "gallery"));
     if (cached) return cached;
 
@@ -46,16 +46,16 @@ async function getGallerySummary() {
           (SELECT COUNT(*) FROM "Photo" WHERE "isVideo" = true AND "isMilestoneOnly" = false)::int AS "videoCount"
       `,
       prisma.photo.findMany({
-        where: { isMilestoneOnly: false },
+        where: { isMilestoneOnly: false, isPublic: true },
         orderBy: { createdAt: "desc" },
         take: 25,
-        select: { id: true, url: true, caption: true, takenAt: true, isVideo: true },
+        select: { id: true, url: true, caption: true, takenAt: true, isVideo: true, isPublic: true },
       }),
       prisma.photo.findMany({
-        where: { isMilestoneOnly: false },
+        where: { isMilestoneOnly: false, isPublic: true },
         orderBy: { createdAt: "asc" },
         take: 25,
-        select: { id: true, url: true, caption: true, takenAt: true, isVideo: true },
+        select: { id: true, url: true, caption: true, takenAt: true, isVideo: true, isPublic: true },
       }),
     ]);
 
@@ -66,6 +66,7 @@ async function getGallerySummary() {
       caption: string | null;
       takenAt: Date | null;
       isVideo: boolean;
+      isPublic: boolean;
     }> = [];
     const maxLen = Math.max(latestPhotos.length, oldestPhotos.length);
     for (let i = 0; i < maxLen; i++) {

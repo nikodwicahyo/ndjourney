@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import dynamic from "next/dynamic";
 import GameSelector from "./GameSelector";
 import LeaderBoard from "@/components/dashboard/LeaderBoard";
+import ManagePageButton from "@/components/layout/ManagePageButton";
 import { motion } from "framer-motion";
 import { ArrowLeft, Sparkles, Trophy, User } from "lucide-react";
 import { Skeleton, Button } from "@/components/ui";
@@ -151,14 +152,17 @@ export default function PublicGameClient() {
         </motion.div>
       ) : (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-          <div className="mb-8">
+          <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="mb-2 flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-primary" />
-              <h1 className="font-heading text-3xl">Fun Games</h1>
+              <div>
+                <h1 className="font-heading text-3xl">Fun Games</h1>
+                <p className="text-sm text-muted-foreground">
+                  Pilih permainan seru untuk dimainkan bersama pasangan
+                </p>
+              </div>
             </div>
-            <p className="text-sm text-muted-foreground">
-              Pilih permainan seru untuk dimainkan bersama pasangan
-            </p>
+            <ManagePageButton href="/dashboard/games" label="Kelola Games" />
           </div>
           <GameSelector
             onSelect={setSelected}

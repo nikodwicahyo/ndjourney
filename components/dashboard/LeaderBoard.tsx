@@ -100,7 +100,7 @@ export default function LeaderBoard() {
   });
 
   const allQa = useQuery({
-    queryKey: ["leaderboard", "all-qa"],
+    queryKey: queryKeys.games.mergedQaLeaderboard(),
     queryFn: (): Promise<LeaderEntry[]> =>
       fetchLeaderboard("/api/games/leaderboard"),
     staleTime: 30_000,

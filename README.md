@@ -118,10 +118,10 @@ npm install
 ### 2. Configure environment
 
 ```bash
-cp .env.example .env.local
+cp .env.example .env
 ```
 
-Edit `.env.local` and fill in all required values — see [Environment Variables](#-environment-variables) below.
+Edit `.env` and fill in all required values — see [Environment Variables](#-environment-variables) below.
 
 ### 3. Set up the database
 
@@ -224,7 +224,7 @@ npm run db:push
 # Create migration
 npm run db:migrate
 
-# Seed sample data
+# Seed sample data (wajib set SEED_PASSWORD min 12 karakter di .env)
 npm run db:seed
 
 # Open Prisma Studio

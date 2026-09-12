@@ -23,19 +23,26 @@ async function request<T>(
     };
 
     const controller = new AbortController();
-    const signal = options?.signal || controller.signal;
+    // ponytail: honour caller signal AND our timeout (old code aborted an unused controller).
+    const signal = options?.signal
+      ? typeof AbortSignal.any === "function"
+        ? AbortSignal.any([options.signal, controller.signal])
+        : options.signal
+      : controller.signal;
 
     const timeoutId = setTimeout(() => controller.abort(), 30000);
-
-    const res = await fetch(url, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-      signal,
-      cache: options?.cache,
-    });
-
-    clearTimeout(timeoutId);
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined,
+        signal,
+        cache: options?.cache,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     let json: T | ApiErrorResponse | null = null;
     try {
@@ -83,18 +90,25 @@ export const api = {
   upload: async <T>(url: string, formData: FormData, options?: { signal?: AbortSignal }): Promise<ApiResponse<T>> => {
     try {
       const controller = new AbortController();
-      const signal = options?.signal || controller.signal;
+      const signal =
+        options?.signal && typeof AbortSignal.any === "function"
+          ? AbortSignal.any([options.signal, controller.signal])
+          : (options?.signal ?? controller.signal);
       const timeoutId = setTimeout(() => controller.abort(), 60000);
 
-      const res = await fetch(url, {
-        method: "POST",
-        body: formData,
-        signal,
-      });
+      let res: Response;
+      try {
+        res = await fetch(url, {
+          method: "POST",
+          body: formData,
+          signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
-      clearTimeout(timeoutId);
-
-      const json = await res.json();
+      // ponytail: empty/204/non-JSON must not throw here.
+      const json = await res.json().catch(() => null);
 
       if (!res.ok) {
         return {

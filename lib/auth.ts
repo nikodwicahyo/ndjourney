@@ -40,21 +40,48 @@ export async function ensureCouple(userId: string): Promise<void> {
     });
 
     if (existingCoupleMember) {
-      await prisma.coupleMember.create({
-        data: { coupleId: existingCoupleMember.coupleId, userId },
-      });
+      // ponytail: idempotent join — concurrent logins hit P2002, treat as success.
+      try {
+        await prisma.coupleMember.create({
+          data: { coupleId: existingCoupleMember.coupleId, userId },
+        });
+      } catch (e: unknown) {
+        if ((e as { code?: string })?.code !== "P2002") throw e;
+      }
       return;
     }
 
-    await prisma.$transaction(async (tx) => {
-      const couple = await tx.couple.create({ data: {} });
-      await tx.coupleMember.createMany({
-        data: allPartners.map((p) => ({
-          coupleId: couple.id,
-          userId: p.id,
-        })),
+    try {
+      await prisma.$transaction(async (tx) => {
+        const couple = await tx.couple.create({ data: {} });
+        await tx.coupleMember.createMany({
+          data: allPartners.map((p) => ({
+            coupleId: couple.id,
+            userId: p.id,
+          })),
+          skipDuplicates: true,
+        });
       });
-    });
+    } catch (e: unknown) {
+      // Lost the race: someone else created the couple — rejoin it.
+      if ((e as { code?: string })?.code === "P2002") {
+        const retry = await prisma.coupleMember.findFirst({
+          where: { userId: { in: allPartners.map((p) => p.id) } },
+          select: { coupleId: true },
+        });
+        if (retry) {
+          try {
+            await prisma.coupleMember.create({
+              data: { coupleId: retry.coupleId, userId },
+            });
+          } catch (e2: unknown) {
+            if ((e2 as { code?: string })?.code !== "P2002") throw e2;
+          }
+        }
+        return;
+      }
+      throw e;
+    }
   } catch (error) {
     console.error("ensureCouple error:", error);
   }
@@ -90,7 +117,10 @@ if (originalGetSessionAndUser) {
     const result = await originalGetSessionAndUser(sessionToken);
     if (result) {
       try {
-        await setCached(cacheK, result, 1800); // Cache for 30 minutes (1800s)
+        // ponytail: strip sensitive fields before caching — adapter user rows
+        // can carry password hashes; Redis must never hold them.
+        const { password: _pw, ...safeUser } = result.user as unknown as Record<string, unknown>;
+        await setCached(cacheK, { session: result.session, user: safeUser }, 1800); // Cache for 30 minutes (1800s)
       } catch (e) {
         console.error("Session cache write error:", e);
       }
@@ -114,7 +144,10 @@ if (originalUpdateSession) {
             );
           }
         }
-      }).catch(() => {});
+      }).catch((e: unknown) => {
+        // ponytail: never swallow silently — session still returns, but log it.
+        console.error("Session cache update invalidation error:", e);
+      });
     }
     return resultPromise;
   };

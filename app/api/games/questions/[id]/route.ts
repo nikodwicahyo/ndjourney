@@ -17,8 +17,14 @@ export async function PUT(
     }
 
     const { id } = await params;
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
+    if (body == null) return NextResponse.json({ error: "Body JSON tidak valid" }, { status: 400 });
     const parsed = updateQuestionSchema.safeParse(body);
+
+    // ponytail: shared bank curated by couple members only (see POST gate).
+    if (!(await getUserCoupleId(rateCheck.session.user.id))) {
+      return NextResponse.json({ error: "Pasangan belum ditemukan" }, { status: 403 });
+    }
 
     if (!parsed.success) {
       return NextResponse.json(
@@ -70,6 +76,11 @@ export async function DELETE(
     }
 
     const { id } = await params;
+
+    // ponytail: shared bank curated by couple members only (see PUT gate).
+    if (!(await getUserCoupleId(rateCheck.session.user.id))) {
+      return NextResponse.json({ error: "Pasangan belum ditemukan" }, { status: 403 });
+    }
 
     // Check for existing scores
     const scoreCount = await prisma.gameScore.count({ where: { questionId: id } });

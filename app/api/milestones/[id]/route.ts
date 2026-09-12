@@ -107,7 +107,8 @@ export async function PUT(
       return NextResponse.json({ error: "Kamu tidak punya akses untuk mengubah milestone ini" }, { status: 403 });
     }
 
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
+    if (body == null) return NextResponse.json({ error: "Body JSON tidak valid" }, { status: 400 });
     const parsed = updateMilestoneSchema.safeParse(body);
 
     if (!parsed.success) {

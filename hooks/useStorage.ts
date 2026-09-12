@@ -15,7 +15,10 @@ export function useStorageUsage() {
       const json = await res.json();
       return json.data as CloudinaryUsage;
     },
-    staleTime: 0,
-    refetchInterval: 30_000,
+    // ponytail: usage changes only on upload/delete (pusher INVALIDATES then) —
+    // no 30s poll, no mount-storm on staleTime:0.
+    staleTime: 60_000,
+    refetchInterval: 120_000,
+    refetchIntervalInBackground: false,
   });
 }

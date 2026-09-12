@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { createLetterSchema } from "@/lib/validations/letter";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { getCached, setCached, invalidateCache, cacheKey } from "@/lib/redis";
@@ -88,7 +88,8 @@ export async function POST(request: Request) {
 
     const session = rateCheck.session;
 
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
+    if (body == null) return NextResponse.json({ error: "Body JSON tidak valid" }, { status: 400 });
     const parsed = createLetterSchema.safeParse(body);
 
     if (!parsed.success) {
@@ -158,21 +159,24 @@ export async function POST(request: Request) {
     if (!parsed.data.isTimeCapsule) {
       const recipient = userMap.get(letter.recipientId);
       if (recipient?.email) {
-        const emailResult = await sendEmail({
-          to: recipient.email,
-          subject: `💌 Surat Baru dari ${session.user.name || "Pasangan"}!`,
-          html: letterNotificationHtml(
-            session.user.name || "Pasangan",
-            letter.title,
-            `${process.env.NEXTAUTH_URL}/letters/${letter.id}`,
-          ),
+        // ponytail: after() keeps the 201 fast AND guarantees delivery —
+        // plain fire-and-forget can be dropped when serverless freezes.
+        const to = recipient.email;
+        const subject = `💌 Surat Baru dari ${session.user.name || "Pasangan"}!`;
+        const html = letterNotificationHtml(
+          session.user.name || "Pasangan",
+          letter.title,
+          `${process.env.NEXTAUTH_URL}/letters/${letter.id}`,
+        );
+        const letterId = letter.id;
+        after(async () => {
+          try {
+            const r = await sendEmail({ to, subject, html });
+            if (r?.error) console.error(`Failed to send letter notification for letter ${letterId}:`, r.error);
+          } catch (e) {
+            console.error(`Failed to send letter notification for letter ${letterId}:`, e);
+          }
         });
-        if (emailResult?.error) {
-          console.error(
-            `Failed to send letter notification to ${recipient.email}:`,
-            emailResult.error,
-          );
-        }
       }
     }
 

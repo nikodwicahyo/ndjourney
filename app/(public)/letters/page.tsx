@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import PublicLetterInbox from "@/components/letters/PublicLetterInbox";
+import ManagePageButton from "@/components/layout/ManagePageButton";
 import PageTransition from "@/components/PageTransition";
 
 export const metadata: Metadata = { title: "Letters" };
@@ -10,11 +11,14 @@ export const dynamic = "force-dynamic";
 export default function PublicLettersPage() {
   return (
     <PageTransition>
-      <div className="mb-8">
-        <h1 className="font-heading text-xl sm:text-2xl lg:text-3xl break-words">Love Letters 💌</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Surat cinta untuk pasanganmu
-        </p>
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="font-heading text-xl sm:text-2xl lg:text-3xl break-words">Love Letters 💌</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Surat cinta untuk pasanganmu
+          </p>
+        </div>
+        <ManagePageButton href="/dashboard/letters" label="Kelola Surat" />
       </div>
 
       <Suspense

@@ -37,11 +37,26 @@ let globalLastPostTime = 0;
 let globalRetryCount = 0;
 let globalPingTimer: ReturnType<typeof setTimeout> | null = null;
 let globalKeepAliveTimer: ReturnType<typeof setTimeout> | null = null;
+// ponytail: track retry timers so stopWatching() actually stops posting.
+let globalRetryTimers: Set<ReturnType<typeof setTimeout>> = new Set();
 
 function setGlobalStatus(status: ShareStatus) {
   if (globalStatus === status) return;
   globalStatus = status;
   globalStatusListeners.forEach((fn) => fn(status));
+}
+
+function scheduleRetry(fn: () => void, ms: number) {
+  const t = setTimeout(() => {
+    globalRetryTimers.delete(t);
+    fn();
+  }, ms);
+  globalRetryTimers.add(t);
+}
+
+function clearRetries() {
+  for (const t of globalRetryTimers) clearTimeout(t);
+  globalRetryTimers.clear();
 }
 
 async function postLocation(
@@ -83,12 +98,18 @@ async function postLocation(
       setGlobalStatus("idle");
     } else if (globalRetryCount < MAX_RETRIES) {
       globalRetryCount++;
-      setTimeout(() => void postLocation(payload, qc, force), 1000 * globalRetryCount);
+      scheduleRetry(() => void postLocation(payload, qc, force), 1000 * globalRetryCount);
+      setGlobalStatus("recovering");
+    } else {
+      setGlobalStatus("recovering");
     }
   } catch {
     if (globalRetryCount < MAX_RETRIES) {
       globalRetryCount++;
-      setTimeout(() => void postLocation(payload, qc, force), 1000 * globalRetryCount);
+      scheduleRetry(() => void postLocation(payload, qc, force), 1000 * globalRetryCount);
+      setGlobalStatus("recovering");
+    } else {
+      setGlobalStatus("recovering");
     }
   }
 }
@@ -131,7 +152,11 @@ function pingGps(qc: ReturnType<typeof useQueryClient>) {
       const payload = makePayload(pos);
       postIfBetter(payload, qc);
     },
-    () => {},
+    (err) => {
+      // ponytail: surface geolocation failures instead of silent ()=>{}.
+      if (err.code === err.PERMISSION_DENIED) setGlobalStatus("denied");
+      else setGlobalStatus("recovering");
+    },
     { enableHighAccuracy: true, maximumAge: 0, timeout: 8000 },
   );
 }
@@ -172,7 +197,10 @@ function startWatching(qc: ReturnType<typeof useQueryClient>) {
       setGlobalStatus("sharing");
       void postLocation(payload, qc);
     },
-    () => {},
+    (err) => {
+      if (err.code === err.PERMISSION_DENIED) setGlobalStatus("denied");
+      else setGlobalStatus("recovering");
+    },
     { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 },
   );
 
@@ -212,6 +240,7 @@ function stopWatching() {
     clearTimeout(globalKeepAliveTimer);
     globalKeepAliveTimer = null;
   }
+  clearRetries();
   globalRetryCount = 0;
   globalLastPostPayload = null;
   globalLastPostTime = 0;

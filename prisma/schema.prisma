@@ -30,6 +30,8 @@ model User {
   milestones      Milestone[]
   photos          Photo[]
   sessions        Session[]
+
+  @@index([role])
 }
 
 model Account {
@@ -76,6 +78,7 @@ model Couple {
   milestones Milestone[]
   photos     Photo[]
   wishes     WishItem[]
+  albums     Album[]
   locationShares     LocationShare[]
   userLocations      UserLocation[]
   userLocationHistory UserLocationHistory[]
@@ -145,6 +148,8 @@ model Photo {
   @@index([albumId, createdAt])
   @@index([uploadedById, createdAt])
   @@index([isFavorite, createdAt])
+  @@index([coupleId, createdAt])
+  @@index([isMilestoneOnly, isVideo, createdAt])
 }
 
 model Album {
@@ -155,9 +160,12 @@ model Album {
   isPublic      Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  coupleId      String?
+  couple        Couple?  @relation(fields: [coupleId], references: [id])
   photos        Photo[]
 
   @@index([createdAt])
+  @@index([coupleId])
 }
 
 model Milestone {
@@ -219,6 +227,8 @@ model Letter {
   @@index([recipientId, isOpened, createdAt])
   @@index([authorId, createdAt])
   @@index([isTimeCapsule, isOpened, unlockAt])
+  @@index([coupleId])
+  @@index([isTimeCapsule, isOpened, notificationSentAt, unlockAt])
 }
 
 model DailyNote {
@@ -234,6 +244,7 @@ model DailyNote {
   @@index([authorId])
   @@index([date])
   @@index([date, authorId])
+  @@index([coupleId, date])
 }
 
 model GameQuestion {
@@ -266,6 +277,8 @@ model GameScore {
   @@index([questionId])
   @@index([userId, isCorrect])
   @@index([playerName])
+  @@unique([userId, questionId])
+  @@index([playerName, questionId])
 }
 
 model GameArcadeScore {

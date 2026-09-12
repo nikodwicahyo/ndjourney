@@ -12,11 +12,13 @@ import {
   PartyPopper,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { isRenderableImageUrl } from "@/lib/utils";
 
 type GalleryPhoto = {
   id: string;
   url: string;
   isVideo: boolean;
+  isPublic?: boolean;
 };
 
 type Card = {
@@ -29,6 +31,14 @@ type Card = {
 type MemoryMatchProps = {
   photos: GalleryPhoto[];
 };
+
+// ponytail: single gate — public images only, and only ones a browser can
+// actually render. isPublic missing (stale cache) counts as public, explicit
+// false is always excluded. Extensionless video URLs and HEIC must never
+// become broken cards.
+export function selectMemoryMatchImages(photos: GalleryPhoto[]): GalleryPhoto[] {
+  return photos.filter((p) => p.isPublic !== false && !p.isVideo && isRenderableImageUrl(p.url));
+}
 
 function shuffleArray<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -51,7 +61,7 @@ function initCards(selected: GalleryPhoto[]): Card[] {
 export default function MemoryMatch({ photos }: MemoryMatchProps) {
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-40px" });
-  const photoPool = useMemo(() => photos.filter((p) => !p.isVideo), [photos]);
+  const photoPool = useMemo(() => selectMemoryMatchImages(photos), [photos]);
   const [mounted, setMounted] = useState(false);
   const [cards, setCards] = useState<Card[]>([]);
 
@@ -172,6 +182,7 @@ export default function MemoryMatch({ photos }: MemoryMatchProps) {
     setWon(false);
     setElapsed(0);
     setJustMatched(null);
+    setImgErrors(new Set());
     lockRef.current = false;
     startTimeRef.current = null;
     startedRef.current = false;

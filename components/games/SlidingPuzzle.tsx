@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSubmitArcadeScore } from "@/hooks/useGames";
+import { getOptimizedImageUrl } from "@/lib/cloudinary-urls";
 import { Button, Skeleton } from "@/components/ui";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -130,6 +131,26 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
   });
 
   const photoUrl = selectedPhoto?.thumbnailUrl || selectedPhoto?.url || "";
+
+  // ponytail: cap at 1024w once — was full-res original in 6 <img> tags.
+  const displayUrl = useMemo(() => {
+    if (!photoUrl) return "";
+    try {
+      return getOptimizedImageUrl(photoUrl, 1024, { crop: "limit" });
+    } catch {
+      return photoUrl;
+    }
+  }, [photoUrl]);
+
+  const thumbOf = useCallback((p: Photo) => {
+    const raw = p.thumbnailUrl || p.url;
+    if (!raw) return "";
+    try {
+      return getOptimizedImageUrl(raw, 400, { crop: "limit" });
+    } catch {
+      return raw;
+    }
+  }, []);
 
   const startSamePuzzle = useCallback(() => {
     const shuffled = shuffleTiles(gridSize);
@@ -283,10 +304,11 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
                 className="group relative aspect-square overflow-hidden rounded-xl border-2 border-border bg-muted transition-all hover:border-pink-400 hover:shadow-md"
               >
                 <img
-                  src={photo.thumbnailUrl || photo.url}
+                  src={thumbOf(photo)}
                   alt={photo.caption || "Foto"}
                   className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                   loading="lazy"
+                  decoding="async"
                 />
                 <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/20">
                   <Heart className="h-6 w-6 text-white opacity-0 transition-opacity group-hover:opacity-100" />
@@ -313,9 +335,11 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
 
         <div className="mb-6 overflow-hidden rounded-2xl border-2 border-border">
           <img
-            src={photoUrl}
+            src={displayUrl}
             alt="Preview"
             className="h-48 w-full object-cover"
+            loading="lazy"
+            decoding="async"
           />
         </div>
 
@@ -413,9 +437,11 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
         >
           <div className="mb-4 overflow-hidden rounded-2xl border-2 border-border">
             <img
-              src={photoUrl}
+              src={displayUrl}
               alt="Selesai"
               className="h-48 w-full object-cover"
+              loading="lazy"
+              decoding="async"
             />
           </div>
           <div className="grid grid-cols-3 gap-4">
@@ -515,9 +541,11 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
         >
           <div className="mb-4 overflow-hidden rounded-2xl border-2 border-border opacity-60">
             <img
-              src={photoUrl}
+              src={displayUrl}
               alt="Gagal"
               className="h-48 w-full object-cover"
+              loading="lazy"
+              decoding="async"
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -578,9 +606,11 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
             title="Lihat foto target"
           >
             <img
-              src={photoUrl}
+              src={displayUrl}
               alt="Target"
               className="h-full w-full object-cover"
+              loading="lazy"
+              decoding="async"
             />
             <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/30">
               <Eye className="h-4 w-4 text-white opacity-0 transition-opacity group-hover:opacity-100" />
@@ -652,7 +682,7 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
                 height: tileItemH,
                 left: posLeft,
                 top: posTop,
-                backgroundImage: `url(${photoUrl})`,
+                backgroundImage: `url(${displayUrl})`,
                 backgroundSize: `${gridSize * 100}%`,
                 backgroundPosition: bgPos(origCol, origRow, gridSize),
                 transition: isSwapping
@@ -736,7 +766,7 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
               className="mx-4 max-w-lg overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
             >
               <img
-                src={photoUrl}
+                src={displayUrl}
                 alt="Preview"
                 className="aspect-square w-full object-cover"
               />

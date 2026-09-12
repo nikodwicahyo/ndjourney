@@ -406,8 +406,12 @@ export class UploadQueue {
     this.isProcessing = true;
     try {
       while (this.activeCount < this.options.maxConcurrency) {
+        // ponytail: retrying tasks with a pending backoff timer are NOT eligible —
+        // the timer (or retryAllEligible) owns them. Picking them here double-executes.
         const nextTask = this.queue.find(
-          (t) => t.upload.status === "pending" || t.upload.status === "retrying"
+          (t) =>
+            t.upload.status === "pending" ||
+            (t.upload.status === "retrying" && !this.boundRetryTimers.has(t.upload.id))
         );
         if (!nextTask) break;
 

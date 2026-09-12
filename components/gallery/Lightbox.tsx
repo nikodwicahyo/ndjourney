@@ -543,7 +543,7 @@ function Lightbox({
           </div>
         </div>
 
-        <div className="flex flex-1 items-center justify-center gap-1 overflow-hidden">
+        <div className="flex flex-1 justify-center gap-1 overflow-hidden">
           {!isZoomed && (
           <div
             onClick={handlePrev}

@@ -264,9 +264,10 @@ function Lightbox({
   const clampScale = (s: number) =>
     Math.min(MAX_ZOOM, Math.max(1, Math.round(s * 100) / 100));
 
-  // Zoom to `newScale` keeping the content point under (clientX, clientY)
-  // exactly where it is. Snap back to center when landing on 1x.
-  const zoomAt = useCallback((clientX: number, clientY: number, newScale: number) => {
+  // Zoom to `newScale`. Default keeps the content point under
+  // (clientX, clientY) exactly where it is; with `toCenter`, that point
+  // glides to the middle of the screen instead. Snap back to center on 1x.
+  const zoomAt = useCallback((clientX: number, clientY: number, newScale: number, toCenter = false) => {
     const box = mediaBoxRef.current;
     if (!box) return;
     const rect = box.getBoundingClientRect();
@@ -275,8 +276,10 @@ function Lightbox({
     const v = viewRef.current;
     const s = clampScale(newScale);
     const k = s / v.s;
-    let tx = px - (px - v.tx) * k;
-    let ty = py - (py - v.ty) * k;
+    const ax = toCenter ? rect.width / 2 : px;
+    const ay = toCenter ? rect.height / 2 : py;
+    let tx = ax - (px - v.tx) * k;
+    let ty = ay - (py - v.ty) * k;
     if (s <= 1) {
       tx = 0;
       ty = 0;
@@ -371,12 +374,13 @@ function Lightbox({
         setPanning(false);
         const tap = tapRef.current;
         tapRef.current = null;
-        // Clean tap on the photo toggles a quick 2x peek (wheel/pinch go deeper).
+        // Clean tap on the photo toggles a quick 2x peek centered on the
+        // tap point (wheel/pinch stay anchored instead).
         if (tap && Date.now() - tap.t < 500 && (e.target as HTMLElement).closest("img")) {
           if (viewRef.current.s > 1) {
             resetView();
           } else {
-            zoomAt(e.clientX, e.clientY, 2);
+            zoomAt(e.clientX, e.clientY, 2, true);
           }
         }
       }

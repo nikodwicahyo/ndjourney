@@ -54,12 +54,14 @@ export default function AlbumDropdown({
       >
         <Folder className="h-3.5 w-3.5 shrink-0" />
         <span className="truncate">{selected ? selected.name : placeholder}</span>
-        <ChevronDown
-          className={cn(
-            "ml-auto h-3 w-3 shrink-0 transition-transform",
-            open && "rotate-180",
-          )}
-        />
+        <span className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted">
+          <ChevronDown
+            className={cn(
+              "h-3 w-3 text-foreground transition-transform",
+              open && "rotate-180",
+            )}
+          />
+        </span>
       </button>
 
       {open && (

@@ -146,12 +146,14 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
               {albumCount}
             </span>
           )}
-          <ChevronDown
-            className={cn(
-              "h-4 w-4 shrink-0 text-white transition-transform duration-200",
-              isOpen && "rotate-180"
-            )}
-          />
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted">
+            <ChevronDown
+              className={cn(
+                "h-4 w-4 text-foreground transition-transform duration-200",
+                isOpen && "rotate-180"
+              )}
+            />
+          </span>
         </button>
         <Button
           size="sm"
@@ -312,7 +314,7 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
                             </button>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={saveEdit}
                             disabled={!editName.trim() || updateAlbum.isPending}

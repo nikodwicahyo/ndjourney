@@ -243,7 +243,7 @@ export default function StorageUsageBar({
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted">
             <ChevronDown
               className={cn(
-                "h-4 w-4 text-muted-foreground transition-transform duration-200",
+                "h-4 w-4 text-foreground transition-transform duration-200",
                 isOpen && "rotate-180"
               )}
             />

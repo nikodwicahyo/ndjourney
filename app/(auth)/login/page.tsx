@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
+import { ArrowLeft } from "lucide-react";
 import LoginForm from "@/components/auth/LoginForm";
 import AuthReasonAlert from "@/components/auth/AuthReasonAlert";
 import PageTransition from "@/components/PageTransition";
@@ -49,9 +50,10 @@ export default async function LoginPage({ searchParams }: Props) {
         <div className="text-center">
           <Link
             href="/"
-            className="text-xs text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground"
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground"
           >
-            ⬅️ Kembali ke Beranda
+            <ArrowLeft className="h-3 w-3" />
+            Kembali ke Beranda
           </Link>
         </div>
       </div>

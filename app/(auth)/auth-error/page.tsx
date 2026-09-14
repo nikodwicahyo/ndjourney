@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { ShieldAlert, Timer, Ban, LogIn, Home, KeyRound, UserX } from "lucide-react";
+import { ShieldAlert, Timer, Ban, LogIn, ArrowLeft, KeyRound, UserX } from "lucide-react";
 import PageTransition from "@/components/PageTransition";
 
 type Props = {
@@ -143,7 +143,7 @@ export default async function AuthErrorPage({ searchParams }: Props) {
                   href="/"
                   className="inline-flex items-center justify-center gap-2 rounded-xl border border-border px-5 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 >
-                  <Home className="h-4 w-4" />
+                  <ArrowLeft className="h-4 w-4" />
                   Kembali ke Beranda
                 </Link>
               </div>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import { ArrowLeft } from "lucide-react";
 import PageTransition from "@/components/PageTransition";
 
 const RegisterForm = dynamic(
@@ -41,6 +42,7 @@ export default async function InvitePage({
                 href="/"
                 className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl border border-border px-5 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
               >
+                <ArrowLeft className="h-4 w-4" />
                 Kembali ke Beranda
               </Link>
             </div>
@@ -78,9 +80,10 @@ export default async function InvitePage({
         <div className="text-center">
           <Link
             href="/"
-            className="text-xs text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground"
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground"
           >
-            ⬅️ Kembali ke Beranda
+            <ArrowLeft className="h-3 w-3" />
+            Kembali ke Beranda
           </Link>
         </div>
       </div>

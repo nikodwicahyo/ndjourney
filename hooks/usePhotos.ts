@@ -7,6 +7,7 @@ import {
   useInfiniteQuery,
 } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query-keys";
+import { toast } from "sonner";
 import type { Photo, AlbumWithCount } from "@/types";
 import { useUploadPhotos as useNewUploadPhotos } from "./useUpload";
 
@@ -108,11 +109,23 @@ export function useUpdatePhoto() {
       });
       return { previousQueries };
     },
-    onError: (_err, _vars, context) => {
+    onError: (_err, vars, context) => {
       if (context?.previousQueries) {
         for (const [key, data] of context.previousQueries) {
           qc.setQueryData(key, data);
         }
+      }
+      // ponytail: toast here (not per caller) so every favorite/visibility icon
+      // agrees — albumId/caption callers (e.g. move dropdown) keep their own toasts.
+      if ("isFavorite" in vars || "isPublic" in vars) {
+        toast.error("Gagal mengubah media");
+      }
+    },
+    onSuccess: (_data, vars) => {
+      if ("isFavorite" in vars && vars.isFavorite !== undefined) {
+        toast.success(vars.isFavorite ? "Ditambahkan ke favorit" : "Dihapus dari favorit");
+      } else if ("isPublic" in vars && vars.isPublic !== undefined) {
+        toast.success(vars.isPublic ? "Media dijadikan publik" : "Media dijadikan privat");
       }
     },
     onSettled: () => {
@@ -242,8 +255,8 @@ export function useCreateAlbum() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Gagal membuat album");
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error || `Gagal membuat album (${res.status})`);
       return json.data;
     },
     onSuccess: () => {

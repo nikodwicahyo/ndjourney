@@ -56,7 +56,7 @@ export default function GalleryManager() {
   const [albumFilter, setAlbumFilter] = useState<string | undefined>();
   const [favoriteFilter, setFavoriteFilter] = useState(false);
   const [visibilityFilter, setVisibilityFilter] = useState<"public" | "private">("public");
-  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = usePhotos({ limit: 30, mediaType, sort, albumId: albumFilter, isFavorite: favoriteFilter || undefined, visibility: visibilityFilter === "private" ? "private" : undefined });
+  const { data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = usePhotos({ limit: 30, mediaType, sort, albumId: albumFilter, isFavorite: favoriteFilter || undefined, visibility: visibilityFilter === "private" ? "private" : undefined });
   const { data: storage, refetch: refetchStorage, isFetching: isFetchingStorage } = useStorageUsage();
   const uploadPhotos = useUploadPhotos();
   const deletePhoto = useDeletePhoto();
@@ -131,9 +131,8 @@ export default function GalleryManager() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [mediaType, sort, albumFilter, favoriteFilter]);
+  // ponytail: no scroll-to-top on filter change — browser keeps exact
+  // position natively; short results just clamp to max scroll height.
 
   const toReadingOrder = useCallback(function <T>(items: T[], cols: number) {
     const rows = Math.ceil(items.length / cols);
@@ -807,6 +806,14 @@ export default function GalleryManager() {
                 <div className="aspect-[3/4] w-full animate-pulse rounded-2xl bg-muted" />
               </div>
             ))}
+          </div>
+        ) : isError ? (
+          <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+            <FileWarning className="h-10 w-10 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Gagal memuat media. Coba lagi.</p>
+            <Button size="sm" variant="outline" onClick={() => refetch()}>
+              Muat ulang
+            </Button>
           </div>
         ) : photos.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">

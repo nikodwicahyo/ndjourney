@@ -89,17 +89,30 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json().catch(() => null);
-    if (body == null) return NextResponse.json({ error: "Body JSON tidak valid" }, { status: 400 });
-    const parsed = createAlbumSchema.safeParse(body);
+    if (body == null || typeof body !== "object") return NextResponse.json({ error: "Body JSON tidak valid", code: "BAD_JSON" }, { status: 400 });
+    // ponytail: trim here so "   " fails Zod min(1) instead of creating a blank album.
+    const normalized = {
+      ...body,
+      name: typeof body.name === "string" ? body.name.trim() : body.name,
+      description:
+        typeof body.description === "string"
+          ? body.description.trim() || undefined
+          : body.description,
+    };
+    const parsed = createAlbumSchema.safeParse(normalized);
 
     if (!parsed.success) {
       return NextResponse.json(
-        { error: parsed.error.issues[0]?.message || "Data album tidak valid" },
+        { error: parsed.error.issues[0]?.message || "Data album tidak valid", code: "VALIDATION" },
         { status: 400 },
       );
     }
 
-    const creatorCoupleId = await getUserCoupleId(rateCheck.session.user.id);
+    const userId = rateCheck.session?.user?.id;
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
+    }
+    const creatorCoupleId = await getUserCoupleId(userId);
 
     const album = await prisma.album.create({
       data: { ...parsed.data, coupleId: creatorCoupleId },
@@ -123,8 +136,35 @@ export async function POST(request: Request) {
     return NextResponse.json({ data: album }, { status: 201 });
   } catch (error) {
     console.error("Error creating album:", error);
+    const code = (error as { code?: string })?.code;
+    // ponytail: map known Prisma failures so client can retry/redirect correctly.
+    if (code === "P2002") {
+      return NextResponse.json(
+        { error: "Album dengan nama tersebut sudah ada.", code },
+        { status: 409 },
+      );
+    }
+    if (code === "P2025") {
+      return NextResponse.json(
+        { error: "Data terkait tidak ditemukan.", code },
+        { status: 404 },
+      );
+    }
+    if (code && /^P1(001|002|008|017|019|020)$/.test(code)) {
+      return NextResponse.json(
+        { error: "Database tidak dapat dijangkau. Coba lagi nanti.", code },
+        { status: 503 },
+      );
+    }
+    // ponytail: P2022 = schema drift (e.g. migration not deployed) — 503, never generic 500.
+    if (code === "P2022") {
+      return NextResponse.json(
+        { error: "Layanan sedang penyesuaian database. Coba lagi nanti.", code },
+        { status: 503 },
+      );
+    }
     return NextResponse.json(
-      { error: "Terjadi kesalahan pada server. Coba lagi nanti." },
+      { error: "Terjadi kesalahan pada server. Coba lagi nanti.", code: "INTERNAL" },
       { status: 500 },
     );
   }

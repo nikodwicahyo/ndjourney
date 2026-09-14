@@ -144,7 +144,9 @@ export function useUploadPhotos(): UseUploadPhotosReturn {
       );
       setQueue(uploadQueue.getAll());
 
-      const savePromises = uploadPromises.map(async (promise, idx) => {
+      // ponytail: saves run max 3-at-a-time — 20-way Promise.all exhausted
+      // the Neon pool (max 5) and the next album create 500/503d right after.
+      const saveTasks = uploadPromises.map((promise, idx) => async () => {
         const file = files[idx];
         let itemId: string | undefined;
         try {
@@ -165,7 +167,10 @@ export function useUploadPhotos(): UseUploadPhotosReturn {
         }
       });
 
-      const results = await Promise.all(savePromises);
+      const results: Awaited<ReturnType<(typeof saveTasks)[number]>>[] = [];
+      for (let i = 0; i < saveTasks.length; i += 3) {
+        results.push(...await Promise.all(saveTasks.slice(i, i + 3).map((t) => t())));
+      }
 
       const uploaded = results
         .filter((r): r is { status: "fulfilled"; value: Photo } => r.status === "fulfilled")

@@ -7,6 +7,7 @@ import { Plus, Loader2, X, Trash2, Pencil, Check, Globe, EyeOff, ChevronDown, Fo
 import { toast } from "sonner";
 import { showDeleteConfirm } from "@/lib/swal";
 import { cn } from "@/lib/utils";
+import { queryKeys } from "@/lib/query-keys";
 import type { AlbumWithCount } from "@/types";
 
 type Props = {
@@ -26,11 +27,12 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
   const [editIsPublic, setEditIsPublic] = useState(true);
 
   const { data: albums, isLoading } = useQuery({
-    queryKey: ["albums", "all"],
+    queryKey: queryKeys.albums.all,
     queryFn: async () => {
       const res = await fetch("/api/albums");
-      const json = await res.json();
-      return json.data as AlbumWithCount[];
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error || `Gagal memuat album (${res.status})`);
+      return (json?.data ?? []) as AlbumWithCount[];
     },
     staleTime: 60_000,
   });
@@ -44,12 +46,12 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Gagal membuat album");
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error || `Gagal membuat album (${res.status})`);
       return json.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["albums"] });
+      qc.invalidateQueries({ queryKey: queryKeys.albums.all });
       toast.success("Album dibuat! 📁");
       setShowForm(false);
       setName("");
@@ -76,12 +78,12 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, description: description || undefined, isPublic }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Gagal mengupdate album");
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error || `Gagal mengupdate album (${res.status})`);
       return json.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["albums"] });
+      qc.invalidateQueries({ queryKey: queryKeys.albums.all });
       toast.success("Album diubah");
       setEditingId(null);
       setEditName("");
@@ -96,7 +98,7 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
       if (!res.ok) throw new Error("Gagal menghapus album");
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["albums"] });
+      qc.invalidateQueries({ queryKey: queryKeys.albums.all });
       toast.success("Album dihapus");
     },
     onError: () => toast.error("Gagal menghapus album"),

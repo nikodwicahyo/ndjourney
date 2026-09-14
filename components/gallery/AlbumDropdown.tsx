@@ -75,6 +75,19 @@ export default function AlbumDropdown({
             {albums?.length === 0 && (
               <p className="px-3 py-2 text-xs text-muted-foreground">Belum ada album</p>
             )}
+            {/* ponytail: way back to unfiltered — without this, picking an album is one-way. */}
+            {!!value && (
+              <button
+                type="button"
+                onClick={() => {
+                  onChange("");
+                  setOpen(false);
+                }}
+                className="flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left text-xs font-medium text-foreground transition-colors hover:bg-accent"
+              >
+                <span className="truncate">{placeholder}</span>
+              </button>
+            )}
             {albums?.map((album) => (
               <button
                 key={album.id}

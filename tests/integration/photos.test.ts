@@ -59,6 +59,18 @@ describe("photos API contracts", () => {
     expect(body.hasMore).toBe(false);
   });
 
+  it("GAL-05c: GET with albumId binds one param per placeholder (no 08P01)", async () => {
+    prismaMock.$queryRawUnsafe
+      .mockResolvedValueOnce([{ id: "p1", createdAt: "2024-01-01T00:00:00.000Z" }])
+      .mockResolvedValueOnce([{ total: 1, fotoTotal: 1, videoTotal: 0 }]);
+    const res = await GET(new Request("http://localhost/api/photos?albumId=cmrm6skmr000004jtligbccin&limit=30"));
+    expect(res.status).toBe(200);
+    // 2nd call is the triple-subselect count query: every $n must have a bound param.
+    const [countSql, ...countParams] = prismaMock.$queryRawUnsafe.mock.calls[1];
+    const maxPlaceholder = Math.max(...[...countSql.matchAll(/\$(\d+)/g)].map((m) => Number(m[1])));
+    expect(maxPlaceholder).toBe(countParams.length);
+  });
+
   it("GAL-05b: GET public (anon) still 200", async () => {
     vi.mocked(auth).mockResolvedValue(null as never);
     prismaMock.$queryRawUnsafe

@@ -65,10 +65,18 @@ export async function PUT(
     console.error("Error updating album:", error);
     // ponytail: missing album -> 404, not 500
     if (error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "P2025") {
-      return NextResponse.json({ error: "Album tidak ditemukan" }, { status: 404 });
+      return NextResponse.json({ error: "Album tidak ditemukan", code: "P2025" }, { status: 404 });
+    }
+    const code = (error as { code?: string })?.code;
+    // ponytail: DB-unreachable / schema drift must read 503 (retryable), not 500.
+    if (code && (/^P1(001|002|008|017|019|020)$/.test(code) || code === "P2022")) {
+      return NextResponse.json(
+        { error: "Database tidak dapat dijangkau. Coba lagi nanti.", code },
+        { status: 503 },
+      );
     }
     return NextResponse.json(
-      { error: "Terjadi kesalahan pada server. Coba lagi nanti." },
+      { error: "Terjadi kesalahan pada server. Coba lagi nanti.", code: "INTERNAL" },
       { status: 500 },
     );
   }
@@ -118,10 +126,18 @@ export async function DELETE(
     console.error("Error deleting album:", error);
     // ponytail: missing album -> 404, not 500
     if (error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "P2025") {
-      return NextResponse.json({ error: "Album tidak ditemukan" }, { status: 404 });
+      return NextResponse.json({ error: "Album tidak ditemukan", code: "P2025" }, { status: 404 });
+    }
+    const code = (error as { code?: string })?.code;
+    // ponytail: DB-unreachable / schema drift must read 503 (retryable), not 500.
+    if (code && (/^P1(001|002|008|017|019|020)$/.test(code) || code === "P2022")) {
+      return NextResponse.json(
+        { error: "Database tidak dapat dijangkau. Coba lagi nanti.", code },
+        { status: 503 },
+      );
     }
     return NextResponse.json(
-      { error: "Terjadi kesalahan pada server. Coba lagi nanti." },
+      { error: "Terjadi kesalahan pada server. Coba lagi nanti.", code: "INTERNAL" },
       { status: 500 },
     );
   }

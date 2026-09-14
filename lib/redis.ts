@@ -35,17 +35,35 @@ export async function checkRateLimit(
   const now = Math.floor(Date.now() / 1000);
   const windowKey = `ratelimit:${key}:${Math.floor(now / windowSeconds)}`;
 
-  const current = await redis.incr(windowKey);
+  try {
+    const current = await redis.incr(windowKey);
 
-  if (current === 1) {
-    await redis.expire(windowKey, windowSeconds);
+    if (current === 1) {
+      await redis.expire(windowKey, windowSeconds);
+    }
+
+    if (current > maxRequests) {
+      // ponytail: self-heal a leaked bucket (expire lost on an earlier blip)
+      // instead of 429-ing forever — happy path costs zero extra RTT.
+      try {
+        if ((await redis.ttl(windowKey)) === -1) {
+          await redis.expire(windowKey, windowSeconds);
+          return { allowed: true, remaining: maxRequests - 1, reset: now + windowSeconds };
+        }
+      } catch {
+        return { allowed: true, remaining: maxRequests, reset: 0 };
+      }
+    }
+
+    return {
+      allowed: current <= maxRequests,
+      remaining: Math.max(0, maxRequests - current),
+      reset: Math.ceil(now / windowSeconds) * windowSeconds,
+    };
+  } catch {
+    // ponytail: fail-open — Redis outage must not turn writes into 500s.
+    return { allowed: true, remaining: maxRequests, reset: 0 };
   }
-
-  return {
-    allowed: current <= maxRequests,
-    remaining: Math.max(0, maxRequests - current),
-    reset: Math.ceil(now / windowSeconds) * windowSeconds,
-  };
 }
 
 const CACHE_PREFIX = "cache:";

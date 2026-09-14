@@ -171,8 +171,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ data: photos }, { status: 201 });
   } catch (error) {
     console.error("Error bulk uploading photos:", error);
+    const code = (error as { code?: string })?.code;
+    // ponytail: DB-unreachable / schema drift must read 503 (retryable), not 500 — same mapping as POST /api/albums.
+    if (code && (/^P1(001|002|008|017|019|020)$/.test(code) || code === "P2022")) {
+      return NextResponse.json(
+        { error: "Database tidak dapat dijangkau. Coba lagi nanti.", code },
+        { status: 503 },
+      );
+    }
     return NextResponse.json(
-      { error: "Terjadi kesalahan pada server. Coba lagi nanti." },
+      { error: "Terjadi kesalahan pada server. Coba lagi nanti.", code: "INTERNAL" },
       { status: 500 },
     );
   }

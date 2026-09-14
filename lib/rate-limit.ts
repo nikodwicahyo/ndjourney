@@ -55,6 +55,7 @@ export async function withAnonymousRateLimit(
       response: NextResponse.json(
         {
           error: `Terlalu banyak permintaan. Coba lagi dalam ${Math.ceil(windowSeconds / 60)} menit.`,
+          code: "RATE_LIMITED",
           remaining: 0,
         },
         {
@@ -75,7 +76,17 @@ export async function withRateLimit(
   request: Request,
   config: Partial<RateLimitConfig> = {},
 ): Promise<WithRateLimitResult> {
-  const session = await auth();
+  let session: { user?: { id?: string } } | null;
+  try {
+    session = await auth();
+  } catch (e) {
+    console.error("[withRateLimit] auth() threw:", e);
+    return {
+      allowed: false,
+      response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+      remaining: 0,
+    };
+  }
   if (!session?.user?.id) {
     return {
       allowed: false,
@@ -93,11 +104,18 @@ export async function withRateLimit(
     ? `${keyPrefix}:${session.user.id}`
     : `rate:${session.user.id}`;
 
-  const { allowed, remaining } = await checkRateLimit(
-    key,
-    maxRequests,
-    windowSeconds,
-  );
+  let allowed = true;
+  let remaining = maxRequests;
+  try {
+    ({ allowed, remaining } = await checkRateLimit(
+      key,
+      maxRequests,
+      windowSeconds,
+    ));
+  } catch (e) {
+    // ponytail: fail-open — Redis outage must not turn writes into 500s.
+    console.error("[withRateLimit] checkRateLimit threw:", e);
+  }
 
   if (!allowed) {
     return {
@@ -105,6 +123,7 @@ export async function withRateLimit(
       response: NextResponse.json(
         {
           error: `Terlalu banyak permintaan. Coba lagi dalam ${Math.ceil(windowSeconds / 60)} menit.`,
+          code: "RATE_LIMITED",
           remaining: 0,
         },
         {

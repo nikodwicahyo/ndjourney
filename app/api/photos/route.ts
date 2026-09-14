@@ -115,9 +115,14 @@ export async function GET(request: Request) {
       : null;
 
     // ponytail: 1 round-trip — counts as subselects (was 1 data + 3 sequential COUNTs).
+    // NOTE: each WHERE copy needs its own $n numbering — reusing the same clause
+    // 3x against one param array is 08P01 (only worked while zero params were bound).
+    const shiftPlaceholders = (clause: string, offset: number) =>
+      clause.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + offset}`);
+    const nParams = sqlParams.length;
     const countQuery = `SELECT (SELECT COUNT(*)::int FROM "Photo" ${baseWhereClause}) AS total,
-      (SELECT COUNT(*)::int FROM "Photo" ${baseWhereClause}${baseWhereClause ? " AND" : "WHERE"} "isVideo" = false) AS "fotoTotal",
-      (SELECT COUNT(*)::int FROM "Photo" ${baseWhereClause}${baseWhereClause ? " AND" : "WHERE"} "isVideo" = true) AS "videoTotal"`;
+      (SELECT COUNT(*)::int FROM "Photo" ${shiftPlaceholders(baseWhereClause, nParams)}${baseWhereClause ? " AND" : "WHERE"} "isVideo" = false) AS "fotoTotal",
+      (SELECT COUNT(*)::int FROM "Photo" ${shiftPlaceholders(baseWhereClause, 2 * nParams)}${baseWhereClause ? " AND" : "WHERE"} "isVideo" = true) AS "videoTotal"`;
     const countResult = await prisma.$queryRawUnsafe<{ total: number; fotoTotal: number; videoTotal: number }[]>(countQuery, ...sqlParams, ...sqlParams, ...sqlParams);
     const total = countResult[0]?.total ?? data.length;
     const fotoTotal = countResult[0]?.fotoTotal ?? 0;
@@ -133,7 +138,7 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error("Error fetching photos:", error);
     return NextResponse.json(
-      { error: "Terjadi kesalahan pada server. Coba lagi nanti." },
+      { error: "Terjadi kesalahan pada server. Coba lagi nanti.", code: "INTERNAL" },
       { status: 500 },
     );
   }
@@ -209,10 +214,18 @@ export async function POST(request: Request) {
     console.error("Error creating photo:", error);
     // ponytail: stale albumId FK -> 400, not generic 500
     if (error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "P2003") {
-      return NextResponse.json({ error: "Album tidak ditemukan" }, { status: 400 });
+      return NextResponse.json({ error: "Album tidak ditemukan", code: "P2003" }, { status: 400 });
+    }
+    const code = (error as { code?: string })?.code;
+    // ponytail: DB-unreachable / schema drift must read 503 (retryable), not 500 — same mapping as POST /api/albums.
+    if (code && (/^P1(001|002|008|017|019|020)$/.test(code) || code === "P2022")) {
+      return NextResponse.json(
+        { error: "Database tidak dapat dijangkau. Coba lagi nanti.", code },
+        { status: 503 },
+      );
     }
     return NextResponse.json(
-      { error: "Terjadi kesalahan pada server. Coba lagi nanti." },
+      { error: "Terjadi kesalahan pada server. Coba lagi nanti.", code: "INTERNAL" },
       { status: 500 },
     );
   }

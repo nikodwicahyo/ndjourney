@@ -117,7 +117,7 @@ export default function SettingsForm() {
 
       qc.invalidateQueries({ queryKey: queryKeys.couple.config() });
       qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats() });
-      toast.success("Pengaturan disimpan! 💕");
+      toast.success("Pengaturan disimpan!");
     } catch {
       toast.error("Gagal menyimpan pengaturan");
     } finally {

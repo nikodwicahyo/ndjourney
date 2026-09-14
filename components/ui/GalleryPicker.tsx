@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { X, Loader2, ImageOff } from "lucide-react";
+import { X, Loader2, ImageOff, Check } from "lucide-react";
 import { Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
@@ -168,7 +168,7 @@ export default function GalleryPicker({
                     {selected && (
                       <div className="absolute inset-0 flex items-center justify-center bg-primary/20">
                         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm text-white shadow-lg">
-                          ✓
+                          <Check className="h-4 w-4" />
                         </div>
                       </div>
                     )}

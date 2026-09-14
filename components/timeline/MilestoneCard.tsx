@@ -76,7 +76,7 @@ function MilestoneCard({
                     isLeft ? "md:flex-row-reverse" : "md:flex-row",
                   )}
                 >
-                  <span className="text-xl">{milestone.icon || "💕"}</span>
+                  <span className="flex items-center text-xl">{milestone.icon || <Heart className="h-5 w-5 fill-primary text-primary" />}</span>
                   <time className="text-xs text-muted-foreground">
                     {formatDate(milestone.date)}
                   </time>
@@ -191,7 +191,7 @@ function MilestoneCard({
               borderColor: cardColor,
             }}
           >
-            {milestone.icon || "💕"}
+            {milestone.icon || <Heart className="h-5 w-5 fill-primary text-primary" />}
           </div>
         </div>
       </div>

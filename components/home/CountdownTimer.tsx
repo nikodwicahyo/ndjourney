@@ -107,7 +107,7 @@ export default function CountdownTimer({
             <Sparkles className="mx-auto h-8 w-8 text-primary" />
           </motion.div>
           <p className="mt-2 font-heading text-xl font-bold text-primary sm:text-2xl break-words">
-            🎉 Selamat Anniversary ke-{yearsSince} tahun! 🎉
+            Selamat Anniversary ke-{yearsSince} tahun!
           </p>
         </div>
       ) : (

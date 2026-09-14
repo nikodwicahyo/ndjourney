@@ -52,7 +52,7 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.albums.all });
-      toast.success("Album dibuat! 📁");
+      toast.success("Album dibuat!");
       setShowForm(false);
       setName("");
       setDescription("");

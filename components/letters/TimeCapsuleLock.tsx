@@ -49,7 +49,7 @@ export default function TimeCapsuleLock({
         </motion.div>
 
         <h1 className="font-heading text-2xl font-semibold">
-          Time Capsule 🔒
+          Time Capsule
         </h1>
 
         {title && (

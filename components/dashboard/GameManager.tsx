@@ -460,7 +460,7 @@ export default function GameManager() {
                             : "border-border text-muted-foreground hover:bg-accent",
                         )}
                       >
-                        {cat === "Truth" ? "😇 Truth" : "😈 Dare"}
+                        {cat === "Truth" ? "Truth" : "Dare"}
                       </button>
                     ))}
                   </div>
@@ -473,7 +473,7 @@ export default function GameManager() {
                       type="button"
                       className="rounded-full border border-primary bg-primary/10 px-4 py-1.5 text-xs font-medium text-primary"
                     >
-                      💝 Date Ideas
+                      Date Ideas
                     </button>
                   </div>
                 </div>

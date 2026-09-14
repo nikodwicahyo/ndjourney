@@ -39,7 +39,7 @@ function WishCard({ wish, readOnly = false, onEdit }: WishCardProps) {
       toast.success(
         wish.isDone
           ? "Wish ditandai belum selesai"
-          : "Selamat! Wish tercapai! 🎉",
+          : "Selamat! Wish tercapai!",
       );
     } catch {
       toast.error("Gagal mengupdate wish");
@@ -200,7 +200,7 @@ function WishCard({ wish, readOnly = false, onEdit }: WishCardProps) {
           className="relative mt-3 flex items-center gap-1.5 border-t border-green-500/20 pt-3 text-xs text-green-600 dark:text-green-400"
         >
           <Heart className="h-3 w-3 fill-current" />
-          <span>Tercapai! ❤️</span>
+          <span>Tercapai!</span>
         </div>
       )}
     </div>

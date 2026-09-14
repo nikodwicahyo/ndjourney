@@ -128,10 +128,10 @@ export default function AddMilestoneForm({
     try {
       if (isEditing) {
         await updateMilestone.mutateAsync({ id: milestone.id, ...data });
-        toast.success("Milestone diperbarui! 💕");
+        toast.success("Milestone diperbarui!");
       } else {
         await createMilestone.mutateAsync(data);
-        toast.success("Milestone baru ditambahkan! 🎉");
+        toast.success("Milestone baru ditambahkan!");
       }
       onClose();
     } catch {
@@ -318,7 +318,7 @@ export default function AddMilestoneForm({
               ) : isEditing ? (
                 "Simpan"
               ) : (
-                "Tambah 💕"
+                "Tambah"
               )}
             </Button>
           </div>

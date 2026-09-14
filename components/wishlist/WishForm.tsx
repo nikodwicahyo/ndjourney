@@ -170,7 +170,7 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
     try {
       if (isEditing) {
         await updateWish.mutateAsync({ id: editingWish.id, ...data });
-        toast.success("Wish diperbarui! 🎯");
+        toast.success("Wish diperbarui!");
       } else {
         await createWish.mutateAsync({
           ...data,
@@ -178,7 +178,7 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
           link: link.trim() || undefined,
           imageUrl: imageUrl || undefined,
         });
-        toast.success("Wish ditambahkan! 🎯");
+        toast.success("Wish ditambahkan!");
       }
       reset();
     } catch (err) {

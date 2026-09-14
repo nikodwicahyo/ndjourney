@@ -113,7 +113,7 @@ export default function BirthdayCountdown({
             <Sparkles className="mx-auto h-8 w-8 text-primary" />
           </motion.div>
           <p className="mt-2 font-heading text-xl font-bold text-primary sm:text-2xl break-words">
-            🎉 Selamat Ulang Tahun {name}! 🎉
+            Selamat Ulang Tahun {name}!
           </p>
           <p className="mt-2 text-sm text-muted-foreground">
             Usia: {age} tahun

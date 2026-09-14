@@ -49,7 +49,7 @@ export default function TimelinePreview({
                   </div>
                   <div>
                     <div className="flex items-center gap-1.5">
-                      <span className="text-sm">{m.icon ?? "💕"}</span>
+                      <span className="flex items-center text-sm">{m.icon ?? <Heart className="h-3.5 w-3.5 fill-primary text-primary" />}</span>
                       <p className="truncate text-sm font-medium">{m.title}</p>
                     </div>
                     <p className="mt-0.5 text-xs text-muted-foreground">

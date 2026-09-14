@@ -74,7 +74,7 @@ export default function WishList() {
                 <span className="font-heading text-lg font-semibold">
                   {totalCount}
                 </span>{" "}
-                wish tercapai! ❤️
+                wish tercapai!
               </p>
             </div>
             <span className="text-xs text-muted-foreground">{progress}%</span>

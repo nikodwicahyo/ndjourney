@@ -68,7 +68,7 @@ export default function WishlistManager() {
                 <span className="font-heading text-lg font-semibold text-primary">{doneCount}</span>
                 {" "}dari{" "}
                 <span className="font-heading text-lg font-semibold">{totalCount}</span>
-                {" "}wish tercapai! ❤️
+                {" "}wish tercapai!
               </p>
             </div>
             <span className="text-xs text-muted-foreground">{progress}%</span>

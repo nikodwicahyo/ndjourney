@@ -246,7 +246,7 @@ export default function RegisterForm({ token }: { token: string }) {
               Mendaftarkan...
             </>
           ) : (
-            "Daftar 💕"
+            "Daftar"
           )}
         </Button>
       </form>

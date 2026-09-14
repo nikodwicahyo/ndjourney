@@ -1,6 +1,6 @@
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Lock, Mail } from "lucide-react";
 import PageTransition from "@/components/PageTransition";
 
 const RegisterForm = dynamic(
@@ -32,7 +32,7 @@ export default async function InvitePage({
           <div className="rounded-2xl border border-border bg-card p-8 shadow-sm">
             <div className="flex flex-col items-center text-center">
               <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-destructive/10">
-                <span className="text-2xl">🔒</span>
+                <span className="text-2xl"><Lock className="h-6 w-6 text-destructive" /></span>
               </div>
               <h1 className="font-heading text-xl text-foreground">Undangan Tidak Valid</h1>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
@@ -63,7 +63,7 @@ export default async function InvitePage({
       <div className="relative z-10 w-full max-w-sm space-y-8">
         <div className="space-y-2 text-center">
           <div className="mb-4">
-            <span className="inline-block text-5xl">💌</span>
+            <span className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-primary/10"><Mail className="h-8 w-8 text-primary" /></span>
           </div>
           <h1 className="font-heading text-3xl">
             Kamu Diundang!

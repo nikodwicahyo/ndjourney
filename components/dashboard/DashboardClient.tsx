@@ -15,7 +15,7 @@ export default function DashboardClient() {
     <div className="space-y-8 w-full max-w-full overflow-hidden">
       <div>
         <h1 className="font-heading text-xl sm:text-2xl lg:text-3xl break-words">
-          Halo, {session?.user?.name || "Pasangan"} {session?.user?.name ? "💕" : ""}
+          Halo, {session?.user?.name || "Pasangan"}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Selamat datang di dashboard cinta kalian

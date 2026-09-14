@@ -170,7 +170,7 @@ export default function LocationManager() {
         <div>
           <h2 className="font-heading text-lg font-semibold">Lokasi Pasangan</h2>
           <p className="text-sm text-muted-foreground">
-            Berbagi lokasi secara live, privat, dan hanya untuk berdua. 💕
+            Berbagi lokasi secara live, privat, dan hanya untuk berdua.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -193,7 +193,7 @@ export default function LocationManager() {
           <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
           <span>
             Kamu sudah berbagi. Ajak {partner.name} menyalakan berbagi lokasi
-            untuk melihat jarak dan peta. 💕
+            untuk melihat jarak dan peta.
           </span>
         </div>
       ) : null}

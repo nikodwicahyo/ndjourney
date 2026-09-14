@@ -144,7 +144,7 @@ export function useToggleShare() {
     },
     onSuccess: (data) => {
       toast.success(
-        data.isSharing ? "Berbagi lokasi diaktifkan 💕" : "Berbagi lokasi dimatikan",
+        data.isSharing ? "Berbagi lokasi diaktifkan" : "Berbagi lokasi dimatikan",
       );
     },
     onSettled: () => {

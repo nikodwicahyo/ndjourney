@@ -93,7 +93,7 @@ export default function ProfileContent({ user, couple }: ProfileContentProps) {
       setDisplayName(editName.trim());
       setDisplayImage(editImage);
 
-      toast.success("Profil berhasil diperbarui! 💕");
+      toast.success("Profil berhasil diperbarui!");
       setShowModal(false);
     } catch {
       toast.error("Gagal menyimpan profil");

@@ -7,7 +7,7 @@ import Image from "next/image";
 import { useCreateLetter, usePartner } from "@/hooks/useLetters";
 import { Button, Skeleton } from "@/components/ui";
 import { LETTER_MOOD_CONFIG } from "@/types";
-import { X, Loader2, Clock, Lock, Sparkles } from "lucide-react";
+import { X, Loader2, Clock, Lock, Sparkles, Heart } from "lucide-react";
 import { toast } from "sonner";
 import type { LetterMood } from "@/types";
 import { getJakartaToday, parseJakartaDateTime } from "@/lib/date";
@@ -77,7 +77,7 @@ export default function NewLetterForm({ onClose }: { onClose?: () => void }) {
         isTimeCapsule,
         unlockAt,
       });
-      toast.success("Surat terkirim! 💌");
+      toast.success("Surat terkirim!");
       if (onClose) onClose();
       router.push("/dashboard/letters");
     } catch {
@@ -132,7 +132,7 @@ export default function NewLetterForm({ onClose }: { onClose?: () => void }) {
       <div className="space-y-2">
         <label className="text-sm font-medium">Untuk</label>
         <div className="flex items-center gap-2 rounded-xl border border-input bg-background px-4 py-2.5 text-sm">
-          <span className="text-lg">{partner.image ? <Image src={partner.image} alt="" className="h-5 w-5 rounded-full" width={20} height={20} /> : "💕"}</span>
+          <span className="text-lg">{partner.image ? <Image src={partner.image} alt="" className="h-5 w-5 rounded-full" width={20} height={20} /> : <Heart className="h-5 w-5 fill-primary text-primary" />}</span>
           <span className="font-medium">{partner.name || "Pasangan"}</span>
         </div>
       </div>
@@ -262,7 +262,7 @@ export default function NewLetterForm({ onClose }: { onClose?: () => void }) {
           ) : (
             <>
               <Sparkles className="h-4 w-4" />
-              Kirim Surat 💌
+              Kirim Surat
             </>
           )}
         </Button>

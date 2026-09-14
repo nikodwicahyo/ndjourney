@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Heart, Mail } from "lucide-react";
 import type { ButtonHTMLAttributes } from "react";
 
 type EnvelopeAnimationProps = {
@@ -53,7 +53,7 @@ export default function EnvelopeAnimation({
                 ease: "easeInOut",
               }}
             >
-              💌
+              <Mail className="h-12 w-12 text-primary" />
             </motion.span>
           </div>
 
@@ -83,13 +83,13 @@ export default function EnvelopeAnimation({
               ease: "easeOut",
             }}
           >
-            💖
+            <Heart className="h-3.5 w-3.5 fill-primary text-primary" />
           </motion.div>
         ))}
       </motion.div>
 
       <h2 className="font-heading text-2xl font-semibold">
-        Surat Baru untukmu! 💕
+        Surat Baru untukmu!
       </h2>
 
       <p className="mt-2 text-muted-foreground">
@@ -117,7 +117,7 @@ export default function EnvelopeAnimation({
         ) : (
           <>
             <Sparkles className="h-4 w-4" />
-            Buka Surat 💕
+            Buka Surat
           </>
         )}
       </motion.button>

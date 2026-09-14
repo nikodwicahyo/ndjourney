@@ -38,7 +38,7 @@ export default function GalleryClient() {
       try {
         await uploadPhoto.mutateAsync({ file, albumId: filters.albumId });
         const l = file.type.startsWith("video/") ? "Video" : "Foto";
-        toast.success(`${l} berhasil diupload! 💕`);
+        toast.success(`${l} berhasil diupload!`);
       } catch (err) {
         toast.error(
           err instanceof Error ? err.message : "Gagal upload media",

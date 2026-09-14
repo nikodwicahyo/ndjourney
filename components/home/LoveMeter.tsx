@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, useInView } from "framer-motion";
-import { Heart, Sparkles, Lightbulb, Timer } from "lucide-react";
+import { Heart, Sparkles, Lightbulb, Timer, MapPin, NotebookPen, Mail, Camera, CalendarDays } from "lucide-react";
 
 type LoveMeterProps = {
   daysTogether?: number;
@@ -53,10 +53,10 @@ export default function LoveMeter({
   const [isHovered, setIsHovered] = useState(false);
 
   const quantityMetrics = [
-    { value: milestoneCount, key: "milestoneCount", icon: "📍", label: "Momen", goal: targetMilestones },
-    { value: noteCount, key: "noteCount", icon: "📝", label: "Catatan", goal: targetNotes },
-    { value: letterCount, key: "letterCount", icon: "💌", label: "Surat", goal: targetLetters },
-    { value: photoCount, key: "photoCount", icon: "📸", label: "Foto & Video", goal: targetPhotos },
+    { value: milestoneCount, key: "milestoneCount", Icon: MapPin, label: "Momen", goal: targetMilestones },
+    { value: noteCount, key: "noteCount", Icon: NotebookPen, label: "Catatan", goal: targetNotes },
+    { value: letterCount, key: "letterCount", Icon: Mail, label: "Surat", goal: targetLetters },
+    { value: photoCount, key: "photoCount", Icon: Camera, label: "Foto & Video", goal: targetPhotos },
   ];
 
   const { quantityProgress, avgProgress, nonZero, atTargetPercent } = useMemo(() => {
@@ -136,7 +136,7 @@ export default function LoveMeter({
 
   const tips = [
     ...quantityProgress.map((m) => ({
-      icon: m.icon,
+      Icon: m.Icon,
       label: m.label,
       current: m.value,
       max: m.goal,
@@ -144,7 +144,7 @@ export default function LoveMeter({
       multiplier: m.multiplier,
     })),
     {
-      icon: "📅",
+      Icon: CalendarDays,
       label: "Hari Bersama",
       current: daysTogether,
       max: 365,
@@ -152,7 +152,7 @@ export default function LoveMeter({
       multiplier: null,
     },
     {
-      icon: "✨",
+      Icon: Sparkles,
       label: "Wish list Tercapai",
       current: wishDone,
       max: Math.max(wishTotal, 1),
@@ -243,7 +243,7 @@ export default function LoveMeter({
             className="text-center text-xs font-semibold"
             style={{ color: is100Pct ? "#22C55E" : color }}
           >
-            {is100Pct ? "Soulmate! \u{1F48E}" : displayLabel}
+            {is100Pct ? "Soulmate!" : displayLabel}
           </motion.span>
           {countdownText && (
             <motion.span
@@ -260,19 +260,19 @@ export default function LoveMeter({
 
       <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
         <div className="rounded-xl bg-muted/40 px-3 py-2.5 text-center transition-colors hover:bg-muted/60 sm:px-4 sm:py-3">
-          <span className="text-sm sm:text-base">📅</span>
+          <span className="flex items-center justify-center text-sm sm:text-base"><CalendarDays className="h-4 w-4 text-primary" /></span>
           <p className="mt-1 text-sm font-bold text-foreground sm:text-base">{daysTogether}</p>
           <p className="text-xs text-muted-foreground sm:text-sm">Hari Bersama</p>
         </div>
         {quantityMetrics.map((m) => (
           <div key={m.key} className="rounded-xl bg-muted/40 px-3 py-2.5 text-center transition-colors hover:bg-muted/60 sm:px-4 sm:py-3">
-            <span className="text-sm sm:text-base">{m.icon}</span>
+            <span className="flex items-center justify-center text-sm sm:text-base"><m.Icon className="h-4 w-4 text-primary" /></span>
             <p className="mt-1 text-sm font-bold text-foreground sm:text-base">{m.value}</p>
             <p className="text-xs text-muted-foreground sm:text-sm">{m.label}</p>
           </div>
         ))}
         <div className="rounded-xl bg-muted/40 px-3 py-2.5 text-center transition-colors hover:bg-muted/60 sm:px-4 sm:py-3">
-          <span className="text-sm sm:text-base">✨</span>
+          <span className="flex items-center justify-center text-sm sm:text-base"><Sparkles className="h-4 w-4 text-primary" /></span>
           <p className="mt-1 text-sm font-bold text-foreground sm:text-base">{wishDone}</p>
           <p className="text-xs text-muted-foreground sm:text-sm">Wish List Tercapai</p>
         </div>
@@ -286,7 +286,7 @@ export default function LoveMeter({
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {tips.map((tip) => (
             <div key={tip.label} className="flex items-center gap-3 rounded-lg bg-background/60 px-3 py-2">
-              <span className="text-sm leading-none">{tip.icon}</span>
+              <span className="flex items-center text-sm leading-none"><tip.Icon className="h-4 w-4 text-primary" /></span>
               <div className="flex-1 min-w-0">
                 <p className="truncate text-xs text-muted-foreground">{tip.label}</p>
                 <div className="mt-1 h-1.5 rounded-full bg-muted-foreground/20">

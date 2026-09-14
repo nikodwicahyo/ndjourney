@@ -10,6 +10,7 @@ import {
   Heart,
   Cake,
   HardDrive,
+  PartyPopper,
 } from "lucide-react";
 import { formatNumber, formatBytes } from "@/lib/utils";
 import { motion } from "framer-motion";
@@ -135,7 +136,7 @@ return (
             <p className="font-heading text-xl font-bold truncate">
               {isBirthday
                 ? value === 0
-                  ? "🎉"
+                  ? <PartyPopper className="h-5 w-5 text-amber-500" />
                   : `${value}`
                 : isStorage
                   ? storagePercent >= 0

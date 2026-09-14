@@ -27,7 +27,7 @@ export default function AlbumMoveDropdown({
     }
     try {
       await updatePhoto.mutateAsync({ id: photoId, albumId: selectedId });
-      toast.success("Media dipindahkan 📁");
+      toast.success("Media dipindahkan");
       setOpen(false);
     } catch {
       toast.error("Gagal memindahkan media");

@@ -35,13 +35,13 @@ export default function MeetBanner({ show, distance }: { show: boolean; distance
     const distText = distance !== null && distance !== undefined
       ? `Jarak: ${distance < 1000 ? `${Math.round(distance)} m` : `${(distance / 1000).toFixed(2)} km`}`
       : "";
-    const text = `Kami sedang bersama! 💕 ${distText}`;
+    const text = `Kami sedang bersama! ${distText}`;
     try {
       if (navigator.share) {
         await navigator.share({ title: "NdJourney", text });
       } else {
         await navigator.clipboard.writeText(text);
-        toast.success("Momen disalin ke clipboard! 💕");
+        toast.success("Momen disalin ke clipboard!");
       }
     } catch {
       // User cancelled
@@ -76,7 +76,7 @@ export default function MeetBanner({ show, distance }: { show: boolean; distance
               <Heart className="h-5 w-5 fill-primary text-primary" />
             </motion.span>
             <span className="font-heading text-lg font-semibold text-foreground">
-              Kalian berdua bertemu! 💕
+              Kalian berdua bertemu!
             </span>
             <motion.button
               type="button"

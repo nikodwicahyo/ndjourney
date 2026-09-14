@@ -18,7 +18,7 @@ export default function NoteForm({ onSuccess }: { onSuccess?: () => void }) {
 
     try {
       await createNote.mutateAsync(content.trim());
-      toast.success("Catatan terkirim! 💕");
+      toast.success("Catatan terkirim!");
       setContent("");
       onSuccess?.();
     } catch (err) {

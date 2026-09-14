@@ -72,7 +72,7 @@ export function useAppVersion() {
           versionRef.current = buildTime;
           const updatedFrom = consumeUpdated();
           if (updatedFrom) {
-            toast.success('Aplikasi sudah diperbarui ke versi terbaru 🎉', {
+            toast.success('Aplikasi sudah diperbarui ke versi terbaru', {
               id: 'app-updated',
               duration: 6000,
             });

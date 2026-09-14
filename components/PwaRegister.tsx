@@ -44,7 +44,7 @@ export default function PwaRegister() {
 
     wb.addEventListener("installed", (event) => {
       if (!event.isUpdate) {
-        toast.success("Aplikasi siap digunakan! 💕", {
+        toast.success("Aplikasi siap digunakan!", {
           duration: 5000,
           id: "pwa-installed",
         });

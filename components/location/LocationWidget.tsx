@@ -58,7 +58,7 @@ export default function LocationWidget() {
           <MapPin className="h-4 w-4 shrink-0 text-primary" />
           <span>
             {partner.name} belum membagikan lokasi. Nyalakan berbagi di menu
-            Location untuk saling melihat. 💕
+            Location untuk saling melihat.
           </span>
         </div>
       </Card>
@@ -195,7 +195,7 @@ export default function LocationWidget() {
             className="mt-4 overflow-hidden"
           >
             <div className="rounded-xl bg-gradient-to-r from-rose-500/15 to-amber-400/15 p-2 text-center text-sm font-medium text-foreground">
-              Kalian berdua bertemu! 💕
+              Kalian berdua bertemu!
             </div>
           </motion.div>
         )}

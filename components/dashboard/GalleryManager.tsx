@@ -353,7 +353,7 @@ export default function GalleryManager() {
       const l = label(pendingFiles.map((u) => u.file));
 
       if (successCount > 0 && failCount === 0) {
-        toast.success(`${successCount} ${l} berhasil diupload! 💕`);
+        toast.success(`${successCount} ${l} berhasil diupload!`);
         setPendingFiles([]);
         setFileErrors([]);
         if (selectedAlbumId) {

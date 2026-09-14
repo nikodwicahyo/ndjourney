@@ -54,7 +54,7 @@ export default function LetterViewer({ id, isRecipient, backHref = "/dashboard/l
     try {
       await openLetter.mutateAsync(id);
       setOpened(true);
-      toast.success("Surat dibuka! 💕");
+      toast.success("Surat dibuka!");
     } catch {
       toast.error("Gagal membuka surat");
     } finally {

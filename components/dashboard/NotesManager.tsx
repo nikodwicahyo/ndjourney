@@ -30,7 +30,7 @@ export default function NotesManager() {
 
     try {
       await createNote.mutateAsync(content.trim());
-      toast.success("Catatan terkirim! 💕");
+      toast.success("Catatan terkirim!");
       setContent("");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal mengirim catatan");

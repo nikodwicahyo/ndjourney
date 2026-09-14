@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import PublicLetterInbox from "@/components/letters/PublicLetterInbox";
 import ManagePageButton from "@/components/layout/ManagePageButton";
 import PageTransition from "@/components/PageTransition";
+import { Mail } from "lucide-react";
 
 export const metadata: Metadata = { title: "Letters" };
 
@@ -13,7 +14,7 @@ export default function PublicLettersPage() {
     <PageTransition>
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-heading text-xl sm:text-2xl lg:text-3xl break-words">Love Letters 💌</h1>
+          <h1 className="flex items-center gap-2 font-heading text-xl sm:text-2xl lg:text-3xl break-words"><Mail className="h-6 w-6 text-primary" /> Love Letters</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Surat cinta untuk pasanganmu
           </p>

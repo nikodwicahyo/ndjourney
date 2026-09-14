@@ -7,7 +7,7 @@ import GameSelector from "./GameSelector";
 import LeaderBoard from "@/components/dashboard/LeaderBoard";
 import ManagePageButton from "@/components/layout/ManagePageButton";
 import { motion } from "framer-motion";
-import { ArrowLeft, Sparkles, Trophy, User } from "lucide-react";
+import { ArrowLeft, Gamepad2, Trophy, User } from "lucide-react";
 import { Skeleton, Button } from "@/components/ui";
 import type { GameType } from "@/types";
 import { toast } from "sonner";
@@ -140,7 +140,8 @@ export default function PublicGameClient() {
               <ArrowLeft className="h-5 w-5" />
             </button>
             <div>
-              <h1 className="font-heading text-2xl">
+              <h1 className="flex items-center gap-2 font-heading text-2xl">
+                <Gamepad2 className="h-6 w-6 text-primary" />
                 {gameLabels[selected]}
               </h1>
               <p className="text-sm text-muted-foreground">
@@ -153,14 +154,11 @@ export default function PublicGameClient() {
       ) : (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
           <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="mb-2 flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" />
-              <div>
-                <h1 className="font-heading text-3xl">Fun Games</h1>
-                <p className="text-sm text-muted-foreground">
-                  Pilih permainan seru untuk dimainkan bersama pasangan
-                </p>
-              </div>
+            <div className="mb-2">
+              <h1 className="flex items-center gap-2 font-heading text-3xl"><Gamepad2 className="h-7 w-7 text-primary" /> Fun Games</h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Pilih permainan seru untuk dimainkan bersama pasangan
+              </p>
             </div>
             <ManagePageButton href="/dashboard/games" label="Kelola Games" />
           </div>

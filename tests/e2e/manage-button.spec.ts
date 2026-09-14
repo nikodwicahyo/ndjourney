@@ -4,9 +4,9 @@ import { test, expect } from "@playwright/test";
 const cases = [
   { page: "/gallery", label: "Kelola Galeri", href: "/dashboard/gallery" },
   { page: "/timeline", label: "Kelola Timeline", href: "/dashboard/timeline" },
-  { page: "/letters", label: "Kelola Surat", href: "/dashboard/letters" },
+  { page: "/letters", label: "Tulis Surat", href: "/dashboard/letters" },
   { page: "/games", label: "Kelola Games", href: "/dashboard/games" },
-  { page: "/notes", label: "Kelola Catatan", href: "/dashboard/notes" },
+  { page: "/notes", label: "Tulis Catatan", href: "/dashboard/notes" },
   { page: "/wishlist", label: "Kelola Wish List", href: "/dashboard/wishlist" },
 ] as const;
 

@@ -16,7 +16,7 @@ export default async function NotesPage() {
             Catatan harian dari Niko & Dzikria
           </p>
         </div>
-        <ManagePageButton href="/dashboard/notes" label="Kelola Catatan" />
+        <ManagePageButton href="/dashboard/notes" label="Tulis Catatan" />
       </div>
 
       <div className="mx-auto max-w-lg space-y-8">

@@ -100,7 +100,7 @@ export default function LetterList() {
           className="inline-flex h-9 items-center justify-center gap-2 rounded-full bg-primary px-4 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
         >
           <PenLine className="h-4 w-4" />
-          Tulis
+          Tulis Surat
         </Link>
       </div>
 

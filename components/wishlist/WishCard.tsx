@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Image from "next/image";
+import { getOptimizedImageUrl } from "@/lib/cloudinary-urls";
 import { useToggleWish } from "@/hooks/useWishes";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, Pencil, ExternalLink, Heart, Sparkles } from "lucide-react";
@@ -25,6 +26,7 @@ type WishCardProps = {
 function WishCard({ wish, readOnly = false, onEdit }: WishCardProps) {
   const toggleWish = useToggleWish();
   const [animating, setAnimating] = useState(false);
+  const [imgError, setImgError] = useState(false);
   const cat = wish.category || "OTHER";
   const config = categoryConfig[cat] || categoryConfig.OTHER;
 
@@ -123,14 +125,17 @@ function WishCard({ wish, readOnly = false, onEdit }: WishCardProps) {
             </p>
           )}
 
-          {wish.imageUrl && (
+          {/* ponytail: transformed variant (not the multi-MB original) — the raw
+              original hung /_next/image past its timeout and 500d every card. */}
+          {wish.imageUrl && !imgError && (
             <div className="relative mt-2 h-24 w-full overflow-hidden rounded-xl">
               <Image
-                src={wish.imageUrl}
+                src={getOptimizedImageUrl(wish.imageUrl, 640)}
                 alt={wish.title}
                 fill
                 sizes="(max-width: 768px) 100vw, 33vw"
                 className="object-cover"
+                onError={() => setImgError(true)}
               />
             </div>
           )}

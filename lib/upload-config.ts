@@ -85,11 +85,12 @@ export function getResourceType(mimeType: string): "image" | "video" | "raw" | "
   return "auto";
 }
 
-export function generatePublicId(fileName: string, userId: string): string {
-  const ext = fileName.split(".").pop()?.toLowerCase() || "bin";
+export function generatePublicId(_fileName: string, userId: string): string {
   const timestamp = Date.now();
   const random = Math.random().toString(36).substring(2, 10);
-  return `${userId}/${timestamp}-${random}.${ext}`;
+  // ponytail: no original extension — Cloudinary appends the delivery format,
+  // so keeping it produced urls like name.webp.webp.
+  return `${userId}/${timestamp}-${random}`;
 }
 
 export function validateFileSize(file: File): { valid: boolean; error?: string } {

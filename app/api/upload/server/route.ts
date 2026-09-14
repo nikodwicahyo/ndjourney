@@ -152,9 +152,11 @@ export async function POST(request: Request) {
 }
 
 function generatePublicId(fileName: string, userId: string): string {
-  const safeFileName = sanitizeFileName(fileName);
+  const safeFileName = sanitizeFileName(fileName).replace(/\.[^.]+$/, "");
   const timestamp = Date.now();
   const random = Math.random().toString(36).substring(2, 10);
 
+  // ponytail: no original extension — Cloudinary appends the delivery format,
+  // so keeping it produced urls like name.jpg.jpg.
   return `${userId}/${timestamp}-${random}-${safeFileName}`;
 }

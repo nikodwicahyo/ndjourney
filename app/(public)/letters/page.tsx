@@ -18,7 +18,7 @@ export default function PublicLettersPage() {
             Surat cinta untuk pasanganmu
           </p>
         </div>
-        <ManagePageButton href="/dashboard/letters" label="Kelola Surat" />
+        <ManagePageButton href="/dashboard/letters" label="Tulis Surat" />
       </div>
 
       <Suspense

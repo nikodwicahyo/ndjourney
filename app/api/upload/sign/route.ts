@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { v2 as cloudinary } from "cloudinary";
 import { getChunkSize } from "@/lib/upload-config";
-import { sanitizeFileName, UPLOAD_FOLDER, validateUploadRequest } from "@/lib/upload-policy";
+import { UPLOAD_FOLDER, validateUploadRequest } from "@/lib/upload-policy";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 
 cloudinary.config({
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     }
 
     const timestamp = Math.floor(Date.now() / 1000);
-    const publicId = generatePublicId(fileName, session.user.id);
+    const publicId = generatePublicId(session.user.id);
     const resourceType = validation.policy.resourceType;
     
     // Use the same chunk size calculation as the client
@@ -97,10 +97,10 @@ export async function POST(request: Request) {
   }
 }
 
-function generatePublicId(fileName: string, userId: string): string {
-  const safeFileName = sanitizeFileName(fileName);
-  const ext = safeFileName.split(".").pop()?.toLowerCase() || "dat";
+function generatePublicId(userId: string): string {
   const timestamp = Date.now();
   const random = Math.random().toString(36).substring(2, 10);
-  return `${userId}/${timestamp}-${random}.${ext}`;
+  // ponytail: no original extension — Cloudinary appends the delivery format,
+  // so keeping it produced urls like name.webp.webp.
+  return `${userId}/${timestamp}-${random}`;
 }

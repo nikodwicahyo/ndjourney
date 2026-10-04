@@ -16,7 +16,7 @@ type MasonryGridProps = {
     sort?: string;
   };
   onPhotoClick?: (photo: Photo, index: number, allPhotos: Photo[], fetchNextPage?: () => void, hasNextPage?: boolean) => void;
-  isPublic?: boolean;
+  visibility?: "public" | "private";
 };
 
 function getColCount() {
@@ -47,7 +47,7 @@ function PhotoSkeleton() {
   );
 }
 
-export default function MasonryGrid({ filters, onPhotoClick, isPublic }: MasonryGridProps) {
+export default function MasonryGrid({ filters, onPhotoClick, visibility }: MasonryGridProps) {
   const {
     data,
     fetchNextPage,
@@ -56,7 +56,7 @@ export default function MasonryGrid({ filters, onPhotoClick, isPublic }: Masonry
     isLoading,
     error,
     refetch,
-  } = usePhotos({ ...filters, isPublic });
+  } = usePhotos({ ...filters, visibility });
 
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const [colCount, setColCount] = useState(2);

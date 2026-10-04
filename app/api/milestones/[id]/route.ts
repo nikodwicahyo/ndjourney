@@ -57,8 +57,19 @@ export async function GET(
         select: { id: true, name: true, image: true },
       }),
       prisma.milestonePhoto.findMany({
-        where: { milestoneId: id },
-        include: {
+        // ponytail: same public-photo rule as list — anon never gets private photo URLs via a public milestone.
+        where: {
+          milestoneId: id,
+          ...(isAuthed ? {} : {
+            photo: {
+              isPublic: true,
+              OR: [{ albumId: null }, { album: { isPublic: true } }],
+            },
+          }),
+        },
+        select: {
+          milestoneId: true,
+          crop: true,
           photo: {
             select: { id: true, url: true, thumbnailUrl: true, caption: true },
           },
@@ -118,7 +129,7 @@ export async function PUT(
       );
     }
 
-    const { photoIds, photoUploads, date: dateStr, ...milestoneData } = parsed.data;
+    const { photoIds, photoUploads, photoCrops, date: dateStr, ...milestoneData } = parsed.data;
 
     let date: Date | undefined;
     if (dateStr !== undefined) {
@@ -130,7 +141,7 @@ export async function PUT(
     }
 
     // ponytail: per-item isolation — one bad upload must not 500 the whole update
-    const createdPhotoIds: string[] = [];
+    const createdPhotos: Array<{ id: string; crop?: { x: number; y: number; w: number; h: number } | null }> = [];
     const failedPhotos: { publicId: string; error: string }[] = [];
     if (photoUploads?.length) {
       const settled = await Promise.allSettled(
@@ -148,11 +159,13 @@ export async function PUT(
         ),
       );
       settled.forEach((r, i) => {
-        if (r.status === "fulfilled") createdPhotoIds.push(r.value.id);
+        if (r.status === "fulfilled") createdPhotos.push({ id: r.value.id, crop: photoUploads[i].crop ?? null });
         else failedPhotos.push({ publicId: photoUploads[i].publicId, error: r.reason instanceof Error ? r.reason.message : "Gagal menyimpan foto" });
       });
     }
 
+    const createdPhotoIds = createdPhotos.map((p) => p.id);
+    const uploadCropById = new Map(createdPhotos.map((p) => [p.id, p.crop]));
     const allPhotoIds = [...(photoIds ?? []), ...createdPhotoIds];
 
     if (Array.isArray(photoIds) || photoUploads !== undefined) {
@@ -189,7 +202,11 @@ export async function PUT(
 
       if (allPhotoIds.length > 0) {
         await prisma.milestonePhoto.createMany({
-          data: allPhotoIds.map((pid) => ({ milestoneId: id, photoId: pid })),
+          data: allPhotoIds.map((pid) => ({
+            milestoneId: id,
+            photoId: pid,
+            crop: uploadCropById.get(pid) ?? photoCrops?.[pid] ?? undefined,
+          })),
         });
       }
     }
@@ -222,7 +239,9 @@ export async function PUT(
       }),
       prisma.milestonePhoto.findMany({
         where: { milestoneId: id },
-        include: {
+        select: {
+          milestoneId: true,
+          crop: true,
           photo: {
             select: { id: true, url: true, thumbnailUrl: true, caption: true },
           },

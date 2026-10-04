@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/lib/generated/prisma";
 import { NextResponse } from "next/server";
 import { updateWishSchema } from "@/lib/validations/wish";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
@@ -43,6 +44,11 @@ export async function PUT(
     if (data.isDone === true) {
       data.doneAt = new Date();
     }
+    // ponytail: explicit null clears the crop (DbNull = SQL NULL, not JSON null);
+    // dropping the image always drops its crop.
+    if (data.imageUrl === null || data.imageCrop === null) {
+      data.imageCrop = Prisma.DbNull;
+    }
 
     // Fetch old imageUrl before update so we can clean up if changed
     let oldImageUrl: string | null = null;
@@ -62,6 +68,7 @@ export async function PUT(
         title: true,
         description: true,
         imageUrl: true,
+        imageCrop: true,
         link: true,
         category: true,
         isDone: true,
@@ -71,9 +78,16 @@ export async function PUT(
       },
     });
 
-    // Delete old Cloudinary image if changed
+    // Delete old Cloudinary image if changed — but never a gallery-referenced
+    // URL (gallery-picked wish images share the original file).
     if (oldImageUrl && oldImageUrl !== wish.imageUrl) {
-      await deleteFromCloudinaryUrl(oldImageUrl).catch(console.error);
+      const stillReferenced = await prisma.photo.findFirst({
+        where: { url: oldImageUrl },
+        select: { id: true },
+      });
+      if (!stillReferenced) {
+        await deleteFromCloudinaryUrl(oldImageUrl).catch(console.error);
+      }
     }
 
     await invalidateCache("wishes:*");
@@ -120,9 +134,16 @@ export async function DELETE(
 
     await prisma.wishItem.delete({ where: { id } });
 
-    // Delete from Cloudinary if it was stored there
+    // Delete from Cloudinary if it was stored there — never a
+    // gallery-referenced URL (shared original must survive).
     if (wish?.imageUrl) {
-      await deleteFromCloudinaryUrl(wish.imageUrl).catch(console.error);
+      const stillReferenced = await prisma.photo.findFirst({
+        where: { url: wish.imageUrl },
+        select: { id: true },
+      });
+      if (!stillReferenced) {
+        await deleteFromCloudinaryUrl(wish.imageUrl).catch(console.error);
+      }
     }
 
     await invalidateCache("wishes:*");

@@ -7,10 +7,15 @@ import { Button, Skeleton } from "@/components/ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query-keys";
 import { api } from "@/lib/api-client";
-import { Loader2, Save, Upload, X, Cake } from "lucide-react";
+import { Loader2, Save, Upload, X, Cake, ImagePlus, Crop } from "lucide-react";
 import { toast } from "sonner";
 import { uploadFileSimple } from "@/lib/chunked-upload";
 import { getJakartaDateOnly } from "@/lib/date";
+import { isVideoUrl } from "@/lib/utils";
+import { parseCropRect, cropCoverStyle, type CropRect } from "@/lib/image-crop";
+import { getOptimizedImageUrl } from "@/lib/cloudinary-urls";
+import GalleryPicker from "@/components/ui/GalleryPicker";
+import PhotoCropper from "@/components/ui/PhotoCropper";
 
 export default function SettingsForm() {
   const { data: config, isLoading } = useCoupleConfig();
@@ -28,8 +33,35 @@ export default function SettingsForm() {
   const [saving, setSaving] = useState(false);
   const [uploadingHero, setUploadingHero] = useState(false);
   const [uploadingMusic, setUploadingMusic] = useState(false);
+  const [showGalleryPicker, setShowGalleryPicker] = useState(false);
+  // ponytail: crop is coordinates over the ORIGINAL — no copy is ever produced.
+  const [heroCrop, setHeroCrop] = useState<CropRect | null>(null);
+  const [cropTarget, setCropTarget] = useState<{ src: string; file?: File; recrop?: boolean } | null>(null);
   const heroInputRef = useRef<HTMLInputElement>(null);
   const musicInputRef = useRef<HTMLInputElement>(null);
+  // ponytail: 16:9 mini-hero preview, same crop math as homepage — no extra file.
+  const previewRef = useRef<HTMLDivElement>(null);
+  const [previewFrame, setPreviewFrame] = useState<{ w: number; h: number } | null>(null);
+  const [previewNat, setPreviewNat] = useState<{ w: number; h: number } | null>(null);
+
+  useEffect(() => {
+    const el = previewRef.current;
+    if (!el || !heroPhotoUrl) return;
+    const measure = () => {
+      const r = el.getBoundingClientRect();
+      if (r.width > 0) setPreviewFrame({ w: r.width, h: (r.width * 9) / 16 });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [heroPhotoUrl]);
+
+  useEffect(() => { setPreviewNat(null); }, [heroPhotoUrl]);
+
+  const previewStyle = heroCrop && previewNat && previewFrame
+    ? cropCoverStyle(previewNat.w, previewNat.h, previewFrame.w, previewFrame.h, heroCrop)
+    : null;
 
   useEffect(() => {
     if (config) {
@@ -52,6 +84,7 @@ export default function SettingsForm() {
       );
       setTagline(config.tagline || "");
       setHeroPhotoUrl(config.heroPhotoUrl || "");
+      setHeroCrop(parseCropRect((config as { heroCrop?: unknown }).heroCrop));
       setSpotifyPlaylistUrl(config.spotifyPlaylistUrl || "");
       setBackgroundMusicUrl(config.backgroundMusicUrl || "");
     }
@@ -70,17 +103,46 @@ export default function SettingsForm() {
     }
   }
 
-  async function handleUploadHero(file: File) {
-    setUploadingHero(true);
-    try {
-      const result = await uploadFileSimple(file, () => {});
-      setHeroPhotoUrl(result.url);
-      toast.success("Foto pada beranda berhasil diupload!");
-    } catch {
-      toast.error("Gagal upload foto");
-    } finally {
-      setUploadingHero(false);
+  /** Stage a fresh file into the cropper — upload happens only on confirm. */
+  function stageHeroFile(file: File) {
+    if (cropTarget?.file) URL.revokeObjectURL(cropTarget.src);
+    setCropTarget({ src: URL.createObjectURL(file), file });
+  }
+
+  function selectGalleryHero(photo: { id: string; url: string; thumbnailUrl: string | null }) {
+    if (cropTarget?.file) URL.revokeObjectURL(cropTarget.src);
+    // Gallery original is referenced, never copied or re-uploaded.
+    setCropTarget({ src: photo.url });
+    setShowGalleryPicker(false);
+  }
+
+  function closeCropper() {
+    if (cropTarget?.file) URL.revokeObjectURL(cropTarget.src);
+    setCropTarget(null);
+  }
+
+  async function confirmHeroCrop(rect: CropRect) {
+    const target = cropTarget;
+    if (!target) return;
+    const isFull = rect.x <= 0 && rect.y <= 0 && rect.w >= 1 && rect.h >= 1;
+    if (target.file) {
+      setUploadingHero(true);
+      try {
+        const result = await uploadFileSimple(target.file, () => {});
+        setHeroPhotoUrl(result.url);
+        setHeroCrop(isFull ? null : rect);
+        toast.success("Foto pada beranda berhasil diupload!");
+      } catch {
+        toast.error("Gagal upload foto");
+      } finally {
+        setUploadingHero(false);
+      }
+      URL.revokeObjectURL(target.src);
+    } else {
+      setHeroPhotoUrl(target.src);
+      setHeroCrop(isFull ? null : rect);
     }
+    setCropTarget(null);
   }
 
   function dateOrUndefined(dateStr: string): string | undefined {
@@ -105,7 +167,9 @@ export default function SettingsForm() {
         birthDate1: dateOrNull(birthDate1),
         birthDate2: dateOrNull(birthDate2),
         tagline: tagline.trim() || undefined,
-        heroPhotoUrl: heroPhotoUrl.trim() || undefined,
+        // ponytail: explicit null clears (undefined would silently keep the old value).
+        heroPhotoUrl: heroPhotoUrl.trim() || null,
+        heroCrop: heroPhotoUrl.trim() ? (heroCrop ?? null) : null,
         spotifyPlaylistUrl: spotifyPlaylistUrl.trim() || undefined,
         backgroundMusicUrl: backgroundMusicUrl.trim() || undefined,
       });
@@ -208,42 +272,95 @@ export default function SettingsForm() {
       <div className="space-y-2">
         <label className="text-sm font-medium">Foto Beranda</label>
         {heroPhotoUrl ? (
-          <div className="relative h-40 w-full overflow-hidden rounded-xl">
-            <Image
-              src={heroPhotoUrl}
-              alt="Hero"
-              fill
-              sizes="(max-width: 672px) 100vw, 672px"
-              fetchPriority="low"
-              className="object-cover"
-            />
+          <div className="relative w-full">
+            <div ref={previewRef} className="relative w-full overflow-hidden rounded-xl" style={{ aspectRatio: "16 / 9" }}>
+              {previewStyle ? (
+                <Image
+                  src={getOptimizedImageUrl(heroPhotoUrl, 1600)}
+                  alt="Hero"
+                  width={Math.round(previewStyle.width)}
+                  height={Math.round(previewStyle.height)}
+                  onLoad={(e) => {
+                    const img = e.currentTarget;
+                    if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+                      setPreviewNat({ w: img.naturalWidth, h: img.naturalHeight });
+                    }
+                  }}
+                  className="absolute max-w-none"
+                  style={{ left: previewStyle.left, top: previewStyle.top }}
+                  sizes="(max-width: 672px) 100vw, 672px"
+                />
+              ) : (
+                <Image
+                  src={getOptimizedImageUrl(heroPhotoUrl, 1600)}
+                  alt="Hero"
+                  fill
+                  onLoad={(e) => {
+                    const img = e.currentTarget;
+                    if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+                      setPreviewNat({ w: img.naturalWidth, h: img.naturalHeight });
+                    }
+                  }}
+                  className="object-cover"
+                  sizes="(max-width: 672px) 100vw, 672px"
+                />
+              )}
+            </div>
             <button
               type="button"
-              onClick={() => setHeroPhotoUrl("")}
+              onClick={() => { setHeroPhotoUrl(""); setHeroCrop(null); }}
               className="absolute right-2 top-2 rounded-full bg-background/80 p-1 transition-colors hover:bg-background"
             >
               <X className="h-4 w-4" />
             </button>
           </div>
         ) : (
-          <button
+          <div className="flex h-40 w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-input bg-muted/50 px-4">
+            <Upload className="h-6 w-6 shrink-0 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground text-center">
+              Foto pada beranda yang tampil di halaman utama. <br />
+            </span>
+          </div>
+        )}
+        <div className="flex flex-wrap gap-2">
+          <Button
             type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
             onClick={() => heroInputRef.current?.click()}
             disabled={uploadingHero}
-            className="flex h-40 w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-input bg-muted/50 transition-colors hover:bg-muted overflow-hidden px-4"
           >
             {uploadingHero ? (
-              <Loader2 className="h-6 w-6 animate-spin shrink-0 text-muted-foreground" />
+              <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <>
-                <Upload className="h-6 w-6 shrink-0 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground text-center">
-                  Klik untuk upload foto pada beranda (jpg, png, webp)
-                </span>
-              </>
+              <Upload className="h-4 w-4" />
             )}
-          </button>
-        )}
+            Upload Foto Baru
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => setShowGalleryPicker(true)}
+          >
+            <ImagePlus className="h-4 w-4" />
+            Pilih dari Galeri
+          </Button>
+          {heroPhotoUrl && !isVideoUrl(heroPhotoUrl) && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setCropTarget({ src: heroPhotoUrl, recrop: true })}
+            >
+              <Crop className="h-4 w-4" />
+              {heroCrop ? "Ubah Crop" : "Atur Crop"}
+            </Button>
+          )}
+        </div>
         <input
           ref={heroInputRef}
           type="file"
@@ -251,10 +368,29 @@ export default function SettingsForm() {
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0];
-            if (file) handleUploadHero(file);
+            if (file) stageHeroFile(file);
             e.target.value = "";
           }}
         />
+        {showGalleryPicker && (
+          <GalleryPicker
+            open={showGalleryPicker}
+            onClose={() => setShowGalleryPicker(false)}
+            onSelect={selectGalleryHero}
+          />
+        )}
+        {cropTarget && (
+          <PhotoCropper
+            open
+            src={getOptimizedImageUrl(cropTarget.src, 2048)}
+            aspect={16 / 9}
+            initialRect={cropTarget.recrop ? heroCrop : null}
+            guide="phone"
+            title="Crop Foto Beranda"
+            onCancel={closeCropper}
+            onDone={confirmHeroCrop}
+          />
+        )}
       </div>
 
       <div className="space-y-2">

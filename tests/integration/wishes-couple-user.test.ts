@@ -6,6 +6,7 @@ const WID = "cjld2cjxh0000qz8n0p3q4w5ew";
 
 const prismaMock = vi.hoisted(() => ({
   wishItem: { findMany: vi.fn(), count: vi.fn(), create: vi.fn(), findUnique: vi.fn(), update: vi.fn(), delete: vi.fn() },
+  photo: { findFirst: vi.fn(async (): Promise<{ id: string } | null> => null) },
   coupleConfig: { findFirst: vi.fn(), update: vi.fn() },
   coupleMember: { findUnique: vi.fn() },
   user: { findUnique: vi.fn(), update: vi.fn() },
@@ -128,6 +129,57 @@ describe("couple / user / partner / notes-delete contracts", () => {
 
     const bad = await couple.PUT(new Request("http://localhost/api/couple", { method: "PUT", body: JSON.stringify({ anniversaryDate: "99-99-99" }) }));
     expect(bad.status).toBe(400);
+  });
+
+  it("DASH-04: PUT heroCrop saved; invalid rect 400; gallery-referenced hero URL never deleted", async () => {
+    const { deleteFromCloudinaryUrl } = await import("@/lib/cloudinary");
+    prismaMock.coupleConfig.findFirst.mockResolvedValue({ id: "cfg", heroPhotoUrl: "https://old.example/h.jpg", backgroundMusicUrl: null });
+    prismaMock.coupleConfig.update.mockImplementation(async (args: unknown) => ({ id: "cfg", heroPhotoUrl: "https://new.example/h.jpg" }));
+
+    const badRect = await couple.PUT(new Request("http://localhost/api/couple", {
+      method: "PUT", body: JSON.stringify({ heroPhotoUrl: "https://new.example/h.jpg", heroCrop: { x: 0, y: 0, w: 2, h: 1 } }),
+    }));
+    expect(badRect.status).toBe(400);
+
+    prismaMock.photo.findFirst.mockResolvedValue({ id: "p1" });
+    const ok = await couple.PUT(new Request("http://localhost/api/couple", {
+      method: "PUT", body: JSON.stringify({ heroPhotoUrl: "https://new.example/h.jpg", heroCrop: { x: 0.1, y: 0.1, w: 0.8, h: 0.8 } }),
+    }));
+    expect(ok.status).toBe(200);
+    expect(prismaMock.coupleConfig.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ heroCrop: { x: 0.1, y: 0.1, w: 0.8, h: 0.8 } }),
+    }));
+    expect(deleteFromCloudinaryUrl).not.toHaveBeenCalled();
+
+    prismaMock.photo.findFirst.mockResolvedValue(null);
+    await couple.PUT(new Request("http://localhost/api/couple", {
+      method: "PUT", body: JSON.stringify({ heroPhotoUrl: "https://new.example/h.jpg" }),
+    }));
+    expect(deleteFromCloudinaryUrl).toHaveBeenCalledWith("https://old.example/h.jpg");
+  });
+
+  it("WISH-02: PUT imageCrop saved + cleared with image; gallery-referenced image never deleted", async () => {
+    const { deleteFromCloudinaryUrl } = await import("@/lib/cloudinary");
+    prismaMock.wishItem.findUnique.mockResolvedValue({ coupleId: COUPLE });
+    prismaMock.wishItem.update.mockImplementation(async (args: unknown) => ({ id: WID, imageUrl: "https://new.example/w.jpg" }));
+    const crop = { x: 0.1, y: 0.1, w: 0.8, h: 0.8 };
+
+    const bad = await wishById.PUT(new Request("http://localhost/api/wishes/x", {
+      method: "PUT", body: JSON.stringify({ imageCrop: { x: 0, y: 0, w: 5, h: 1 } }),
+    }), { params: Promise.resolve({ id: WID }) });
+    expect(bad.status).toBe(400);
+
+    prismaMock.photo.findFirst.mockResolvedValue({ id: "p1" });
+    prismaMock.wishItem.findUnique.mockResolvedValueOnce({ coupleId: COUPLE })
+      .mockResolvedValueOnce({ coupleId: COUPLE, imageUrl: "https://old.example/w.jpg" });
+    const ok = await wishById.PUT(new Request("http://localhost/api/wishes/x", {
+      method: "PUT", body: JSON.stringify({ imageUrl: "https://new.example/w.jpg", imageCrop: crop }),
+    }), { params: Promise.resolve({ id: WID }) });
+    expect(ok.status).toBe(200);
+    expect(prismaMock.wishItem.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ imageCrop: crop }),
+    }));
+    expect(deleteFromCloudinaryUrl).not.toHaveBeenCalled();
   });
 
   it("user PUT: 200 self-update + 400 invalid image", async () => {

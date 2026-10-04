@@ -14,7 +14,13 @@ export async function GET(request: Request) {
     const session = await auth();
     const isAuthed = !!session?.user;
 
-    const cacheK = cacheKey("albums", "list", isAuthed ? "all" : "public");
+    const { searchParams } = new URL(request.url);
+    // ponytail: ?visibility=public forces public-only even when authed (public gallery) — default authed = all (dashboard).
+    const rawVisibility = searchParams.get("visibility");
+    const visibility = rawVisibility === "public" ? "public" : null;
+    const wantPublic = !isAuthed || visibility === "public";
+
+    const cacheK = cacheKey("albums", "list", isAuthed ? "auth" : "public", visibility ?? "all");
     const cached = await getCached<unknown>(cacheK);
     if (cached) {
       return NextResponse.json(cached, {
@@ -33,11 +39,11 @@ export async function GET(request: Request) {
       photoCount: bigint;
     };
 
-    const rows = !isAuthed
+    const rows = wantPublic
       ? await prisma.$queryRaw<AlbumRow[]>`
           SELECT
             a.id, a.name, a.description, a."coverPhotoUrl", a."isPublic", a."createdAt", a."updatedAt",
-            COUNT(p.id)::int AS "photoCount"
+            COUNT(CASE WHEN p."isPublic" = true THEN 1 END)::int AS "photoCount"
           FROM "Album" a
           LEFT JOIN "Photo" p ON p."albumId" = a.id
           WHERE a."isPublic" = true

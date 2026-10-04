@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { getCached, setCached, cacheKey } from "@/lib/redis";
 import { ensureLoveMeterTargets } from "@/lib/love-meter";
+import { parseCropRect } from "@/lib/image-crop";
 import HomeContent from "@/components/home/HomeContent";
 import PageTransition from "@/components/PageTransition";
 
@@ -42,17 +43,17 @@ async function getGallerySummary() {
     const [countResult, latestPhotos, oldestPhotos] = await Promise.all([
       prisma.$queryRaw<Array<{ photoCount: bigint; videoCount: bigint }>>`
         SELECT
-          (SELECT COUNT(*) FROM "Photo" WHERE "isMilestoneOnly" = false)::int AS "photoCount",
-          (SELECT COUNT(*) FROM "Photo" WHERE "isVideo" = true AND "isMilestoneOnly" = false)::int AS "videoCount"
+          (SELECT COUNT(*) FROM "Photo" WHERE "isMilestoneOnly" = false AND "isPublic" = true AND ("albumId" IS NULL OR "albumId" IN (SELECT "id" FROM "Album" WHERE "isPublic" = true)))::int AS "photoCount",
+          (SELECT COUNT(*) FROM "Photo" WHERE "isVideo" = true AND "isMilestoneOnly" = false AND "isPublic" = true AND ("albumId" IS NULL OR "albumId" IN (SELECT "id" FROM "Album" WHERE "isPublic" = true)))::int AS "videoCount"
       `,
       prisma.photo.findMany({
-        where: { isMilestoneOnly: false, isPublic: true },
+        where: { isMilestoneOnly: false, isPublic: true, OR: [{ albumId: null }, { album: { isPublic: true } }] },
         orderBy: { createdAt: "desc" },
         take: 25,
         select: { id: true, url: true, caption: true, takenAt: true, isVideo: true, isPublic: true },
       }),
       prisma.photo.findMany({
-        where: { isMilestoneOnly: false, isPublic: true },
+        where: { isMilestoneOnly: false, isPublic: true, OR: [{ albumId: null }, { album: { isPublic: true } }] },
         orderBy: { createdAt: "asc" },
         take: 25,
         select: { id: true, url: true, caption: true, takenAt: true, isVideo: true, isPublic: true },
@@ -107,9 +108,10 @@ async function getTimelineSummary() {
 
     const [countResult, milestones] = await Promise.all([
       prisma.$queryRaw<Array<{ count: bigint }>>`
-        SELECT COUNT(*)::int AS "count" FROM "Milestone"
+        SELECT COUNT(*)::int AS "count" FROM "Milestone" WHERE "isPublic" = true
       `,
       prisma.milestone.findMany({
+        where: { isPublic: true },
         orderBy: { date: "desc" },
         take: 2,
         select: { id: true, title: true, icon: true, color: true, date: true },
@@ -269,6 +271,7 @@ export default async function HomePage() {
                 name2: (config as Record<string, unknown>).name2 as string,
                 tagline: (config as Record<string, unknown>).tagline as string | null,
                 heroPhotoUrl: (config as Record<string, unknown>).heroPhotoUrl as string | null,
+                heroCrop: parseCropRect((config as Record<string, unknown>).heroCrop),
                 anniversaryDate: new Date(
                   (config as Record<string, unknown>).anniversaryDate as string | Date,
                 ).toISOString(),

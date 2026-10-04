@@ -4,10 +4,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import type { Milestone } from "@/types";
+import type { CropRect } from "@/lib/image-crop";
 
 export type MilestoneWithRelations = Milestone & {
   createdBy: { id: string; name: string | null; image: string | null };
   photos: Array<{
+    crop?: CropRect | null;
     photo: { id: string; url: string; thumbnailUrl: string | null; caption: string | null };
   }>;
 };
@@ -53,6 +55,8 @@ export function useCreateMilestone() {
       location?: string;
       isPublic?: boolean;
       photoIds?: string[];
+      photoUploads?: Array<{ url: string; publicId: string; thumbnailUrl?: string; crop?: CropRect | null }>;
+      photoCrops?: Record<string, CropRect>;
     }) => api.post("/api/milestones", data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: milestoneKeys.all, refetchType: 'all' });
@@ -79,6 +83,8 @@ export function useUpdateMilestone() {
       location?: string;
       isPublic?: boolean;
       photoIds?: string[];
+      photoUploads?: Array<{ url: string; publicId: string; thumbnailUrl?: string; crop?: CropRect | null }>;
+      photoCrops?: Record<string, CropRect>;
     }) => api.put(`/api/milestones/${id}`, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: milestoneKeys.all, refetchType: 'all' });

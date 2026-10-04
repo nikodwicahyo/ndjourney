@@ -15,6 +15,7 @@ import LocationWidget from "@/components/location/LocationWidget";
 import type { GalleryPhoto } from "./GallerySlideshow";
 import type { HomeSummaries } from "./HomeStats";
 import type { LoveMeterState } from "@/lib/love-meter";
+import type { CropRect } from "@/lib/image-crop";
 
 type HomeContentProps = {
   coupleConfig: {
@@ -22,6 +23,7 @@ type HomeContentProps = {
     name2: string;
     tagline?: string | null;
     heroPhotoUrl?: string | null;
+    heroCrop?: CropRect | null;
     anniversaryDate: string;
     birthDate1?: string | null;
     birthDate2?: string | null;
@@ -61,6 +63,7 @@ export default function HomeContent({
         name2={coupleConfig?.name2}
         tagline={coupleConfig?.tagline}
         heroPhotoUrl={coupleConfig?.heroPhotoUrl}
+        heroCrop={coupleConfig?.heroCrop}
       />
 
       <div className="space-y-16 md:space-y-24">

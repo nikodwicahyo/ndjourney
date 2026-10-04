@@ -5,10 +5,13 @@ import Image from "next/image";
 import { useCreateWish, useUpdateWish, useDeleteWish } from "@/hooks/useWishes";
 import { Button } from "@/components/ui";
 import GalleryPicker from "@/components/ui/GalleryPicker";
-import { Plus, Loader2, X, Upload, ImagePlus, Trash2 } from "lucide-react";
+import { Plus, Loader2, X, Upload, ImagePlus, Trash2, Crop } from "lucide-react";
 import { toast } from "sonner";
 import { showDeleteConfirm } from "@/lib/swal";
 import { uploadFileSimple } from "@/lib/chunked-upload";
+import { parseCropRect, cropCoverStyle, type CropRect } from "@/lib/image-crop";
+import { getOptimizedImageUrl } from "@/lib/cloudinary-urls";
+import PhotoCropper from "@/components/ui/PhotoCropper";
 import type { WishItem } from "@/types";
 
 const CATEGORIES = [
@@ -23,6 +26,56 @@ type WishFormProps = {
   onClose?: () => void;
 };
 
+// ponytail: 16:9 preview renders through the crop with the same math as the
+// card — plain <img> so object URLs (fresh uploads) work too. Keep the frame at
+// 16:9 everywhere (cropper, this preview, card) or cover-crop hides the match.
+function WishPreview({ src, crop, onError }: { src: string; crop: CropRect | null; onError: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [frame, setFrame] = useState<{ w: number; h: number } | null>(null);
+  const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => {
+      const r = el.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) setFrame({ w: r.width, h: r.height });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => { setNatural(null); }, [src]);
+
+  const style = crop && natural && frame
+    ? cropCoverStyle(natural.w, natural.h, frame.w, frame.h, crop)
+    : null;
+
+  return (
+    <div ref={ref} className="relative aspect-[16/9] w-full overflow-hidden rounded-xl bg-muted">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt="Preview gambar wish"
+        draggable={false}
+        onLoad={(e) => {
+          const img = e.currentTarget;
+          if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+            setNatural({ w: img.naturalWidth, h: img.naturalHeight });
+          }
+        }}
+        onError={onError}
+        className="absolute max-w-none"
+        style={style
+          ? { width: style.width, height: style.height, left: style.left, top: style.top }
+          : { width: "100%", height: "100%", objectFit: "cover" }}
+      />
+    </div>
+  );
+}
+
 export default function WishForm({ editingWish, onClose }: WishFormProps) {
   const createWish = useCreateWish();
   const updateWish = useUpdateWish();
@@ -33,6 +86,8 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
   const [link, setLink] = useState("");
   const [category, setCategory] = useState("OTHER");
   const [imageUrl, setImageUrl] = useState("");
+  const [imageCrop, setImageCrop] = useState<CropRect | null>(null);
+  const [showCropper, setShowCropper] = useState(false);
   const [localPreviewUrl, setLocalPreviewUrl] = useState("");
   const [previewFailed, setPreviewFailed] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
@@ -76,6 +131,7 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
       setLink(editingWish.link || "");
       setCategory(editingWish.category || "OTHER");
       setImageUrl(editingWish.imageUrl || "");
+      setImageCrop(parseCropRect((editingWish as { imageCrop?: unknown }).imageCrop));
       setOpen(true);
     }
   }, [editingWish]);
@@ -85,6 +141,8 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
     clearLocalPreview();
     setPreviewFailed(false);
     setImageUploading(false);
+    setImageCrop(null);
+    setShowCropper(false);
     setTitle("");
     setDescription("");
     setLink("");
@@ -128,6 +186,7 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
       const result = await uploadFileSimple(file, () => {});
       if (requestId !== uploadRequestRef.current) return;
       setImageUrl(result.secureUrl || result.url);
+      setImageCrop(null);
       toast.success("Gambar berhasil diupload");
     } catch {
       if (requestId === uploadRequestRef.current) {
@@ -149,7 +208,15 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
     clearLocalPreview();
     setPreviewFailed(false);
     setImageUrl(photo.url);
+    // ponytail: new image starts uncropped — crop is per-image, never inherited.
+    setImageCrop(null);
     setShowGalleryPicker(false);
+  }
+
+  function confirmCrop(rect: CropRect) {
+    const isFull = rect.x <= 0 && rect.y <= 0 && rect.w >= 1 && rect.h >= 1;
+    setImageCrop(isFull ? null : rect);
+    setShowCropper(false);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -165,6 +232,7 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
       link: link.trim() || null,
       category,
       imageUrl: imageUrl || null,
+      imageCrop: imageUrl ? (imageCrop ?? null) : null,
     };
 
     try {
@@ -177,6 +245,7 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
           description: description.trim() || undefined,
           link: link.trim() || undefined,
           imageUrl: imageUrl || undefined,
+          imageCrop: imageUrl ? (imageCrop ?? undefined) : undefined,
         });
         toast.success("Wish ditambahkan!");
       }
@@ -290,16 +359,15 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
               <div className="space-y-2">
                 <label className="text-sm font-medium">Foto (opsional)</label>
                 {localPreviewUrl || imageUrl ? (
-                  <div className="relative h-32 w-full overflow-hidden rounded-xl">
+                  <div className="relative w-full">
                     {previewFailed ? (
-                      <div className="flex h-full items-center justify-center bg-muted px-4 text-center text-sm text-muted-foreground">
+                      <div className="flex h-32 items-center justify-center rounded-xl bg-muted px-4 text-center text-sm text-muted-foreground">
                         Preview gambar tidak dapat dimuat. Silakan pilih foto lain.
                       </div>
                     ) : (
-                      <img
-                        src={localPreviewUrl || imageUrl}
-                        alt="Preview gambar wish"
-                        className="h-full w-full object-cover"
+                      <WishPreview
+                        src={localPreviewUrl || getOptimizedImageUrl(imageUrl, 1600)}
+                        crop={imageCrop}
                         onError={() => setPreviewFailed(true)}
                       />
                     )}
@@ -310,6 +378,7 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
                         clearLocalPreview();
                         setPreviewFailed(false);
                         setImageUrl("");
+                        setImageCrop(null);
                       }}
                       disabled={imageUploading}
                       aria-label="Hapus foto"
@@ -352,6 +421,19 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
                     <ImagePlus className="h-4 w-4" />
                     Pilih dari Galeri
                   </Button>
+                  {(localPreviewUrl || imageUrl) && !previewFailed && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={() => setShowCropper(true)}
+                      disabled={imageUploading}
+                    >
+                      <Crop className="h-4 w-4" />
+                      {imageCrop ? "Ubah Crop" : "Atur Crop"}
+                    </Button>
+                  )}
                 </div>
               </div>
 
@@ -416,6 +498,18 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
                     thumbnailUrl: photo.thumbnailUrl,
                   })
                 }
+              />
+            )}
+
+            {showCropper && (localPreviewUrl || imageUrl) && (
+              <PhotoCropper
+                open
+                src={localPreviewUrl || getOptimizedImageUrl(imageUrl, 2048)}
+                aspect={16 / 9}
+                initialRect={imageCrop}
+                title="Crop Foto Wish"
+                onCancel={() => setShowCropper(false)}
+                onDone={confirmCrop}
               />
             )}
           </div>

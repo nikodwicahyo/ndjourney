@@ -18,21 +18,22 @@ export function usePhotos(filters?: {
   albumId?: string;
   year?: number;
   isFavorite?: boolean;
+  /** @deprecated use visibility="public" instead — kept as alias. */
   isPublic?: boolean;
   visibility?: "public" | "private";
   limit?: number;
   mediaType?: string;
   sort?: string;
 }) {
+  const visibility = filters?.visibility ?? (filters?.isPublic ? "public" : undefined);
   return useInfiniteQuery({
-    queryKey: photoKeys.list(filters),
+    queryKey: photoKeys.list({ ...filters, isPublic: undefined, visibility }),
     queryFn: async ({ pageParam }: { pageParam: string | null }) => {
       const params = new URLSearchParams();
       if (filters?.albumId) params.set("albumId", filters.albumId);
       if (filters?.year) params.set("year", String(filters.year));
       if (filters?.isFavorite) params.set("isFavorite", "true");
-      if (filters?.isPublic) params.set("public", "true");
-      if (filters?.visibility) params.set("visibility", filters.visibility);
+      if (visibility) params.set("visibility", visibility);
       if (filters?.mediaType) params.set("mediaType", filters.mediaType);
       if (filters?.sort) params.set("sort", filters.sort);
       if (pageParam) params.set("cursor", pageParam);
@@ -232,11 +233,11 @@ export function useUploadPhotos() {
   return useNewUploadPhotos();
 }
 
-export function useAlbums() {
+export function useAlbums(visibility?: "public") {
   return useQuery({
-    queryKey: albumKeys.list(),
+    queryKey: albumKeys.list(visibility),
     queryFn: async () => {
-      const res = await fetch("/api/albums");
+      const res = await fetch(visibility ? `/api/albums?visibility=${visibility}` : "/api/albums");
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error ?? `Gagal memuat album (${res.status})`);
       return (json.data ?? []) as AlbumWithCount[];

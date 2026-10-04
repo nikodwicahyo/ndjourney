@@ -26,7 +26,7 @@ export default function PublicGallery() {
   const [lightboxIndex, setLightboxIndex] = useState(-1);
   const [lightboxPhotos, setLightboxPhotos] = useState<Photo[]>([]);
 
-  const { data, fetchNextPage, hasNextPage } = usePhotos({ ...filters, isPublic: true });
+  const { data, fetchNextPage, hasNextPage } = usePhotos({ ...filters, visibility: "public" });
 
   const allPhotos = useMemo(
     () => (data?.pages.flatMap((p) => p.data ?? []) ?? []).filter(Boolean) as Photo[],
@@ -59,13 +59,13 @@ export default function PublicGallery() {
         <ManagePageButton href="/dashboard/gallery" label="Kelola Galeri" />
       </div>
 
-      <AlbumSelector filters={filters} onFiltersChange={setFilters} isPublic counts={counts} />
+      <AlbumSelector filters={filters} onFiltersChange={setFilters} visibility="public" counts={counts} />
 
       <div className="relative">
         <MasonryGrid
           filters={filters}
           onPhotoClick={(photo, index, allPhotos) => handlePhotoClick(allPhotos, index)}
-          isPublic
+          visibility="public"
         />
       </div>
 

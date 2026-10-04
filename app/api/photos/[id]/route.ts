@@ -60,9 +60,13 @@ export async function GET(
       return NextResponse.json({ error: "Media tidak ditemukan" }, { status: 404 });
     }
 
-    // Enforce visibility rules for unauthenticated callers matching the list endpoint
+    // Enforce visibility rules for unauthenticated callers matching the list endpoint:
+    // photo must be public AND (unfiled OR in a public album). 404 (not 403) to avoid leaking existence.
     if (!isAuthed) {
       if (photo.isMilestoneOnly) {
+        return NextResponse.json({ error: "Media tidak ditemukan" }, { status: 404 });
+      }
+      if (!photo.isPublic) {
         return NextResponse.json({ error: "Media tidak ditemukan" }, { status: 404 });
       }
       if (photo.albumId) {
@@ -73,8 +77,6 @@ export async function GET(
         if (!album || !album.isPublic) {
           return NextResponse.json({ error: "Media tidak ditemukan" }, { status: 404 });
         }
-      } else if (!photo.isPublic) {
-        return NextResponse.json({ error: "Media tidak ditemukan" }, { status: 404 });
       }
     }
 

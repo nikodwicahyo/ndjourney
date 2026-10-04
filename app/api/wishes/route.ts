@@ -13,6 +13,7 @@ const wishSelect = {
   title: true,
   description: true,
   imageUrl: true,
+  imageCrop: true,
   link: true,
   category: true,
   isDone: true,
@@ -85,8 +86,10 @@ export async function POST(request: Request) {
     const userId = rateCheck.session.user.id;
     const wishCoupleId = await getUserCoupleId(userId);
 
+    // ponytail: omit null crop on create (DB default is NULL; Json fields reject plain null).
+    const { imageCrop, ...rest } = parsed.data;
     const wish = await prisma.wishItem.create({
-      data: { ...parsed.data, coupleId: wishCoupleId },
+      data: { ...rest, ...(imageCrop ? { imageCrop } : {}), coupleId: wishCoupleId },
     });
 
     await invalidateCache("wishes:*");

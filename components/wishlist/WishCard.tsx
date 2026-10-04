@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { getOptimizedImageUrl } from "@/lib/cloudinary-urls";
 import { useToggleWish } from "@/hooks/useWishes";
@@ -9,6 +9,7 @@ import { Check, Pencil, ExternalLink, Heart, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { WishItem } from "@/types";
+import { cropCoverStyle, parseCropRect } from "@/lib/image-crop";
 
 const categoryConfig: Record<string, { label: string; color: string }> = {
   DATE_IDEAS: { label: "Date Ideas", color: "#F43F5E" },
@@ -22,6 +23,70 @@ type WishCardProps = {
   readOnly?: boolean;
   onEdit?: (wish: WishItem) => void;
 };
+
+// ponytail: banner renders through imageCrop with the same math as the
+// cropper — null crop falls back to plain object-cover. Frame is 16/9, the same
+// as the cropper and the form preview, so what was framed is what shows.
+function CropBanner({ src, crop, alt, onError }: { src: string; crop: unknown; alt: string; onError?: () => void }) {
+  const rect = parseCropRect(crop);
+  const ref = useRef<HTMLDivElement>(null);
+  const [frame, setFrame] = useState<{ w: number; h: number } | null>(null);
+  const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => {
+      const r = el.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) setFrame({ w: r.width, h: r.height });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => { setNatural(null); }, [src]);
+
+  const onLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+      setNatural({ w: img.naturalWidth, h: img.naturalHeight });
+    }
+  };
+
+  const style = rect && natural && frame
+    ? cropCoverStyle(natural.w, natural.h, frame.w, frame.h, rect)
+    : null;
+
+  return (
+    <div ref={ref} className="relative mt-2 aspect-[16/9] w-full overflow-hidden rounded-xl">
+      {style ? (
+        <Image
+          src={src}
+          alt={alt}
+          width={Math.round(style.width)}
+          height={Math.round(style.height)}
+          onLoad={onLoad}
+          onError={onError}
+          className="absolute max-w-none"
+          style={{ left: style.left, top: style.top }}
+          sizes="(max-width: 768px) 100vw, 33vw"
+        />
+      ) : (
+        <Image
+          src={src}
+          alt={alt}
+          fill
+          onLoad={onLoad}
+          onError={onError}
+          sizes="(max-width: 768px) 100vw, 33vw"
+          className="object-cover"
+        />
+      )}
+    </div>
+  );
+}
 
 function WishCard({ wish, readOnly = false, onEdit }: WishCardProps) {
   const toggleWish = useToggleWish();
@@ -128,16 +193,12 @@ function WishCard({ wish, readOnly = false, onEdit }: WishCardProps) {
           {/* ponytail: transformed variant (not the multi-MB original) — the raw
               original hung /_next/image past its timeout and 500d every card. */}
           {wish.imageUrl && !imgError && (
-            <div className="relative mt-2 h-24 w-full overflow-hidden rounded-xl">
-              <Image
-                src={getOptimizedImageUrl(wish.imageUrl, 640)}
-                alt={wish.title}
-                fill
-                sizes="(max-width: 768px) 100vw, 33vw"
-                className="object-cover"
-                onError={() => setImgError(true)}
-              />
-            </div>
+            <CropBanner
+              src={getOptimizedImageUrl(wish.imageUrl, 640)}
+              crop={(wish as { imageCrop?: unknown }).imageCrop}
+              alt={wish.title}
+              onError={() => setImgError(true)}
+            />
           )}
 
           <div className="mt-2 flex items-center gap-3">

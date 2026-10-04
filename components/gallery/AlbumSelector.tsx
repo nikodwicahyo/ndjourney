@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useAlbums } from "@/hooks/usePhotos";
 import { cn } from "@/lib/utils";
 import { Heart, X, Image, Video, ArrowUpDown } from "lucide-react";
@@ -16,8 +17,9 @@ type FilterState = {
 type AlbumSelectorProps = {
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
-  isPublic?: boolean;
   counts?: { all: number; foto: number; video: number };
+  /** Public gallery passes "public" — private albums never appear in the filter. Dashboard omits it (all albums). */
+  visibility?: "public";
 };
 
 const MEDIA_TABS = [
@@ -29,10 +31,20 @@ const MEDIA_TABS = [
 export default function AlbumSelector({
   filters,
   onFiltersChange,
-  isPublic,
   counts,
+  visibility,
 }: AlbumSelectorProps) {
-  const { data: albums, isLoading } = useAlbums();
+  const { data: albums } = useAlbums(visibility);
+  // ponytail: client-side guard too — stale cache must never flash a private album in the public filter.
+  const visibleAlbums = visibility === "public" ? albums?.filter((a) => a.isPublic) : albums;
+
+  // Clear a stale private-album selection (e.g. album turned private while selected).
+  useEffect(() => {
+    if (visibility === "public" && filters.albumId && visibleAlbums && !visibleAlbums.some((a) => a.id === filters.albumId)) {
+      onFiltersChange({ ...filters, albumId: undefined });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibility, filters.albumId, visibleAlbums?.length]);
 
   const hasActiveFilters = filters.albumId || filters.year || filters.isFavorite;
 
@@ -88,7 +100,7 @@ export default function AlbumSelector({
       </button>
 
       <AlbumDropdown
-        albums={albums}
+        albums={visibleAlbums}
         value={filters.albumId || ""}
         onChange={(albumId) =>
           onFiltersChange({ ...filters, albumId: albumId || undefined })

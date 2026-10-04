@@ -29,10 +29,16 @@ export async function GET(request: Request) {
     const year = searchParams.get("year");
     const isFavorite = searchParams.get("isFavorite");
     const mediaType = searchParams.get("mediaType");
-    const visibility = searchParams.get("visibility");
+    const rawVisibility = searchParams.get("visibility");
+    // ponytail: legacy ?public=true / ?isPublic=true (old usePhotos) maps to public — resilient to cached clients.
+    const legacyPublic = searchParams.get("public") === "true" || searchParams.get("isPublic") === "true";
+    const visibility = rawVisibility === "public" || rawVisibility === "private"
+      ? rawVisibility
+      : legacyPublic ? "public" : null;
     const sort = searchParams.get("sort");
     const cursor = searchParams.get("cursor");
-    const limit = parseInt(searchParams.get("limit") || "30");
+    const rawLimit = parseInt(searchParams.get("limit") || "30", 10);
+    const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 100) : 30;
 
     const scope = isAuthed ? "auth" : "public";
     const cacheK = cacheKey("photos", "list", scope, albumId ?? "", year ?? "", isFavorite ?? "", mediaType ?? "", visibility ?? "", sort ?? "", cursor ?? "0", String(limit));
@@ -46,10 +52,16 @@ export async function GET(request: Request) {
     const conditions: string[] = ['"isMilestoneOnly" = false'];
     const sqlParams: unknown[] = [];
 
-    if (!isAuthed) {
+    // ponytail: one public rule for anon AND authed public filter — photo must be
+    // public AND (unfiled OR in a public album). Private context skips the gate.
+    const isPublicView = !isAuthed || visibility === "public";
+    if (isPublicView) {
+      conditions.push(`"isPublic" = true`);
       conditions.push(
-        `(("albumId" IS NULL AND "isPublic" = true) OR "albumId" IN (SELECT "id" FROM "Album" WHERE "isPublic" = true))`,
+        `("albumId" IS NULL OR "albumId" IN (SELECT "id" FROM "Album" WHERE "isPublic" = true))`,
       );
+    } else if (isAuthed && visibility === "private") {
+      conditions.push(`"isPublic" = false`);
     }
 
     if (albumId) {
@@ -59,10 +71,6 @@ export async function GET(request: Request) {
 
     if (isFavorite === "true") {
       conditions.push(`"isFavorite" = true`);
-    }
-
-    if (isAuthed && visibility === "private") {
-      conditions.push(`"isPublic" = false`);
     }
 
     if (year) {

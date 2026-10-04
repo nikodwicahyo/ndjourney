@@ -56,7 +56,7 @@ export default function GalleryManager() {
   const [albumFilter, setAlbumFilter] = useState<string | undefined>();
   const [favoriteFilter, setFavoriteFilter] = useState(false);
   const [visibilityFilter, setVisibilityFilter] = useState<"public" | "private">("public");
-  const { data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = usePhotos({ limit: 30, mediaType, sort, albumId: albumFilter, isFavorite: favoriteFilter || undefined, visibility: visibilityFilter === "private" ? "private" : undefined });
+  const { data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = usePhotos({ limit: 30, mediaType, sort, albumId: albumFilter, isFavorite: favoriteFilter || undefined, visibility: visibilityFilter });
   const { data: storage, refetch: refetchStorage, isFetching: isFetchingStorage } = useStorageUsage();
   const uploadPhotos = useUploadPhotos();
   const deletePhoto = useDeletePhoto();
@@ -702,7 +702,14 @@ export default function GalleryManager() {
               <AlbumDropdown
                 albums={albums}
                 value={albumFilter ?? ""}
-                onChange={(id) => setAlbumFilter(id || undefined)}
+                onChange={(id) => {
+                  setAlbumFilter(id || undefined);
+                  // ponytail: filter follows the album — private album → private, public → public.
+                  if (id) {
+                    const album = albums?.find((a) => a.id === id);
+                    if (album) setVisibilityFilter(album.isPublic ? "public" : "private");
+                  }
+                }}
                 placeholder="Semua Album"
                 direction="down"
               />

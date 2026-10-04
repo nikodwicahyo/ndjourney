@@ -34,6 +34,8 @@ async function fetchPhotos(cursor: string | null): Promise<{
     limit: String(PAGE_SIZE),
     mediaType: "foto",
     sort: "newest",
+    // ponytail: picker is for public-facing picks (hero, milestone, wish) — private media must never be listed or selectable.
+    visibility: "public",
   });
   if (cursor) params.set("cursor", cursor);
   const res = await fetch(`/api/photos?${params.toString()}`);

@@ -11,7 +11,7 @@ export const queryKeys = {
   },
   albums: {
     all: ["albums"] as const,
-    list: () => ["albums", "list"] as const,
+    list: (visibility?: string) => ["albums", "list", visibility ?? "all"] as const,
   },
   milestones: {
     all: ["milestones"] as const,

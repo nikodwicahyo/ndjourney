@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query-keys";
 import type { WishItem } from "@/types";
+import type { CropRect } from "@/lib/image-crop";
 
 export const wishKeys = queryKeys.wishes;
 
@@ -35,6 +36,7 @@ export function useCreateWish() {
       link?: string;
       category?: string;
       imageUrl?: string;
+      imageCrop?: CropRect | null;
     }) => {
       const res = await fetch("/api/wishes", {
         method: "POST",
@@ -65,6 +67,7 @@ export function useUpdateWish() {
       link?: string | null;
       category?: string;
       imageUrl?: string | null;
+      imageCrop?: CropRect | null;
     }) => {
       const res = await fetch(`/api/wishes/${id}`, {
         method: "PUT",

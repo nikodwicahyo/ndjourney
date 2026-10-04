@@ -7,10 +7,21 @@ const dateOnlyString = z
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal harus YYYY-MM-DD")
   .refine((v) => parseJakartaDateOnly(v) !== null, "Tanggal tidak valid");
 
+// ponytail: local copy (couple.ts uses the zod/v4 entry point — no cross-import).
+const cropRectSchema = z
+  .object({
+    x: z.number().min(0).max(1),
+    y: z.number().min(0).max(1),
+    w: z.number().min(0.01).max(1),
+    h: z.number().min(0.01).max(1),
+  })
+  .refine((r) => r.x + r.w <= 1 && r.y + r.h <= 1, "Crop rect melebihi batas gambar");
+
 const photoUploadSchema = z.object({
   url: httpUrl(),
   publicId: z.string().min(1),
   thumbnailUrl: httpUrl().optional(),
+  crop: cropRectSchema.nullable().optional(),
 });
 
 export const createMilestoneSchema = z.object({
@@ -24,9 +35,14 @@ export const createMilestoneSchema = z.object({
     .optional(),
   location: z.string().max(200).optional(),
   isPublic: z.boolean().default(true),
-  photoIds: z.array(z.string().cuid()).max(10).optional(),
-  photoUploads: z.array(photoUploadSchema).max(10).optional(),
-});
+  photoIds: z.array(z.string().cuid()).max(2).optional(),
+  photoUploads: z.array(photoUploadSchema).max(2).optional(),
+  // ponytail: crop per gallery-linked photoId — same photo, different framing per milestone.
+  photoCrops: z.record(z.string().cuid(), cropRectSchema).optional(),
+}).refine(
+  (v) => (v.photoIds?.length ?? 0) + (v.photoUploads?.length ?? 0) <= 2,
+  "Maksimal 2 foto per milestone",
+);
 
 export const updateMilestoneSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -40,9 +56,13 @@ export const updateMilestoneSchema = z.object({
     .optional(),
   location: z.string().max(200).nullable().optional(),
   isPublic: z.boolean().optional(),
-  photoIds: z.array(z.string().cuid()).max(10).optional(),
-  photoUploads: z.array(photoUploadSchema).max(10).optional(),
-});
+  photoIds: z.array(z.string().cuid()).max(2).optional(),
+  photoUploads: z.array(photoUploadSchema).max(2).optional(),
+  photoCrops: z.record(z.string().cuid(), cropRectSchema).optional(),
+}).refine(
+  (v) => (v.photoIds?.length ?? 0) + (v.photoUploads?.length ?? 0) <= 2,
+  "Maksimal 2 foto per milestone",
+);
 
 export type CreateMilestoneInput = z.infer<typeof createMilestoneSchema>;
 export type UpdateMilestoneInput = z.infer<typeof updateMilestoneSchema>;

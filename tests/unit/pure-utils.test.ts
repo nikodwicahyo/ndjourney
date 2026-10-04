@@ -17,6 +17,7 @@ import {
 import { calculateTargets } from "@/lib/love-meter";
 import { getOptimizedImageUrl, getImageSrcSet, getVideoPosterUrl } from "@/lib/cloudinary-urls";
 import { CSP_DIRECTIVES } from "@/lib/csp";
+import { parseCropRect, clampCropRect, cropCoverStyle, cropDisplaySrc, cropViewForRect, FULL_CROP } from "@/lib/image-crop";
 
 // GEO + DATE + UTILS + LOVE-METER + CLOUDINARY-URLS + CSP unit
 describe("geo utils", () => {
@@ -134,5 +135,82 @@ describe("csp single-source", () => {
     for (const d of ["default-src 'self'", "frame-ancestors 'none'", "report-uri /api/csp-violation", "worker-src 'self' blob:"]) {
       expect(s).toContain(d);
     }
+  });
+});
+
+describe("image-crop rect math", () => {
+  it("parseCropRect accepts valid, rejects garbage without throwing", () => {
+    expect(parseCropRect({ x: 0, y: 0, w: 1, h: 1 })).toEqual(FULL_CROP);
+    expect(parseCropRect({ x: 0.1, y: 0.2, w: 0.5, h: 0.4 })).toBeTruthy();
+    for (const bad of [null, undefined, "x", [], { x: 0, y: 0, w: 0, h: 1 }, { x: 0, y: 0, w: 1.5, h: 1 }, { x: 0.9, y: 0, w: 0.2, h: 1 }, { x: NaN, y: 0, w: 1, h: 1 }]) {
+      expect(parseCropRect(bad)).toBeNull();
+    }
+  });
+
+  it("cropCoverStyle: full rect == object-cover, sub-rect covers frame", () => {
+    const full = cropCoverStyle(1600, 900, 1440, 810, FULL_CROP);
+    expect(full).toMatchObject({ width: 1440, height: 810, left: 0, top: 0 });
+    const sub = cropCoverStyle(1000, 1000, 1600, 900, { x: 0.25, y: 0.25, w: 0.5, h: 0.5 });
+    expect(sub).toMatchObject({ width: 3200, height: 3200, left: -800 });
+    // Rendered image always covers the frame (no gaps).
+    expect(sub!.width).toBeGreaterThanOrEqual(1600);
+    expect(sub!.height).toBeGreaterThanOrEqual(900);
+    expect(cropCoverStyle(0, 100, 100, 100, FULL_CROP)).toBeNull();
+  });
+
+  it("clampCropRect keeps rect inside bounds", () => {
+    expect(clampCropRect({ x: -1, y: 2, w: 5, h: 0 })).toEqual({ x: 0, y: 0.99, w: 1, h: 0.01 });
+  });
+
+  it("cropDisplaySrc: a crop always renders from the ORIGINAL, never the square thumb", () => {
+    // Cloudinary thumbs are 400x400 center-fills — original-space rects don't map onto them.
+    const sub = { x: 0.1, y: 0, w: 0.75, h: 1 };
+    expect(cropDisplaySrc("o.jpg", "t.jpg", sub)).toBe("o.jpg");
+    expect(cropDisplaySrc("o.jpg", "t.jpg", FULL_CROP)).toBe("o.jpg");
+    // No crop → cheap thumb; missing thumb → original.
+    expect(cropDisplaySrc("o.jpg", "t.jpg", null)).toBe("t.jpg");
+    expect(cropDisplaySrc("o.jpg", null, null)).toBe("o.jpg");
+    expect(cropDisplaySrc("o.jpg", undefined, null)).toBe("o.jpg");
+  });
+
+  it("cropViewForRect: view window reproduces the saved rect exactly (round-trip)", () => {
+    // Same-aspect case (timeline 1:1): window == the rect that was saved.
+    const nw = 4000, nh = 3000, fw = 300, fh = 300;
+    const saved = { x: 0.125, y: 0, w: 0.75, h: 1 };
+    const cover = Math.max(fw / nw, fh / nh);
+    const v = cropViewForRect(saved, nw, nh, fw, fh)!;
+    const w = fw / (nw * cover * v.zoom);
+    const h = fh / (nh * cover * v.zoom);
+    expect(v.cx - w / 2).toBeCloseTo(saved.x, 6);
+    expect(v.cy - h / 2).toBeCloseTo(saved.y, 6);
+    expect(w).toBeCloseTo(saved.w, 6);
+    expect(h).toBeCloseTo(saved.h, 6);
+  });
+
+  it("cropViewForRect: legacy cross-aspect rect cover-fits into the frame (16:9 wish)", () => {
+    // 6:1 rect (cropped back when wishes were 3:1) shown in a 16:9 frame.
+    const nw = 3000, nh = 1000, fw = 1600, fh = 900;
+    const legacy = { x: 0.1, y: 0.2, w: 0.6, h: 0.3 };
+    const v = cropViewForRect(legacy, nw, nh, fw, fh)!;
+    const cover = Math.max(fw / nw, fh / nh);
+    const w = fw / (nw * cover * v.zoom);
+    const h = fh / (nh * cover * v.zoom);
+    // Window keeps the frame's 16:9 in IMAGE pixels (what cropCoverStyle shows).
+    expect((w * nw) / (h * nh)).toBeCloseTo(fw / fh, 6);
+    // Maximal + centered inside the saved rect, so it never shows outside it.
+    const e = 1e-9;
+    expect(v.cx - w / 2).toBeGreaterThanOrEqual(legacy.x - e);
+    expect(v.cx + w / 2).toBeLessThanOrEqual(legacy.x + legacy.w + e);
+    expect(v.cy - h / 2).toBeGreaterThanOrEqual(legacy.y - e);
+    expect(v.cy + h / 2).toBeLessThanOrEqual(legacy.y + legacy.h + e);
+    expect(h).toBeCloseTo(legacy.h, 6); // height-limited leg here: full rect height kept
+  });
+
+  it("cropViewForRect: full rect is zoom 1, junk inputs are null", () => {
+    const v = cropViewForRect(FULL_CROP, 3000, 2000, 1600, 900)!;
+    expect(v.zoom).toBeCloseTo(1, 6);
+    expect(v.cx).toBeCloseTo(0.5, 6);
+    expect(cropViewForRect(FULL_CROP, 0, 100, 100, 100)).toBeNull();
+    expect(cropViewForRect(FULL_CROP, 100, 100, 0, 56)).toBeNull();
   });
 });

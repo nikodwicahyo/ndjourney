@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/lib/generated/prisma";
 import { NextResponse } from "next/server";
 import { getCached, setCached, invalidateCache, cacheKey } from "@/lib/redis";
 import { updateCoupleSchema } from "@/lib/validations/couple";
@@ -30,6 +31,7 @@ export async function GET() {
         birthDate2: true,
         tagline: true,
         heroPhotoUrl: true,
+        heroCrop: true,
         spotifyPlaylistUrl: true,
         backgroundMusicUrl: true,
         createdAt: true,
@@ -138,6 +140,12 @@ export async function PUT(request: Request) {
         birthDate2,
         tagline: parsed.data.tagline ?? undefined,
         heroPhotoUrl: parsed.data.heroPhotoUrl ?? undefined,
+        // ponytail: crop without photo is meaningless — clearing the photo clears the crop.
+        // DbNull = SQL NULL (plain null would store JSON null for Json fields).
+        // Explicit null (Pakai Asli) clears; undefined leaves unchanged.
+        heroCrop: parsed.data.heroPhotoUrl === null || parsed.data.heroCrop === null
+          ? Prisma.DbNull
+          : (parsed.data.heroCrop ?? undefined),
         spotifyPlaylistUrl: parsed.data.spotifyPlaylistUrl ?? undefined,
         backgroundMusicUrl: parsed.data.backgroundMusicUrl ?? undefined,
       },
@@ -150,6 +158,7 @@ export async function PUT(request: Request) {
         birthDate2: true,
         tagline: true,
         heroPhotoUrl: true,
+        heroCrop: true,
         spotifyPlaylistUrl: true,
         backgroundMusicUrl: true,
         createdAt: true,
@@ -159,9 +168,17 @@ export async function PUT(request: Request) {
 
     await invalidateCache("couple:*");
 
-    // Clean up old Cloudinary files if URLs changed
+    // Clean up old Cloudinary files if URLs changed — but never delete a hero
+    // URL that is still referenced by a gallery photo (gallery-picked heroes
+    // share the original file; deleting it would destroy gallery data).
     if (config.heroPhotoUrl && config.heroPhotoUrl !== updated.heroPhotoUrl) {
-      await deleteFromCloudinaryUrl(config.heroPhotoUrl).catch(console.error);
+      const stillReferenced = await prisma.photo.findFirst({
+        where: { url: config.heroPhotoUrl },
+        select: { id: true },
+      });
+      if (!stillReferenced) {
+        await deleteFromCloudinaryUrl(config.heroPhotoUrl).catch(console.error);
+      }
     }
     if (config.backgroundMusicUrl && config.backgroundMusicUrl !== updated.backgroundMusicUrl) {
       await deleteFromCloudinaryUrl(config.backgroundMusicUrl).catch(console.error);

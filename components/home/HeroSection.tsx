@@ -5,12 +5,15 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import { ChevronDown, Heart } from "lucide-react";
 import { isVideoUrl } from "@/lib/utils";
+import { cropCoverStyle, type CropRect } from "@/lib/image-crop";
+import { getOptimizedImageUrl } from "@/lib/cloudinary-urls";
 
 type HeroSectionProps = {
   name1?: string;
   name2?: string;
   tagline?: string | null;
   heroPhotoUrl?: string | null;
+  heroCrop?: CropRect | null;
 };
 
 export default function HeroSection({
@@ -18,8 +21,28 @@ export default function HeroSection({
   name2 = "Pasangan",
   tagline,
   heroPhotoUrl,
+  heroCrop = null,
 }: HeroSectionProps) {
   const heroIsVideo = useMemo(() => isVideoUrl(heroPhotoUrl), [heroPhotoUrl]);
+  // ponytail: crop renders with the SAME math as the cropper preview (lib/image-crop),
+  // measured against the real viewport — preview IS the output.
+  const [viewport, setViewport] = useState<{ w: number; h: number } | null>(null);
+  const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
+  useEffect(() => {
+    const measure = () => setViewport({ w: window.innerWidth, h: Math.round(window.innerHeight * 0.9) });
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, []);
+  const handleImgLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+      setNatural({ w: img.naturalWidth, h: img.naturalHeight });
+    }
+  };
+  const cropStyle = !heroIsVideo && heroCrop && natural && viewport
+    ? cropCoverStyle(natural.w, natural.h, viewport.w, viewport.h, heroCrop)
+    : null;
   const [displayedName1, setDisplayedName1] = useState("");
   const [displayedName2, setDisplayedName2] = useState("");
   const [showCursor1, setShowCursor1] = useState(true);
@@ -70,11 +93,26 @@ export default function HeroSection({
               playsInline
               className="h-full w-full object-cover"
             />
+          ) : cropStyle ? (
+            <Image
+              src={getOptimizedImageUrl(heroPhotoUrl, 1600)}
+              alt=""
+              width={Math.round(cropStyle.width)}
+              height={Math.round(cropStyle.height)}
+              onLoad={handleImgLoad}
+              className="absolute max-w-none"
+              style={{ left: cropStyle.left, top: cropStyle.top }}
+              priority
+              loading="eager"
+              fetchPriority="high"
+              sizes="100vw"
+            />
           ) : (
             <Image
-              src={heroPhotoUrl}
+              src={getOptimizedImageUrl(heroPhotoUrl, 1600)}
               alt=""
               fill
+              onLoad={handleImgLoad}
               className="object-cover"
               priority
               loading="eager"

@@ -129,6 +129,46 @@ describe("milestones API contracts", () => {
     }
   });
 
+  it("TML-04: POST persists per-link crops; invalid rect 400", async () => {
+    prismaMock.milestone.create.mockResolvedValue({ id: "m1", createdById: ME });
+    const pid = "cjld2cjxh0000qz8n0p3q4w5e1";
+    const crop = { x: 0.1, y: 0.1, w: 0.8, h: 0.8 };
+    const ok = await milestones.POST(new Request("http://localhost/api/milestones", {
+      method: "POST",
+      body: JSON.stringify({ title: "T", date: "2024-02-14", photoIds: [pid], photoCrops: { [pid]: crop } }),
+    }));
+    expect(ok.status).toBe(201);
+    expect(prismaMock.milestone.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        photos: { create: [{ photoId: pid, crop }] },
+      }),
+    }));
+    const bad = await milestones.POST(new Request("http://localhost/api/milestones", {
+      method: "POST",
+      body: JSON.stringify({ title: "T", date: "2024-02-14", photoIds: [pid], photoCrops: { [pid]: { x: 0, y: 0, w: 2, h: 1 } } }),
+    }));
+    expect(bad.status).toBe(400);
+  });
+
+  it("TML-05: max 2 photos per milestone (ids, uploads, and combined)", async () => {
+    const ids = ["cjld2cjxh0000qz8n0p3q4w5e1", "cjld2cjxh0000qz8n0p3q4w5e2", "cjld2cjxh0000qz8n0p3q4w5e3"];
+    const tooMany = await milestones.POST(new Request("http://localhost/api/milestones", {
+      method: "POST",
+      body: JSON.stringify({ title: "T", date: "2024-02-14", photoIds: ids }),
+    }));
+    expect(tooMany.status).toBe(400);
+    const combined = await milestones.POST(new Request("http://localhost/api/milestones", {
+      method: "POST",
+      body: JSON.stringify({
+        title: "T",
+        date: "2024-02-14",
+        photoIds: ids.slice(0, 2),
+        photoUploads: [{ url: "https://res.cloudinary.com/test-cloud/image/upload/v1/ndjourney-web/x/a.jpg", publicId: "ndjourney-web/x/a" }],
+      }),
+    }));
+    expect(combined.status).toBe(400);
+  });
+
   it("milestones/[id] GET: 200, 404 missing + private hidden from anon", async () => {
     prismaMock.milestone.findUnique.mockResolvedValue({ id: "m1", createdById: ME, isPublic: true });
     prismaMock.user.findUnique.mockResolvedValue({ id: ME, name: "A", image: null });

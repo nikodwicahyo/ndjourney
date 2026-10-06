@@ -51,6 +51,13 @@ export async function DELETE(
 
     await deleteFromCloudinary(publicId, resourceType);
 
+    // Remove the metadata row too (same owner scope) — deleting only the
+    // Cloudinary asset leaves an orphan row that no UI can display or
+    // remove, and breaks callers that rely on this endpoint for full cleanup.
+    await prisma.photo.deleteMany({
+      where: { publicId, uploadedById: session.user.id },
+    });
+
     return NextResponse.json({ data: { publicId } });
   } catch (error) {
     console.error("Error deleting from Cloudinary:", error);

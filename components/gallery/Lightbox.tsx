@@ -725,7 +725,7 @@ function Lightbox({
                 <span>{formatDate(photo.createdAt)}</span>
                 {photo.width && photo.height && (
                   <span>
-                    | {photo.width} x {photo.height}
+                    {photo.width}x{photo.height}px
                   </span>
                 )}
               </div>

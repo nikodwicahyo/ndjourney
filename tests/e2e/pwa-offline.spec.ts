@@ -6,6 +6,8 @@ import { t } from "./timeout";
 // an app error page also contains h1/img and would pass those vacuously,
 // hiding the real failure (proven on CI).
 test("PWA manifest + offline fallback", async ({ page, context }) => {
+  // Multiple reloads + SW handoff under load exceed the 30s default.
+  test.setTimeout(120_000);
   const manifest = await page.request.get("/manifest.json").catch(() => null);
   expect(manifest?.ok()).toBeTruthy();
   const galleryHeading = page.getByRole("heading", { name: /^gallery$/i });

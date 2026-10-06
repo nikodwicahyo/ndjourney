@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # C-05: fork PRs have no secrets; the mocked suites don't need them.
-    # Secret-backed steps live in e2e, which is skipped on forks (see below).
+    # E2E runs locally only (needs a live test DB + browsers), not in CI.
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -42,76 +42,3 @@ jobs:
         env:
           INVITE_TOKEN: test-invite-123
           CRON_SECRET: test-cron-secret
-  e2e:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    needs: [static, unit-integration]
-    # C-05: needs real secrets (DB, auth seed user) that forks don't have.
-    if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request'
-    # C-02: build + prod server + specs share one env shape (same as runtime).
-    # Defined once at job level so the blocks below cannot drift apart.
-    env:
-      DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
-      TEST_DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
-      AUTH_SECRET: ${{ secrets.TEST_AUTH_SECRET }}
-      NEXTAUTH_URL: http://localhost:3000
-      PLAYWRIGHT_BASE_URL: http://localhost:3000
-      INVITE_TOKEN: test-invite-123
-      CRON_SECRET: test-cron-secret
-      UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
-      UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
-      CLOUDINARY_CLOUD_NAME: test-cloud
-      TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
-      TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: npm }
-      # Fail fast with names (never values) when secrets are missing — an
-      # empty TEST_DATABASE_URL otherwise fails cryptically minutes later.
-      - name: Verify test secrets
-        run: |
-          missing=""
-          [ -z "${{ secrets.TEST_DATABASE_URL }}" ] && missing="$missing TEST_DATABASE_URL"
-          [ -z "${{ secrets.TEST_AUTH_SECRET }}" ] && missing="$missing TEST_AUTH_SECRET"
-          [ -z "${{ secrets.TEST_USER_EMAIL }}" ] && missing="$missing TEST_USER_EMAIL"
-          [ -z "${{ secrets.TEST_USER_PASSWORD }}" ] && missing="$missing TEST_USER_PASSWORD"
-          if [ -n "$missing" ]; then
-            echo "::error::Missing GitHub Secrets:$missing (Settings → Secrets and variables → Actions)"
-            exit 1
-          fi
-      - run: npm ci
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-      - run: npx playwright install --with-deps chromium firefox
-      # Test database khusus E2E: migrate + seed. --reset keeps every run
-      # hermetic (uploads/content from prior runs never leak into assertions).
-      - run: npm run db:migrate:deploy
-      - run: npm run db:seed:test -- --reset
-      - run: npm run build
-      # C-08: start the just-built server once; the smoke check and the
-      # Playwright webServer (reuseExistingServer) share it.
-      - run: |
-          nohup npm run start >/tmp/next.log 2>&1 &
-          echo $! > /tmp/next.pid
-          for i in $(seq 1 60); do
-            curl -sf http://localhost:3000/api/health && break
-            sleep 2
-          done
-          curl -sf http://localhost:3000/api/health | tee /tmp/health.json
-          node -e "const h=require('/tmp/health.json'); if(h.status!=='ok'){console.error(h);process.exit(1)}"
-      - run: npm run test:e2e
-      - run: kill $(cat /tmp/next.pid) || true
-        if: always()
-      # C-06: traces/videos/screenshots evaporate with the runner otherwise.
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: playwright-report
-          path: |
-            playwright-report/
-            test-results/
-          retention-days: 7

@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const ME = "cjld2cjxh0000qz8n0p3q4w5e1";
 
 const prismaMock = vi.hoisted(() => ({
-  photo: { findFirst: vi.fn() },
+  photo: { findFirst: vi.fn(), deleteMany: vi.fn(async () => ({ count: 1 })) },
   coupleMember: { findUnique: vi.fn(async () => ({ coupleId: "couple-1" })) },
 }));
 
@@ -145,10 +145,13 @@ describe("upload pipeline contracts", () => {
     expect((await uploadBulk.POST(new Request("http://localhost/api/upload/bulk", { method: "POST", body: fd }))).status).toBe(400);
   });
 
-  it("[publicId] DELETE: 200 owner, 404 foreign, 400 bad resourceType", async () => {
+  it("[publicId] DELETE: 200 owner (+row cleanup), 404 foreign, 400 bad resourceType", async () => {
     prismaMock.photo.findFirst.mockResolvedValue({ id: "p1" });
     const ok = await uploadDel.DELETE(new Request("http://localhost/api/upload/a?resourceType=image", { method: "DELETE" }), { params: Promise.resolve({ publicId: `ndjourney-web/${ME}/a` }) });
     expect(ok.status).toBe(200);
+    expect(prismaMock.photo.deleteMany).toHaveBeenCalledWith({
+      where: { publicId: `ndjourney-web/${ME}/a`, uploadedById: ME },
+    });
     prismaMock.photo.findFirst.mockResolvedValue(null);
     expect((await uploadDel.DELETE(new Request("http://localhost/api/upload/a", { method: "DELETE" }), { params: Promise.resolve({ publicId: `ndjourney-web/${ME}/a` }) })).status).toBe(404);
     prismaMock.photo.findFirst.mockResolvedValue({ id: "p1" });

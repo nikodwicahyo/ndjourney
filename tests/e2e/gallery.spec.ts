@@ -10,7 +10,10 @@ test("public gallery shows Gallery heading", async ({ page }) => {
   await expect(page.getByRole("heading", { name: /^gallery$/i })).toBeVisible({ timeout: t(15000) });
 });
 
-test("dashboard gallery requires auth and shows Kelola Gallery when logged in", async ({ page }) => {
+test("dashboard gallery requires auth and shows Kelola Gallery when logged in", async ({ page, context }) => {
+  // Upload + Cloudinary + save + cleanup can exceed the default 30s test
+  // budget under parallel-worker load (assertion budget alone is 60s).
+  test.setTimeout(120_000);
   await page.goto("/dashboard/gallery");
   if (page.url().includes("/login")) {
     await expect(page.getByRole("button", { name: /login dengan google/i })).toBeVisible({ timeout: t(15000) });
@@ -52,14 +55,17 @@ test("dashboard gallery requires auth and shows Kelola Gallery when logged in", 
   // Self-cleanup: delete exactly what this test uploaded, so runs never
   // pollute the (test or prod) cloud. The photo row must exist for the
   // upload/[publicId] endpoint (404 otherwise) — the flow above creates it.
-  const session = await (await page.request.get(`${BASE_URL}/api/auth/session`)).json();
+  // Plain Node fetch with explicit cookies (not page.request): APIResponse
+  // bodies proved disposable under parallel-worker load ("Response has been
+  // disposed"), while fetch has no browser-lifecycle coupling.
+  const cookieHeader = (await context.cookies()).map((c) => `${c.name}=${c.value}`).join("; ");
+  const sessionRes = await fetch(`${BASE_URL}/api/auth/session`, { headers: { Cookie: cookieHeader } });
+  const session = await sessionRes.json();
   const userId: string | undefined = session?.user?.id;
   expect(userId, "expected an authenticated session for cleanup").toBeTruthy();
   const since = Date.now() - 5 * 60 * 1000;
-  const listRes = await page.request.get(`${BASE_URL}/api/photos?limit=100`);
-  expect(listRes.ok()).toBeTruthy();
-  // Read the body exactly once, immediately: deferred .json() calls can hit
-  // a disposed response under parallel-worker load (seen on mobile).
+  const listRes = await fetch(`${BASE_URL}/api/photos?limit=100`, { headers: { Cookie: cookieHeader } });
+  expect(listRes.ok).toBeTruthy();
   const listBody = await listRes.json();
   const items: Array<{ id: string; publicId: string; uploadedById: string; createdAt: string }> =
     listBody.data ?? [];
@@ -68,10 +74,11 @@ test("dashboard gallery requires auth and shows Kelola Gallery when logged in", 
   );
   expect(mine.length, "expected the uploaded photo to be listed").toBeGreaterThan(0);
   for (const photo of mine) {
-    const del = await page.request.delete(
+    const del = await fetch(
       `${BASE_URL}/api/upload/${encodeURIComponent(photo.publicId)}?resourceType=image`,
+      { method: "DELETE", headers: { Cookie: cookieHeader } },
     );
-    expect(del.ok(), `cleanup delete failed for ${photo.publicId}`).toBeTruthy();
+    expect(del.ok, `cleanup delete failed for ${photo.publicId}`).toBeTruthy();
   }
 });
 

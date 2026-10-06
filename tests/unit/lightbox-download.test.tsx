@@ -14,7 +14,6 @@ const PHOTO = {
   publicId: "test-cloud/u/a",
   thumbnailUrl: null,
   caption: null,
-  takenAt: null,
   width: 800,
   height: 600,
   isVideo: false,

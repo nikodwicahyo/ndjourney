@@ -149,9 +149,6 @@ export function buildPhotoPayload(
   if (result.thumbnailUrl != null) payload.thumbnailUrl = result.thumbnailUrl;
   if (result.width != null) payload.width = result.width;
   if (result.height != null) payload.height = result.height;
-  // MR-25: stamp capture time — the ?year= filter reads takenAt, which was
-  // always null, so year filtering silently returned nothing.
-  payload.takenAt = new Date().toISOString();
   const fileSize = result.fileSize ?? result.bytes;
   if (fileSize != null) payload.fileSize = fileSize;
   if (albumId != null) payload.albumId = albumId;

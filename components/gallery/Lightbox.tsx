@@ -576,7 +576,8 @@ function Lightbox({
             className="flex shrink-0 cursor-pointer items-center justify-start pl-1 sm:pl-2"
           >
               <button
-                className="rounded-full bg-black/40 p-2.5 text-white/80 transition-colors hover:bg-black/60 hover:text-white sm:p-3"
+                disabled={currentIndex === 0}
+                className="rounded-full bg-black/40 p-2.5 text-white/80 transition-colors hover:bg-black/60 hover:text-white disabled:opacity-30 disabled:hover:bg-black/40 disabled:hover:text-white/80 sm:p-3"
                 aria-label="Sebelumnya"
               >
                 <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />
@@ -704,7 +705,8 @@ function Lightbox({
             className="flex shrink-0 cursor-pointer items-center justify-end pr-1 sm:pr-2"
           >
               <button
-                className="rounded-full bg-black/40 p-2.5 text-white/80 transition-colors hover:bg-black/60 hover:text-white sm:p-3"
+                disabled={currentIndex >= photos.length - 1 && !hasNextPage}
+                className="rounded-full bg-black/40 p-2.5 text-white/80 transition-colors hover:bg-black/60 hover:text-white disabled:opacity-30 disabled:hover:bg-black/40 disabled:hover:text-white/80 sm:p-3"
                 aria-label="Berikutnya"
               >
                 <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />
@@ -720,10 +722,10 @@ function Lightbox({
                 <p className="text-sm text-white/90 truncate">{photo.caption}</p>
               )}
               <div className="mt-1 flex items-center gap-3 text-xs text-white/50">
-                {photo.takenAt && <span>{formatDate(photo.takenAt)}</span>}
+                <span>{formatDate(photo.createdAt)}</span>
                 {photo.width && photo.height && (
                   <span>
-                    {photo.width} x {photo.height}
+                    | {photo.width} x {photo.height}
                   </span>
                 )}
               </div>
@@ -772,18 +774,6 @@ function Lightbox({
                     <p className="text-sm font-medium">{formatDate(photo.createdAt)}</p>
                   </div>
                 </div>
-
-                {photo.takenAt && (
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                      <Calendar className="h-4.5 w-4.5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Tanggal diambil</p>
-                      <p className="text-sm font-medium">{formatDate(photo.takenAt)}</p>
-                    </div>
-                  </div>
-                )}
 
                 {photo.width && photo.height && (
                   <div className="flex items-center gap-3">

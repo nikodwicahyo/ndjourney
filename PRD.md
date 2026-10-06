@@ -291,7 +291,6 @@ model Photo {
   publicId    String   // Cloudinary public_id (untuk delete)
   thumbnailUrl String?
   caption     String?
-  takenAt     DateTime?
   width       Int?
   height      Int?
   isVideo     Boolean  @default(false)

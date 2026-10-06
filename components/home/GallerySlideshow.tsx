@@ -10,7 +10,7 @@ export type GalleryPhoto = {
   id: string;
   url: string;
   caption?: string | null;
-  takenAt?: string | null;
+  createdAt?: string | null;
   isVideo: boolean;
   isPublic?: boolean;
 };
@@ -234,9 +234,9 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
                 {photo.caption}
               </p>
             )}
-            {photo.takenAt && (
+            {photo.createdAt && (
               <p className="mt-1 text-xs text-white/80 drop-shadow-md">
-                {formatDate(photo.takenAt)}
+                {formatDate(photo.createdAt)}
               </p>
             )}
           </div>

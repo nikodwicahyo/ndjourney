@@ -36,7 +36,7 @@ async function getGallerySummary() {
     const cached = await getCached<{
       photoCount: number;
       videoCount: number;
-      latestPhotos: Array<{ id: string; url: string; caption: string | null; takenAt: string | null; isVideo: boolean; isPublic: boolean }>;
+      latestPhotos: Array<{ id: string; url: string; caption: string | null; createdAt: string; isVideo: boolean; isPublic: boolean }>;
     } | null>(cacheKey("home", "gallery"));
     if (cached) return cached;
 
@@ -50,13 +50,13 @@ async function getGallerySummary() {
         where: { isMilestoneOnly: false, isPublic: true, OR: [{ albumId: null }, { album: { isPublic: true } }] },
         orderBy: { createdAt: "desc" },
         take: 25,
-        select: { id: true, url: true, caption: true, takenAt: true, isVideo: true, isPublic: true },
+        select: { id: true, url: true, caption: true, createdAt: true, isVideo: true, isPublic: true },
       }),
       prisma.photo.findMany({
         where: { isMilestoneOnly: false, isPublic: true, OR: [{ albumId: null }, { album: { isPublic: true } }] },
         orderBy: { createdAt: "asc" },
         take: 25,
-        select: { id: true, url: true, caption: true, takenAt: true, isVideo: true, isPublic: true },
+        select: { id: true, url: true, caption: true, createdAt: true, isVideo: true, isPublic: true },
       }),
     ]);
 
@@ -65,7 +65,7 @@ async function getGallerySummary() {
       id: string;
       url: string;
       caption: string | null;
-      takenAt: Date | null;
+      createdAt: Date;
       isVideo: boolean;
       isPublic: boolean;
     }> = [];
@@ -87,7 +87,7 @@ async function getGallerySummary() {
       videoCount: Number(row?.videoCount ?? 0),
       latestPhotos: mixed.slice(0, 50).map((p) => ({
         ...p,
-        takenAt: p.takenAt ? p.takenAt.toISOString() : null,
+        createdAt: p.createdAt.toISOString(),
       })),
     };
 

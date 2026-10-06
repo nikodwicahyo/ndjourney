@@ -17,7 +17,7 @@ const CACHE_TTL = 60;
 
 function buildPhotoSelect(alias = "") {
   const p = alias ? `${alias}.` : "";
-  return `${p}"id", ${p}"url", ${p}"publicId", ${p}"thumbnailUrl", ${p}"caption", ${p}"takenAt", ${p}"width", ${p}"height", ${p}"isVideo", ${p}"isFavorite", ${p}"isPublic", ${p}"albumId", ${p}"uploadedById", ${p}"createdAt", ${p}"updatedAt", u."name" AS "uploadedByName", u."image" AS "uploadedByImage"`;
+  return `${p}"id", ${p}"url", ${p}"publicId", ${p}"thumbnailUrl", ${p}"caption", ${p}"width", ${p}"height", ${p}"isVideo", ${p}"isFavorite", ${p}"isPublic", ${p}"albumId", ${p}"uploadedById", ${p}"createdAt", ${p}"updatedAt", u."name" AS "uploadedByName", u."image" AS "uploadedByImage"`;
 }
 
 export async function GET(request: Request) {
@@ -112,7 +112,7 @@ export async function GET(request: Request) {
       const startDate = jakartaYearStart(yearNum);
       const endDate = jakartaYearStart(yearNum + 1);
       const startIdx = sqlParams.length + 1;
-      conditions.push(`"takenAt" >= $${startIdx} AND "takenAt" < $${startIdx + 1}`);
+      conditions.push(`"createdAt" >= $${startIdx} AND "createdAt" < $${startIdx + 1}`);
       sqlParams.push(startDate, endDate);
     }
 
@@ -206,7 +206,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { url, publicId, thumbnailUrl, caption, takenAt, width, height, isVideo, fileSize, albumId, isPublic } = parsed.data;
+    const { url, publicId, thumbnailUrl, caption, width, height, isVideo, fileSize, albumId, isPublic } = parsed.data;
     // End-to-end byte trust: the sign endpoint only saw claims, so confirm
     // the stored asset (kind, format, bytes) before persisting metadata.
     try {
@@ -241,7 +241,6 @@ export async function POST(request: Request) {
         publicId,
         thumbnailUrl: thumbnailUrl ?? null,
         caption: caption ?? null,
-        takenAt: takenAt ? new Date(takenAt) : null,
         width: width ?? null,
         height: height ?? null,
         fileSize: fileSize ?? null,

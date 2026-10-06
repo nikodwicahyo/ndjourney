@@ -130,7 +130,6 @@ model Photo {
   publicId        String
   thumbnailUrl    String?
   caption         String?
-  takenAt         DateTime?
   width           Int?
   height          Int?
   fileSize        Int?
@@ -151,7 +150,6 @@ model Photo {
   @@index([albumId])
   @@index([uploadedById])
   @@index([createdAt])
-  @@index([takenAt])
   @@index([isFavorite])
   @@index([isPublic])
   @@index([albumId, createdAt])

@@ -17,7 +17,6 @@ const bulkUploadSchema = z.object({
         publicId: z.string().min(1),
         thumbnailUrl: z.string().url().optional(),
         caption: z.string().max(500).optional(),
-        takenAt: z.string().datetime().optional(),
         width: z.number().int().nonnegative().optional().default(0),
         height: z.number().int().nonnegative().optional().default(0),
         fileSize: z.number().int().nonnegative().optional().default(0),
@@ -110,7 +109,7 @@ export async function POST(request: Request) {
     for (const p of valid) {
 
       insertValues.push(
-        `($${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++})`,
+        `($${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++})`,
       );
       const now = new Date();
       flatParams.push(
@@ -119,7 +118,6 @@ export async function POST(request: Request) {
         p.publicId,
         p.thumbnailUrl ?? null,
         p.caption ?? null,
-        p.takenAt ? new Date(p.takenAt) : null,
         // null sentinel like single POST (0 breaks SUM math)
         p.width || null,
         p.height || null,
@@ -134,7 +132,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const query = `INSERT INTO "Photo" ("id", "url", "publicId", "thumbnailUrl", "caption", "takenAt", "width", "height", "fileSize", "isVideo", "isPublic", "albumId", "uploadedById", "coupleId", "createdAt", "updatedAt") VALUES ${insertValues.join(", ")} RETURNING *`;
+    const query = `INSERT INTO "Photo" ("id", "url", "publicId", "thumbnailUrl", "caption", "width", "height", "fileSize", "isVideo", "isPublic", "albumId", "uploadedById", "coupleId", "createdAt", "updatedAt") VALUES ${insertValues.join(", ")} RETURNING *`;
 
     let photos: Photo[];
     try {
@@ -149,7 +147,6 @@ export async function POST(request: Request) {
               publicId: p.publicId,
               thumbnailUrl: p.thumbnailUrl ?? null,
               caption: p.caption ?? null,
-              takenAt: p.takenAt ? new Date(p.takenAt) : null,
               width: p.width || null,
               height: p.height || null,
               fileSize: p.fileSize || null,

@@ -6,7 +6,6 @@ export const createPhotoSchema = z.object({
   publicId: z.string().min(1),
   thumbnailUrl: httpUrl().optional(),
   caption: z.string().max(500).optional(),
-  takenAt: z.string().datetime().optional(),
   width: z.number().int().positive().optional(),
   height: z.number().int().positive().optional(),
   isVideo: z.boolean().default(false),

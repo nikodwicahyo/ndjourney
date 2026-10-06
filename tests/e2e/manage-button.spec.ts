@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { t } from "./timeout";
 
 // Manage header button: only for authenticated users, never on home/location/letters-detail.
 // NOTE: all projects share the partner-A storageState, so anonymous cases
@@ -21,20 +22,20 @@ test.describe("anonymous (no storageState)", () => {
   for (const { page: url, label, heading } of cases) {
     test(`anon never sees ${label} on ${url}`, async ({ page }) => {
       await page.goto(url);
-      await expect(page.getByRole("heading", { name: heading }).first()).toBeVisible({ timeout: 15000 });
+      await expect(page.getByRole("heading", { name: heading }).first()).toBeVisible({ timeout: t(15000) });
       await expect(page.getByRole("link", { name: label })).toHaveCount(0);
     });
   }
 
   test("home never shows manage buttons", async ({ page }) => {
     await page.goto("/");
-    await expect(page).toHaveTitle(/ndjourney/i, { timeout: 15000 });
+    await expect(page).toHaveTitle(/ndjourney/i, { timeout: t(15000) });
     await expect(page.getByRole("link", { name: /kelola/i })).toHaveCount(0);
   });
 
   test("location requires login for anon", async ({ page }) => {
     await page.goto("/location");
-    await expect(page).toHaveURL(/\/login/, { timeout: 15000 });
+    await expect(page).toHaveURL(/\/login/, { timeout: t(15000) });
     await expect(page.getByRole("link", { name: /kelola/i })).toHaveCount(0);
   });
 });
@@ -47,6 +48,6 @@ test("authenticated gallery shows Kelola Galeri with correct href", async ({ pag
     return;
   }
   const link = page.getByRole("link", { name: "Kelola Galeri" });
-  await expect(link).toBeVisible({ timeout: 15000 });
+  await expect(link).toBeVisible({ timeout: t(15000) });
   await expect(link).toHaveAttribute("href", "/dashboard/gallery");
 });

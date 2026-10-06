@@ -233,11 +233,14 @@ export async function deleteFromCloudinary(
     invalidate: true,
   });
 
-  if (result.result !== "ok") {
+  if (result.result !== "ok" && result.result !== "not found") {
     throw new Error(
       `Cloudinary did not delete media ${publicId}: ${result.result ?? "unknown result"}`,
     );
   }
+  // Idempotent delete: "not found" means the asset is already gone — the
+  // requested end state. Failing hard here orphans the DB row forever (no
+  // API path could ever delete it again).
 }
 
 export type CloudinaryUsage = {

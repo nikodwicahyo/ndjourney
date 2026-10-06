@@ -139,14 +139,14 @@ describe("format utils", () => {
     expect(createPhotoSchema.safeParse(full).success).toBe(true);
   });
 
-  it("buildPhotoPayload stamps takenAt so year filtering sees uploads", async () => {
+  it("buildPhotoPayload carries no takenAt (upload date is createdAt)", async () => {
     const { createPhotoSchema } = await import("@/lib/validations/photo");
     const payload = buildPhotoPayload({
       url: "https://res.cloudinary.com/t/image/upload/v1/a.jpg",
       publicId: "ndjourney-web/u1/a",
       bytes: 8,
     });
-    expect(typeof payload.takenAt).toBe("string");
+    expect("takenAt" in payload).toBe(false);
     expect(createPhotoSchema.safeParse(payload).success).toBe(true);
   });
 });

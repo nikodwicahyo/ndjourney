@@ -117,7 +117,7 @@ export default function LocationWidget() {
                   selfLive ? "text-emerald-500" : "text-muted-foreground"
                 }`}
               >
-                {selfLive ? "Live" : self.isSharing ? "Stale" : "Off"}
+                {selfLive ? "Live" : self.isSharing ? "Offline" : "Off"}
               </span>
             </div>
             {self.isSharing && (
@@ -165,7 +165,7 @@ export default function LocationWidget() {
                   partnerLive ? "text-emerald-500" : "text-muted-foreground"
                 }`}
               >
-                {partnerLive ? "Live" : partner.isSharing ? "Stale" : "Off"}
+                {partnerLive ? "Live" : partner.isSharing ? "Offline" : "Off"}
               </span>
             </div>
             {partner.isSharing && (

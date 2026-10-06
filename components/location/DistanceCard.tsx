@@ -117,7 +117,7 @@ function PersonInfoBox({
 }) {
   const age = timeAgo(locationAgeSeconds);
   const dotColor = isStale ? "bg-amber-500" : "bg-emerald-500";
-  const label = isStale ? "Stale" : "Live";
+  const label = isStale ? "Offline" : "Live";
   const labelColor = isStale ? "text-amber-500" : "text-emerald-500";
 
   return (
@@ -231,7 +231,7 @@ export default function DistanceCard({
             image={self.image}
             fallback={selfInitial}
             isLive={selfLive}
-            statusText={selfLive ? "Live" : self.isSharing ? "Stale" : "Off"}
+            statusText={selfLive ? "Live" : self.isSharing ? "Offline" : "Off"}
             deviceType={self.deviceType}
           />
           <div className="relative flex flex-col items-center px-2">
@@ -281,7 +281,7 @@ export default function DistanceCard({
             image={partner.image}
             fallback={partnerInitial}
             isLive={partnerLive}
-            statusText={partnerLive ? "Live" : partner.isSharing ? "Stale" : "Off"}
+            statusText={partnerLive ? "Live" : partner.isSharing ? "Offline" : "Off"}
             deviceType={partner.deviceType}
           />
         </div>

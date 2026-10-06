@@ -10,8 +10,9 @@ test("location page loads map shell", async ({ page, context }) => {
 });
 
 test("dashboard settings shows Pengaturan when logged in", async ({ page }) => {
-  await page.goto("/dashboard/settings");
-  await page.waitForLoadState("networkidle");
+  // domcontentloaded: settings pulls profile+couple data client-side; the
+  // heading assertion below is the real readiness signal, not window load.
+  await page.goto("/dashboard/settings", { waitUntil: "domcontentloaded" });
   if (page.url().includes("/login")) {
     await expect(page.getByRole("button", { name: /login dengan google/i })).toBeVisible({ timeout: 15000 });
   } else {

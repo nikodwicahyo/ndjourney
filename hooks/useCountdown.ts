@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { getJakartaParts } from "@/lib/date";
 import { useClockTick } from "./useClockTick";
 
@@ -42,23 +42,22 @@ function toJakartaMidnightInput(date: Date | string): Date {
 }
 
 export function useCountdown(targetDate: Date | string | null): CountdownData {
-  const targetRef = useRef<Date | null>(null);
-
-  if (targetDate) {
-    targetRef.current = toJakartaMidnightInput(targetDate);
-  } else {
-    targetRef.current = null;
-  }
+  // Derive (don't stash in a ref during render): memo keeps the same Date
+  // instance while the input is unchanged.
+  const target = useMemo(
+    () => (targetDate ? toJakartaMidnightInput(targetDate) : null),
+    [targetDate],
+  );
 
   const { now } = useClockTick();
 
   const [data, setData] = useState<CountdownData>(() =>
-    computeCountdown(new Date(), targetRef.current),
+    computeCountdown(new Date(), target),
   );
 
   useEffect(() => {
-    setData(computeCountdown(now, targetRef.current));
-  }, [now]);
+    setData(computeCountdown(now, target));
+  }, [now, target]);
 
   return data;
 }

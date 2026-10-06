@@ -129,7 +129,7 @@ export function cropCoverStyle(
   return { width, height, left, top };
 }
 
-// ponytail: self-check — full rect == object-cover math; sub-rect stays inside frame.
+// self-check — full rect == object-cover math; sub-rect stays inside frame.
 function selfCheck() {
   const full = cropCoverStyle(1600, 900, 1440, 810, FULL_CROP);
   console.assert(full !== null, "full rect must render");
@@ -140,6 +140,6 @@ function selfCheck() {
   console.assert(parseCropRect(FULL_CROP) !== null, "full accepted");
 }
 if (typeof process !== "undefined" && process.env.VITEST_WORKER_ID === undefined && process.env.NODE_ENV !== "production") {
-  // ponytail: runs once on import in dev — zero test-framework dependency.
+  // runs once on import in dev — zero test-framework dependency.
   try { selfCheck(); } catch { /* ignore */ }
 }

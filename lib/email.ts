@@ -9,7 +9,25 @@ type SendEmailParams = {
   html: string;
 };
 
-// ponytail: email HTML injection guard — sender names/titles are user input.
+// P1 mailer hardening (nodemailer header-injection advisories, no upstream
+// fix): validate the envelope centrally so all 4 callers are covered.
+// `to` always originates from User.email in DB; `subject` interpolates
+// user-controlled display names (register/PUT /api/user allow CRLF).
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function isValidRecipient(to: string): boolean {
+  const clean = to.trim();
+  if (clean.length === 0 || clean.length > 254) return false;
+  if (/[\r\n]/.test(clean)) return false;
+  return EMAIL_RE.test(clean);
+}
+
+/** Fold CRLF runs to a single space — header injection becomes inert text. */
+export function sanitizeSubject(subject: string): string {
+  return subject.replace(/[\r\n]+/g, " ");
+}
+
+// email HTML injection guard — sender names/titles are user input.
 export function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => {
     switch (c) {
@@ -54,7 +72,7 @@ async function getTransporter(): Promise<nodemailer.Transporter | null> {
   try {
     await transporter.verify();
   } catch (error) {
-    // ponytail: log message only — error objects can echo host/credentials.
+    // log message only — error objects can echo host/credentials.
     console.error("[SMTP] Connection verification failed:", error instanceof Error ? error.message : error);
     transporter = null;
     return null;
@@ -64,6 +82,14 @@ async function getTransporter(): Promise<nodemailer.Transporter | null> {
 }
 
 export async function sendEmail({ to, subject, html }: SendEmailParams) {
+  // validate before touching SMTP so bad input never reaches sendMail,
+  // even when the transport is mocked in tests.
+  const cleanTo = to.trim();
+  if (!isValidRecipient(cleanTo)) {
+    console.error("[SMTP] Rejected invalid recipient");
+    return { error: "Invalid recipient" };
+  }
+
   const t = await getTransporter();
 
   if (!t) {
@@ -74,14 +100,14 @@ export async function sendEmail({ to, subject, html }: SendEmailParams) {
   try {
     const result = await t.sendMail({
       from: FROM_EMAIL,
-      to,
-      subject,
+      to: cleanTo,
+      subject: sanitizeSubject(subject),
       html,
     });
 
     return { data: { id: result.messageId } };
   } catch (error) {
-    // ponytail: message only — Nodemailer errors embed recipients/host.
+    // message only — Nodemailer errors embed recipients/host.
     console.error("[SMTP_ERROR]", error instanceof Error ? error.message : error);
     return { error: "Gagal mengirim email" };
   }

@@ -2,6 +2,7 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { ArrowLeft, Lock, Mail } from "lucide-react";
 import PageTransition from "@/components/PageTransition";
+import { safeTokenEqual } from "@/lib/api-body";
 
 const RegisterForm = dynamic(
   () => import("@/components/auth/RegisterForm"),
@@ -17,8 +18,8 @@ export default async function InvitePage({
 }) {
   const { token } = await params;
 
-  const expectedToken = (process.env.INVITE_TOKEN || "").trim();
-  const isValid = !expectedToken || token.trim() === expectedToken;
+  // fail-closed — missing secret or token mismatch never renders the form.
+  const isValid = safeTokenEqual((token || "").trim(), (process.env.INVITE_TOKEN || "").trim());
 
   if (!isValid) {
     return (

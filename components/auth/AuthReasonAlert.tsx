@@ -14,14 +14,19 @@ type Props = {
 
 export default function AuthReasonAlert({ reason }: Props) {
   const [visible, setVisible] = useState(false);
+  const [prevReason, setPrevReason] = useState(reason);
+  // Sync visibility during render (React-endorsed adjustment); the auto-hide
+  // timer below only subscribes and cleans up, never setStates synchronously.
+  if (reason !== prevReason) {
+    setPrevReason(reason);
+    setVisible(!!(reason && messages[reason]));
+  }
 
   useEffect(() => {
-    if (reason && messages[reason]) {
-      setVisible(true);
-      const timer = setTimeout(() => setVisible(false), 6000);
-      return () => clearTimeout(timer);
-    }
-  }, [reason]);
+    if (!visible) return;
+    const timer = setTimeout(() => setVisible(false), 6000);
+    return () => clearTimeout(timer);
+  }, [visible, reason]);
 
   if (!visible || !reason || !messages[reason]) return null;
 

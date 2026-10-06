@@ -33,7 +33,10 @@ export default function NearbySuggestion() {
 
   const pending = data.filter((w) => !w.title.toLowerCase().includes("done"));
   const pool = pending.length > 0 ? pending : data;
-  const idea = pool[Math.floor((Math.random() * pool.length + seed) % pool.length)];
+  // Deterministic pick per refresh (pure during render): each shuffle click
+  // advances `seed`, so the idea is stable between renders instead of
+  // flickering to a random entry on every parent re-render.
+  const idea = pool[seed % pool.length];
 
   return (
     <motion.div

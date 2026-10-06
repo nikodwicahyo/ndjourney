@@ -12,11 +12,10 @@ export function useWishes() {
     queryKey: wishKeys.list(),
     queryFn: async () => {
       const res = await fetch("/api/wishes");
+      const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const json = await res.json().catch(() => ({}));
         throw new Error(json.error || "Gagal memuat wish list");
       }
-      const json = await res.json();
       if (!Array.isArray(json.data) && json.data !== undefined) {
         throw new Error("Invalid response format");
       }
@@ -110,7 +109,8 @@ export function useDeleteWish() {
   return useMutation({
     mutationFn: async (id: string) => {
       const res = await fetch(`/api/wishes/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Gagal menghapus wish");
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || "Gagal menghapus wish");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: wishKeys.all, refetchType: 'all' });

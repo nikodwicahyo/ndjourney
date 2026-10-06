@@ -22,7 +22,8 @@ export async function GET(
     const { id } = await params;
 
     const scope = isAuthed ? "auth" : "public";
-    const cacheK = cacheKey("photos", "detail", scope, id);
+    const callerCoupleId = session?.user ? await getUserCoupleId(session.user.id) : null;
+    const cacheK = cacheKey("photos", "detail", scope, callerCoupleId ?? "nocouple", id);
     const cached = await getCached<unknown>(cacheK);
     if (cached) {
       return NextResponse.json(cached, {
@@ -46,6 +47,7 @@ export async function GET(
         isFavorite: true,
         isPublic: true,
         albumId: true,
+        coupleId: true,
         uploadedById: true,
         isMilestoneOnly: true,
         createdAt: true,
@@ -58,6 +60,29 @@ export async function GET(
 
     if (!photo) {
       return NextResponse.json({ error: "Media tidak ditemukan" }, { status: 404 });
+    }
+
+    // SEC: any-authed horizontal read — couple-scope the authed path like PUT/DELETE.
+    // Public photos stay viewable (same gate as anon); anything else needs ownership.
+    let authedVisible = !isAuthed;
+    if (isAuthed) {
+      const ownerCoupleId = (photo as { coupleId?: string | null }).coupleId ?? null;
+      if (ownerCoupleId !== null ? ownerCoupleId === callerCoupleId : photo.uploadedById === session?.user?.id) {
+        authedVisible = true;
+      } else if (!photo.isMilestoneOnly && photo.isPublic) {
+        if (!photo.albumId) {
+          authedVisible = true;
+        } else {
+          const album = await prisma.album.findUnique({
+            where: { id: photo.albumId },
+            select: { isPublic: true },
+          });
+          authedVisible = !!album?.isPublic;
+        }
+      }
+      if (!authedVisible) {
+        return NextResponse.json({ error: "Media tidak ditemukan" }, { status: 404 });
+      }
     }
 
     // Enforce visibility rules for unauthenticated callers matching the list endpoint:
@@ -81,7 +106,7 @@ export async function GET(
     }
 
     // Strip internal fields from the response
-    const { isMilestoneOnly, ...publicPhoto } = photo;
+    const { isMilestoneOnly, coupleId: _coupleId, ...publicPhoto } = photo;
     const response = { data: publicPhoto };
 
     await setCached(cacheK, response, isAuthed ? CACHE_TTL_AUTH : CACHE_TTL_PUBLIC);
@@ -111,6 +136,9 @@ export async function PUT(
     const { id } = await params;
     const userId = rateCheck.session.user.id;
 
+    // P-04: one couple lookup per request (was 3 serially).
+    const callerCoupleId = await getUserCoupleId(userId);
+
     const existing = await prisma.photo.findUnique({
       where: { id },
       select: { coupleId: true, uploadedById: true },
@@ -119,8 +147,7 @@ export async function PUT(
       return NextResponse.json({ error: "Media tidak ditemukan" }, { status: 404 });
     }
     if (existing.coupleId) {
-      const userCoupleId = await getUserCoupleId(userId);
-      if (existing.coupleId !== userCoupleId) {
+      if (existing.coupleId !== callerCoupleId) {
         return NextResponse.json({ error: "Kamu tidak punya akses untuk mengubah media ini" }, { status: 403 });
       }
     } else if (existing.uploadedById !== userId) {
@@ -149,6 +176,16 @@ export async function PUT(
 
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json({ error: "Tidak ada perubahan yang dikirim" }, { status: 400 });
+    }
+
+    if (typeof updateData.albumId === "string") {
+      const target = await prisma.album.findUnique({
+        where: { id: updateData.albumId as string },
+        select: { id: true, coupleId: true },
+      });
+      if (!target || (target.coupleId !== null && target.coupleId !== callerCoupleId)) {
+        return NextResponse.json({ error: "Album tidak ditemukan" }, { status: 400 });
+      }
     }
 
     const photo = await prisma.photo.update({
@@ -185,17 +222,17 @@ export async function PUT(
       invalidateCache("photos:*"),
       invalidateCache("albums:*"),
       invalidateCache("dashboard:*"),
+      invalidateCache("home:*"),
     ]);
 
-    const coupleId = await getUserCoupleId(userId);
-    if (coupleId) {
-      triggerCoupleEvent(coupleId, 'GALLERY');
+    if (callerCoupleId) {
+      triggerCoupleEvent(callerCoupleId, 'GALLERY');
     }
 
     return NextResponse.json({ data: photo });
   } catch (error) {
     console.error("Error updating photo:", error);
-    // ponytail: stale albumId FK -> 400, not generic 500
+    // stale albumId FK -> 400, not generic 500
     if (error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "P2003") {
       return NextResponse.json({ error: "Album tidak ditemukan" }, { status: 400 });
     }
@@ -244,15 +281,17 @@ export async function DELETE(
       invalidateCache("photos:*"),
       invalidateCache("albums:*"),
       invalidateCache("dashboard:*"),
+      invalidateCache("home:*"),
       invalidateCache("storage:*"),
     ]);
 
-    const coupleId = await getUserCoupleId(userId);
-    if (coupleId) {
-      triggerCoupleEvent(coupleId, 'GALLERY');
+    // P-04: reuse the ownership-check lookup (was a 2nd serial call).
+    const deleteCoupleId = photo.coupleId ?? null;
+    if (deleteCoupleId) {
+      triggerCoupleEvent(deleteCoupleId, 'GALLERY');
     }
 
-    return NextResponse.json({ message: "Photo deleted" });
+    return NextResponse.json({ data: { id } });
   } catch (error) {
     console.error("Error deleting photo:", error);
     return NextResponse.json(

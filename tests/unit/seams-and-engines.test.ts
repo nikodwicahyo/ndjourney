@@ -56,20 +56,6 @@ describe("batch + couple seams", () => {
   });
 });
 
-describe("api-body helpers", () => {
-  it("parseJsonBody null on malformed; invalidJsonResponse 400; P2002→409; 500 fallback", async () => {
-    const { parseJsonBody, invalidJsonResponse, toKnownErrorResponse, handleApiError } = await import("@/lib/api-body");
-    expect(await parseJsonBody(new Request("http://x", { method: "POST", body: "{bad" }))).toBeNull();
-    expect(await parseJsonBody(new Request("http://x", { method: "POST", body: JSON.stringify({ a: 1 }) }))).toEqual({ a: 1 });
-    expect(invalidJsonResponse().status).toBe(400);
-    expect(toKnownErrorResponse({ code: "P2002" })?.status).toBe(409);
-    expect(toKnownErrorResponse(new SyntaxError("x"))?.status).toBe(400);
-    expect(toKnownErrorResponse(new Error("nope"))).toBeNull();
-    expect(handleApiError(new Error("boom")).status).toBe(500);
-    expect(handleApiError({ code: "P2002" }).status).toBe(409);
-  });
-});
-
 describe("device + query-keys + upload-config + quotes + fetch-json", () => {
   it("detectDeviceType matrix", async () => {
     const { detectDeviceType } = await import("@/lib/device");
@@ -127,7 +113,6 @@ describe("block-blast shapes engine", () => {
     const all = shapes.getAllShapes();
     expect(all.length).toBeGreaterThan(5);
     for (const s of all) {
-      expect(s.cells).toHaveLength(s.width * 0 + s.cells.length); // sanity
       expect(s.cells.length).toBeGreaterThan(0);
       const maxR = Math.max(...s.cells.map((c) => c.row));
       const maxC = Math.max(...s.cells.map((c) => c.col));

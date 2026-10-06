@@ -1,12 +1,8 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 
 vi.mock("next-auth/react", () => ({ signOut: vi.fn(async () => ({})) }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
-vi.mock("@/lib/auth", () => ({ auth: vi.fn() }));
-vi.mock("@/lib/couple", () => ({ getUserCoupleId: vi.fn() }));
-vi.mock("@/lib/pusher-server", () => ({ triggerCoupleEvent: vi.fn() }));
-vi.mock("pusher", () => ({ default: vi.fn(function (this: unknown) { return this; }) }));
 
 describe("apiFetch transport (+401 auto-logout)", () => {
   it("unwraps JSON, 204 → undefined, 400 throws server message", async () => {
@@ -37,35 +33,6 @@ describe("apiFetch transport (+401 auto-logout)", () => {
     const res = await apiFetchRaw("http://x", { ignoreAuthError: true });
     expect(res.status).toBe(401);
     expect(signOut).not.toHaveBeenCalled();
-  });
-});
-
-describe("withCouple wrapper", () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it("401 anon, 404 solo, delegates + triggers scope", async () => {
-    const { withCouple } = await import("@/lib/api-helpers");
-    const { auth } = await import("@/lib/auth");
-    const { getUserCoupleId } = await import("@/lib/couple");
-    const { triggerCoupleEvent } = await import("@/lib/pusher-server");
-
-    vi.mocked(auth).mockResolvedValue(null as never);
-    const anon = await withCouple(async () => new Response("ok"))(new Request("http://x"));
-    expect(anon.status).toBe(401);
-
-    vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as never);
-    vi.mocked(getUserCoupleId).mockResolvedValue(null);
-    const solo = await withCouple(async () => new Response("ok"))(new Request("http://x"));
-    expect(solo.status).toBe(404);
-
-    vi.mocked(getUserCoupleId).mockResolvedValue("c1");
-    const handler = vi.fn(async (_req: Request, ctx: { userId: string; coupleId: string }) =>
-      Response.json({ userId: ctx.userId, coupleId: ctx.coupleId }),
-    );
-    const ok = await withCouple(handler, "GALLERY")(new Request("http://x"));
-    expect(ok.status).toBe(200);
-    expect(await ok.json()).toEqual({ userId: "u1", coupleId: "c1" });
-    expect(triggerCoupleEvent).toHaveBeenCalledWith("c1", "GALLERY");
   });
 });
 

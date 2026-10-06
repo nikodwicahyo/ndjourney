@@ -3,7 +3,6 @@ import { test, expect } from "@playwright/test";
 // DASH: anonymous → login; logged in → Statistik section
 test("dashboard guard + stats", async ({ page }) => {
   await page.goto("/dashboard");
-  await page.waitForLoadState("networkidle");
   if (page.url().includes("/login")) {
     await expect(page.getByRole("button", { name: /login dengan google/i })).toBeVisible({ timeout: 15000 });
   } else {
@@ -12,7 +11,9 @@ test("dashboard guard + stats", async ({ page }) => {
 });
 
 test("home page renders brand title", async ({ page }) => {
-  await page.goto("/");
+  // domcontentloaded: window `load` can hang on slow subresources (fonts,
+  // images) long after the document is interactive and asserted below.
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await expect(page).toHaveTitle(/ndjourney|couple|cerita/i, { timeout: 15000 });
   await expect(page.locator("body")).not.toBeEmpty();
 });

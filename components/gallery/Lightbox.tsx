@@ -60,6 +60,9 @@ type LightboxProps = {
   onFavoriteToggle?: (id: string, isFavorite: boolean) => void;
   onDelete?: (id: string) => void;
   showAlbumMove?: boolean;
+  // Download is an authenticated-only capability (same prop-driven pattern
+  // as favorite/delete/album-move). Secure default: hidden unless opted in.
+  showDownload?: boolean;
   fetchNextPage?: () => void;
   hasNextPage?: boolean;
   totalCount?: number;
@@ -74,6 +77,7 @@ function Lightbox({
   onFavoriteToggle,
   onDelete,
   showAlbumMove = false,
+  showDownload = false,
   fetchNextPage,
   hasNextPage,
   totalCount,
@@ -86,7 +90,7 @@ function Lightbox({
   // frame however deep the layout nests (no measuring transformed boxes).
   const [view, setView] = useState({ s: 1, tx: 0, ty: 0 });
   const isZoomed = view.s > 1;
-  // ponytail: ref mirror for gesture handlers (no stale closures, no re-subscribe).
+  // ref mirror for gesture handlers (no stale closures, no re-subscribe).
   const viewRef = useRef(view);
   viewRef.current = view;
   const [showInfo, setShowInfo] = useState(false);
@@ -94,6 +98,9 @@ function Lightbox({
   const photo = photos[currentIndex];
   const videoRef = useRef<HTMLVideoElement>(null);
   const isVideoRef = useRef(false);
+  // F-13: keyboard users land inside the viewer on open and return on close.
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const restoreFocusRef = useRef<Element | null>(null);
   const isFetchingRef = useRef(false);
   const currentIndexRef = useRef(currentIndex);
 
@@ -112,7 +119,7 @@ function Lightbox({
     const vw = window.innerWidth;
     const dpr = window.devicePixelRatio || 1;
     const target = Math.round(vw * dpr * 0.85);
-    // ponytail: one swap when crossing into zoom (not per tick) — deep zoom
+    // one swap when crossing into zoom (not per tick) — deep zoom
     // gets headroom without reload storms mid-gesture.
     const cap = isZoomed ? 3200 : 1600;
     const clamped = Math.max(640, Math.min(target, cap));
@@ -233,6 +240,9 @@ function Lightbox({
   const handleClose = useCallback(() => {
     if (isVideoRef.current) dispatchBgEvent("resume");
       resetView();
+    // F-13: return focus to the originating thumbnail on close.
+    (restoreFocusRef.current as HTMLElement | null)?.focus?.();
+    restoreFocusRef.current = null;
     onClose();
   }, [onClose]);
 
@@ -295,7 +305,7 @@ function Lightbox({
     setView({ s: 1, tx: 0, ty: 0 });
   }, []);
 
-  // ponytail: one gesture system for mouse + touch — tracked pointers drive
+  // one gesture system for mouse + touch — tracked pointers drive
   // pan (1 pointer, zoomed) and pinch-zoom (2 pointers); a clean tap toggles.
   const pointersRef = useRef(new Map<number, { x: number; y: number }>());
   const gestureRef = useRef<{ pinchDist: number; scale: number; tx: number; ty: number } | null>(null);
@@ -436,6 +446,15 @@ function Lightbox({
   }, [photo?.id, photo?.url, displayWidth, photo?.isVideo, retryKey]);
 
   useEffect(() => {
+    if (isOpen) {
+      restoreFocusRef.current = document.activeElement;
+      // Next frame so AnimatePresence has mounted the node.
+      const t = window.setTimeout(() => dialogRef.current?.focus(), 0);
+      return () => window.clearTimeout(t);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       switch (e.key) {
         case "Escape":
@@ -474,18 +493,23 @@ function Lightbox({
     <AnimatePresence>
       <motion.div
         key="lightbox-overlay"
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={fileName}
+        tabIndex={-1}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.15 }}
-        className="fixed inset-0 z-50 flex flex-col bg-black/95"
+        className="fixed inset-0 z-50 flex flex-col bg-black/95 outline-none"
       >
         <div className="relative z-10 flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
             <button
               onClick={handleClose}
               className="rounded-full p-2 text-white/80 transition-colors hover:bg-white/10 hover:text-white"
-              aria-label="Close"
+              aria-label="Tutup"
             >
               <X className="h-5 w-5" />
             </button>
@@ -504,7 +528,7 @@ function Lightbox({
               <button
                 onClick={() => onFavoriteToggle(photo.id, !photo.isFavorite)}
                 className="rounded-full p-2 text-white/80 transition-colors hover:bg-white/10"
-                aria-label="Toggle favorite"
+                aria-label={photo.isFavorite ? "Hapus dari favorit" : "Tambah ke favorit"}
               >
                 <Heart
                   className={cn("h-5 w-5", photo.isFavorite && "fill-primary text-primary")}
@@ -514,20 +538,22 @@ function Lightbox({
             {showAlbumMove && (
               <AlbumMoveDropdown photoId={photo.id} currentAlbumId={photo.albumId} />
             )}
-            <button
-              onClick={handleDownload}
-              className="rounded-full p-2 text-white/80 transition-colors hover:bg-white/10"
-              aria-label="Download"
-            >
-              <Download className="h-5 w-5" />
-            </button>
+            {showDownload && (
+              <button
+                onClick={handleDownload}
+                className="rounded-full p-2 text-white/80 transition-colors hover:bg-white/10"
+                aria-label="Unduh"
+              >
+                <Download className="h-5 w-5" />
+              </button>
+            )}
             <button
               onClick={() => setShowInfo(!showInfo)}
               className={cn(
                 "rounded-full p-2 transition-colors",
                 showInfo ? "text-white bg-white/20" : "text-white/80 hover:bg-white/10"
               )}
-              aria-label="Info"
+              aria-label="Detail"
             >
               <Info className="h-5 w-5" />
             </button>
@@ -550,8 +576,8 @@ function Lightbox({
             className="flex shrink-0 cursor-pointer items-center justify-start pl-1 sm:pl-2"
           >
               <button
-                className="rounded-full bg-black/40 p-1.5 text-white/80 transition-colors hover:bg-black/60 hover:text-white sm:p-2"
-                aria-label="Previous"
+                className="rounded-full bg-black/40 p-2.5 text-white/80 transition-colors hover:bg-black/60 hover:text-white sm:p-3"
+                aria-label="Sebelumnya"
               >
                 <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />
               </button>
@@ -569,7 +595,7 @@ function Lightbox({
               flex: "1 1 0",
               minWidth: 0,
               maxWidth: isZoomed ? "100%" : "85%",
-              // ponytail: fully locked — no scroll, no browser gestures;
+              // fully locked — no scroll, no browser gestures;
               // zoom is transform-anchored so there is nothing to drag.
               touchAction: "none",
             }}
@@ -678,8 +704,8 @@ function Lightbox({
             className="flex shrink-0 cursor-pointer items-center justify-end pr-1 sm:pr-2"
           >
               <button
-                className="rounded-full bg-black/40 p-1.5 text-white/80 transition-colors hover:bg-black/60 hover:text-white sm:p-2"
-                aria-label="Next"
+                className="rounded-full bg-black/40 p-2.5 text-white/80 transition-colors hover:bg-black/60 hover:text-white sm:p-3"
+                aria-label="Berikutnya"
               >
                 <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />
               </button>

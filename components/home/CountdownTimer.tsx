@@ -23,6 +23,7 @@ function AnimatedNumber({ value, label }: { value: number; label: string }) {
       const end = value;
       const duration = 300;
       const startTime = performance.now();
+      let raf = 0;
 
       function tick(now: number) {
         const elapsed = now - startTime;
@@ -30,16 +31,21 @@ function AnimatedNumber({ value, label }: { value: number; label: string }) {
         const eased = 1 - Math.pow(1 - progress, 3);
         const current = Math.round(start + (end - start) * eased);
         setDisplayValue(current);
-        if (progress < 1) requestAnimationFrame(tick);
+        if (progress < 1) raf = requestAnimationFrame(tick);
       }
 
-      requestAnimationFrame(tick);
-      animate(
+      raf = requestAnimationFrame(tick);
+      const controls = animate(
         scope.current,
         { scale: [1.15, 1], opacity: [0.7, 1] },
         { duration: 0.3, ease: "easeOut" },
       );
       prevRef.current = value;
+      // P-16: cancel superseded tweens — 1Hz seconds ticks used to pile up rAF loops.
+      return () => {
+        cancelAnimationFrame(raf);
+        controls.stop();
+      };
     }
   }, [value, animate, scope]);
 

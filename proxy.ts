@@ -1,30 +1,23 @@
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { isPublicPath, isAuthPath } from "@/lib/route-guards";
 
-const publicRoutes = ["/", "/gallery", "/timeline", "/letters", "/games", "/notes", "/wishlist"];
-const authRoutes = ["/login", "/auth-error", "/invite"];
-
-export function isPublicPath(pathname: string): boolean {
-  return publicRoutes.some((route) => {
-    if (route === "/") return pathname === "/";
-    return pathname === route || pathname.startsWith(route + "/");
-  });
-}
-
-export function isAuthPath(pathname: string): boolean {
-  return authRoutes.some((route) => {
-    if (route === "/") return pathname === "/";
-    return pathname === route || pathname.startsWith(route + "/");
-  });
-}
+export { isPublicPath, isAuthPath };
 
 export default async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (pathname.startsWith("/api/")) return NextResponse.next();
 
-  const session = await auth();
+  let session = null;
+  try {
+    session = await auth();
+  } catch {
+    // fail-open for public/auth pages on auth outage — private routes still redirect below.
+    if (isPublicPath(pathname) || isAuthPath(pathname)) return NextResponse.next();
+    session = null;
+  }
   const isAuthenticated = !!session?.user;
 
   if (isAuthPath(pathname)) {
@@ -50,6 +43,6 @@ export default async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/data|_next/image|favicon.ico|manifest.json|icons|sw.js|workbox-.*).*)",
+    "/((?!_next/static|_next/data|_next/image|favicon.ico|favicon.svg|manifest.json|version.json|offline.html|icons|screenshots|images|sw.js|workbox-.*).*)",
   ],
 };

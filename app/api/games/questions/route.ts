@@ -25,7 +25,11 @@ export async function GET(request: Request) {
     const category = searchParams.get("category");
     const random = searchParams.get("random");
     const sort = searchParams.get("sort") || "desc";
-    const limit = parseInt(searchParams.get("limit") || "200");
+    const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "200", 10) || 200, 1), 200);
+    const allowedTypes = new Set(["WOULD_YOU_RATHER", "TRIVIA", "SPIN_THE_WHEEL", "TRUTH_OR_DARE"]);
+    if (type && !allowedTypes.has(type)) {
+      return NextResponse.json({ error: "Tipe pertanyaan tidak valid" }, { status: 400 });
+    }
 
     const cacheK = cacheKey("games", "questions", type ?? "all", category ?? "all", sort, random ?? "0", String(limit));
     const cached = random ? null : await getCached<unknown>(cacheK);
@@ -44,7 +48,9 @@ export async function GET(request: Request) {
     let totalCount = 0;
 
     if (random) {
-      const count = parseInt(random);
+      // MR-12: clamp + DB-side prefilter — the old path loaded the ENTIRE
+      // bank into memory and shuffled in JS (O(table) per game start).
+      const count = Math.min(Math.max(parseInt(random) || 10, 1), 50);
       const session = await auth();
       const answeredBy = session?.user?.id;
 
@@ -62,26 +68,35 @@ export async function GET(request: Request) {
         for (const s of scores) answeredIds.add(s.questionId);
       }
 
-      // Get all questions of this type
-      const allQuestions = await prisma.gameQuestion.findMany({
-        where,
+      const excluded = [...answeredIds];
+      // Over-fetch 3x so the JS shuffle still has entropy; answered rows are
+      // only fetched as a fallback fill below.
+      const fresh = await prisma.gameQuestion.findMany({
+        where: excluded.length > 0 ? { ...where, id: { notIn: excluded } } : where,
+        take: count * 3,
         select: {
           id: true, type: true, question: true, optionA: true, optionB: true,
           answer: true, category: true, createdAt: true,
         },
       });
 
-      totalCount = allQuestions.length;
+      const picked = shuffleArray(fresh).slice(0, count);
 
-      // Shuffle for randomness
-      const shuffled = shuffleArray(allQuestions);
+      if (picked.length < count && excluded.length > 0) {
+        // Bank exhausted for this player — recycle answered questions.
+        const recycled = await prisma.gameQuestion.findMany({
+          where: { ...where, id: { in: excluded } },
+          take: count - picked.length,
+          select: {
+            id: true, type: true, question: true, optionA: true, optionB: true,
+            answer: true, category: true, createdAt: true,
+          },
+        });
+        picked.push(...shuffleArray(recycled));
+      }
 
-      // Split: unanswered first, answered/excluded last
-      const unanswered = shuffled.filter((q) => !answeredIds.has(q.id));
-      const answered = shuffled.filter((q) => answeredIds.has(q.id));
-
-      // Prefer unanswered; if exhausted, recycle answered questions
-      questions = [...unanswered, ...answered].slice(0, count);
+      totalCount = await prisma.gameQuestion.count({ where });
+      questions = picked;
     } else {
       questions = await prisma.gameQuestion.findMany({
         where,
@@ -127,7 +142,7 @@ export async function POST(request: Request) {
       return rateCheck.response;
     }
 
-    // ponytail: shared question bank is curated by couple members only.
+    // shared question bank is curated by couple members only.
     const creatorCoupleId = await getUserCoupleId(rateCheck.session.user.id);
     if (!creatorCoupleId) {
       return NextResponse.json({ error: "Pasangan belum ditemukan" }, { status: 403 });
@@ -159,6 +174,7 @@ export async function POST(request: Request) {
     });
 
     await invalidateCache("games:*");
+    await invalidateCache("home:*");
 
     await triggerCoupleEvent(creatorCoupleId, 'GAMES_QUESTIONS');
 

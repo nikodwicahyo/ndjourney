@@ -320,7 +320,7 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
                           <button
                             onClick={saveEdit}
                             disabled={!editName.trim() || updateAlbum.isPending}
-                            className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:pointer-events-none disabled:opacity-50"
+                            className="rounded-full p-2.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:pointer-events-none disabled:opacity-50"
                           >
                             {updateAlbum.isPending ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
@@ -331,7 +331,7 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
                           <button
                             onClick={cancelEditing}
                             disabled={updateAlbum.isPending}
-                            className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
+                            className="rounded-full p-2.5 text-muted-foreground transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
                           >
                             <X className="h-4 w-4" />
                           </button>
@@ -365,7 +365,7 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
                           <div className="flex shrink-0 items-center gap-1">
                             <button
                               onClick={() => startEditing(album)}
-                              className="rounded-full p-1.5 text-muted-foreground transition-all hover:bg-muted"
+                              className="rounded-full p-2.5 text-muted-foreground transition-all hover:bg-muted"
                             >
                               <Pencil className="h-3.5 w-3.5" />
                             </button>
@@ -379,7 +379,7 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
                                   deleteAlbum.mutate(album.id);
                                 }
                               }}
-                              className="rounded-full p-1.5 text-muted-foreground transition-all hover:bg-destructive/10 hover:text-destructive"
+                              className="rounded-full p-2.5 text-muted-foreground transition-all hover:bg-destructive/10 hover:text-destructive"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>

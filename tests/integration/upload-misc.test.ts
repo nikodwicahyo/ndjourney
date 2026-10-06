@@ -101,6 +101,20 @@ describe("upload pipeline contracts", () => {
     expect(ok.status).toBe(200);
     const body = await ok.json();
     expect(body.publicId).toContain(ME);
+    // format binding: signature pins the delivery format at signing time
+    expect(body.uploadParams.allowed_formats).toBe("jpg,jpeg,png,webp,heic,heif");
+    const video = await uploadSign.POST(new Request("http://localhost/api/upload/sign", {
+      method: "POST", body: JSON.stringify({ fileName: "a.mp4", fileType: "video/mp4", fileSize: 1024 }),
+    }));
+    expect(video.status).toBe(200);
+    expect((await video.json()).uploadParams.allowed_formats).toContain("mp4");
+    // raw (audio) uploads take no format binding — delivery URLs are
+    // rejected at save time by verifyUploadForSave instead.
+    const audio = await uploadSign.POST(new Request("http://localhost/api/upload/sign", {
+      method: "POST", body: JSON.stringify({ fileName: "a.mp3", fileType: "audio/mpeg", fileSize: 1024 }),
+    }));
+    expect(audio.status).toBe(200);
+    expect((await audio.json()).uploadParams.allowed_formats).toBeUndefined();
     delete process.env.CLOUDINARY_API_SECRET;
     expect((await uploadSign.POST(new Request("http://localhost/api/upload/sign", {
       method: "POST", body: JSON.stringify({ fileName: "a.png", fileType: "image/png", fileSize: 1024 }),
@@ -166,6 +180,8 @@ describe("storage / pusher / csp / invite contracts", () => {
     expect((await pusherAuth.POST(fd("private-couple-couple-1"))).status).toBe(200);
     expect((await pusherAuth.POST(fd("private-couple-other"))).status).toBe(403);
     vi.mocked(auth).mockResolvedValue(null as never);
+    // SEC: withRateLimit gates on session — mirror the 401 it returns for anon.
+    vi.mocked(withRateLimit).mockResolvedValueOnce({ allowed: false, remaining: 0, response: new Response("Unauthorized", { status: 401 }) } as never);
     expect((await pusherAuth.POST(fd("private-couple-couple-1"))).status).toBe(401);
   });
 

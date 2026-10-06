@@ -7,6 +7,7 @@ import { useSession, signOut } from "next-auth/react";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/stores/useAppStore";
+import { useMounted } from "@/hooks/useMounted";
 import { Avatar, AvatarFallback, AvatarImage, Button, Sheet, SheetContent } from "@/components/ui";
 import { SidebarContent } from "./Sidebar";
 import {
@@ -58,12 +59,10 @@ export default function Navbar() {
   const { data: session } = useSession();
   const { theme, setTheme } = useTheme();
   const [scrolled, setScrolled] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const mounted = useMounted();
   const { sidebarOpen, setSidebarOpen } = useAppStore();
 
   const isDashboard = pathname.startsWith("/dashboard");
-
-  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -129,7 +128,7 @@ export default function Navbar() {
                 variant="ghost"
                 size="icon"
                 onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-                aria-label="Toggle theme"
+                aria-label="Ganti tema"
               >
                 {theme === "dark" ? (
                   <Sun className="h-4 w-4" />

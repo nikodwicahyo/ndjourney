@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef, useSyncExternalStore } from "react";
 import { motion, useInView } from "framer-motion";
 import { Check, Sparkles, Heart, RotateCcw, ArrowRight, PartyPopper } from "lucide-react";
 
@@ -269,37 +269,53 @@ function saveStreak(streak: number) {
   } catch {}
 }
 
-export default function DailyLoveTask() {
-  const ref = useRef<HTMLDivElement>(null);
-  const isInView = useInView(ref, { once: true, margin: "-40px" });
-  const [task, setTask] = useState("");
-  const [done, setDone] = useState(false);
-  const [streak, setStreak] = useState(0);
-  const [showConfetti, setShowConfetti] = useState(false);
-  const [history, setHistory] = useState<string[]>([]);
-  const historyRef = useRef<string[]>([]);
+type TaskSnapshot = { task: string; streak: number; done: boolean; history: string[] };
 
-  useEffect(() => {
-    setTask(getTodayTask());
-    setStreak(getStreak());
+const EMPTY_SNAPSHOT: TaskSnapshot = { task: "", streak: 0, done: false, history: [] };
+
+let taskSnapshot: TaskSnapshot | null = null;
+
+function subscribeTaskSnapshot(): () => void {
+  return () => {};
+}
+
+function getTaskServerSnapshot(): TaskSnapshot {
+  return EMPTY_SNAPSHOT;
+}
+
+// Client-only initial read (localStorage), cached per session. Read through
+// useSyncExternalStore so SSR HTML (server snapshot) and first client render
+// match — a mount effect syncing these into state would cascade renders.
+function getTaskSnapshot(): TaskSnapshot {
+  if (!taskSnapshot) {
+    let done = false;
+    let history: string[] = [];
     try {
       const stored = localStorage.getItem("dailylovetask-done");
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (parsed.date === new Date().toDateString()) {
-          setDone(parsed.done);
-        }
+        if (parsed.date === new Date().toDateString()) done = !!parsed.done;
       }
     } catch {}
     try {
       const hist = localStorage.getItem("dailylovetask-history");
-      if (hist) {
-        const parsed = JSON.parse(hist);
-        setHistory(parsed);
-        historyRef.current = parsed;
-      }
+      if (hist) history = JSON.parse(hist) as string[];
     } catch {}
-  }, []);
+    taskSnapshot = { task: getTodayTask(), streak: getStreak(), done, history };
+  }
+  return taskSnapshot;
+}
+
+export default function DailyLoveTask() {
+  const ref = useRef<HTMLDivElement>(null);
+  const isInView = useInView(ref, { once: true, margin: "-40px" });
+  const initial = useSyncExternalStore(subscribeTaskSnapshot, getTaskSnapshot, getTaskServerSnapshot);
+  const [task, setTask] = useState(initial.task);
+  const [done, setDone] = useState(initial.done);
+  const [streak, setStreak] = useState(initial.streak);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [history, setHistory] = useState<string[]>(initial.history);
+  const historyRef = useRef<string[]>(initial.history);
 
   function isStreakCountedToday(): boolean {
     try {
@@ -383,13 +399,13 @@ export default function DailyLoveTask() {
                 scale: 0,
               }}
               animate={{
-                x: `${20 + Math.random() * 60}%`,
-                y: `${-10 + Math.random() * -60}%`,
+                x: `${20 + ((i * 37) % 60)}%`,
+                y: `${-10 + ((i * 53) % 60) * -1}%`,
                 opacity: 0,
-                scale: 1 + Math.random(),
-                rotate: Math.random() * 360,
+                scale: 1 + ((i * 29) % 10) / 10,
+                rotate: (i * 47) % 360,
               }}
-              transition={{ duration: 1 + Math.random(), ease: "easeOut" }}
+              transition={{ duration: 1 + ((i * 13) % 10) / 10, ease: "easeOut" }}
               className="absolute text-lg"
               style={{ bottom: 0 }}
             >

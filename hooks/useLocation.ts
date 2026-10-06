@@ -55,26 +55,25 @@ export type LocationHistoryPoint = {
 
 const POLL_INTERVAL_MS = 15_000;
 
-async function fetchLocation(): Promise<LocationState> {
-  const res = await fetch("/api/location", { cache: "no-store" });
-  if (!res.ok) {
-    const json = await res.json().catch(() => ({}));
-    throw new Error(json.error || "Gagal mengambil lokasi");
-  }
-  const json = await res.json();
-  return json.data as LocationState;
-}
-
 export function useLocationSettings() {
   return useQuery({
     queryKey: queryKeys.location.all,
-    queryFn: fetchLocation,
+    queryFn: async ({ signal }) => {
+      // P-15: abort superseded polls.
+      const res = await fetch("/api/location", { cache: "no-store", signal });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error || "Gagal mengambil lokasi");
+      }
+      const json = await res.json();
+      return json.data as LocationState;
+    },
     staleTime: 10_000,
     refetchInterval: POLL_INTERVAL_MS,
-    // ponytail: no background-tab polling — Pusher LOCATION covers live updates.
+    // no background-tab polling — Pusher LOCATION covers live updates.
     refetchIntervalInBackground: false,
     retry: (count, err) => {
-      // ponytail: don't loop 401s on every poll.
+      // don't loop 401s on every poll.
       if (err instanceof Error && /401|403|404/.test(err.message)) return false;
       return count < 2;
     },
@@ -84,15 +83,15 @@ export function useLocationSettings() {
 export function useLocationHistory() {
   return useQuery({
     queryKey: [...queryKeys.location.all, "history"],
-    queryFn: async () => {
-      const res = await fetch("/api/location/history", { cache: "no-store" });
+    queryFn: async ({ signal }) => {
+      const res = await fetch("/api/location/history", { cache: "no-store", signal });
       if (!res.ok) throw new Error("Gagal memuat riwayat lokasi");
       const json = await res.json();
       return json.data as LocationHistoryPoint[];
     },
     staleTime: 30_000,
     refetchInterval: 60_000,
-    // ponytail: history barely moves — never poll it from background tabs.
+    // history barely moves — never poll it from background tabs.
     refetchIntervalInBackground: false,
   });
 }
@@ -199,7 +198,7 @@ export function useShareLocation(enabled: boolean) {
 
   useEffect(() => {
     initBackgroundLocation(enabled, qc);
-    // ponytail: cleanup on unmount / enabled flip so a stale watch can't survive.
+    // cleanup on unmount / enabled flip so a stale watch can't survive.
     return () => initBackgroundLocation(false, qc);
   }, [enabled, qc]);
 

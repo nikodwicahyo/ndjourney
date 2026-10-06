@@ -19,14 +19,20 @@ type WithRateLimitResult =
   | { allowed: true; remaining: number; session: { user: { id: string; name?: string | null; email?: string | null; image?: string | null } } };
 
 function getClientIp(request: Request): string {
+  // Last entry wins: behind Vercel the platform appends the real client IP,
+  // so the leftmost entry is attacker-forged — taking it lets anyone rotate
+  // identities per request and defeat every per-IP bucket.
   const forwarded = request.headers.get("x-forwarded-for");
   if (forwarded) {
-    return forwarded.split(",")[0].trim();
+    const parts = forwarded.split(",").map((p) => p.trim()).filter(Boolean);
+    if (parts.length > 0) return parts[parts.length - 1] as string;
   }
   const realIp = request.headers.get("x-real-ip");
   if (realIp) return realIp;
   return "unknown";
 }
+
+export { getClientIp };
 
 export async function withAnonymousRateLimit(
   request: Request,
@@ -113,7 +119,7 @@ export async function withRateLimit(
       windowSeconds,
     ));
   } catch (e) {
-    // ponytail: fail-open — Redis outage must not turn writes into 500s.
+    // fail-open — Redis outage must not turn writes into 500s.
     console.error("[withRateLimit] checkRateLimit threw:", e);
   }
 

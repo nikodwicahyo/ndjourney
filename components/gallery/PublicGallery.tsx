@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback } from "react";
 import dynamic from "next/dynamic";
+import { useSession } from "next-auth/react";
 import { usePhotos } from "@/hooks/usePhotos";
 import MasonryGrid from "./MasonryGrid";
 import AlbumSelector from "./AlbumSelector";
@@ -22,6 +23,7 @@ type Filters = {
 };
 
 export default function PublicGallery() {
+  const { data: session } = useSession();
   const [filters, setFilters] = useState<Filters>({});
   const [lightboxIndex, setLightboxIndex] = useState(-1);
   const [lightboxPhotos, setLightboxPhotos] = useState<Photo[]>([]);
@@ -76,6 +78,8 @@ export default function PublicGallery() {
         onClose={() => setLightboxIndex(-1)}
         onNavigate={setLightboxIndex}
         showAlbumMove={false}
+        // Public gallery serves anon visitors too — download only for members.
+        showDownload={!!session?.user}
         fetchNextPage={fetchNextPage}
         hasNextPage={hasNextPage}
         totalCount={counts.all}

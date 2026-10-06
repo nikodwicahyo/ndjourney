@@ -17,7 +17,7 @@ const TABS: { key: "inbox" | "sent"; label: string; icon: typeof Inbox }[] = [
 export default function PublicLetterInbox() {
   const { data: session } = useSession();
   const [tab, setTab] = useState<"inbox" | "sent">("inbox");
-  const { data: letters, isLoading, error } = useLetters(tab);
+  const { data: letters, isLoading, error, refetch } = useLetters(tab);
 
   if (!session?.user) {
     return (
@@ -53,8 +53,8 @@ export default function PublicLetterInbox() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-20">
-        <p className="text-destructive">Gagal memuat surat</p>
-        <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+        <p role="alert" className="text-destructive">Gagal memuat surat</p>
+        <Button variant="outline" size="sm" onClick={() => refetch()}>
           Coba Lagi
         </Button>
       </div>

@@ -173,7 +173,8 @@ export default function ProfileContent({ user, couple }: ProfileContentProps) {
               </h2>
               <button
                 onClick={closeModal}
-                className="shrink-0 rounded-full p-1 transition-colors hover:bg-muted"
+                aria-label="Tutup"
+                className="shrink-0 rounded-full p-2.5 transition-colors hover:bg-muted"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -225,8 +226,9 @@ export default function ProfileContent({ user, couple }: ProfileContentProps) {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">Nama</label>
+                <label htmlFor="profile-name" className="text-sm font-medium">Nama</label>
                 <input
+                  id="profile-name"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
                   className="flex h-10 w-full rounded-xl border border-input bg-background px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"

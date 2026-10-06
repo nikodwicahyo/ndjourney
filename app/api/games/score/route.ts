@@ -73,6 +73,7 @@ export async function POST(request: Request) {
     });
 
     await invalidateCache("games:*");
+    await invalidateCache("home:*");
 
     if (isAuthed) {
       const coupleId = await getUserCoupleId(session!.user.id);
@@ -83,7 +84,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ data: score }, { status: 201 });
   } catch (error) {
-    // ponytail: unique(userId,questionId) turns a double-submit race into P2002 — same 409.
+    // unique(userId,questionId) turns a double-submit race into P2002 — same 409.
     if ((error as { code?: string })?.code === "P2002") {
       return NextResponse.json(
         { error: "Kamu sudah menjawab pertanyaan ini" },

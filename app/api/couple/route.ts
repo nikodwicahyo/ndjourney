@@ -67,7 +67,7 @@ export async function PUT(request: Request) {
       return rateCheck.response;
     }
 
-    // ponytail: singleton config is writable by couple members only.
+    // singleton config is writable by couple members only.
     const editorCoupleId = await getUserCoupleId(rateCheck.session.user.id);
     if (!editorCoupleId) {
       return NextResponse.json({ error: "Pasangan belum ditemukan" }, { status: 403 });
@@ -140,7 +140,7 @@ export async function PUT(request: Request) {
         birthDate2,
         tagline: parsed.data.tagline ?? undefined,
         heroPhotoUrl: parsed.data.heroPhotoUrl ?? undefined,
-        // ponytail: crop without photo is meaningless — clearing the photo clears the crop.
+        // crop without photo is meaningless — clearing the photo clears the crop.
         // DbNull = SQL NULL (plain null would store JSON null for Json fields).
         // Explicit null (Pakai Asli) clears; undefined leaves unchanged.
         heroCrop: parsed.data.heroPhotoUrl === null || parsed.data.heroCrop === null

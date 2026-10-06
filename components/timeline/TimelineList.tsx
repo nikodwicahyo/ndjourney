@@ -15,7 +15,6 @@ const AddMilestoneForm = dynamic(() => import("./AddMilestoneForm"), {
 import { Button, Skeleton } from "@/components/ui";
 import { Heart, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { showDeleteConfirm } from "@/lib/swal";
 import type { MilestoneWithRelations } from "@/hooks/useMilestones";
 
 export default function TimelineList() {
@@ -33,12 +32,9 @@ export default function TimelineList() {
   }, []);
 
   const handleDelete = useCallback(
-    async (id: string) => {
-      const confirmed = await showDeleteConfirm({
-        title: "Hapus Milestone",
-        text: "Apakah Anda yakin ingin menghapus milestone ini?",
-      });
-      if (!confirmed) return;
+    (id: string) => {
+      // Single confirmation lives in MilestoneCard (with the milestone title)
+      // — confirming here too showed two dialogs in a row.
       deleteMilestone.mutate(id, {
         onSuccess: () => toast.success("Milestone dihapus"),
         onError: () => toast.error("Gagal menghapus milestone"),
@@ -68,7 +64,7 @@ export default function TimelineList() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-20">
-        <p className="text-destructive">Gagal memuat timeline</p>
+        <p role="alert" className="text-destructive">Gagal memuat timeline</p>
         <Button variant="outline" size="sm" onClick={() => refetch()}>
           Coba Lagi
         </Button>

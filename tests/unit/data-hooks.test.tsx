@@ -36,6 +36,12 @@ describe("usePhotos (F-02 gallery data)", () => {
     expect(seen[0]).toContain("isFavorite=true");
     expect(seen[0]).toContain("limit=50");
     expect(result.current.hasNextPage).toBe(true);
+    // T-05: pagination must actually advance — a dead getNextPageParam caps the gallery at 50.
+    await result.current.fetchNextPage();
+    await waitFor(() => expect(result.current.data?.pages).toHaveLength(2));
+    expect(seen[1]).toContain("cursor=cursor-2");
+    expect(result.current.data?.pages.flatMap((p) => p.data)).toHaveLength(2);
+    expect(result.current.hasNextPage).toBe(false);
   });
 
   it("surfaces server error message", async () => {

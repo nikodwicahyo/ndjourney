@@ -21,7 +21,7 @@ export async function GET(
 
     const { id } = await params;
 
-    // ponytail: row cache first — cache-hit path was 2 PG (findUnique + users).
+    // row cache first — cache-hit path was 2 PG (findUnique + users).
     // Key lives under letters:* so existing PUT/DELETE/open wipes invalidate it.
     const rowK = cacheKey("letters", "row", id);
     let letter = await getCached<{
@@ -59,10 +59,6 @@ export async function GET(
         updatedAt: row.updatedAt.toISOString(),
       };
       await setCached(rowK, letter, 60);
-    }
-
-    if (!letter) {
-      return NextResponse.json({ error: "Surat tidak ditemukan" }, { status: 404 });
     }
 
     if (
@@ -158,13 +154,14 @@ export async function DELETE(
 
     await invalidateCache("letters:*");
     await invalidateCache("dashboard:*");
+    await invalidateCache("home:*");
 
     const coupleId = await getUserCoupleId(session.user.id);
     if (coupleId) {
       triggerCoupleEvent(coupleId, 'LETTERS');
     }
 
-    return NextResponse.json({ message: "Letter deleted" });
+    return NextResponse.json({ data: { id } });
   } catch (error) {
     console.error("Error deleting letter:", error);
     return NextResponse.json(

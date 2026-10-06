@@ -11,7 +11,9 @@ function isAuthError(error: Error) {
     error.message.includes("401") ||
     error.message.includes("Unauthorized") ||
     error.message.includes("access") ||
-    error.message.includes("Access")
+    error.message.includes("Access") ||
+    error.message.includes("akses") ||
+    error.message.includes("Akses")
   );
 }
 

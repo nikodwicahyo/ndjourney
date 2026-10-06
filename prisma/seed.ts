@@ -366,7 +366,7 @@ function getEnv(key: string, fallback: string): string {
 async function main() {
   console.log("🌱 Seeding database...");
 
-  // ponytail: no weak default passwords, no plaintext credential logs.
+  // no weak default passwords, no plaintext credential logs.
   const rawPassword = process.env.SEED_PASSWORD?.trim();
   if (!rawPassword || rawPassword.length < 12) {
     throw new Error("SEED_PASSWORD env wajib diisi (min 12 karakter) untuk seeding.");

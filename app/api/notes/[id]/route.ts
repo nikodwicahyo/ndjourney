@@ -40,13 +40,14 @@ export async function DELETE(
     await prisma.dailyNote.delete({ where: { id } });
 
     await invalidateCache("notes:*");
+    await invalidateCache("home:*");
 
     const coupleId = await getUserCoupleId(session.user.id);
     if (coupleId) {
       triggerCoupleEvent(coupleId, 'DAILY_NOTES');
     }
 
-    return NextResponse.json({ message: "Catatan berhasil dihapus" });
+    return NextResponse.json({ data: { id } });
   } catch (error) {
     console.error("Error deleting note:", error);
     return NextResponse.json(

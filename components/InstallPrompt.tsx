@@ -183,14 +183,20 @@ export default function InstallPrompt() {
   }, []);
 
   useEffect(() => {
+    // Mount-once client-env sync (window/localStorage reads are unavailable
+    // during SSR): one extra render, no loop.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- mount-only external-system sync, guarded, non-looping
     setMounted(true);
     setIsStandaloneMode(isStandalone());
     setDismissCount(getDismissCount());
   }, []);
 
+  // Mount-once install-method resolution (same SSR constraint; doneRef guard
+  // prevents re-runs): one extra render, no loop.
   useEffect(() => {
     if (doneRef.current) return;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- mount-only init, doneRef-guarded, non-looping
     if (checkAndUpdateStandalone()) {
       setInstalled(true);
       setInstallMethod("installed");

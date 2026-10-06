@@ -15,12 +15,13 @@ export async function GET(request: Request) {
     const isAuthed = !!session?.user;
 
     const { searchParams } = new URL(request.url);
-    // ponytail: ?visibility=public forces public-only even when authed (public gallery) — default authed = all (dashboard).
+    // ?visibility=public forces public-only even when authed (public gallery) — default authed = all (dashboard).
     const rawVisibility = searchParams.get("visibility");
     const visibility = rawVisibility === "public" ? "public" : null;
     const wantPublic = !isAuthed || visibility === "public";
+    const coupleId = session?.user ? await getUserCoupleId(session.user.id) : null;
 
-    const cacheK = cacheKey("albums", "list", isAuthed ? "auth" : "public", visibility ?? "all");
+    const cacheK = cacheKey("albums", "list", isAuthed ? "auth" : "public", coupleId ?? "nocouple", visibility ?? "all");
     const cached = await getCached<unknown>(cacheK);
     if (cached) {
       return NextResponse.json(cached, {
@@ -39,7 +40,7 @@ export async function GET(request: Request) {
       photoCount: bigint;
     };
 
-    const rows = wantPublic
+    const rows = wantPublic || !coupleId
       ? await prisma.$queryRaw<AlbumRow[]>`
           SELECT
             a.id, a.name, a.description, a."coverPhotoUrl", a."isPublic", a."createdAt", a."updatedAt",
@@ -56,6 +57,7 @@ export async function GET(request: Request) {
             COUNT(p.id)::int AS "photoCount"
           FROM "Album" a
           LEFT JOIN "Photo" p ON p."albumId" = a.id
+          WHERE (a."coupleId" = ${coupleId} OR a."coupleId" IS NULL)
           GROUP BY a.id
           ORDER BY a."createdAt" DESC
         `;
@@ -96,7 +98,7 @@ export async function POST(request: Request) {
 
     const body = await request.json().catch(() => null);
     if (body == null || typeof body !== "object") return NextResponse.json({ error: "Body JSON tidak valid", code: "BAD_JSON" }, { status: 400 });
-    // ponytail: trim here so "   " fails Zod min(1) instead of creating a blank album.
+    // trim here so "   " fails Zod min(1) instead of creating a blank album.
     const normalized = {
       ...body,
       name: typeof body.name === "string" ? body.name.trim() : body.name,
@@ -143,7 +145,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Error creating album:", error);
     const code = (error as { code?: string })?.code;
-    // ponytail: map known Prisma failures so client can retry/redirect correctly.
+    // map known Prisma failures so client can retry/redirect correctly.
     if (code === "P2002") {
       return NextResponse.json(
         { error: "Album dengan nama tersebut sudah ada.", code },
@@ -162,7 +164,7 @@ export async function POST(request: Request) {
         { status: 503 },
       );
     }
-    // ponytail: P2022 = schema drift (e.g. migration not deployed) — 503, never generic 500.
+    // P2022 = schema drift (e.g. migration not deployed) — 503, never generic 500.
     if (code === "P2022") {
       return NextResponse.json(
         { error: "Layanan sedang penyesuaian database. Coba lagi nanti.", code },

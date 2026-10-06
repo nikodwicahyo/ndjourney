@@ -185,7 +185,7 @@ types/                # Shared TypeScript types
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `DATABASE_URL` | ✅ | — | Neon PostgreSQL connection string |
-| `NEXTAUTH_SECRET` | ✅ | — | `openssl rand -base64 32` |
+| `AUTH_SECRET` | ✅ | — | `openssl rand -base64 32` (`NEXTAUTH_SECRET` also accepted as fallback) |
 | `NEXTAUTH_URL` | ✅ | — | `http://localhost:3000` (dev) or production URL |
 | `GOOGLE_CLIENT_ID` | ✅ | — | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | ✅ | — | Google OAuth client secret |
@@ -254,10 +254,22 @@ npm start
 1. Import your GitHub repo in the Vercel dashboard
 2. Add all environment variables from `.env.example` (with real values)
 3. Set **Cron Secret** to trigger `GET /api/cron/time-capsule` daily at 7:00 AM
-4. Deploy — Vercel detects Next.js automatically
+4. Apply migrations before promoting: `npm run db:migrate:deploy`
+   (never `db:push` or `db:reset` against production — `db:reset --force` wipes the database)
+5. Never run `db:seed` against production (creates default `admin@`/`partner1@`/`partner2@` users when seed emails are unset)
+6. Deploy — Vercel detects Next.js automatically
 
-The app uses `output: "standalone"` for optimal serverless deployment.  
+Deploys as a standard Next.js app on Vercel (no `output` override — default serverless mode).  
 Security headers (CSP, HSTS, X-Frame-Options) are configured in `next.config.ts`.
+
+**Limits & rollback:**
+- `POST /api/upload/server` and `GET /api/cron/time-capsule` set `maxDuration = 300`,
+  which exceeds the 60 s Vercel Hobby cap — these need Pro/Fluid, otherwise long
+  uploads and large time-capsule backlogs are truncated mid-run.
+- Smoke after deploy: `curl $NEXTAUTH_URL/api/health` must return `{"status":"ok"}`.
+- Rollback: redeploy the previous Vercel deployment (instant). Database migrations
+  are forward-only additive — rolling back code past a migration that new code
+  depends on is unsafe; check `prisma/migrations` before rolling back.
 
 ---
 

@@ -80,3 +80,27 @@ export function getVideoPosterUrl(videoUrl: string, width = 800): string {
   const baseName = publicId.replace(/\.[^.]+$/, "");
   return `${base}/image/upload/so_0,w_${width},c_limit,q_auto,f_auto/${baseName}.jpg`;
 }
+
+// Thumbnail for a fresh Cloudinary upload response (shared by the chunked
+// client uploader and the server upload route — was copy-pasted in both).
+export function getUploadThumbnailUrl(secureUrl: string, resourceType: string): string {
+  const transform = "w_400,h_400,c_fill,q_auto";
+  if (resourceType === "video") {
+    return buildTransformedDeliveryUrl(secureUrl, `${transform},f_jpg`, "jpg");
+  }
+  if (resourceType === "image") {
+    return buildTransformedDeliveryUrl(secureUrl, `${transform},f_auto`);
+  }
+  return secureUrl;
+}
+
+function buildTransformedDeliveryUrl(
+  secureUrl: string,
+  transformation: string,
+  format?: string,
+): string {
+  const [baseUrl, query = ""] = secureUrl.split("?");
+  const transformedUrl = baseUrl.replace("/upload/", `/upload/${transformation}/`);
+  const withFormat = format ? transformedUrl.replace(/\.[^/.]+$/, `.${format}`) : transformedUrl;
+  return query ? `${withFormat}?${query}` : withFormat;
+}

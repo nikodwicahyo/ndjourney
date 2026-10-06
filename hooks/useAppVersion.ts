@@ -48,6 +48,26 @@ function consumeUpdated(): string | null {
 // Module-level guard so we never schedule more than one reload.
 let reloadScheduled = false;
 
+// P-07: one shared poller — PwaRegister + VersionCheck both mount this hook,
+// and two 60s version.json loops doubled traffic, toasts, and reload races.
+let sharedTimer: ReturnType<typeof setInterval> | null = null;
+const sharedSubs = new Set<() => void>();
+
+function ensureSharedPoller(): void {
+  if (sharedTimer) return;
+  const run = () => {
+    sharedSubs.forEach((fn) => {
+      try {
+        fn();
+      } catch {
+        // isolated per subscriber (see per-letter isolation in cron route)
+      }
+    });
+  };
+  run();
+  sharedTimer = setInterval(run, POLL_INTERVAL);
+}
+
 function reloadNow(): void {
   if (reloadScheduled) return;
   reloadScheduled = true;
@@ -58,6 +78,11 @@ export function useAppVersion() {
   const versionRef = useRef<string | null>(null);
 
   useEffect(() => {
+    ensureSharedPoller();
+    sharedSubs.add(checkVersion);
+    return () => {
+      sharedSubs.delete(checkVersion);
+    };
     async function checkVersion() {
       try {
         const res = await fetch('/version.json', { cache: 'no-cache' });
@@ -94,9 +119,5 @@ export function useAppVersion() {
         // Network error — we'll retry on the next interval.
       }
     }
-
-    checkVersion();
-    const interval = setInterval(checkVersion, POLL_INTERVAL);
-    return () => clearInterval(interval);
   }, []);
 }

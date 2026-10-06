@@ -2,17 +2,26 @@ import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { getCached, setCached, cacheKey } from "@/lib/redis";
 import { batchLoadUsers, toPublicUser } from "@/lib/batch";
+import { withAnonymousRateLimit } from "@/lib/rate-limit";
+import { auth } from "@/lib/auth";
 import { z } from "zod";
 
 const CACHE_TTL = 300;
 
-// ponytail: guard enum before raw cast — invalid ?type= was 500
+// guard enum before raw cast — invalid ?type= was 500
 const gameTypeParam = z.enum(["WOULD_YOU_RATHER", "TRIVIA", "SPIN_THE_WHEEL", "TRUTH_OR_DARE", "SLIDING_PUZZLE", "MEMORY_BLOCK_BLAST"]);
 
 type RawRow = { userId: string; totalPlayed: bigint; totalCorrect: bigint };
 
 export async function GET(request: NextRequest) {
   try {
+    // MR-07: full-table GROUP BY per cache miss — throttle anon scraping
+    // (300/hr is far above human polling; cache hits are unaffected).
+    const session = await auth();
+    if (!session?.user) {
+      const rl = await withAnonymousRateLimit(request, { maxRequests: 300, windowSeconds: 3600, keyPrefix: "games:leaderboard" });
+      if (!rl.allowed) return rl.response;
+    }
     const { searchParams } = new URL(request.url);
     const type = searchParams.get("type");
     if (type && !gameTypeParam.safeParse(type).success) {
@@ -68,7 +77,7 @@ export async function GET(request: NextRequest) {
       const totalPlayed = Number(row.totalPlayed);
       const totalCorrect = Number(row.totalCorrect);
       return {
-        // ponytail: public endpoint — no emails in response.
+        // public endpoint — no emails in response.
         user: toPublicUser(userMap.get(row.userId)),
         playerName: null,
         totalPlayed,

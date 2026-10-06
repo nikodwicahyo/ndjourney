@@ -14,13 +14,13 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // ponytail: scope feed to caller's couple (was global UNION across all couples).
+    // scope feed to caller's couple (was global UNION across all couples).
     const coupleId = await getUserCoupleId(session.user.id);
     if (!coupleId) {
       return NextResponse.json({ data: [] });
     }
 
-    // ponytail: couple-scoped cache (was per-user: duplicate entries for shared feed).
+    // couple-scoped cache (was per-user: duplicate entries for shared feed).
     const cacheK = cacheKey("dashboard", "activity", coupleId);
     const cached = await getCached<unknown>(cacheK);
     if (cached) {

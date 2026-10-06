@@ -5,6 +5,8 @@ export const CSP_DIRECTIVES = [
   "font-src 'self' data: https://res.cloudinary.com https://fonts.gstatic.com",
   "img-src 'self' data: blob: https://res.cloudinary.com https://*.googleusercontent.com https://avatars.githubusercontent.com https://tiles.openfreemap.org https://tile.openstreetmap.org https://*.tile.openstreetmap.org",
   "media-src 'self' https://res.cloudinary.com",
+  "object-src 'none'",
+  "upgrade-insecure-requests",
   "frame-src https://open.spotify.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",

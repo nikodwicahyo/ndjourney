@@ -190,7 +190,6 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
   const [blocks, setBlocks] = useState<BlockShape[]>([]);
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
-  const [submitted, setSubmitted] = useState(false);
   const [displayScore, setDisplayScore] = useState(0);
   const [randomPhoto, setRandomPhoto] = useState<Photo | null>(null);
 
@@ -234,6 +233,9 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
   } | null>(null);
   const lastTargetRef = useRef<string | null>(null);
   const isClearingRef = useRef(false);
+  // One-shot submit guard (see submit effect below). A ref — never state —
+  // so the guard itself never triggers renders or cascading updates.
+  const submitSentRef = useRef(false);
 
   // Keep refs in sync
   useEffect(() => { gridRefForDrag.current = grid; }, [grid]);
@@ -259,22 +261,22 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
     if (photosData) photosRef.current = photosData;
   }, [photosData]);
 
-  // Pick a random photo when data arrives, then show the start screen.
-  // Blocks are only dealt when the player explicitly starts the game.
-  useEffect(() => {
-    if (photosLoading) return;
-    if (photosData && photosData.length > 0 && !randomPhoto) {
-      setRandomPhoto(photosData[Math.floor(Math.random() * photosData.length)]);
-    }
-    if (phase === "loading") setPhase("ready");
-  }, [photosLoading, photosData, randomPhoto, phase]);
-
-  const pickRandomPhoto = useCallback(() => {
-    const list = photosRef.current;
+  const pickRandomPhoto = useCallback((list: Photo[] = photosRef.current) => {
     if (list.length > 0) {
       setRandomPhoto(list[Math.floor(Math.random() * list.length)]);
     }
   }, []);
+
+  // Pick a random photo when data arrives, then show the start screen.
+  // Blocks are only dealt when the player explicitly starts the game.
+  // Render-time adjustment (React-endorsed): the pick itself lives in the
+  // event-style pickRandomPhoto callback, so render stays pure.
+  if (!photosLoading && photosData && photosData.length > 0 && !randomPhoto) {
+    pickRandomPhoto(photosData);
+  }
+  if (phase === "loading" && !photosLoading) {
+    setPhase("ready");
+  }
 
   // Build the 400×400 image URL using Cloudinary
   const { photoUrl, blurredPhotoUrl } = useMemo(() => {
@@ -300,7 +302,7 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
     setBlocks(getRandomShapes(BLOCKS_PER_ROUND));
     setScore(0);
     setCombo(0);
-    setSubmitted(false);
+    submitSentRef.current = false;
     setDisplayScore(0);
     setHeartParticles([]);
     setClearedLines([]);
@@ -323,8 +325,8 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
     if (phase !== "victory" && phase !== "gameOver") return;
     // Capture the final score once; the scoreRef sync effect runs before this
     // one, so scoreRef.current already holds the complete end-of-game score.
+    // (No sync reset needed: the first animation frame below sets ~0.)
     const finalScore = scoreRef.current;
-    setDisplayScore(0);
     const duration = 1200;
     const start = performance.now();
     let frame: number;
@@ -340,17 +342,29 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
   }, [phase]);
 
   // ── Submit score on game end ──────────────────────────────────
+  // Guard lives in submitSentRef above (written inside the effect, never
+  // during render) so a slow network can't double-submit and StrictMode
+  // remounts can't either — replacing the old submitted-state sync set.
 
   useEffect(() => {
-    if ((phase === "victory" || phase === "gameOver") && !submitted && scoreRef.current > 0) {
-      setSubmitted(true);
+    if ((phase === "victory" || phase === "gameOver") && !submitSentRef.current && scoreRef.current > 0) {
+      submitSentRef.current = true;
       submitScore.mutate({
         gameType: "MEMORY_BLOCK_BLAST",
         score: scoreRef.current,
         playerName,
       });
     }
-  }, [phase, submitted, submitScore, playerName]);
+  }, [phase, submitScore, playerName]);
+
+  // ── Live status banner (updates on every move) ───────────────
+  // Declared before the effects that call it (used before declaration
+  // breaks the stale-closure guarantee the linter enforces).
+
+  const setStatusMsg = useCallback((text: string, tone: StatusTone = "neutral") => {
+    statusKeyRef.current += 1;
+    setStatus({ key: statusKeyRef.current, text, tone });
+  }, []);
 
   // ── Proactive game-over check ─────────────────────────────────
   // Runs whenever the tray or grid changes during play. This catches the
@@ -366,14 +380,7 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
       setStatusMsg("Tidak ada ruang lagi 😢", "warn");
       setPhase("gameOver");
     }
-  }, [blocks, grid, phase]);
-
-  // ── Live status banner (updates on every move) ───────────────
-
-  const setStatusMsg = useCallback((text: string, tone: StatusTone = "neutral") => {
-    statusKeyRef.current += 1;
-    setStatus({ key: statusKeyRef.current, text, tone });
-  }, []);
+  }, [blocks, grid, phase, setStatusMsg]);
 
   // ── Spawn heart particles ─────────────────────────────────────
 
@@ -608,12 +615,16 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
     }
   }, []);
 
+  // Stable mirror for self-removal inside onPointerUp below (referencing the
+  // callback inside its own body breaks the stale-closure guarantee).
+  const onPointerUpRef = useRef<(e: PointerEvent) => void>(() => {});
+
   const onPointerUp = useCallback(
     (e: PointerEvent) => {
       const drag = dragRef.current;
       window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", onPointerUp);
-      window.removeEventListener("pointercancel", onPointerUp);
+      window.removeEventListener("pointerup", onPointerUpRef.current);
+      window.removeEventListener("pointercancel", onPointerUpRef.current);
       lastTargetRef.current = null;
       dragRef.current = null;
       setGhost(null);
@@ -636,6 +647,11 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
     },
     [onPointerMove, handleDrop, resetDragVisuals],
   );
+
+  // Keep the mirror current without re-subscribing listeners.
+  useEffect(() => {
+    onPointerUpRef.current = onPointerUp;
+  });
 
   const onBlockPointerDown = useCallback(
     (e: React.PointerEvent, block: BlockShape, index: number) => {
@@ -772,7 +788,7 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
             <button
               onClick={startGame}
               className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent"
-              aria-label="Restart"
+              aria-label="Mulai ulang"
             >
               <RotateCcw className="h-5 w-5" />
             </button>

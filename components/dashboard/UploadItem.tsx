@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, memo } from "react";
 import { cn } from "@/lib/utils";
 import { Loader2, CheckCircle, AlertCircle, X, FileVideo, RotateCcw, Trash, Clock, Image as ImageIcon, WifiOff } from "lucide-react";
-import { formatBytes, formatTime } from "@/lib/upload-config";
+import { formatBytes, formatTime, resolveUploadMime } from "@/lib/upload-config";
 import type { UploadFileItem } from "@/components/dashboard/GalleryManager";
 
 interface UploadItemProps {
@@ -69,18 +69,25 @@ function ActionButton({
 }
 
 function UploadItemInner({ item, onCancel, onRetry, onRemove, isUploading }: UploadItemProps) {
-  const isImage = item.file.type.startsWith("image/");
+  const isImage = resolveUploadMime(item.file.name, item.file.type).startsWith("image/");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isVisible, setIsVisible] = useState(false);
   const [hasError, setHasError] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
+  // Reset preview state when the file changes — render-time adjustment
+  // (React-endorsed), not a post-paint effect, so no cascading render.
+  const [prevFile, setPrevFile] = useState(item.file);
+  if (prevFile !== item.file) {
+    setPrevFile(item.file);
+    setPreviewUrl(null);
+    setIsVisible(false);
+  }
+
   // Create IntersectionObserver on the container element which is always mounted
   useEffect(() => {
     if (!isImage) {
-      setPreviewUrl(null);
-      setIsVisible(false);
       return;
     }
 
@@ -246,7 +253,7 @@ function UploadItemInner({ item, onCancel, onRetry, onRemove, isUploading }: Upl
             onClick={() => onCancel(item.id)}
             disabled={!isUploading}
             variant="default"
-            aria-label="Cancel upload"
+            aria-label="Batalkan upload"
           >
             <X className="h-4 w-4" />
           </ActionButton>
@@ -256,7 +263,7 @@ function UploadItemInner({ item, onCancel, onRetry, onRemove, isUploading }: Upl
             onClick={() => onRetry(item.id)}
             disabled={isUploading}
             variant="default"
-            aria-label="Retry upload"
+            aria-label="Coba lagi"
           >
             <RotateCcw className="h-4 w-4" />
           </ActionButton>
@@ -266,7 +273,7 @@ function UploadItemInner({ item, onCancel, onRetry, onRemove, isUploading }: Upl
             onClick={() => onRemove(item.id)}
             disabled={isUploading}
             variant="destructive"
-            aria-label="Remove file"
+            aria-label="Hapus file"
           >
             <Trash className="h-4 w-4" />
           </ActionButton>

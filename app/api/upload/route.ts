@@ -21,7 +21,7 @@ const ALLOWED_TYPES = [
   "audio/mpeg",
 ];
 
-// ponytail: aligned with upload-policy (10 MB image / 100 MB video).
+// aligned with upload-policy (10 MB image / 100 MB video).
 const MAX_SIZE = 100 * 1024 * 1024;
 
 export async function POST(request: Request) {
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "File kosong" }, { status: 400 });
     }
 
-    // ponytail: verify bytes match the claimed type (shared table in lib/upload-magic).
+    // verify bytes match the claimed type (shared table in lib/upload-magic).
     if (!checkMagicBytes(buffer, file.type)) {
       console.warn("Magic bytes mismatch:", { fileName: file.name, fileType: file.type });
       return NextResponse.json(
@@ -91,7 +91,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Upload error:", error);
-    // ponytail: never leak Cloudinary/SDK internals to the client.
+    // never leak Cloudinary/SDK internals to the client.
     return NextResponse.json(
       { error: "Upload gagal. Coba lagi nanti." },
       { status: 500 },

@@ -131,7 +131,7 @@ export default function NotesManager() {
           </div>
         ) : error ? (
           <div className="flex flex-col items-center gap-3 py-8 text-center">
-            <p className="text-sm text-destructive">Gagal memuat catatan</p>
+            <p role="alert" className="text-sm text-destructive">Gagal memuat catatan</p>
           </div>
         ) : !selectedNotes || selectedNotes.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">

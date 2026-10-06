@@ -468,7 +468,7 @@ export default function BottleLetter() {
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
             <Heart className="h-3.5 w-3.5 fill-primary text-primary" />
           </div>
-          <span className="text-base font-medium">What's in the bottle</span>
+          <span className="text-base font-medium">What&apos;s in the bottle</span>
         </div>
 
         <motion.button

@@ -406,7 +406,7 @@ export class UploadQueue {
     this.isProcessing = true;
     try {
       while (this.activeCount < this.options.maxConcurrency) {
-        // ponytail: retrying tasks with a pending backoff timer are NOT eligible —
+        // retrying tasks with a pending backoff timer are NOT eligible —
         // the timer (or retryAllEligible) owns them. Picking them here double-executes.
         const nextTask = this.queue.find(
           (t) =>
@@ -557,7 +557,7 @@ let singleton: UploadQueue | null = null;
 export function getUploadQueue(options?: Partial<UploadQueueOptions>): UploadQueue {
   if (!singleton) {
     singleton = new UploadQueue({
-      // ponytail: 3 matches server bulk CONCURRENCY + DEFAULT_CONCURRENCY; 5 tripped sign/server rate limits on 50-file batches
+      // 3 matches server bulk CONCURRENCY + DEFAULT_CONCURRENCY; 5 tripped sign/server rate limits on 50-file batches
       maxConcurrency: 3,
       chunkSize: 5 * 1024 * 1024,
       folder: "ndjourney-web",

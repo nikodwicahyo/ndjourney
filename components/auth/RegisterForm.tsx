@@ -4,6 +4,7 @@ import { useState } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui";
+import { useMounted } from "@/hooks/useMounted";
 import { Loader2, User, Mail, Lock, Sparkles, Eye, EyeOff, LogOut } from "lucide-react";
 
 export default function RegisterForm({ token }: { token: string }) {
@@ -18,6 +19,8 @@ export default function RegisterForm({ token }: { token: string }) {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  // Same pre-hydration native-submit guard as LoginForm.
+  const mounted = useMounted();
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
@@ -144,7 +147,7 @@ export default function RegisterForm({ token }: { token: string }) {
         size="lg"
         className="w-full"
         onClick={handleGoogleSignUp}
-        disabled={googleLoading}
+        disabled={googleLoading || !mounted}
       >
         {googleLoading ? (
           <Loader2 className="h-4 w-4 animate-spin" />
@@ -236,10 +239,10 @@ export default function RegisterForm({ token }: { token: string }) {
         </div>
 
         {error && (
-          <p className="text-sm text-destructive">{error}</p>
+          <p role="alert" className="text-sm text-destructive">{error}</p>
         )}
 
-        <Button type="submit" size="lg" className="w-full" disabled={loading}>
+        <Button type="submit" size="lg" className="w-full" disabled={loading || !mounted}>
           {loading ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />

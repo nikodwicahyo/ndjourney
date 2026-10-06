@@ -5,6 +5,9 @@
 
 # testing
 /coverage
+/playwright/.auth
+/test-results/
+/playwright-report/
 
 # next.js
 /.next/
@@ -24,6 +27,9 @@ yarn-error.log*
 
 # env files
 .env
+.env.test
+.env.production
+.env.development
 .env.local
 .env.development.local
 .env.test.local
@@ -40,6 +46,9 @@ lib/generated/
 
 # turbo
 .turbo
+
+# generated at every build (see scripts/generate-version.mjs)
+public/version.json
 
 # OS junk
 Thumbs.db

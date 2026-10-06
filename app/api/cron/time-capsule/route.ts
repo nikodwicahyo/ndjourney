@@ -1,8 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
-import { sendEmail, timeCapsuleNotificationHtml } from "@/lib/resend";
+import { sendEmail, timeCapsuleNotificationHtml, safeAppUrl } from "@/lib/email";
 import { triggerCoupleEvent } from "@/lib/pusher-server";
 import { invalidateCache } from "@/lib/redis";
+import { safeTokenEqual } from "@/lib/api-body";
 import type { Prisma } from "@/lib/generated/prisma";
 
 type UnlockedLetter = Prisma.LetterGetPayload<{
@@ -29,7 +30,8 @@ export async function GET(request: Request) {
     }
 
     const token = authHeader?.replace("Bearer ", "");
-    if (token !== cronSecret) {
+    // SEC: constant-time compare like the invite-token paths.
+    if (!token || !safeTokenEqual(token, cronSecret)) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 },
@@ -38,7 +40,7 @@ export async function GET(request: Request) {
 
     const now = new Date();
 
-    // ponytail: bounded batches (100/iter, max 10) with keyset pagination —
+    // bounded batches (100/iter, max 10) with keyset pagination —
     // same "process all" semantics as unbounded findMany, without the
     // OOM/email-storm ceiling or the degrading notIn:processedIds list.
     // (cursor API needs a unique — unlockAt isn't one — so keyset via row filter.)
@@ -88,8 +90,8 @@ export async function GET(request: Request) {
 
     const results: Array<{ letterId: string; emailSent: boolean; error?: string }> = [];
 
-    // ponytail: per-letter isolation — one failing send/update must not skip the rest
-    for (const letter of unlockedLetters) {
+    // per-letter isolation — one failing send/update must not skip the rest
+    async function processLetter(letter: UnlockedLetter): Promise<void> {
       try {
         if (letter.recipient.email) {
           const emailResult = await sendEmail({
@@ -98,14 +100,14 @@ export async function GET(request: Request) {
             html: timeCapsuleNotificationHtml(
               letter.author.name || "Pasangan",
               letter.title,
-              `${process.env.NEXTAUTH_URL}/letters/${letter.id}`,
+              safeAppUrl(`/letters/${letter.id}`),
             ),
           });
 
           const emailSent = !emailResult?.error;
 
           if (emailResult?.error) {
-            // ponytail: no recipient PII in logs.
+            // no recipient PII in logs.
             console.error(
               `Failed to send time-capsule notification for letter ${letter.id}:`,
               emailResult.error,
@@ -147,18 +149,26 @@ export async function GET(request: Request) {
       }
     }
 
-    // ponytail: no-op runs must not wipe warm caches.
+    // P-09: bounded concurrency (5) — serial SMTP over 1000 rows blows the 300s window;
+    // unbounded parallel would trip provider limits and the Neon pool.
+    const CONCURRENCY = 5;
+    for (let i = 0; i < unlockedLetters.length; i += CONCURRENCY) {
+      await Promise.all(unlockedLetters.slice(i, i + CONCURRENCY).map(processLetter));
+    }
+
+    // no-op runs must not wipe warm caches.
     if (unlockedLetters.length > 0) {
       await invalidateCache("letters:*");
       await invalidateCache("dashboard:*");
+      await invalidateCache("home:*");
     }
 
-    // ponytail: awaited fan-out — floating promises hid realtime failures.
+    // awaited fan-out — floating promises hid realtime failures.
     for (const coupleId of affectedCouples) {
       await triggerCoupleEvent(coupleId, 'LETTERS');
     }
 
-    // ponytail: report if the batch cap left items for the next run.
+    // report if the batch cap left items for the next run.
     const remaining =
       unlockedLetters.length >= BATCH * MAX_BATCHES
         ? await prisma.letter.count({

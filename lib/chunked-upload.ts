@@ -1,4 +1,5 @@
-import { UploadConfig } from "./upload-config";
+import { UploadConfig, resolveUploadMime } from "./upload-config";
+import { getUploadThumbnailUrl } from "./cloudinary-urls";
 
 export interface ChunkUploadProgress {
   fileName: string;
@@ -121,28 +122,8 @@ export function createStallTimeout(signal?: AbortSignal): {
   };
 }
 
-function buildTransformedDeliveryUrl(
-  secureUrl: string,
-  transformation: string,
-  format?: string
-): string {
-  const [baseUrl, query = ""] = secureUrl.split("?");
-  const transformedUrl = baseUrl.replace("/upload/", `/upload/${transformation}/`);
-  const withFormat = format ? transformedUrl.replace(/\.[^/.]+$/, `.${format}`) : transformedUrl;
-  return query ? `${withFormat}?${query}` : withFormat;
-}
-
 function getThumbnailUrl(result: CloudinaryUploadResponse): string {
-  const transform = "w_400,h_400,c_fill,q_auto";
-  if (result.resource_type === "video") {
-    return buildTransformedDeliveryUrl(result.secure_url, `${transform},f_jpg`, "jpg");
-  }
-
-  if (result.resource_type === "image") {
-    return buildTransformedDeliveryUrl(result.secure_url, `${transform},f_auto`);
-  }
-
-  return result.secure_url;
+  return getUploadThumbnailUrl(result.secure_url, result.resource_type);
 }
 
 interface SignedUploadParams {
@@ -326,7 +307,10 @@ export async function uploadFileChunked(
   const cfg = { ...UploadConfig, ...config };
   const fileName = file.name;
   const fileSize = file.size;
-  const fileType = file.type;
+  // Canonical MIME (extension fallback) — File.type is read-only and empty
+  // for formats browsers don't recognize (.heic), which previously failed
+  // server validation. Bytes are still verified server-side.
+  const fileType = resolveUploadMime(file.name, file.type);
   const { CHUNK_SIZES, CHUNK_THRESHOLDS } = cfg;
   const chunkSize =
     fileSize <= CHUNK_THRESHOLDS.small ? CHUNK_SIZES.small :
@@ -619,7 +603,8 @@ export async function uploadFileSimple(
   const cfg = { ...UploadConfig, ...config };
   const fileName = file.name;
   const fileSize = file.size;
-  const fileType = file.type;
+  // Same canonical-MIME fallback as uploadFileChunked above.
+  const fileType = resolveUploadMime(file.name, file.type);
 
   // Use simple direct upload for files <= 10MB
   const THRESHOLD = 10 * 1024 * 1024; // 10MB

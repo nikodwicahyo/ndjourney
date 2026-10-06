@@ -1,7 +1,9 @@
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { v2 as cloudinary } from "cloudinary";
-import { sanitizeFileName, UPLOAD_FOLDER, validateUploadRequest } from "@/lib/upload-policy";
+import { UPLOAD_FOLDER, validateUploadRequest } from "@/lib/upload-policy";
+import { getUploadThumbnailUrl } from "@/lib/cloudinary-urls";
+import { generatePublicId } from "@/lib/upload-config";
 import { checkMagicBytes } from "@/lib/upload-magic";
 import { withRateLimit } from "@/lib/rate-limit";
 
@@ -24,26 +26,8 @@ type CloudinaryUploadResponse = {
   resource_type: string;
 };
 
-function buildTransformedDeliveryUrl(
-  secureUrl: string,
-  transformation: string,
-  format?: string
-): string {
-  const [baseUrl, query = ""] = secureUrl.split("?");
-  const transformedUrl = baseUrl.replace("/upload/", `/upload/${transformation}/`);
-  const withFormat = format ? transformedUrl.replace(/\.[^/.]+$/, `.${format}`) : transformedUrl;
-  return query ? `${withFormat}?${query}` : withFormat;
-}
-
 function getThumbnailUrl(result: CloudinaryUploadResponse): string {
-  const transform = "w_400,h_400,c_fill,q_auto";
-  if (result.resource_type === "video") {
-    return buildTransformedDeliveryUrl(result.secure_url, `${transform},f_jpg`, "jpg");
-  }
-  if (result.resource_type === "image") {
-    return buildTransformedDeliveryUrl(result.secure_url, `${transform},f_auto`);
-  }
-  return result.secure_url;
+  return getUploadThumbnailUrl(result.secure_url, result.resource_type);
 }
 
 export async function POST(request: Request) {
@@ -55,7 +39,7 @@ export async function POST(request: Request) {
 
     const session = rateCheck.session;
 
-    // ponytail: fail closed with 503, not a TypeError 500 downstream.
+    // fail closed with 503, not a TypeError 500 downstream.
     if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
       return NextResponse.json({ error: "Layanan upload belum dikonfigurasi" }, { status: 503 });
     }
@@ -64,7 +48,7 @@ export async function POST(request: Request) {
     const file = formData.get("file");
     const folder = (formData.get("folder") as string) || UPLOAD_FOLDER;
 
-    // ponytail: instanceof guard — string field named "file" must 400, not throw on .arrayBuffer().
+    // instanceof guard — string field named "file" must 400, not throw on .arrayBuffer().
     if (!(file instanceof File) || file.size === 0 || folder !== UPLOAD_FOLDER) {
       return NextResponse.json({ error: "Tidak ada file yang dikirim" }, { status: 400 });
     }
@@ -83,7 +67,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "File kosong" }, { status: 400 });
     }
 
-    // ponytail: bytes are proxied here, so sniffing is cheap — spoofed MIME rejected.
+    // bytes are proxied here, so sniffing is cheap — spoofed MIME rejected.
     if (!checkMagicBytes(buffer, file.type)) {
       return NextResponse.json({ error: "Isi file tidak sesuai dengan format yang dipilih" }, { status: 400 });
     }
@@ -143,20 +127,10 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Server upload error:", error);
-    // ponytail: never leak Cloudinary/SDK internals to the client.
+    // never leak Cloudinary/SDK internals to the client.
     return NextResponse.json(
       { error: "Upload gagal. Coba lagi nanti." },
       { status: 500 }
     );
   }
-}
-
-function generatePublicId(fileName: string, userId: string): string {
-  const safeFileName = sanitizeFileName(fileName).replace(/\.[^.]+$/, "");
-  const timestamp = Date.now();
-  const random = Math.random().toString(36).substring(2, 10);
-
-  // ponytail: no original extension — Cloudinary appends the delivery format,
-  // so keeping it produced urls like name.jpg.jpg.
-  return `${userId}/${timestamp}-${random}-${safeFileName}`;
 }

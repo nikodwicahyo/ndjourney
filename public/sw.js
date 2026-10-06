@@ -26,7 +26,8 @@ const LOCATION_API_RE = /\/api\/location$/;
 const TILE_CDN_RE = /(^|\.)basemaps\.cartocdn\.com$|(^|\.)tile\.openstreetmap\.org$|^tiles\.openfreemap\.org$/i;
 
 const PUBLIC_API_PATHS = [
-  "/api/couple",
+  // SEC: /api/couple carries PII (birth dates) — never persist on-device.
+  // Pages fall back to networkFirst (memory-only) + /offline.html when offline.
   "/api/games/questions",
 ];
 
@@ -205,6 +206,11 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // P-08: version polls must always hit network — a cached version.json blinds the updater.
+  if (url.origin === location.origin && url.pathname === "/version.json") {
+    return;
+  }
+
   if (
     url.origin === location.origin &&
     PUBLIC_API_PATHS.some((p) => url.pathname === p || url.pathname.startsWith(p + "/"))
@@ -276,7 +282,12 @@ async function staleWhileRevalidate(request) {
 async function networkFirst(request) {
   try {
     const response = await fetch(request);
-    if (response.ok && response.type === "basic") {
+    // SEC: never persist authed API JSON on-device — only allowlisted public paths
+    // go through staleWhileRevalidate above; everything else under /api/ stays memory-only.
+    const reqUrl = new URL(request.url);
+    const isPublicApi = reqUrl.origin === location.origin &&
+      PUBLIC_API_PATHS.some((p) => reqUrl.pathname === p || reqUrl.pathname.startsWith(p + "/"));
+    if (response.ok && response.type === "basic" && (isPublicApi || !reqUrl.pathname.startsWith("/api/"))) {
       const clone = response.clone();
       const cache = await caches.open(CACHE_NAME);
       cache.put(request, clone);

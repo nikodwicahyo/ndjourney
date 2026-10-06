@@ -1,3 +1,5 @@
+import { formatBytes } from "./utils";
+
 export interface UploadConfig {
   CHUNK_SIZES: {
     small: number;
@@ -22,7 +24,7 @@ export interface UploadConfig {
 }
 
 export const UploadConfig: UploadConfig = {
-  // ponytail: 5MB floor — 2MB chunks meant 50 serial round-trips for 100MB.
+  // 5MB floor — 2MB chunks meant 50 serial round-trips for 100MB.
   // (Cloudinary Content-Range uploads must stay serial; fewer, bigger chunks win.)
   CHUNK_SIZES: {
     small: 5 * 1024 * 1024,
@@ -59,13 +61,7 @@ export function calculateTotalChunks(fileSize: number): number {
   return Math.ceil(fileSize / getChunkSize(fileSize));
 }
 
-export function formatBytes(bytes: number): string {
-  if (bytes === 0) return "0 B";
-  const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB", "TB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-}
+export { formatBytes };
 
 export function formatSpeed(bytesPerSecond: number): string {
   return formatBytes(bytesPerSecond) + "/s";
@@ -85,10 +81,46 @@ export function getResourceType(mimeType: string): "image" | "video" | "raw" | "
   return "auto";
 }
 
+// Browsers don't recognize every format (desktop Chrome reports "" for
+// .heic/.heif; some report application/octet-stream). Resolve a canonical
+// MIME from the extension when the claimed type isn't a media type — the
+// sign request carries this string (File.type is read-only) and the server
+// still verifies the actual bytes via magic numbers, so nothing is weakened.
+const EXTENSION_MIME: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  heic: "image/heic",
+  heif: "image/heic",
+  mp4: "video/mp4",
+  mov: "video/quicktime",
+  webm: "video/webm",
+  avi: "video/x-msvideo",
+  mkv: "video/x-matroska",
+  ogg: "video/ogg",
+  mpeg: "video/mpeg",
+  mpg: "video/mpeg",
+  mp3: "audio/mpeg",
+};
+
+export function resolveUploadMime(fileName: string, fileType: string): string {
+  const claimed = fileType.trim().toLowerCase();
+  if (
+    claimed.startsWith("image/") ||
+    claimed.startsWith("video/") ||
+    claimed.startsWith("audio/")
+  ) {
+    return claimed;
+  }
+  const ext = fileName.split(".").pop()?.toLowerCase().trim() || "";
+  return EXTENSION_MIME[ext] ?? claimed;
+}
+
 export function generatePublicId(_fileName: string, userId: string): string {
   const timestamp = Date.now();
   const random = Math.random().toString(36).substring(2, 10);
-  // ponytail: no original extension — Cloudinary appends the delivery format,
+  // no original extension — Cloudinary appends the delivery format,
   // so keeping it produced urls like name.webp.webp.
   return `${userId}/${timestamp}-${random}`;
 }
@@ -96,7 +128,7 @@ export function generatePublicId(_fileName: string, userId: string): string {
 export function validateFileSize(file: File): { valid: boolean; error?: string } {
   const { MAX_IMAGE_SIZE, MAX_VIDEO_SIZE, MAX_RAW_SIZE } = UploadConfig;
   const size = file.size;
-  const type = getResourceType(file.type);
+  const type = getResourceType(resolveUploadMime(file.name, file.type));
 
   if (type === "image" && size > MAX_IMAGE_SIZE) {
     return { valid: false, error: `Ukuran gambar melebihi batas ${formatBytes(MAX_IMAGE_SIZE)}` };
@@ -106,19 +138,6 @@ export function validateFileSize(file: File): { valid: boolean; error?: string }
   }
   if (type === "auto" && size > MAX_RAW_SIZE) {
     return { valid: false, error: `Ukuran file melebihi batas ${formatBytes(MAX_RAW_SIZE)}` };
-  }
-  return { valid: true };
-}
-
-export function validateImageDimensions(width: number, height: number): { valid: boolean; error?: string } {
-  const { MAX_IMAGE_MEGAPIXELS, MAX_TOTAL_MEGAPIXELS } = UploadConfig;
-  const megapixels = (width * height) / 1_000_000;
-
-  if (megapixels > MAX_IMAGE_MEGAPIXELS) {
-    return { valid: false, error: `Gambar melebihi batas ${MAX_IMAGE_MEGAPIXELS} MP (${megapixels.toFixed(1)} MP)` };
-  }
-  if (megapixels > MAX_TOTAL_MEGAPIXELS) {
-    return { valid: false, error: `Gambar melebihi batas total ${MAX_TOTAL_MEGAPIXELS} MP` };
   }
   return { valid: true };
 }

@@ -8,7 +8,7 @@ const prismaMock = vi.hoisted(() => ({
 
 vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
 vi.mock("@/lib/auth", () => ({ auth: vi.fn() }));
-vi.mock("@/lib/resend", () => ({ sendEmail: vi.fn(), timeCapsuleNotificationHtml: () => "<p>open</p>" }));
+vi.mock("@/lib/email", () => ({ sendEmail: vi.fn(), timeCapsuleNotificationHtml: () => "<p>open</p>", safeAppUrl: (p: string) => `http://localhost${p}` }));
 vi.mock("@/lib/pusher-server", () => ({ triggerCoupleEvent: vi.fn() }));
 vi.mock("@/lib/redis", () => ({
   invalidateCache: vi.fn(async () => {}),
@@ -19,7 +19,7 @@ vi.mock("@/lib/redis", () => ({
 }));
 
 const { GET } = await import("@/app/api/cron/time-capsule/route");
-const { sendEmail } = await import("@/lib/resend");
+const { sendEmail } = await import("@/lib/email");
 
 // LTR-06 + SEC-05 + SEC-01 (rate config imported lazily to avoid next-auth chain at top)
 describe("cron time-capsule + csp + rate-limit configs", () => {

@@ -42,7 +42,7 @@ type BulkUploadResult = {
 };
 
 async function validateAndPrepareFile(file: File): Promise<{ buffer: Buffer; isVideo: boolean } | string> {
-  // ponytail: single source of truth for limits (10MB image / 100MB video), consistent with /sign + /server
+  // single source of truth for limits (10MB image / 100MB video), consistent with /sign + /server
   const policy = validateUploadRequest({ fileName: file.name, fileType: file.type, fileSize: file.size });
   if (!policy.valid) return policy.error;
 
@@ -57,7 +57,7 @@ async function validateAndPrepareFile(file: File): Promise<{ buffer: Buffer; isV
     return `File kosong.`;
   }
 
-  // ponytail: shared magic-bytes table (lib/upload-magic) incl. audio/mpeg.
+  // shared magic-bytes table (lib/upload-magic) incl. audio/mpeg.
   if (!checkMagicBytes(buffer, file.type)) {
     console.warn("Magic bytes mismatch:", { fileName: file.name, fileType: file.type });
     return `Isi file tidak sesuai dengan format yang dipilih: ${file.type}`;
@@ -89,9 +89,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const albumId = formData.get("albumId") as string | null;
-
-    // ponytail: per-file catch — one corrupt arrayBuffer must not 500 the whole batch
+    // per-file catch — one corrupt arrayBuffer must not 500 the whole batch
     const validationResults = await Promise.all(
       files.map(async (file) => {
         try {
@@ -120,7 +118,7 @@ export async function POST(request: Request) {
 
     const CONCURRENCY = 3;
 
-    // ponytail: each item catches its own error so identity is never lost (no "unknown", no fail-all)
+    // each item catches its own error so identity is never lost (no "unknown", no fail-all)
     for (let i = 0; i < validFiles.length; i += CONCURRENCY) {
       const batch = validFiles.slice(i, i + CONCURRENCY);
 
@@ -151,7 +149,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Bulk upload error:", error);
-    // ponytail: never leak SDK internals on 500 (per-item messages stay actionable).
+    // never leak SDK internals on 500 (per-item messages stay actionable).
     return NextResponse.json(
       { error: "Upload massal gagal. Coba lagi nanti." },
       { status: 500 },

@@ -1,25 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import { join } from "path";
-
-// AUTH-06: proxy.ts pulls next-auth/next-server (no Node export map) —
-// test the pure predicate by extracting the same logic + assert source parity
-// so implementation and test cannot drift silently.
-function isPublicPath(pathname: string): boolean {
-  const publicRoutes = ["/", "/gallery", "/timeline", "/letters", "/games", "/notes", "/wishlist"];
-  return publicRoutes.some((route) => {
-    if (route === "/") return pathname === "/";
-    return pathname === route || pathname.startsWith(route + "/");
-  });
-}
-
-function isAuthPath(pathname: string): boolean {
-  const authRoutes = ["/login", "/auth-error", "/invite"];
-  return authRoutes.some((route) => {
-    if (route === "/") return pathname === "/";
-    return pathname === route || pathname.startsWith(route + "/");
-  });
-}
+// T-03: exercise the REAL guard via the shared pure module (proxy.ts
+// re-exports these) — a local copy cannot catch regressions in the real one.
+import { isPublicPath, isAuthPath } from "@/lib/route-guards";
 
 // AUTH-06: route guard matrix (mirror proxy.ts + legacy __tests__/proxy.test.ts)
 describe("proxy route guards", () => {
@@ -58,7 +42,7 @@ describe("proxy route guards", () => {
 
   it("implementation matches proxy.ts source (no drift)", () => {
     const src = readFileSync(join(process.cwd(), "proxy.ts"), "utf-8");
-    expect(src).toContain('"/gallery"');
+    expect(src).toContain("@/lib/route-guards");
     expect(src).toContain("isPublicPath");
     expect(src).toContain("isAuthPath");
   });

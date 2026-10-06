@@ -8,7 +8,6 @@ test("public games page lists game modes", async ({ page }) => {
 
 test("dashboard games shows Kelola Games + Leaderboard when logged in", async ({ page }) => {
   await page.goto("/dashboard/games");
-  await page.waitForLoadState("networkidle");
   if (page.url().includes("/login")) {
     await expect(page.getByRole("button", { name: /login dengan google/i })).toBeVisible({ timeout: 15000 });
   } else {

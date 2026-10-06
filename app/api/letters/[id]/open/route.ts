@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
-import { sendEmail, letterNotificationHtml } from "@/lib/resend";
+import { sendEmail, letterNotificationHtml, safeAppUrl } from "@/lib/email";
 import { invalidateCache } from "@/lib/redis";
 import { getUserCoupleId } from "@/lib/couple";
 import { triggerCoupleEvent } from "@/lib/pusher-server";
@@ -45,18 +45,16 @@ export async function PUT(
       );
     }
 
-    const updated = await prisma.letter.update({
-      where: { id },
-      data: {
-        isOpened: true,
-        openedAt: new Date(),
-      },
-      select: {
-        id: true,
-        isOpened: true,
-        openedAt: true,
-      },
+    // atomic claim — concurrent PUTs: only one wins, loser gets 409, one mail.
+    const claimed = await prisma.letter.updateMany({
+      where: { id, isOpened: false },
+      data: { isOpened: true, openedAt: new Date() },
     });
+    if (claimed.count === 0) {
+      return NextResponse.json({ error: "Surat ini sudah dibuka" }, { status: 409 });
+    }
+
+    const updated = { id, isOpened: true, openedAt: new Date() };
 
     if (letter.author.email) {
       const emailResult = await sendEmail({
@@ -65,7 +63,7 @@ export async function PUT(
         html: letterNotificationHtml(
           session.user.name || "Pasangan",
           letter.title,
-          `${process.env.NEXTAUTH_URL}/letters/${letter.id}`,
+          safeAppUrl(`/letters/${letter.id}`),
         ),
       });
       if (emailResult?.error) {
@@ -78,6 +76,7 @@ export async function PUT(
 
     await invalidateCache("letters:*");
     await invalidateCache("dashboard:*");
+    await invalidateCache("home:*");
 
     const coupleId = await getUserCoupleId(session.user.id);
     if (coupleId) {

@@ -7,20 +7,25 @@ import { invalidateCache } from "@/lib/redis";
 import { batchLoadUsers } from "@/lib/batch";
 import { parseJakartaDateOnly } from "@/lib/date";
 import { getUserCoupleId } from "@/lib/couple";
+import { isAllowedCloudinaryUrl } from "@/lib/upload-policy";
+import { verifyUploadForSave } from "@/lib/upload-verify";
 import { triggerCoupleEvent } from "@/lib/pusher-server";
 
 export async function GET(request: Request) {
   try {
     const session = await auth();
     const isAuthed = !!session?.user;
+    const coupleId = session?.user ? await getUserCoupleId(session.user.id) : null;
 
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "50");
+    const page = Math.min(Math.max(parseInt(searchParams.get("page") || "1", 10) || 1, 1), 1000);
+    const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "50", 10) || 50, 1), 100);
 
-    const where = isAuthed ? {} : { isPublic: true };
+    const where = isAuthed && coupleId
+      ? { OR: [{ coupleId }, { coupleId: null }] }
+      : { isPublic: true };
 
-    // ponytail: 1 round-trip (was 2 sequential).
+    // 1 round-trip (was 2 sequential).
     const [milestones, total] = await Promise.all([
       prisma.milestone.findMany({
         where,
@@ -51,7 +56,7 @@ export async function GET(request: Request) {
       batchLoadUsers(userIds),
       milestoneIds.length > 0
         ? prisma.milestonePhoto.findMany({
-            // ponytail: anon sees only public photos of public milestones (private photo in public milestone stays hidden).
+            // anon sees only public photos of public milestones (private photo in public milestone stays hidden).
             where: {
               milestoneId: { in: milestoneIds },
               ...(isAuthed ? {} : {
@@ -131,13 +136,24 @@ export async function POST(request: Request) {
 
     const coupleId = await getUserCoupleId(session.user.id);
 
-    // ponytail: per-item isolation — one bad upload must not 500 the whole milestone
+    // per-item isolation — one bad upload must not 500 the whole milestone
     const createdPhotos: Array<{ id: string; crop?: { x: number; y: number; w: number; h: number } | null }> = [];
     const failedPhotos: { publicId: string; error: string }[] = [];
     if (photoUploads?.length) {
       const settled = await Promise.allSettled(
-        photoUploads.map((upload) =>
-          prisma.photo.create({
+        photoUploads.map(async (upload) => {
+          // SEC: same end-to-end byte trust as /api/photos — confirm the
+          // stored asset before persisting, never attach foreign URLs.
+          await verifyUploadForSave({
+            url: upload.url,
+            publicId: upload.publicId,
+            userId: session.user.id,
+            isVideo: false,
+          });
+          if (upload.thumbnailUrl && !isAllowedCloudinaryUrl(upload.thumbnailUrl)) {
+            throw new Error("URL thumbnail tidak valid");
+          }
+          return prisma.photo.create({
             data: {
               url: upload.url,
               publicId: upload.publicId,
@@ -146,8 +162,8 @@ export async function POST(request: Request) {
               isMilestoneOnly: true,
             },
             select: { id: true },
-          }),
-        ),
+          });
+        }),
       );
       settled.forEach((r, i) => {
         if (r.status === "fulfilled") createdPhotos.push({ id: r.value.id, crop: photoUploads[i].crop ?? null });
@@ -167,7 +183,7 @@ export async function POST(request: Request) {
         coupleId,
         photos: allPhotoIds.length
           ? {
-              // ponytail: crop rides the link row — uploads carry their own crop, gallery links carry photoCrops.
+              // crop rides the link row — uploads carry their own crop, gallery links carry photoCrops.
               create: allPhotoIds.map((photoId) => ({
                 photoId,
                 crop: uploadCropById.get(photoId) ?? photoCrops?.[photoId] ?? undefined,
@@ -204,6 +220,7 @@ export async function POST(request: Request) {
 
     await invalidateCache("milestones:*");
     await invalidateCache("dashboard:*");
+    await invalidateCache("home:*");
 
     if (coupleId) {
       triggerCoupleEvent(coupleId, 'TIMELINE');

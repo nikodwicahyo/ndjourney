@@ -10,12 +10,14 @@ type LetterEditorProps = {
   content: string;
   onChange: (html: string) => void;
   placeholder?: string;
+  ariaLabel?: string;
 };
 
 export default function LetterEditor({
   content,
   onChange,
   placeholder,
+  ariaLabel,
 }: LetterEditorProps) {
   const editor = useEditor({
     extensions: [
@@ -31,6 +33,7 @@ export default function LetterEditor({
       attributes: {
         class:
           "prose prose-sm dark:prose-invert min-h-[280px] w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        ...(ariaLabel ? { "aria-label": ariaLabel } : {}),
       },
     },
     immediatelyRender: false,

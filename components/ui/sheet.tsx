@@ -77,11 +77,14 @@ const SheetContent = forwardRef<
   React.HTMLAttributes<HTMLDivElement> & { side?: "left" | "right" | "top" | "bottom" }
 >(({ className, children, side = "right", ...props }, ref) => {
   const { open, onOpenChange } = useContext(SheetContext_);
-  const [mounted, setMounted] = useState(false);
+  const [mounted, setMounted] = useState(open);
+
+  // Mount on open during render (React-endorsed adjustment) so the effect
+  // below only handles exit timing and the overflow lock.
+  if (open && !mounted) setMounted(true);
 
   useEffect(() => {
     if (open) {
-      setMounted(true);
       document.body.style.overflow = "hidden";
     } else {
       const timer = setTimeout(() => setMounted(false), 200);

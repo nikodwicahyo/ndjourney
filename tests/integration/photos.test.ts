@@ -14,6 +14,7 @@ vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
 vi.mock("@/lib/auth", () => ({ auth: vi.fn() }));
 vi.mock("@/lib/rate-limit", () => ({
   withRateLimit: vi.fn(),
+  withAnonymousRateLimit: vi.fn(async () => ({ allowed: true, remaining: 299 })),
   rateLimitConfigs: { write: {} },
 }));
 vi.mock("@/lib/redis", () => ({
@@ -25,6 +26,17 @@ vi.mock("@/lib/redis", () => ({
 vi.mock("@/lib/couple", () => ({ getUserCoupleId: vi.fn(async () => COUPLE) }));
 vi.mock("@/lib/pusher-server", () => ({ triggerCoupleEvent: vi.fn() }));
 vi.mock("@/lib/cloudinary", () => ({ deleteFromCloudinary: vi.fn(async () => {}) }));
+const verifyMock = vi.hoisted(() => vi.fn(async () => ({ resourceType: "image", format: "jpg", bytes: 8 })));
+vi.mock("@/lib/upload-verify", () => ({
+  verifyUploadForSave: verifyMock,
+  UploadVerifyError: class UploadVerifyError extends Error {
+    status: 400 | 503;
+    constructor(message: string, status: 400 | 503 = 400) {
+      super(message);
+      this.status = status;
+    }
+  },
+}));
 
 const { GET, POST } = await import("@/app/api/photos/route");
 const detail = await import("@/app/api/photos/[id]/route");
@@ -53,18 +65,34 @@ describe("photos API contracts", () => {
       .mockResolvedValueOnce([{ id: "p1", createdAt: "2024-01-01T00:00:00.000Z" }])
       .mockResolvedValueOnce([{ total: 1, fotoTotal: 1, videoTotal: 0 }]);
     const res = await GET(new Request("http://localhost/api/photos?isFavorite=true&limit=30"));
-    expect(res.status).toBe(200);
-    const body = await res.json();
+    expect(res?.status).toBe(200);
+    const body = await res?.json();
     expect(body.total).toBe(1);
     expect(body.hasMore).toBe(false);
   });
 
+  it("GAL-05d: GET serves Redis cache-hit without touching the database", async () => {
+    const { getCached } = await import("@/lib/redis");
+    const cached = { data: [{ id: "p9" }], nextCursor: null, hasMore: false, total: 1, fotoTotal: 1, videoTotal: 0 };
+    vi.mocked(getCached).mockResolvedValueOnce(cached as never);
+    const res = await GET(new Request("http://localhost/api/photos?limit=30"));
+    expect(res?.status).toBe(200);
+    expect(await res?.json()).toEqual(cached);
+    expect(prismaMock.$queryRawUnsafe).not.toHaveBeenCalled();
+  });
+
   it("GAL-05c: GET with albumId binds one param per placeholder (no 08P01)", async () => {
+    prismaMock.album.findUnique.mockResolvedValue({ id: "cmrm6skmr000004jtligbccin", coupleId: COUPLE });
     prismaMock.$queryRawUnsafe
       .mockResolvedValueOnce([{ id: "p1", createdAt: "2024-01-01T00:00:00.000Z" }])
       .mockResolvedValueOnce([{ total: 1, fotoTotal: 1, videoTotal: 0 }]);
     const res = await GET(new Request("http://localhost/api/photos?albumId=cmrm6skmr000004jtligbccin&limit=30"));
-    expect(res.status).toBe(200);
+    expect(res?.status).toBe(200);
+    // SEC: foreign albumIds are rejected before SQL runs (empty list, no leak).
+    prismaMock.album.findUnique.mockResolvedValue({ id: "x", coupleId: "couple-other" });
+    const foreign = await GET(new Request("http://localhost/api/photos?albumId=cmrm6skmr000004jtligbccin&limit=30"));
+    expect(foreign?.status).toBe(200);
+    expect((await foreign?.json())?.data).toEqual([]);
     // 2nd call is the triple-subselect count query: every $n must have a bound param.
     const [countSql, ...countParams] = prismaMock.$queryRawUnsafe.mock.calls[1];
     const maxPlaceholder = Math.max(...[...countSql.matchAll(/\$(\d+)/g)].map((m) => Number(m[1])));
@@ -77,7 +105,19 @@ describe("photos API contracts", () => {
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ total: 0, fotoTotal: 0, videoTotal: 0 }]);
     const res = await GET(new Request("http://localhost/api/photos"));
-    expect(res.status).toBe(200);
+    expect(res?.status).toBe(200);
+  });
+
+  it("MR-07: GET anon throttled with 429 when over budget", async () => {
+    vi.mocked(auth).mockResolvedValue(null as never);
+    const { withAnonymousRateLimit } = await import("@/lib/rate-limit");
+    vi.mocked(withAnonymousRateLimit).mockResolvedValueOnce({
+      allowed: false,
+      remaining: 0,
+      response: new Response(JSON.stringify({ error: "throttled" }), { status: 429 }),
+    } as never);
+    const res = await GET(new Request("http://localhost/api/photos"));
+    expect(res?.status).toBe(429);
   });
 
   it("GAL-01: POST 201 happy path", async () => {
@@ -90,19 +130,49 @@ describe("photos API contracts", () => {
     expect(prismaMock.photo.create).toHaveBeenCalledOnce();
   });
 
-  it("GAL-01b: POST 400 on schema fail + foreign Cloudinary URL + foreign publicId", async () => {
+  it("GAL-01b: POST 400 on schema fail + rejected verification", async () => {
+    const { UploadVerifyError } = await import("@/lib/upload-verify");
     const bad = await POST(new Request("http://localhost/api/photos", { method: "POST", body: JSON.stringify({ url: "x" }) }));
     expect(bad.status).toBe(400);
+    // foreign Cloudinary URL / stolen publicId: verifier rejects, nothing saved.
+    verifyMock.mockRejectedValueOnce(new UploadVerifyError("Media tidak valid atau tidak diizinkan"));
     const foreign = await POST(new Request("http://localhost/api/photos", {
       method: "POST",
       body: JSON.stringify({ url: "https://res.cloudinary.com/evil/image/upload/a.jpg", publicId: "evil/a" }),
     }));
     expect(foreign.status).toBe(400);
+    verifyMock.mockRejectedValueOnce(new UploadVerifyError("Media tidak valid atau tidak diizinkan"));
     const stolen = await POST(new Request("http://localhost/api/photos", {
       method: "POST",
       body: JSON.stringify({ url: IMG_URL, publicId: `ndjourney-web/${OTHER}/a` }),
     }));
     expect(stolen.status).toBe(400);
+    expect(prismaMock.photo.create).not.toHaveBeenCalled();
+  });
+
+  it("GAL-01d: POST 400 on raw delivery URL (unsigned resource_type replay)", async () => {
+    const { UploadVerifyError } = await import("@/lib/upload-verify");
+    verifyMock.mockRejectedValueOnce(new UploadVerifyError("Media tidak valid atau tidak diizinkan"));
+    const raw = await POST(new Request("http://localhost/api/photos", {
+      method: "POST",
+      body: JSON.stringify({
+        url: `https://res.cloudinary.com/test-cloud/raw/upload/v1/ndjourney-web/${ME}/evil.html`,
+        publicId: PUB_ID,
+        isVideo: false,
+      }),
+    }));
+    expect(raw.status).toBe(400);
+    expect(prismaMock.photo.create).not.toHaveBeenCalled();
+  });
+
+  it("GAL-01e: POST maps verifier outage to 503 (fail-closed, retryable)", async () => {
+    const { UploadVerifyError } = await import("@/lib/upload-verify");
+    verifyMock.mockRejectedValueOnce(new UploadVerifyError("Gagal memverifikasi media. Coba lagi nanti.", 503));
+    const res = await POST(new Request("http://localhost/api/photos", {
+      method: "POST",
+      body: JSON.stringify({ url: IMG_URL, publicId: PUB_ID, isVideo: false }),
+    }));
+    expect(res.status).toBe(503);
     expect(prismaMock.photo.create).not.toHaveBeenCalled();
   });
 

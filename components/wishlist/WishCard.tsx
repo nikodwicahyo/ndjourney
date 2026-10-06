@@ -24,7 +24,7 @@ type WishCardProps = {
   onEdit?: (wish: WishItem) => void;
 };
 
-// ponytail: banner renders through imageCrop with the same math as the
+// banner renders through imageCrop with the same math as the
 // cropper — null crop falls back to plain object-cover. Frame is 16/9, the same
 // as the cropper and the form preview, so what was framed is what shows.
 function CropBanner({ src, crop, alt, onError }: { src: string; crop: unknown; alt: string; onError?: () => void }) {
@@ -46,7 +46,13 @@ function CropBanner({ src, crop, alt, onError }: { src: string; crop: unknown; a
     return () => ro.disconnect();
   }, []);
 
-  useEffect(() => { setNatural(null); }, [src]);
+  // Reset measured dimensions when the image changes — render-time adjustment
+  // (React-endorsed), not a post-paint effect, so no cascading render.
+  const [prevSrc, setPrevSrc] = useState(src);
+  if (prevSrc !== src) {
+    setPrevSrc(src);
+    setNatural(null);
+  }
 
   const onLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
@@ -190,7 +196,7 @@ function WishCard({ wish, readOnly = false, onEdit }: WishCardProps) {
             </p>
           )}
 
-          {/* ponytail: transformed variant (not the multi-MB original) — the raw
+          {/* transformed variant (not the multi-MB original) — the raw
               original hung /_next/image past its timeout and 500d every card. */}
           {wish.imageUrl && !imgError && (
             <CropBanner
@@ -222,7 +228,7 @@ function WishCard({ wish, readOnly = false, onEdit }: WishCardProps) {
               <button
                 onClick={() => onEdit(wish)}
                 className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-all hover:bg-primary/10 hover:text-primary"
-                aria-label="Edit wish"
+                aria-label="Ubah wish"
               >
                 <Pencil className="h-3.5 w-3.5" />
               </button>

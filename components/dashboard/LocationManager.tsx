@@ -21,7 +21,7 @@ import {
 } from "@/hooks/useLocation";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query-keys";
-import type { ShareStatus } from "@/hooks/useBackgroundLocation";
+import { retrySharing, type ShareStatus } from "@/hooks/useBackgroundLocation";
 import LocationToggle from "@/components/location/LocationToggle";
 import DistanceCard from "@/components/location/DistanceCard";
 import MeetBanner from "@/components/location/MeetBanner";
@@ -42,6 +42,7 @@ const PartnerMap = dynamic(() => import("@/components/location/PartnerMap").catc
 });
 
 function StatusIndicator({ status }: { status: ShareStatus }) {
+  const qc = useQueryClient();
   switch (status) {
     case "sharing":
       return (
@@ -62,6 +63,20 @@ function StatusIndicator({ status }: { status: ShareStatus }) {
         <span className="flex items-center gap-1.5 text-xs text-amber-500">
           <AlertTriangle className="h-3 w-3" />
           Memulihkan koneksi…
+        </span>
+      );
+    case "gps-error":
+      return (
+        <span className="flex items-center gap-1.5 text-xs text-destructive">
+          <AlertTriangle className="h-3 w-3" />
+          GPS tidak merespons.
+          <button
+            type="button"
+            onClick={() => retrySharing(qc)}
+            className="font-medium underline underline-offset-2 hover:text-foreground"
+          >
+            Coba lagi
+          </button>
         </span>
       );
     case "denied":
@@ -85,12 +100,13 @@ function StatusIndicator({ status }: { status: ShareStatus }) {
 
 export default function LocationManager() {
   const { status: sessionStatus } = useSession();
-  const { data, isLoading, error } = useLocationSettings();
+  const { data, isLoading, error, refetch } = useLocationSettings();
   const { data: historyData } = useLocationHistory();
   const [showHistory, setShowHistory] = useState(false);
   const qc = useQueryClient();
-  const prevDistanceRef = useRef<number | null>(null);
-  const previousDistance = prevDistanceRef.current;
+  // Previous non-null distance for trend display — tracked in state during
+  // render (React-endorsed adjustment) instead of a ref read during render.
+  const [previousDistance, setPreviousDistance] = useState<number | null>(null);
 
   const distance = useDistance(data);
   const meeting = useIsMeeting(data);
@@ -98,11 +114,9 @@ export default function LocationManager() {
   const { status: shareStatus } = useShareLocation(data?.self.isSharing ?? false);
 
   // Update previous distance ref after render
-  useEffect(() => {
-    if (distance !== null) {
-      prevDistanceRef.current = distance;
-    }
-  }, [distance]);
+  if (distance !== null && distance !== previousDistance) {
+    setPreviousDistance(distance);
+  }
 
   if (sessionStatus === "unauthenticated") {
     return (
@@ -132,9 +146,12 @@ export default function LocationManager() {
 
   if (error || !data) {
     return (
-      <div className="flex items-center gap-2 rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+      <div role="alert" className="flex items-center gap-2 rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
         <AlertTriangle className="h-4 w-4" />
-        Gagal memuat data lokasi. Coba lagi nanti.
+        <span className="flex-1">Gagal memuat data lokasi. Coba lagi nanti.</span>
+        <Button variant="outline" size="sm" onClick={() => refetch()}>
+          Coba Lagi
+        </Button>
       </div>
     );
   }

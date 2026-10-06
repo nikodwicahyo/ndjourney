@@ -101,7 +101,6 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
   const [moveCount, setMoveCount] = useState(0);
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
   const [timerKey, setTimerKey] = useState(0);
   const [showPreview, setShowPreview] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
@@ -111,9 +110,33 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
   );
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const bestTimes = useRef<
+  // One-shot submit guard (see submit effect below). A ref — never state —
+  // so the guard itself never triggers renders or cascading updates.
+  const submitSentRef = useRef(false);
+  // Local best-times cache as state (not a ref): the difficulty picker and
+  // complete screen read it during render, and state reads are always fresh.
+  const [bestTimes, setBestTimes] = useState<
     Record<string, { moves: number; time: number; score: number }>
-  >(loadBestTimes());
+  >(() => loadBestTimes());
+
+  // Stage the one-shot submit during render (React-endorsed adjustment): pure
+  // state updates only. The effect below persists to localStorage and fires
+  // the network call — never setStates synchronously, so no cascading render.
+  // (Placed here so reset handlers below can reference the setters.)
+  const [submitQueued, setSubmitQueued] = useState(false);
+  if (isComplete && selectedPhoto && !submitQueued) {
+    setSubmitQueued(true);
+    const stagedScore = calculateScore(difficulty, moveCount, timeElapsed);
+    const stagedKey = `${selectedPhoto.id}-${difficulty}`;
+    setBestTimes((prevMap) => {
+      const prev = prevMap[stagedKey];
+      if (prev && stagedScore <= prev.score) return prevMap;
+      return {
+        ...prevMap,
+        [stagedKey]: { moves: moveCount, time: timeElapsed, score: stagedScore },
+      };
+    });
+  }
 
   const gridSize = difficulty;
   const maxMoves = DIFFICULTY_CONFIG[difficulty].maxMoves;
@@ -132,7 +155,7 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
 
   const photoUrl = selectedPhoto?.thumbnailUrl || selectedPhoto?.url || "";
 
-  // ponytail: cap at 1024w once — was full-res original in 6 <img> tags.
+  // cap at 1024w once — was full-res original in 6 <img> tags.
   const displayUrl = useMemo(() => {
     if (!photoUrl) return "";
     try {
@@ -158,7 +181,8 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
     setMoveCount(0);
     setTimeElapsed(0);
     setIsComplete(false);
-    setSubmitted(false);
+    setSubmitQueued(false);
+    submitSentRef.current = false;
     setIsLocked(false);
     setSelectedIndex(null);
     setSwappingPair(null);
@@ -227,32 +251,27 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
   );
 
   useEffect(() => {
-    if (isComplete && !submitted && selectedPhoto) {
-      const finalTime = timeElapsed;
-      const finalScore = calculateScore(difficulty, moveCount, finalTime);
-      setSubmitted(true);
-
-      const key = `${selectedPhoto.id}-${difficulty}`;
-      const prev = bestTimes.current[key];
-      if (!prev || finalScore > prev.score) {
-        bestTimes.current[key] = {
-          moves: moveCount,
-          time: finalTime,
-          score: finalScore,
-        };
-        saveBestTimes(bestTimes.current);
-      }
-
-      submitScore.mutate({
-        gameType: "SLIDING_PUZZLE",
+    if (!submitQueued || submitSentRef.current || !selectedPhoto) return;
+    submitSentRef.current = true;
+    const finalTime = timeElapsed;
+    const finalScore = calculateScore(difficulty, moveCount, finalTime);
+    saveBestTimes({
+      ...bestTimes,
+      [`${selectedPhoto.id}-${difficulty}`]: {
+        moves: moveCount,
+        time: finalTime,
         score: finalScore,
-        metadata: { moves: moveCount, time: finalTime, difficulty },
-        playerName,
-      });
-    }
+      },
+    });
+
+    submitScore.mutate({
+      gameType: "SLIDING_PUZZLE",
+      score: finalScore,
+      metadata: { moves: moveCount, time: finalTime, difficulty },
+      playerName,
+    });
   }, [
-    isComplete,
-    submitted,
+    submitQueued,
     selectedPhoto,
     difficulty,
     moveCount,
@@ -336,7 +355,7 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
         <div className="mb-6 overflow-hidden rounded-2xl border-2 border-border">
           <img
             src={displayUrl}
-            alt="Preview"
+            alt={selectedPhoto?.caption ? `Pratinjau: ${selectedPhoto.caption}` : "Pratinjau foto terpilih"}
             className="h-48 w-full object-cover"
             loading="lazy"
             decoding="async"
@@ -347,7 +366,7 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
           {([3, 4, 5] as Difficulty[]).map((d) => {
             const cfg = DIFFICULTY_CONFIG[d];
             const best = selectedPhoto
-              ? bestTimes.current[`${selectedPhoto.id}-${d}`]
+              ? bestTimes[`${selectedPhoto.id}-${d}`]
               : null;
             return (
               <button
@@ -360,7 +379,8 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
                     setMoveCount(0);
                     setTimeElapsed(0);
                     setIsComplete(false);
-                    setSubmitted(false);
+                    setSubmitQueued(false);
+                    submitSentRef.current = false;
                     setIsLocked(false);
                     setSelectedIndex(null);
                     setSwappingPair(null);
@@ -402,7 +422,7 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
   if (phase === "complete") {
     const finalScore = calculateScore(difficulty, moveCount, timeElapsed);
     const key = selectedPhoto ? `${selectedPhoto.id}-${difficulty}` : "";
-    const best = bestTimes.current[key];
+    const best = bestTimes[key];
 
     return (
       <div className="mx-auto max-w-lg text-center">
@@ -438,7 +458,7 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
           <div className="mb-4 overflow-hidden rounded-2xl border-2 border-border">
             <img
               src={displayUrl}
-              alt="Selesai"
+              alt={selectedPhoto?.caption ? `Selesai: ${selectedPhoto.caption}` : "Foto selesai"}
               className="h-48 w-full object-cover"
               loading="lazy"
               decoding="async"
@@ -542,7 +562,7 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
           <div className="mb-4 overflow-hidden rounded-2xl border-2 border-border opacity-60">
             <img
               src={displayUrl}
-              alt="Gagal"
+              alt={selectedPhoto?.caption ? `Belum selesai: ${selectedPhoto.caption}` : "Foto belum selesai"}
               className="h-48 w-full object-cover"
               loading="lazy"
               decoding="async"
@@ -607,7 +627,7 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
           >
             <img
               src={displayUrl}
-              alt="Target"
+              alt={selectedPhoto?.caption ? `Target: ${selectedPhoto.caption}` : "Foto target"}
               className="h-full w-full object-cover"
               loading="lazy"
               decoding="async"
@@ -767,7 +787,7 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
             >
               <img
                 src={displayUrl}
-                alt="Preview"
+                alt={selectedPhoto?.caption ? `Pratinjau: ${selectedPhoto.caption}` : "Pratinjau foto"}
                 className="aspect-square w-full object-cover"
               />
               <div className="p-4 text-center">

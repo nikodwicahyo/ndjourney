@@ -39,6 +39,11 @@ export default function NewLetterForm({ onClose }: { onClose?: () => void }) {
   const [unlockTime, setUnlockTime] = useState("00:00");
   const [loading, setLoading] = useState(false);
 
+  // F-12: disable until valid (same rules as handleSubmit) — toasts stay as backup.
+  const contentEmpty = !content.replace(/<[^>]*>/g, "").trim();
+  const formValid =
+    !!title.trim() && !contentEmpty && !!partner && (!isTimeCapsule || !!unlockDate);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
@@ -130,7 +135,7 @@ export default function NewLetterForm({ onClose }: { onClose?: () => void }) {
       )}
 
       <div className="space-y-2">
-        <label className="text-sm font-medium">Untuk</label>
+        <p className="text-sm font-medium">Untuk</p>
         <div className="flex items-center gap-2 rounded-xl border border-input bg-background px-4 py-2.5 text-sm">
           <span className="text-lg">{partner.image ? <Image src={partner.image} alt="" className="h-5 w-5 rounded-full" width={20} height={20} /> : <Heart className="h-5 w-5 fill-primary text-primary" />}</span>
           <span className="font-medium">{partner.name || "Pasangan"}</span>
@@ -139,10 +144,11 @@ export default function NewLetterForm({ onClose }: { onClose?: () => void }) {
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <label className="text-sm font-medium">Judul *</label>
+          <label htmlFor="letter-title" className="text-sm font-medium">Judul *</label>
           <span className="text-xs text-muted-foreground">{title.length}/200</span>
         </div>
         <input
+          id="letter-title"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Judul surat..."
@@ -160,6 +166,7 @@ export default function NewLetterForm({ onClose }: { onClose?: () => void }) {
               key={key}
               type="button"
               onClick={() => setMood(key)}
+              aria-pressed={mood === key}
               className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${
                 mood === key
                   ? "border-transparent ring-2 ring-offset-1"
@@ -185,6 +192,7 @@ export default function NewLetterForm({ onClose }: { onClose?: () => void }) {
           content={content}
           onChange={setContent}
           placeholder="Tulis isi surat dari hatimu..."
+          ariaLabel="Isi surat"
         />
       </div>
 
@@ -210,10 +218,11 @@ export default function NewLetterForm({ onClose }: { onClose?: () => void }) {
         {isTimeCapsule && (
           <div className="mt-4 grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">
+              <label htmlFor="letter-unlock-date" className="text-xs font-medium text-muted-foreground">
                 Tanggal
               </label>
               <input
+                id="letter-unlock-date"
                 type="date"
                 value={unlockDate}
                 onChange={(e) => setUnlockDate(e.target.value)}
@@ -222,10 +231,11 @@ export default function NewLetterForm({ onClose }: { onClose?: () => void }) {
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">
+              <label htmlFor="letter-unlock-time" className="text-xs font-medium text-muted-foreground">
                 Jam
               </label>
               <input
+                id="letter-unlock-time"
                 type="time"
                 value={unlockTime}
                 onChange={(e) => setUnlockTime(e.target.value)}
@@ -252,7 +262,7 @@ export default function NewLetterForm({ onClose }: { onClose?: () => void }) {
         <Button
           type="submit"
           className="flex-1 gap-2"
-          disabled={loading || !partner}
+          disabled={loading || !formValid}
         >
           {loading ? (
             <>

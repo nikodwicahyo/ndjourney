@@ -75,7 +75,7 @@ export default function AlbumDropdown({
             {albums?.length === 0 && (
               <p className="px-3 py-2 text-xs text-muted-foreground">Belum ada album</p>
             )}
-            {/* ponytail: way back to unfiltered — without this, picking an album is one-way. */}
+            {/* way back to unfiltered — without this, picking an album is one-way. */}
             {!!value && (
               <button
                 type="button"

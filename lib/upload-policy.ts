@@ -51,7 +51,7 @@ const DEFAULT_LIMITS = {
   video: MAX_VIDEO_BYTES,
 };
 
-// ponytail: active-content MIME must never reach storage — SVG/HTML render as
+// active-content MIME must never reach storage — SVG/HTML render as
 // script in the browser when served from Cloudinary (stored-XSS vector).
 const BLOCKED_MIME = new Set([
   "image/svg+xml",
@@ -63,6 +63,13 @@ const BLOCKED_MIME = new Set([
 ]);
 
 export const UPLOAD_FOLDER = "ndjourney-web";
+
+// Canonical delivery formats, aligned with the ALLOWED_TYPES MIME lists in
+// app/api/upload/{route,bulk} and the magic-bytes table (lib/upload-magic).
+// Cloudinary Admin API reports these identifiers — the same lists gate the
+// signed `allowed_formats` param and the pre-save asset verification.
+export const ALLOWED_IMAGE_FORMATS = ["jpg", "jpeg", "png", "webp", "heic", "heif"];
+export const ALLOWED_VIDEO_FORMATS = ["mp4", "mov", "webm", "avi", "mkv", "ogv", "ogg", "mpg", "mpeg"];
 
 function getExtension(fileName: string): string {
   return fileName.split(".").pop()?.toLowerCase().trim() || "";
@@ -126,6 +133,32 @@ export function isAllowedCloudinaryUrl(url: string): boolean {
   } catch {
     return false;
   }
+}
+
+// Delivery-path allowlist for persisted media. The signature on /api/upload/sign
+// does not bind resource_type (it travels in the URL path), so a signed image
+// upload can be replayed against /raw/upload — a raw delivery URL must never
+// be saved as a gallery photo. Thumbnails built by lib/cloudinary-urls keep
+// the same /image|video/upload/ base, so they pass unchanged.
+export type MediaDeliveryKind = "image" | "video";
+
+export function deliveryKind(url: string): MediaDeliveryKind | null {
+  try {
+    const path = new URL(url).pathname;
+    if (path.includes("/image/upload/")) return "image";
+    if (path.includes("/video/upload/")) return "video";
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function isAllowedMediaDeliveryUrl(url: string): boolean {
+  return isAllowedCloudinaryUrl(url) && deliveryKind(url) !== null;
+}
+
+export function maxBytesForKind(kind: MediaDeliveryKind): number {
+  return kind === "video" ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
 }
 
 export function publicIdBelongsToUser(publicId: string, userId: string): boolean {

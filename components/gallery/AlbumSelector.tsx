@@ -35,7 +35,7 @@ export default function AlbumSelector({
   visibility,
 }: AlbumSelectorProps) {
   const { data: albums } = useAlbums(visibility);
-  // ponytail: client-side guard too — stale cache must never flash a private album in the public filter.
+  // client-side guard too — stale cache must never flash a private album in the public filter.
   const visibleAlbums = visibility === "public" ? albums?.filter((a) => a.isPublic) : albums;
 
   // Clear a stale private-album selection (e.g. album turned private while selected).

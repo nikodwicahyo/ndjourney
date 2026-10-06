@@ -23,7 +23,7 @@ type MediaState = "loading" | "loaded" | "error";
 
 const MAX_PHOTOS = 50;
 
-// ponytail: single gate — home is public, private rows must never render
+// single gate — home is public, private rows must never render
 // here even if a caller passes an unfiltered list (isPublic missing = public).
 export function selectSlideshowMedia(photos: GalleryPhoto[]): GalleryPhoto[] {
   return photos.filter((p) => p.isPublic !== false).slice(0, MAX_PHOTOS);
@@ -37,6 +37,17 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
   const [isPaused, setIsPaused] = useState(false);
   const [mediaState, setMediaState] = useState<MediaState>("loading");
   const [retryKey, setRetryKey] = useState(0);
+  // Reset the viewer when a new photo list arrives — render-time adjustment
+  // (React-endorsed) instead of post-paint sync sets.
+  const [prevInitialPhotos, setPrevInitialPhotos] = useState(initialPhotos);
+  if (prevInitialPhotos !== initialPhotos) {
+    setPrevInitialPhotos(initialPhotos);
+    setDisplayPhotos(initialPhotos);
+    setCurrentIndex(0);
+    setDirection(1);
+    setMediaState("loading");
+    setRetryKey(0);
+  }
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const goNextRef = useRef<() => void>(() => {});
   const length = displayPhotos.length;
@@ -51,12 +62,12 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
   const fullUrl = useMemo(() => {
     if (!photo?.url) return "";
     return getOptimizedImageUrl(photo.url, 1024, { crop: "limit" });
-  }, [photo?.url]);
+  }, [photo]);
 
   const blurPlaceholderUrl = useMemo(() => {
     if (!photo?.url) return "";
     return getBlurImageUrl(photo.url);
-  }, [photo?.url]);
+  }, [photo]);
 
   const srcSet = useMemo(() => {
     if (!photo?.url) return undefined;
@@ -65,7 +76,7 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
     } catch {
       return undefined;
     }
-  }, [photo?.url]);
+  }, [photo]);
 
   useEffect(() => {
     if (!photo?.url || photo.isVideo) return;
@@ -85,17 +96,13 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
     };
   }, [photo?.id, photo?.url, fullUrl, photo?.isVideo, retryKey]);
 
-  useEffect(() => {
-    setDisplayPhotos(initialPhotos);
-    setCurrentIndex(0);
-    setDirection(1);
+  // Reset the loading state when the photo changes — render-time adjustment
+  // (React-endorsed) instead of a post-paint sync set.
+  const [prevPhotoId, setPrevPhotoId] = useState(photo?.id);
+  if (prevPhotoId !== photo?.id) {
+    setPrevPhotoId(photo?.id);
     setMediaState("loading");
-    setRetryKey(0);
-  }, [initialPhotos]);
-
-  useEffect(() => {
-    setMediaState("loading");
-  }, [photo?.id]);
+  }
 
   const goNext = useCallback(() => {
     if (length === 0) return;
@@ -103,7 +110,11 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
     setDirection(1);
   }, [length]);
 
-  goNextRef.current = goNext;
+  // Keep the latest navigator for timers/observers without re-subscribing —
+  // assigned inside an effect, never during render.
+  useEffect(() => {
+    goNextRef.current = goNext;
+  });
 
   const goPrev = useCallback(() => {
     if (length === 0) return;
@@ -233,14 +244,14 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
           <button
             onClick={(e) => { e.stopPropagation(); goPrev(); }}
             className="absolute left-2 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/50 p-1.5 text-white shadow-md transition-colors hover:bg-black/70 md:p-2"
-            aria-label="Previous"
+            aria-label="Sebelumnya"
           >
             <ChevronLeft className="h-4 w-4 md:h-5 md:w-5" />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); goNext(); }}
             className="absolute right-2 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/50 p-1.5 text-white shadow-md transition-colors hover:bg-black/70 md:p-2"
-            aria-label="Next"
+            aria-label="Berikutnya"
           >
             <ChevronRight className="h-4 w-4 md:h-5 md:w-5" />
           </button>

@@ -14,7 +14,7 @@ import dynamic from "next/dynamic";
 import type { Photo } from "@/types";
 import PhotoCard from "@/components/gallery/PhotoCard";
 import AlbumDropdown from "@/components/gallery/AlbumDropdown";
-import { formatBytes, formatTime, getMaxFileSize } from "@/lib/upload-config";
+import { formatBytes, formatTime, getMaxFileSize, resolveUploadMime } from "@/lib/upload-config";
 import { toast } from "sonner";
 
 const Lightbox = dynamic(() => import("../gallery/Lightbox"), { ssr: false });
@@ -131,7 +131,7 @@ export default function GalleryManager() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  // ponytail: no scroll-to-top on filter change — browser keeps exact
+  // no scroll-to-top on filter change — browser keeps exact
   // position natively; short results just clamp to max scroll height.
 
   const toReadingOrder = useCallback(function <T>(items: T[], cols: number) {
@@ -149,6 +149,12 @@ export default function GalleryManager() {
   const orderedPhotos = useMemo(
     () => toReadingOrder(photos, colCount) as Photo[],
     [photos, colCount, toReadingOrder],
+  );
+
+  // P-12: id→index map is O(n) once — indexOf per card was O(n²) per render.
+  const photoIndexById = useMemo(
+    () => new Map(photos.map((p, i) => [p.id, i] as const)),
+    [photos],
   );
 
   const handleSelectToggle = useCallback((id: string) => {
@@ -277,7 +283,9 @@ export default function GalleryManager() {
     const errors: string[] = [];
 
     for (const file of Array.from(fileList)) {
-      if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
+      // Extension fallback: browsers report "" for unrecognized formats (.heic).
+      const kind = resolveUploadMime(file.name, file.type);
+      if (!kind.startsWith("image/") && !kind.startsWith("video/")) {
         errors.push(`${file.name}: Hanya foto dan video yang bisa diupload`);
         continue;
       }
@@ -285,7 +293,7 @@ export default function GalleryManager() {
         errors.push(`${file.name}: File kosong tidak bisa diupload`);
         continue;
       }
-      const maxSize = getMaxFileSize(file.type);
+      const maxSize = getMaxFileSize(kind);
       if (file.size > maxSize) {
         errors.push(`${file.name}: Melebihi batas ${formatBytes(maxSize)} (${formatBytes(file.size)})`);
         continue;
@@ -432,7 +440,7 @@ export default function GalleryManager() {
   const totalCount = uploadQueue.length;
 
   const totalBytes = uploadQueue.reduce((sum, u) => sum + u.file.size, 0);
-  // ponytail: only completed bytes count as done; errors show 0 so bar never fakes 100% before DB save
+  // only completed bytes count as done; errors show 0 so bar never fakes 100% before DB save
   const uploadedBytes = uploadQueue.reduce((sum, u) => {
     if (u.status === "complete") return sum + u.file.size;
     if (u.status === "error" || u.status === "interrupted" || u.status === "cancelled") return sum;
@@ -611,7 +619,7 @@ export default function GalleryManager() {
         )}
 
         {pendingCount > 0 && pendingFiles.some(
-          f => f.file.size > getMaxFileSize(f.file.type) * 0.8
+          f => f.file.size > getMaxFileSize(resolveUploadMime(f.file.name, f.file.type)) * 0.8
         ) && (
           <div className="mt-2 rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-2.5">
             <p className="flex items-center gap-1.5 text-xs text-yellow-600 dark:text-yellow-400">
@@ -704,7 +712,7 @@ export default function GalleryManager() {
                 value={albumFilter ?? ""}
                 onChange={(id) => {
                   setAlbumFilter(id || undefined);
-                  // ponytail: filter follows the album — private album → private, public → public.
+                  // filter follows the album — private album → private, public → public.
                   if (id) {
                     const album = albums?.find((a) => a.id === id);
                     if (album) setVisibilityFilter(album.isPublic ? "public" : "private");
@@ -817,7 +825,7 @@ export default function GalleryManager() {
         ) : isError ? (
           <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
             <FileWarning className="h-10 w-10 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">Gagal memuat media. Coba lagi.</p>
+            <p role="alert" className="text-sm text-muted-foreground">Gagal memuat media. Coba lagi.</p>
             <Button size="sm" variant="outline" onClick={() => refetch()}>
               Muat ulang
             </Button>
@@ -831,7 +839,7 @@ export default function GalleryManager() {
           <>
             <div className="columns-2 gap-3 md:columns-3 lg:columns-4">
               {orderedPhotos.map((photo) => {
-                const origIndex = photos.indexOf(photo);
+                const origIndex = photoIndexById.get(photo.id) ?? 0;
                 return (
                   <div key={photo.id} className="mb-3 break-inside-avoid">
                     <PhotoCard
@@ -950,6 +958,7 @@ export default function GalleryManager() {
         onNavigate={handleLightboxNavigate}
         onDelete={handleDelete}
         showAlbumMove={true}
+        showDownload={true}
         fetchNextPage={fetchNextPage}
         hasNextPage={hasNextPage}
         totalCount={data?.pages[0]?.total ?? photos.length}

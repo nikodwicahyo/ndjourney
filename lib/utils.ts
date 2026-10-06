@@ -114,9 +114,49 @@ export function generateId(): string {
 
 export function isVideoUrl(url?: string | null): boolean {
   if (!url) return false;
-  // ponytail: extension OR delivery path — Cloudinary video URLs are often
+  // extension OR delivery path — Cloudinary video URLs are often
   // extensionless (…/video/upload/v123/…), so the path marker must count.
   return /\.(mp4|webm|mov|avi|mkv|m3u8)(\?|$)/i.test(url) || /\/video\/upload\//i.test(url);
+}
+
+export type UploadSaveResult = {
+  url: string;
+  publicId: string;
+  thumbnailUrl?: string | null;
+  width?: number | null;
+  height?: number | null;
+  bytes?: number | null;
+  fileSize?: number | null;
+  format?: string | null;
+  isVideo?: boolean | null;
+};
+
+// Single photo-save payload builder — the three upload paths hand-rolled this
+// with mp4|mov-only checks, misclassifying webm/avi/mkv as photos.
+// NOTE: keys with no value must be OMITTED, not null — createPhotoSchema is
+// `.optional()` without `.nullable()`, so explicit nulls 400 (verified by
+// execution against the real schema). The route coalesces to null itself.
+export function buildPhotoPayload(
+  result: UploadSaveResult,
+  albumId?: string,
+  isPublic?: boolean,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    url: result.url,
+    publicId: result.publicId,
+    isVideo: result.isVideo ?? isVideoUrl(result.url),
+  };
+  if (result.thumbnailUrl != null) payload.thumbnailUrl = result.thumbnailUrl;
+  if (result.width != null) payload.width = result.width;
+  if (result.height != null) payload.height = result.height;
+  // MR-25: stamp capture time — the ?year= filter reads takenAt, which was
+  // always null, so year filtering silently returned nothing.
+  payload.takenAt = new Date().toISOString();
+  const fileSize = result.fileSize ?? result.bytes;
+  if (fileSize != null) payload.fileSize = fileSize;
+  if (albumId != null) payload.albumId = albumId;
+  if (isPublic !== undefined) payload.isPublic = isPublic;
+  return payload;
 }
 
 // Still image a browser <img> can actually render (excludes HEIC/HEIF:

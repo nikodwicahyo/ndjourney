@@ -64,23 +64,3 @@ export function mapUsersToRecords<T extends { authorId?: string | null; recipien
     recipient: r.recipientId ? (userMap.get(r.recipientId) ?? null) : null,
   }));
 }
-
-export function mapUserToCreatedBy<T extends { createdById?: string | null }>(
-  records: T[],
-  userMap: Map<string, UserBasic>,
-): (T & { createdBy?: UserBasic | null })[] {
-  return records.map((r) => ({
-    ...r,
-    createdBy: r.createdById ? (userMap.get(r.createdById) ?? null) : null,
-  }));
-}
-
-export function mapUserToUploadedBy<T extends { uploadedById?: string | null }>(
-  records: T[],
-  userMap: Map<string, UserBasic>,
-): (T & { uploadedBy?: UserBasic | null })[] {
-  return records.map((r) => ({
-    ...r,
-    uploadedBy: r.uploadedById ? (userMap.get(r.uploadedById) ?? null) : null,
-  }));
-}

@@ -31,6 +31,8 @@ export default function FloatingHearts({ active = true }: { active?: boolean }) 
   const [hearts, setHearts] = useState<FloatingHeart[]>([]);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const rafRef = useRef<number | null>(null);
+  // P-16: track removal timeouts so unmount never fires setHearts late.
+  const timeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
 
   const addHeart = useCallback(() => {
     const newHeart: FloatingHeart = {
@@ -46,9 +48,11 @@ export default function FloatingHearts({ active = true }: { active?: boolean }) 
     };
     setHearts((prev) => [...prev.slice(-16), newHeart]);
 
-    setTimeout(() => {
+    const t = setTimeout(() => {
+      timeoutsRef.current.delete(t);
       setHearts((prev) => prev.filter((h) => h.id !== newHeart.id));
     }, (newHeart.duration + newHeart.delay + 0.5) * 1000);
+    timeoutsRef.current.add(t);
   }, []);
 
   useEffect(() => {
@@ -79,6 +83,8 @@ export default function FloatingHearts({ active = true }: { active?: boolean }) 
     return () => {
       stopLoop();
       document.removeEventListener("visibilitychange", onVisibilityChange);
+      timeoutsRef.current.forEach(clearTimeout);
+      timeoutsRef.current.clear();
     };
   }, [active, addHeart]);
 
@@ -91,7 +97,7 @@ export default function FloatingHearts({ active = true }: { active?: boolean }) 
             initial={{
               opacity: 0,
               scale: 0,
-              rotate: -10 + Math.random() * 20,
+              rotate: heart.drift > 0 ? 8 : -8,
               x: `${heart.x}vw`,
               y: "103vh",
             }}

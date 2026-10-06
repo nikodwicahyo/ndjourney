@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { safeTokenEqual } from "@/lib/api-body";
-import { escapeHtml, safeAppUrl } from "@/lib/resend";
+import { escapeHtml, safeAppUrl } from "@/lib/email";
 import { toPublicUser } from "@/lib/format";
 import { httpUrl } from "@/lib/validations/http-url";
 

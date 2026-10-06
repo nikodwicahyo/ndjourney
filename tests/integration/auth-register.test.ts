@@ -2,6 +2,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const prismaMock = vi.hoisted(() => ({
   user: { findUnique: vi.fn(), count: vi.fn(), create: vi.fn() },
+  // MR-09: route serializes quota check+create in $transaction — run the
+  // callback against the same stubs so semantics stay testable.
+  $transaction: vi.fn(async (fn: (tx: unknown) => unknown) =>
+    fn({
+      $executeRaw: vi.fn(async () => []),
+      user: prismaMock.user,
+    }),
+  ),
 }));
 
 vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
@@ -11,7 +19,10 @@ vi.mock("@/lib/redis", () => ({
 vi.mock("@/lib/rate-limit", () => ({
   withAnonymousRateLimit: vi.fn(async () => ({ allowed: true, remaining: 9 })),
 }));
-vi.mock("@/lib/auth", () => ({ ensureCouple: vi.fn(async () => {}) }));
+vi.mock("@/lib/auth", () => ({
+  ensureCouple: vi.fn(async () => {}),
+  normalizeEmail: (email: string) => email.toLowerCase().trim(),
+}));
 
 const { POST } = await import("@/app/api/auth/register/route");
 const { checkRateLimit } = await import("@/lib/redis");
@@ -55,6 +66,16 @@ describe("POST /api/auth/register", () => {
     prismaMock.user.count.mockResolvedValue(2);
     const res = await POST(req({ name: "C", email: "c@test.com", password: "supersecret123", inviteToken: "test-invite-123" }));
     expect(res.status).toBe(403);
+  });
+
+  it("MR-09: quota check+create run inside one transaction (no TOCTOU)", async () => {
+    const res = await POST(req({ name: "A", email: "a@test.com", password: "supersecret123", inviteToken: "test-invite-123" }));
+    expect(res.status).toBe(201);
+    expect(prismaMock.$transaction).toHaveBeenCalledOnce();
+    // quota path never reaches create
+    prismaMock.user.count.mockResolvedValue(2);
+    const full = await POST(req({ name: "C", email: "c@test.com", password: "supersecret123", inviteToken: "test-invite-123" }));
+    expect(full.status).toBe(403);
   });
 
   it("400 on invalid body", async () => {

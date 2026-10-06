@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useState, useMemo, useCallback, useRef } from "react";
+import { memo, useState, useMemo, useCallback, useRef } from "react";
 import Image from "next/image";
 import { File, Heart, Play, Lock, CheckCircle, Globe, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -64,11 +64,15 @@ export default memo(function PhotoCard({
     rawDisplayUrl.includes("/image/upload/") ||
     photo.isVideo;
 
-  useEffect(() => {
+  // Reset load state when the photo changes — render-time adjustment
+  // (React-endorsed), not a post-paint effect, so no cascading render.
+  const [prevPhotoKey, setPrevPhotoKey] = useState(photo.id);
+  if (prevPhotoKey !== photo.id) {
+    setPrevPhotoKey(photo.id);
     setLoaded(false);
     setImgError(false);
     setUseOriginal(false);
-  }, [photo.id, photo.thumbnailUrl, photo.url]);
+  }
 
   const blurDataUrl = useMemo(() => {
     if (!displayUrl) return undefined;
@@ -95,10 +99,14 @@ export default memo(function PhotoCard({
       )}
       onClick={handleClick}
       onKeyDown={(e) => {
-        if (e.key === "Enter") handleClick();
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          handleClick();
+        }
       }}
       role="button"
       tabIndex={0}
+      aria-label={photo.caption ? `Buka foto: ${photo.caption}` : "Buka foto"}
     >
       {!loaded && !imgError && (
         <div className="absolute inset-0 animate-pulse bg-muted" />
@@ -185,7 +193,7 @@ export default memo(function PhotoCard({
                 onPublicToggle?.(photo.id, !photo.isPublic);
               }}
               className={cn(
-                "rounded-full p-1.5 backdrop-blur-sm transition-all duration-200",
+                "rounded-full p-2.5 backdrop-blur-sm transition-all duration-200",
                 photo.isPublic
                   ? "bg-black/30 text-white/70 hover:bg-black/50 hover:text-white hover:scale-110"
                   : "bg-primary text-primary-foreground shadow-sm shadow-primary/20",
@@ -207,12 +215,12 @@ export default memo(function PhotoCard({
                 onFavoriteToggle?.(photo.id, !photo.isFavorite);
               }}
               className={cn(
-                "rounded-full p-1.5 backdrop-blur-sm transition-all duration-200",
+                "rounded-full p-2.5 backdrop-blur-sm transition-all duration-200",
                 photo.isFavorite
                   ? "bg-primary/25 text-primary shadow-sm shadow-primary/10"
                   : "bg-black/30 text-white/70 hover:bg-black/50 hover:text-white hover:scale-110",
               )}
-              aria-label={photo.isFavorite ? "Remove from favorites" : "Add to favorites"}
+              aria-label={photo.isFavorite ? "Hapus dari favorit" : "Tambah ke favorit"}
             >
               <Heart
                 className={cn(

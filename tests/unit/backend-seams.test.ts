@@ -1,12 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const prismaMock = vi.hoisted(() => ({
-  coupleMember: { findUnique: vi.fn(), findFirst: vi.fn(), create: vi.fn(), createMany: vi.fn() },
-  user: { count: vi.fn(), findMany: vi.fn() },
+  coupleMember: { findUnique: vi.fn(), findFirst: vi.fn(), create: vi.fn(), createMany: vi.fn(), count: vi.fn() },
   couple: { create: vi.fn() },
+  user: { count: vi.fn(), findMany: vi.fn() },
   coupleConfig: { findFirst: vi.fn(), update: vi.fn() },
+  // ensureCouple serializes pairing in one locked $transaction (P1
+  // split-brain) — run the callback against the same stubs so the
+  // check-then-act sequence stays testable.
   $transaction: vi.fn(async (fn: (tx: unknown) => unknown) =>
-    fn({ couple: { create: vi.fn(async () => ({ id: "c-new" })) }, coupleMember: { createMany: vi.fn(async () => ({})) } }),
+    fn({
+      $executeRaw: vi.fn(async () => []),
+      couple: (prismaMock as { couple: unknown }).couple,
+      coupleMember: (prismaMock as unknown as { coupleMember: unknown }).coupleMember,
+      user: (prismaMock as unknown as { user: unknown }).user,
+    }),
   ),
 }));
 
@@ -152,7 +160,7 @@ describe("resend without SMTP", () => {
     delete process.env.SMTP_USER;
     delete process.env.SMTP_PASS;
     vi.resetModules();
-    const { sendEmail } = await import("@/lib/resend");
+    const { sendEmail } = await import("@/lib/email");
     const r = await sendEmail({ to: "a@x.com", subject: "hi", html: "<p>hi</p>" });
     expect(r).toMatchObject({ error: expect.any(String) });
   });
@@ -166,7 +174,7 @@ describe("api-client transport", () => {
   it("get/post unwrap envelope; !ok returns server message", async () => {
     const { api } = await import("@/lib/api-client");
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ data: { a: 1 } }), { status: 200 })));
-    // ponytail: api-client returns the whole envelope as data (no unwrap) — callers read .data
+    // api-client returns the whole envelope as data (no unwrap) — callers read .data
     expect(await api.get("http://x")).toMatchObject({ data: { data: { a: 1 } }, status: 200 });
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "Gagal" }), { status: 400 })));
     expect(await api.post("http://x", { b: 2 })).toMatchObject({ error: "Gagal", status: 400 });

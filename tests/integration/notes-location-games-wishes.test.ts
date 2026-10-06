@@ -23,7 +23,7 @@ vi.mock("@/lib/batch", () => ({
 }));
 vi.mock("@/lib/couple", () => ({ getUserCoupleId: vi.fn(async () => null) }));
 vi.mock("@/lib/pusher-server", () => ({ triggerCoupleEvent: vi.fn() }));
-vi.mock("@/lib/resend", () => ({ sendEmail: vi.fn(), noteNotificationHtml: () => "<p>n</p>" }));
+vi.mock("@/lib/email", () => ({ sendEmail: vi.fn(), noteNotificationHtml: () => "<p>n</p>", safeAppUrl: (p: string) => `http://localhost${p}` }));
 
 const { POST: postNote } = await import("@/app/api/notes/route");
 const { GET: getLocation } = await import("@/app/api/location/route");

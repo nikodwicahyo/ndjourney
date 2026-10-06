@@ -6,11 +6,11 @@ import { Lock, Clock, ChevronRight, Trash2 } from "lucide-react";
 import { cn, formatDateTime } from "@/lib/utils";
 import { formatInJakarta } from "@/lib/date";
 import { LETTER_MOOD_CONFIG } from "@/types";
-import type { LetterWithUsers } from "@/hooks/useLetters";
+import type { LetterListItem } from "@/hooks/useLetters";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui";
 
 type LetterCardProps = {
-  letter: LetterWithUsers;
+  letter: LetterListItem;
   type: "inbox" | "sent";
   index?: number;
   baseHref?: string;

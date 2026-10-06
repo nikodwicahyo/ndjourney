@@ -7,7 +7,7 @@ const dateOnlyString = z
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal harus YYYY-MM-DD")
   .refine((v) => parseJakartaDateOnly(v) !== null, "Tanggal tidak valid");
 
-// ponytail: local copy (couple.ts uses the zod/v4 entry point — no cross-import).
+// local copy (couple.ts uses the zod/v4 entry point — no cross-import).
 const cropRectSchema = z
   .object({
     x: z.number().min(0).max(1),
@@ -37,7 +37,7 @@ export const createMilestoneSchema = z.object({
   isPublic: z.boolean().default(true),
   photoIds: z.array(z.string().cuid()).max(2).optional(),
   photoUploads: z.array(photoUploadSchema).max(2).optional(),
-  // ponytail: crop per gallery-linked photoId — same photo, different framing per milestone.
+  // crop per gallery-linked photoId — same photo, different framing per milestone.
   photoCrops: z.record(z.string().cuid(), cropRectSchema).optional(),
 }).refine(
   (v) => (v.photoIds?.length ?? 0) + (v.photoUploads?.length ?? 0) <= 2,

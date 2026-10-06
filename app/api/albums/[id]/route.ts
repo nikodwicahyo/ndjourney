@@ -21,7 +21,7 @@ export async function PUT(
     if (body == null) return NextResponse.json({ error: "Body JSON tidak valid" }, { status: 400 });
     const parsed = updateAlbumSchema.safeParse(body);
 
-    // ponytail: ownership gate — legacy albums have null coupleId (lenient).
+    // ownership gate — legacy albums have null coupleId (lenient).
     const albumOwner = await prisma.album.findUnique({
       where: { id },
       select: { coupleId: true },
@@ -63,12 +63,12 @@ export async function PUT(
     return NextResponse.json({ data: album });
   } catch (error) {
     console.error("Error updating album:", error);
-    // ponytail: missing album -> 404, not 500
+    // missing album -> 404, not 500
     if (error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "P2025") {
       return NextResponse.json({ error: "Album tidak ditemukan", code: "P2025" }, { status: 404 });
     }
     const code = (error as { code?: string })?.code;
-    // ponytail: DB-unreachable / schema drift must read 503 (retryable), not 500.
+    // DB-unreachable / schema drift must read 503 (retryable), not 500.
     if (code && (/^P1(001|002|008|017|019|020)$/.test(code) || code === "P2022")) {
       return NextResponse.json(
         { error: "Database tidak dapat dijangkau. Coba lagi nanti.", code },
@@ -94,7 +94,7 @@ export async function DELETE(
 
     const { id } = await params;
 
-    // ponytail: ownership gate (see PUT above).
+    // ownership gate (see PUT above).
     const doomed = await prisma.album.findUnique({
       where: { id },
       select: { coupleId: true },
@@ -104,7 +104,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Album tidak ditemukan" }, { status: 404 });
     }
 
-    // ponytail: atomic detach+delete — no partial state if delete throws after detach
+    // atomic detach+delete — no partial state if delete throws after detach
     await prisma.$transaction([
       prisma.photo.updateMany({
         where: { albumId: id },
@@ -124,12 +124,12 @@ export async function DELETE(
     return NextResponse.json({ message: "Album deleted" });
   } catch (error) {
     console.error("Error deleting album:", error);
-    // ponytail: missing album -> 404, not 500
+    // missing album -> 404, not 500
     if (error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "P2025") {
       return NextResponse.json({ error: "Album tidak ditemukan", code: "P2025" }, { status: 404 });
     }
     const code = (error as { code?: string })?.code;
-    // ponytail: DB-unreachable / schema drift must read 503 (retryable), not 500.
+    // DB-unreachable / schema drift must read 503 (retryable), not 500.
     if (code && (/^P1(001|002|008|017|019|020)$/.test(code) || code === "P2022")) {
       return NextResponse.json(
         { error: "Database tidak dapat dijangkau. Coba lagi nanti.", code },

@@ -7,7 +7,6 @@ import MilestoneCard from "@/components/timeline/MilestoneCard";
 import { Button, Skeleton } from "@/components/ui";
 import { Plus, Heart } from "lucide-react";
 import { toast } from "sonner";
-import { showDeleteConfirm } from "@/lib/swal";
 
 const AddMilestoneForm = dynamic(() => import("@/components/timeline/AddMilestoneForm"), {
   loading: () => <div className="h-48 animate-pulse rounded-2xl bg-muted" />,
@@ -25,17 +24,13 @@ export default function TimelineManager() {
   }, []);
 
   const handleDelete = useCallback(
-    async (id: string) => {
-      const confirmed = await showDeleteConfirm({
-        title: "Hapus Milestone",
-        text: "Apakah Anda yakin ingin menghapus milestone ini?",
+    (id: string) => {
+      // Single confirmation lives in MilestoneCard (with the milestone title)
+      // — confirming here too showed two dialogs in a row.
+      deleteMilestone.mutate(id, {
+        onSuccess: () => toast.success("Milestone dihapus"),
+        onError: () => toast.error("Gagal menghapus milestone"),
       });
-      if (confirmed) {
-        deleteMilestone.mutate(id, {
-          onSuccess: () => toast.success("Milestone dihapus"),
-          onError: () => toast.error("Gagal menghapus milestone"),
-        });
-      }
     },
     [deleteMilestone],
   );
@@ -59,7 +54,7 @@ export default function TimelineManager() {
   if (error) {
     return (
       <div className="flex flex-col items-center gap-4 py-20">
-        <p className="text-destructive">Gagal memuat timeline</p>
+        <p role="alert" className="text-destructive">Gagal memuat timeline</p>
         <Button variant="outline" size="sm" onClick={() => refetch()}>
           Coba Lagi
         </Button>

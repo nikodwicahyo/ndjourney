@@ -2,7 +2,7 @@
  * Single home for tiny formatting / array helpers.
  * Reuse from here instead of redefining per-component.
  */
-// ponytail: canonical versions; local dupes should import from here.
+// canonical versions; local dupes should import from here.
 export { formatBytes, formatRelativeTime as timeAgo, truncate } from "./utils";
 
 export function shuffle<T>(arr: T[]): T[] {
@@ -52,7 +52,7 @@ export function saveLocal(key: string, value: unknown): void {
 
 export type PublicUser = { id: string; name: string | null; image: string | null };
 
-// ponytail: public endpoints must never leak emails — strip to display fields.
+// public endpoints must never leak emails — strip to display fields.
 // Lives here (not batch.ts) so it stays importable without a DB client.
 export function toPublicUser(
   u: { id: string; name: string | null; image: string | null; email?: string | null } | null | undefined,

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
 import { createWishSchema } from "@/lib/validations/wish";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { getCached, setCached, invalidateCache, cacheKey } from "@/lib/redis";
@@ -24,11 +25,20 @@ const wishSelect = {
 
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "50");
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json({ data: [], total: 0, page: 1, limit: 50 });
+    }
+    const coupleId = await getUserCoupleId(session.user.id);
+    if (!coupleId) {
+      return NextResponse.json({ data: [], total: 0, page: 1, limit: 50 });
+    }
 
-    const cacheK = cacheKey("wishes", "list", String(page), String(limit));
+    const { searchParams } = new URL(request.url);
+    const page = Math.min(Math.max(parseInt(searchParams.get("page") || "1", 10) || 1, 1), 1000);
+    const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "50", 10) || 50, 1), 100);
+
+    const cacheK = cacheKey("wishes", "list", coupleId, String(page), String(limit));
     const cached = await getCached<unknown>(cacheK);
     if (cached) {
       return NextResponse.json(cached, {
@@ -36,8 +46,11 @@ export async function GET(request: Request) {
       });
     }
 
+    const where = { OR: [{ coupleId }, { coupleId: null }] };
+
     const [wishes, total] = await Promise.all([
       prisma.wishItem.findMany({
+        where,
         orderBy: [
           { isDone: "asc" },
           { createdAt: "desc" },
@@ -46,7 +59,7 @@ export async function GET(request: Request) {
         take: limit,
         select: wishSelect,
       }),
-      prisma.wishItem.count(),
+      prisma.wishItem.count({ where }),
     ]);
 
     const response = { data: wishes, total, page, limit };
@@ -86,13 +99,14 @@ export async function POST(request: Request) {
     const userId = rateCheck.session.user.id;
     const wishCoupleId = await getUserCoupleId(userId);
 
-    // ponytail: omit null crop on create (DB default is NULL; Json fields reject plain null).
+    // omit null crop on create (DB default is NULL; Json fields reject plain null).
     const { imageCrop, ...rest } = parsed.data;
     const wish = await prisma.wishItem.create({
       data: { ...rest, ...(imageCrop ? { imageCrop } : {}), coupleId: wishCoupleId },
     });
 
     await invalidateCache("wishes:*");
+    await invalidateCache("home:*");
 
     if (wishCoupleId) {
       triggerCoupleEvent(wishCoupleId, 'WISHLIST');

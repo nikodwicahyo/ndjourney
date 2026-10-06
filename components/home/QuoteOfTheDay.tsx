@@ -5,6 +5,7 @@ import { motion, useInView } from "framer-motion";
 import { Quote } from "lucide-react";
 import { getQuoteOfTheDay, QUOTES, loadShownQuoteIndices, saveShownQuoteIndex, resetShownQuotes } from "@/lib/quotes";
 import { getJakartaParts } from "@/lib/date";
+import { useMounted } from "@/hooks/useMounted";
 
 export default function QuoteOfTheDay() {
   const ref = useRef<HTMLDivElement>(null);
@@ -13,11 +14,9 @@ export default function QuoteOfTheDay() {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Gate dynamic content on mount so server HTML and first client render match
   // (the quote depends on localStorage/random, which differ).
-  const [mounted, setMounted] = useState(false);
+  const mounted = useMounted();
 
   useEffect(() => {
-    setMounted(true);
-
     function update() {
       const shown = loadShownQuoteIndices();
       const q = getQuoteOfTheDay(shown);

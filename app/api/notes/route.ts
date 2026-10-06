@@ -8,13 +8,13 @@ import { batchLoadUsers, toPublicUser } from "@/lib/batch";
 import { jakartaStartOfDay, toJakartaMidnight } from "@/lib/date";
 import { getUserCoupleId } from "@/lib/couple";
 import { triggerCoupleEvent } from "@/lib/pusher-server";
-import { sendEmail, noteNotificationHtml } from "@/lib/resend";
+import { sendEmail, noteNotificationHtml, safeAppUrl } from "@/lib/email";
 
 const CACHE_TTL = 30;
 
 export async function GET(request: Request) {
   try {
-    // ponytail: GET stays public — /(public)/notes renders NoteList for visitors.
+    // GET stays public — /(public)/notes renders NoteList for visitors.
     // Privacy fix instead: author emails stripped (matches DailyNoteWithAuthor
     // type {id,name,image}), and logged-in members get a couple-scoped list.
     const session = await auth();
@@ -34,22 +34,24 @@ export async function GET(request: Request) {
       });
     }
 
-    // ponytail: members see own couple (+ legacy null rows); visitors keep legacy all.
+    // members see own couple (+ legacy null rows); visitors keep legacy all.
     const where: Record<string, unknown> = coupleId
       ? { OR: [{ coupleId }, { coupleId: null }] }
       : {};
 
     if (dateParam) {
       const start = toJakartaMidnight(dateParam);
-      if (start) {
-        const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
-        where.date = { gte: start, lt: end };
+      if (!start) {
+        return NextResponse.json({ error: "Format tanggal tidak valid" }, { status: 400 });
       }
+      const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+      where.date = { gte: start, lt: end };
     }
 
     const notes = await prisma.dailyNote.findMany({
       where,
       orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+      take: 200,
       select: {
         id: true,
         content: true,
@@ -62,7 +64,7 @@ export async function GET(request: Request) {
     const userIds = notes.map((n) => n.authorId);
     const userMap = await batchLoadUsers(userIds);
 
-    // ponytail: strip emails — public page + declared type carry {id,name,image} only.
+    // strip emails — public page + declared type carry {id,name,image} only.
     const data = notes.map((n) => ({
       ...n,
       author: toPublicUser(userMap.get(n.authorId)),
@@ -128,6 +130,7 @@ export async function POST(request: Request) {
     const data = { ...note, author: userMap.get(note.authorId) ?? null };
 
     await invalidateCache("notes:*");
+    await invalidateCache("home:*");
 
     const coupleId = authorCoupleId;
     if (coupleId) {
@@ -157,12 +160,12 @@ export async function POST(request: Request) {
               html: noteNotificationHtml(
                 senderName,
                 noteContent,
-                `${process.env.NEXTAUTH_URL}/notes`,
+                safeAppUrl(`/notes`),
               ),
             });
 
             if (emailResult?.error) {
-              // ponytail: no recipient PII in logs.
+              // no recipient PII in logs.
               console.error(
                 `Failed to send note notification for note ${noteId}:`,
                 emailResult.error,

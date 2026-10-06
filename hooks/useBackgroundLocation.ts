@@ -11,7 +11,8 @@ export type ShareStatus =
   | "sharing"
   | "denied"
   | "unsupported"
-  | "recovering";
+  | "recovering"
+  | "gps-error";
 
 const POST_THROTTLE_MS = 8000;
 const KEEPALIVE_INTERVAL_MS = 30000;
@@ -37,13 +38,39 @@ let globalLastPostTime = 0;
 let globalRetryCount = 0;
 let globalPingTimer: ReturnType<typeof setTimeout> | null = null;
 let globalKeepAliveTimer: ReturnType<typeof setTimeout> | null = null;
-// ponytail: track retry timers so stopWatching() actually stops posting.
+// Consecutive GPS acquisition failures (timeout/unavailable — never permission,
+// which has its own terminal "denied" state). Past the threshold the UI
+// escalates "recovering" to an actionable "gps-error" instead of spinning
+// forever: desktop browsers without GPS hardware fail every ping while POSTs
+// stay green, so "no connection" would be a lie. Any successful fix resets.
+let globalGpsFailCount = 0;
+const GPS_ERROR_THRESHOLD = 3;
+// track retry timers so stopWatching() actually stops posting.
 let globalRetryTimers: Set<ReturnType<typeof setTimeout>> = new Set();
 
 function setGlobalStatus(status: ShareStatus) {
   if (globalStatus === status) return;
   globalStatus = status;
   globalStatusListeners.forEach((fn) => fn(status));
+}
+
+// Any live position proves GPS works — clear the failure streak. Terminal
+// "denied"/"unsupported" are left alone (they need user action, not a fix).
+function noteGpsSuccess() {
+  globalGpsFailCount = 0;
+}
+
+// Non-permission GPS failure (timeout/unavailable). First failures show the
+// transient "recovering"; a sustained streak escalates to "gps-error" so the
+// UI can offer a retry instead of spinning forever. Watch + pings keep
+// running, so a returning signal auto-recovers via the success paths.
+function noteGpsError() {
+  globalGpsFailCount++;
+  if (globalGpsFailCount >= GPS_ERROR_THRESHOLD) {
+    setGlobalStatus("gps-error");
+  } else {
+    setGlobalStatus("recovering");
+  }
 }
 
 function scheduleRetry(fn: () => void, ms: number) {
@@ -150,12 +177,13 @@ function pingGps(qc: ReturnType<typeof useQueryClient>) {
   navigator.geolocation.getCurrentPosition(
     (pos) => {
       const payload = makePayload(pos);
+      noteGpsSuccess();
       postIfBetter(payload, qc);
     },
     (err) => {
-      // ponytail: surface geolocation failures instead of silent ()=>{}.
+      // surface geolocation failures instead of silent ()=>{}.
       if (err.code === err.PERMISSION_DENIED) setGlobalStatus("denied");
-      else setGlobalStatus("recovering");
+      else noteGpsError();
     },
     { enableHighAccuracy: true, maximumAge: 0, timeout: 8000 },
   );
@@ -194,12 +222,13 @@ function startWatching(qc: ReturnType<typeof useQueryClient>) {
   navigator.geolocation.getCurrentPosition(
     (pos) => {
       const payload = makePayload(pos);
+      noteGpsSuccess();
       setGlobalStatus("sharing");
       void postLocation(payload, qc);
     },
     (err) => {
       if (err.code === err.PERMISSION_DENIED) setGlobalStatus("denied");
-      else setGlobalStatus("recovering");
+      else noteGpsError();
     },
     { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 },
   );
@@ -207,6 +236,7 @@ function startWatching(qc: ReturnType<typeof useQueryClient>) {
   globalWatchId = navigator.geolocation.watchPosition(
     (pos) => {
       const payload = makePayload(pos);
+      noteGpsSuccess();
       postIfBetter(payload, qc);
     },
     (err) => {
@@ -214,7 +244,7 @@ function startWatching(qc: ReturnType<typeof useQueryClient>) {
         setGlobalStatus("denied");
         return;
       }
-      setGlobalStatus("recovering");
+      noteGpsError();
     },
     {
       enableHighAccuracy: true,
@@ -242,6 +272,7 @@ function stopWatching() {
   }
   clearRetries();
   globalRetryCount = 0;
+  globalGpsFailCount = 0;
   globalLastPostPayload = null;
   globalLastPostTime = 0;
   setGlobalStatus("idle");
@@ -253,6 +284,15 @@ export function initBackgroundLocation(
 ) {
   if (enabled) startWatching(qc);
   else stopWatching();
+}
+
+// Manual retry for the "gps-error" state: clear the streak and acquire
+// immediately instead of waiting for the next 12s ping. A returning signal
+// clears the error on its own; this is just the impatient path.
+export function retrySharing(qc: ReturnType<typeof useQueryClient>) {
+  globalGpsFailCount = 0;
+  setGlobalStatus("locating");
+  pingGps(qc);
 }
 
 export function useBackgroundLocationStatus() {

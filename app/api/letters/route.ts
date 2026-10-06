@@ -5,7 +5,8 @@ import { createLetterSchema } from "@/lib/validations/letter";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { getCached, setCached, invalidateCache, cacheKey } from "@/lib/redis";
 import { batchLoadUsers, mapUsersToRecords } from "@/lib/batch";
-import { sendEmail, letterNotificationHtml } from "@/lib/resend";
+import { sendEmail, letterNotificationHtml, safeAppUrl } from "@/lib/email";
+import { sanitizeStoredHtml } from "@/lib/sanitize-html";
 import { triggerCoupleEvent } from "@/lib/pusher-server";
 
 const CACHE_TTL = 30;
@@ -19,8 +20,11 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const type = searchParams.get("type") || "inbox";
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "50");
+    if (type !== "inbox" && type !== "sent") {
+      return NextResponse.json({ error: "Tipe surat tidak valid" }, { status: 400 });
+    }
+    const page = Math.min(Math.max(parseInt(searchParams.get("page") || "1", 10) || 1, 1), 1000);
+    const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "50", 10) || 50, 1), 100);
 
     const cacheK = cacheKey("letters", type, session.user.id, String(page), String(limit));
     const cached = await getCached<unknown>(cacheK);
@@ -131,6 +135,8 @@ export async function POST(request: Request) {
     const letter = await prisma.letter.create({
       data: {
         ...parsed.data,
+        // SEC: strip active content before storing — client DOMPurify alone is not enough.
+        content: sanitizeStoredHtml(parsed.data.content),
         authorId: session.user.id,
         coupleId: membership?.couple?.id ?? null,
         unlockAt: parsed.data.unlockAt
@@ -159,14 +165,14 @@ export async function POST(request: Request) {
     if (!parsed.data.isTimeCapsule) {
       const recipient = userMap.get(letter.recipientId);
       if (recipient?.email) {
-        // ponytail: after() keeps the 201 fast AND guarantees delivery —
+        // after() keeps the 201 fast AND guarantees delivery —
         // plain fire-and-forget can be dropped when serverless freezes.
         const to = recipient.email;
         const subject = `💌 Surat Baru dari ${session.user.name || "Pasangan"}!`;
         const html = letterNotificationHtml(
           session.user.name || "Pasangan",
           letter.title,
-          `${process.env.NEXTAUTH_URL}/letters/${letter.id}`,
+          `${safeAppUrl(`/letters/${letter.id}`)}`,
         );
         const letterId = letter.id;
         after(async () => {
@@ -182,6 +188,7 @@ export async function POST(request: Request) {
 
     await invalidateCache("letters:*");
     await invalidateCache("dashboard:*");
+    await invalidateCache("home:*");
 
     const coupleId = membership?.couple?.id;
     if (coupleId) {

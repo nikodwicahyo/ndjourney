@@ -17,7 +17,7 @@ export async function DELETE(
     const session = rateCheck.session;
     const { publicId } = await params;
     const { searchParams } = new URL(request.url);
-    // ponytail: allowlist — unvalidated string flowed into cloudinary destroy.
+    // allowlist — unvalidated string flowed into cloudinary destroy.
     const resourceType = searchParams.get("resourceType") || "image";
     if (!["image", "video", "raw"].includes(resourceType)) {
       return NextResponse.json({ error: "resourceType tidak valid" }, { status: 400 });
@@ -51,7 +51,7 @@ export async function DELETE(
 
     await deleteFromCloudinary(publicId, resourceType);
 
-    return NextResponse.json({ message: "File berhasil dihapus dari Cloudinary" });
+    return NextResponse.json({ data: { publicId } });
   } catch (error) {
     console.error("Error deleting from Cloudinary:", error);
     return NextResponse.json(

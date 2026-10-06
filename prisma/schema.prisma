@@ -70,6 +70,13 @@ model VerificationToken {
 
 model Couple {
   id         String         @id @default(cuid())
+  // Split-brain guard: the app supports exactly one couple (quota = 2
+  // PARTNERs, singleton CoupleConfig). The unique singleton turns any
+  // second Couple row into a loud P2002 instead of a silent split;
+  // formation itself is serialized via pg_advisory_xact_lock in
+  // ensureCouple (lib/auth.ts). Merged + enforced in
+  // 20261006000000_couple_singleton.
+  singleton  Boolean        @default(true) @unique
   createdAt  DateTime       @default(now())
   updatedAt  DateTime       @updatedAt
   members    CoupleMember[]
@@ -101,7 +108,7 @@ model CoupleConfig {
   anniversaryDate    DateTime
   tagline            String?
   heroPhotoUrl       String?
-  // ponytail: non-destructive hero crop {x,y,w,h} fractions — original file never copied/modified.
+  // non-destructive hero crop {x,y,w,h} fractions — original file never copied/modified.
   heroCrop           Json?
   spotifyPlaylistUrl String?
   createdAt          DateTime  @default(now())
@@ -192,12 +199,13 @@ model Milestone {
   @@index([createdAt])
   @@index([date, createdById])
   @@index([isPublic, date])
+  @@index([coupleId, date])
 }
 
 model MilestonePhoto {
   milestoneId String
   photoId     String
-  // ponytail: non-destructive crop {x,y,w,h} over the ORIGINAL photo — per usage.
+  // non-destructive crop {x,y,w,h} over the ORIGINAL photo — per usage.
   crop        Json?
   milestone   Milestone @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
   photo       Photo     @relation(fields: [photoId], references: [id], onDelete: Cascade)
@@ -354,7 +362,7 @@ model WishItem {
   title       String
   description String?
   imageUrl    String?
-  // ponytail: non-destructive crop {x,y,w,h} over the ORIGINAL image.
+  // non-destructive crop {x,y,w,h} over the ORIGINAL image.
   imageCrop   Json?
   link        String?
   category    String?
@@ -369,6 +377,7 @@ model WishItem {
   @@index([isDone])
   @@index([isDone, createdAt])
   @@index([category, isDone])
+  @@index([coupleId, isDone, createdAt])
 }
 
 enum Role {

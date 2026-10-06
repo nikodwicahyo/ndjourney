@@ -21,7 +21,7 @@ export async function PUT(
     if (body == null) return NextResponse.json({ error: "Body JSON tidak valid" }, { status: 400 });
     const parsed = updateQuestionSchema.safeParse(body);
 
-    // ponytail: shared bank curated by couple members only (see POST gate).
+    // shared bank curated by couple members only (see POST gate).
     if (!(await getUserCoupleId(rateCheck.session.user.id))) {
       return NextResponse.json({ error: "Pasangan belum ditemukan" }, { status: 403 });
     }
@@ -49,6 +49,7 @@ export async function PUT(
     });
 
     await invalidateCache("games:*");
+    await invalidateCache("home:*");
 
     const coupleId = await getUserCoupleId(rateCheck.session.user.id);
     if (coupleId) {
@@ -77,7 +78,7 @@ export async function DELETE(
 
     const { id } = await params;
 
-    // ponytail: shared bank curated by couple members only (see PUT gate).
+    // shared bank curated by couple members only (see PUT gate).
     if (!(await getUserCoupleId(rateCheck.session.user.id))) {
       return NextResponse.json({ error: "Pasangan belum ditemukan" }, { status: 403 });
     }
@@ -96,6 +97,7 @@ export async function DELETE(
     }
 
     await invalidateCache("games:*");
+    await invalidateCache("home:*");
 
     const coupleId = await getUserCoupleId(rateCheck.session.user.id);
     if (coupleId) {

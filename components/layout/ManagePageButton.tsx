@@ -9,7 +9,7 @@ type ManagePageButtonProps = {
   label: string;
 };
 
-// ponytail: self-gated — server pages stay untouched (no auth() + prop
+// self-gated — server pages stay untouched (no auth() + prop
 // drilling per page); renders nothing until authenticated is confirmed,
 // so anonymous visitors (the common public case) see zero layout shift.
 export default function ManagePageButton({ href, label }: ManagePageButtonProps) {

@@ -32,7 +32,7 @@ type MemoryMatchProps = {
   photos: GalleryPhoto[];
 };
 
-// ponytail: single gate — public images only, and only ones a browser can
+// single gate — public images only, and only ones a browser can
 // actually render. isPublic missing (stale cache) counts as public, explicit
 // false is always excluded. Extensionless video URLs and HEIC must never
 // become broken cards.
@@ -40,6 +40,14 @@ export function selectMemoryMatchImages(photos: GalleryPhoto[]): GalleryPhoto[] 
   return photos.filter((p) => p.isPublic !== false && !p.isVideo && isRenderableImageUrl(p.url));
 }
 
+function buildPool(photoPool: GalleryPhoto[]): GalleryPhoto[] {
+  if (photoPool.length >= 2) return photoPool;
+  return Array.from({ length: 6 }, (_, i) => ({
+    id: `placeholder-${i}`,
+    url: `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><rect width="200" height="200" fill="${["#F43F5E","#BE185D","#E11D48","#FB7185","#F43F5E","#BE185D"][i]}"/><text x="100" y="115" text-anchor="middle" font-size="60" fill="white">♥</text></svg>`)}`,
+    isVideo: false,
+  }));
+}
 function shuffleArray<T>(arr: T[]): T[] {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -62,8 +70,16 @@ export default function MemoryMatch({ photos }: MemoryMatchProps) {
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-40px" });
   const photoPool = useMemo(() => selectMemoryMatchImages(photos), [photos]);
-  const [mounted, setMounted] = useState(false);
   const [cards, setCards] = useState<Card[]>([]);
+
+  // Deal on mount and whenever the pool identity changes — render-time
+  // adjustment (React-endorsed), replacing the post-paint effect so the
+  // first paint already shows cards instead of an empty grid.
+  const [dealtPool, setDealtPool] = useState<GalleryPhoto[] | null>(null);
+  if (dealtPool !== photoPool) {
+    setDealtPool(photoPool);
+    setCards(initCards(shuffleArray(buildPool(photoPool)).slice(0, 6)));
+  }
 
   const [flippedIds, setFlippedIds] = useState<string[]>([]);
   const [moves, setMoves] = useState(0);
@@ -80,19 +96,6 @@ export default function MemoryMatch({ photos }: MemoryMatchProps) {
   const lockRef = useRef(false);
   const startTimeRef = useRef<number | null>(null);
   const startedRef = useRef(false);
-
-  useEffect(() => {
-    const pool = photoPool.length >= 2
-      ? photoPool
-      : Array.from({ length: 6 }, (_, i) => ({
-          id: `placeholder-${i}`,
-          url: `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><rect width="200" height="200" fill="${["#F43F5E","#BE185D","#E11D48","#FB7185","#F43F5E","#BE185D"][i]}"/><text x="100" y="115" text-anchor="middle" font-size="60" fill="white">♥</text></svg>`)}`,
-          isVideo: false,
-        }));
-    const s = shuffleArray(pool).slice(0, 6);
-    setCards(initCards(s));
-    setMounted(true);
-  }, [photoPool]);
 
   useEffect(() => {
     if (!startTimeRef.current || won) return;
@@ -166,14 +169,7 @@ export default function MemoryMatch({ photos }: MemoryMatchProps) {
   }, [matchedCount, pairCount]);
 
   const handleNewGame = () => {
-    const pool = photoPool.length >= 2
-      ? photoPool
-      : Array.from({ length: 6 }, (_, i) => ({
-          id: `placeholder-${i}`,
-          url: `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><rect width="200" height="200" fill="${["#F43F5E","#BE185D","#E11D48","#FB7185","#F43F5E","#BE185D"][i]}"/><text x="100" y="115" text-anchor="middle" font-size="60" fill="white">♥</text></svg>`)}`,
-          isVideo: false,
-        }));
-    const s = shuffleArray(pool).slice(0, 6);
+    const s = shuffleArray(buildPool(photoPool)).slice(0, 6);
     setCards(initCards(s));
     flippedRef.current = [];
     setFlippedIds([]);
@@ -247,25 +243,7 @@ export default function MemoryMatch({ photos }: MemoryMatchProps) {
           const isMatchedNow = justMatched === card.pairId;
           const hasError = imgErrors.has(card.uid);
 
-  if (!mounted) {
-    return (
-      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm overflow-hidden">
-        <div className="mb-3 flex items-start justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded-lg bg-primary/10" />
-            <span className="text-base font-medium">Memory Match</span>
-          </div>
-        </div>
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="aspect-square rounded-xl bg-muted" />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  return (
+          return (
             <motion.div
               key={card.uid}
               initial={{ opacity: 0, scale: 0.8 }}

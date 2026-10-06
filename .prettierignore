@@ -1,0 +1,7 @@
+.next/
+coverage/
+lib/generated/
+public/version.json
+package-lock.json
+*.tsbuildinfo
+tsconfig.tsbuildinfo

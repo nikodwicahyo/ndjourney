@@ -21,12 +21,12 @@ type MilestoneCardProps = {
   onPhotoClick?: (url: string) => void;
 };
 
-// ponytail: thumb renders through the link crop with the same math as the
+// thumb renders through the link crop with the same math as the
 // cropper — null crop falls back to plain object-cover. src = ORIGINAL url
 // (rects are original-space), thumb = square center-fill for the no-crop case.
 function CropThumb({ src, thumb, crop, eager }: { src: string; thumb?: string | null; crop: unknown; eager?: boolean }) {
   const rect = parseCropRect(crop);
-  // ponytail: Cloudinary variant of the original (aspect-preserving → crop
+  // Cloudinary variant of the original (aspect-preserving → crop
   // fractions stay exact). Raw originals hang /_next/image past its 7s timeout
   // (500) and HEIC never decodes in the browser — same rule as WishCard.
   const url = getOptimizedImageUrl(cropDisplaySrc(src, thumb, rect), 640);
@@ -47,7 +47,13 @@ function CropThumb({ src, thumb, crop, eager }: { src: string; thumb?: string | 
     return () => ro.disconnect();
   }, []);
 
-  useEffect(() => { setNatural(null); }, [url]);
+  // Reset measured dimensions when the image changes — render-time adjustment
+  // (React-endorsed), not a post-paint effect, so no cascading render.
+  const [prevUrl, setPrevUrl] = useState(url);
+  if (prevUrl !== url) {
+    setPrevUrl(url);
+    setNatural(null);
+  }
 
   const onLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
@@ -102,7 +108,7 @@ function MilestoneCard({
 
   const isLeft = index % 2 === 0;
   const cardColor = milestone.color || "#F43F5E";
-  // ponytail: the first ~3 cards sit in the first viewport — their photos must
+  // the first ~3 cards sit in the first viewport — their photos must
   // load eagerly or the browser reports them as a deferred LCP image.
   // Raise the bound if a viewport ever fits more cards.
   const eager = index < 3;
@@ -177,7 +183,7 @@ function MilestoneCard({
 
               {milestone.photos?.length > 0 && (
                 <div className="grid w-full grid-cols-2 content-center gap-2 md:w-[min(260px,32vw)] md:shrink-0">
-                  {/* ponytail: fixed 1:1 grid = same box as the cropper and form thumbs — crop is pixel-exact for 1 or 2 photos. */}
+                  {/* fixed 1:1 grid = same box as the cropper and form thumbs — crop is pixel-exact for 1 or 2 photos. */}
                   {milestone.photos.slice(0, 2).map(({ photo, crop }) => (
                     <button
                       key={photo.id}
@@ -205,7 +211,7 @@ function MilestoneCard({
                   <button
                     onClick={() => onEdit?.(milestone)}
                     className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                    aria-label="Edit milestone"
+                    aria-label="Ubah milestone"
                   >
                     <Edit3 className="h-3.5 w-3.5" />
                   </button>
@@ -218,7 +224,7 @@ function MilestoneCard({
                       if (confirmed) onDelete?.(milestone.id);
                     }}
                     className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                    aria-label="Delete milestone"
+                    aria-label="Hapus milestone"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>

@@ -10,23 +10,30 @@ const CONFETTI = ["❤️", "✨", "💫", "🌟", "💖", "⭐", "🎉", "💕"
 export default function MeetBanner({ show, distance }: { show: boolean; distance?: number | null }) {
   const reduceMotion = useReducedMotion();
   const [burst, setBurst] = useState(false);
+  const [prevShow, setPrevShow] = useState(show);
+  // Sync the burst trigger during render (React-endorsed adjustment); the
+  // hide timer below only subscribes and cleans up.
+  if (show !== prevShow) {
+    setPrevShow(show);
+    if (show) setBurst(true);
+  }
 
   useEffect(() => {
-    if (show) {
-      setBurst(true);
-      const t = setTimeout(() => setBurst(false), 2000);
-      return () => clearTimeout(t);
-    }
-  }, [show]);
+    if (!burst) return;
+    const t = setTimeout(() => setBurst(false), 2000);
+    return () => clearTimeout(t);
+  }, [burst]);
 
+  // Deterministic confetti layout (pure during render): index-derived
+  // variation reads identically on every render instead of reshuffling.
   const pieces = useMemo(
     () =>
       Array.from({ length: 16 }, (_, i) => ({
         left: 3 + i * 6,
         delay: i * 0.08,
         emoji: CONFETTI[i % CONFETTI.length],
-        drift: (Math.random() - 0.5) * 50,
-        size: 14 + Math.random() * 12,
+        drift: ((i * 37) % 50) - 25,
+        size: 14 + ((i * 53) % 12),
       })),
     [],
   );

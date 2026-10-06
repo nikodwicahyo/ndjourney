@@ -45,28 +45,6 @@ export type PhotoWithUploader = Photo & {
   fileSize?: number | null;
 };
 
-// ── API Response Types ────────────────────
-
-export type ApiResponse<T> = {
-  data?: T;
-  error?: string;
-  status: number;
-};
-
-export type PaginatedResponse<T> = {
-  data: T[];
-  total: number;
-  page: number;
-  limit: number;
-  hasMore: boolean;
-};
-
-export type CursorPaginatedResponse<T> = {
-  data: T[];
-  nextCursor: string | null;
-  hasMore: boolean;
-};
-
 // ── Dashboard Types ───────────────────────
 
 export type DashboardStats = {
@@ -104,35 +82,6 @@ export type RecentActivity = {
   description: string;
   createdAt: Date;
   user: Pick<User, "id" | "name" | "image">;
-};
-
-// ── Upload Types ──────────────────────────
-
-export type UploadResult = {
-  url: string;
-  publicId: string;
-  thumbnailUrl?: string;
-  width?: number;
-  height?: number;
-  format?: string;
-};
-
-// ── Query Params ──────────────────────────
-
-export type PhotoQueryParams = {
-  albumId?: string;
-  year?: number;
-  isFavorite?: boolean;
-  page?: number;
-  limit?: number;
-};
-
-export type LetterQueryParams = {
-  type: "inbox" | "sent";
-};
-
-export type MilestoneQueryParams = {
-  withPhotos?: boolean;
 };
 
 // ── Letter Types ──────────────────────────

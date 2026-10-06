@@ -10,16 +10,18 @@ import { getPusherClient } from '@/lib/pusher-client';
 export function useRealtimeSync(coupleId: string | undefined) {
   const queryClient = useQueryClient();
   const { update: updateSession } = useSession();
-  const subscribedRef = useRef(false);
+  const subscribedRef = useRef<string | false>(false);
   // Keep a stable ref to the session updater so the subscription effect doesn't
   // re-run (and re-subscribe) if NextAuth's `update` identity changes.
   const updateSessionRef = useRef(updateSession);
-  updateSessionRef.current = updateSession;
 
   useEffect(() => {
+    // Keep the latest session updater without re-subscribing when NextAuth's
+    // `update` identity changes (assigned here, not during render).
+    updateSessionRef.current = updateSession;
     if (!coupleId) return;
-    if (subscribedRef.current) return;
-    subscribedRef.current = true;
+    if (subscribedRef.current === coupleId) return;
+    subscribedRef.current = coupleId;
 
     const pusher = getPusherClient();
     const channelName = `private-couple-${coupleId}`;

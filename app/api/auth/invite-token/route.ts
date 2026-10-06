@@ -5,7 +5,7 @@ import { safeTokenEqual } from "@/lib/api-body";
 
 export async function POST(request: Request) {
   try {
-    // ponytail: single static secret — throttle per-IP or it's a brute-force oracle.
+    // single static secret — throttle per-IP or it's a brute-force oracle.
     const rl = await withAnonymousRateLimit(request, { maxRequests: 10, windowSeconds: 900, keyPrefix: "invite" });
     if (!rl.allowed) return rl.response ?? NextResponse.json({ error: "Terlalu banyak permintaan. Coba lagi nanti." }, { status: 429 });
 

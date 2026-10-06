@@ -6,7 +6,7 @@ const QID = "cjld2cjxh0000qz8n0p3q4w5eq";
 
 const prismaMock = vi.hoisted(() => ({
   $queryRaw: vi.fn(),
-  gameQuestion: { findMany: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+  gameQuestion: { findMany: vi.fn(), count: vi.fn(async () => 0), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
   gameScore: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), count: vi.fn() },
   gameArcadeScore: { create: vi.fn() },
 }));
@@ -56,6 +56,22 @@ describe("games questions API", () => {
     prismaMock.gameQuestion.findMany.mockResolvedValue([{ id: QID }]);
     const res = await questions.GET(new Request("http://localhost/api/games/questions?type=TRIVIA"));
     expect(res.status).toBe(200);
+  });
+
+  it("MR-12: GET random prefetches bounded rows (no full-bank load)", async () => {
+    prismaMock.gameScore.findMany.mockResolvedValue([]);
+    prismaMock.gameQuestion.findMany.mockResolvedValue([{ id: QID }]);
+    prismaMock.gameQuestion.count.mockResolvedValue(1);
+    const res = await questions.GET(new Request("http://localhost/api/games/questions?type=TRIVIA&random=10"));
+    expect(res.status).toBe(200);
+    // bounded prefetch: at most 3x the clamped count, never unbounded
+    for (const call of prismaMock.gameQuestion.findMany.mock.calls) {
+      const take = (call[0] as { take?: number }).take;
+      if (take !== undefined) expect(take).toBeLessThanOrEqual(150);
+    }
+    expect(prismaMock.gameQuestion.count).toHaveBeenCalled();
+    const body = await res.json();
+    expect(body.total).toBe(1);
   });
 
   it("GAM-01: POST 201 TRIVIA, 400 invalid, 403 no-couple", async () => {
@@ -133,10 +149,10 @@ describe("games scores + leaderboards", () => {
     prismaMock.$queryRaw.mockResolvedValue([{ userId: ME, totalPlayed: BigInt(2), totalCorrect: BigInt(1) }]);
     const ok = await leaderboard.GET(new Request("http://localhost/api/games/leaderboard") as unknown as Parameters<typeof leaderboard.GET>[0]);
     expect(ok?.status).toBe(200);
-    const body = await ok.json();
+    const body = await ok?.json();
     expect(body.data[0]).toMatchObject({ totalPlayed: 2, totalCorrect: 1, accuracy: 50 });
     const bad = await leaderboard.GET(new Request("http://localhost/api/games/leaderboard?type=NOPE") as unknown as Parameters<typeof leaderboard.GET>[0]);
-    expect(bad.status).toBe(400);
+    expect(bad?.status).toBe(400);
   });
 
   it("GAM-04: arcade-score 201 + metadata cap 400 + board requires type", async () => {

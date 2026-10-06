@@ -91,7 +91,7 @@ export default function MasonryGrid({ filters, onPhotoClick, visibility }: Mason
 
   const allPhotos = (data?.pages.flatMap((page) => page.data ?? []) ?? []).filter(Boolean) as Photo[];
 
-  // ponytail: stable handler so memo(PhotoCard) actually skips re-renders.
+  // stable handler so memo(PhotoCard) actually skips re-renders.
   const handlePhotoClick = useCallback(
     (photo: Photo) => {
       const origIndex = allPhotos.indexOf(photo);
@@ -120,7 +120,7 @@ export default function MasonryGrid({ filters, onPhotoClick, visibility }: Mason
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
-        <p className="text-destructive">Gagal memuat media</p>
+        <p role="alert" className="text-destructive">Gagal memuat media</p>
         <Button variant="outline" size="sm" onClick={() => refetch()}>
           Coba Lagi
         </Button>

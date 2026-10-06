@@ -31,7 +31,7 @@ export default function PublicTimelineList() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-20">
-        <p className="text-destructive">Gagal memuat timeline</p>
+        <p role="alert" className="text-destructive">Gagal memuat timeline</p>
         <Button variant="outline" size="sm" onClick={() => refetch()}>
           Coba Lagi
         </Button>

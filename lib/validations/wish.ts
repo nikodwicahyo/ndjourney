@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { httpUrl } from "./http-url";
 
-// ponytail: local copy (couple.ts uses the zod/v4 entry point — no cross-import).
+// local copy (couple.ts uses the zod/v4 entry point — no cross-import).
 const cropRectSchema = z
   .object({
     x: z.number().min(0).max(1),

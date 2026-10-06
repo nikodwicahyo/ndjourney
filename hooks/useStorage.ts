@@ -15,7 +15,7 @@ export function useStorageUsage() {
       const json = await res.json();
       return json.data as CloudinaryUsage;
     },
-    // ponytail: usage changes only on upload/delete (pusher INVALIDATES then) —
+    // usage changes only on upload/delete (pusher INVALIDATES then) —
     // no 30s poll, no mount-storm on staleTime:0.
     staleTime: 60_000,
     refetchInterval: 120_000,

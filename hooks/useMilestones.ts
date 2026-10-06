@@ -36,7 +36,12 @@ export function useMilestones() {
 export function useMilestone(id: string) {
   return useQuery({
     queryKey: milestoneKeys.detail(id),
-    queryFn: () => api.get<{ data: MilestoneWithRelations }>(`/api/milestones/${id}`),
+    queryFn: async () => {
+      const res = await api.get<{ data: MilestoneWithRelations } | MilestoneWithRelations>(`/api/milestones/${id}`);
+      if (res.error) throw new Error(res.error);
+      const body = res.data as { data?: MilestoneWithRelations } | MilestoneWithRelations;
+      return ((body as { data?: MilestoneWithRelations }).data ?? body) as MilestoneWithRelations;
+    },
     enabled: !!id,
     staleTime: 60_000,
   });
@@ -57,7 +62,12 @@ export function useCreateMilestone() {
       photoIds?: string[];
       photoUploads?: Array<{ url: string; publicId: string; thumbnailUrl?: string; crop?: CropRect | null }>;
       photoCrops?: Record<string, CropRect>;
-    }) => api.post("/api/milestones", data),
+    }) => api.post("/api/milestones", data).then((res) => {
+      if (res.error) throw new Error(res.error);
+      return (res.data as { data?: unknown }) && typeof res.data === "object" && "data" in (res.data as object)
+        ? (res.data as { data: unknown }).data
+        : res.data;
+    }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: milestoneKeys.all, refetchType: 'all' });
       qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats(), refetchType: 'all' });
@@ -85,7 +95,10 @@ export function useUpdateMilestone() {
       photoIds?: string[];
       photoUploads?: Array<{ url: string; publicId: string; thumbnailUrl?: string; crop?: CropRect | null }>;
       photoCrops?: Record<string, CropRect>;
-    }) => api.put(`/api/milestones/${id}`, data),
+    }) => api.put(`/api/milestones/${id}`, data).then((res) => {
+      if (res.error) throw new Error(res.error);
+      return res.data;
+    }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: milestoneKeys.all, refetchType: 'all' });
       qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats(), refetchType: 'all' });
@@ -98,7 +111,11 @@ export function useDeleteMilestone() {
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: string) => api.delete(`/api/milestones/${id}`),
+    mutationFn: async (id: string) => {
+      const res = await api.delete(`/api/milestones/${id}`);
+      if (res.error) throw new Error(res.error);
+      return res.data;
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: milestoneKeys.all, refetchType: 'all' });
       qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats(), refetchType: 'all' });

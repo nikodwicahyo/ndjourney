@@ -7,6 +7,7 @@ import {
   useInfiniteQuery,
 } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query-keys";
+import { buildPhotoPayload } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Photo, AlbumWithCount } from "@/types";
 import { useUploadPhotos as useNewUploadPhotos } from "./useUpload";
@@ -28,7 +29,7 @@ export function usePhotos(filters?: {
   const visibility = filters?.visibility ?? (filters?.isPublic ? "public" : undefined);
   return useInfiniteQuery({
     queryKey: photoKeys.list({ ...filters, isPublic: undefined, visibility }),
-    queryFn: async ({ pageParam }: { pageParam: string | null }) => {
+    queryFn: async ({ pageParam, signal }: { pageParam: string | null; signal?: AbortSignal }) => {
       const params = new URLSearchParams();
       if (filters?.albumId) params.set("albumId", filters.albumId);
       if (filters?.year) params.set("year", String(filters.year));
@@ -39,7 +40,8 @@ export function usePhotos(filters?: {
       if (pageParam) params.set("cursor", pageParam);
       params.set("limit", String(filters?.limit ?? 50));
 
-      const res = await fetch(`/api/photos?${params}`);
+      // P-15: abort superseded filter toggles — stale responses must not win the race.
+      const res = await fetch(`/api/photos?${params}`, { signal });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Gagal memuat media");
       return json as { data: Photo[]; nextCursor: string | null; hasMore: boolean; total: number; fotoTotal: number; videoTotal: number };
@@ -116,7 +118,7 @@ export function useUpdatePhoto() {
           qc.setQueryData(key, data);
         }
       }
-      // ponytail: toast here (not per caller) so every favorite/visibility icon
+      // toast here (not per caller) so every favorite/visibility icon
       // agrees — albumId/caption callers (e.g. move dropdown) keep their own toasts.
       if ("isFavorite" in vars || "isPublic" in vars) {
         toast.error("Gagal mengubah media");
@@ -182,17 +184,7 @@ export function useUploadPhoto() {
       const photoRes = await fetch("/api/photos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          url: result.url,
-          publicId: result.publicId,
-          thumbnailUrl: result.thumbnailUrl,
-          width: result.width,
-          height: result.height,
-          fileSize: result.bytes,
-          isVideo: result.format?.includes("mp4") || result.format?.includes("mov") || result.isVideo || false,
-          albumId,
-          isPublic,
-        }),
+        body: JSON.stringify(buildPhotoPayload(result, albumId, isPublic)),
       });
 
       if (!photoRes.ok) {

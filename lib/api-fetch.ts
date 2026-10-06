@@ -54,7 +54,7 @@ export async function apiFetch<T>(url: string, options: ApiOptions = {}): Promis
 
   if (res.status === 204) return undefined as T;
 
-  // ponytail: empty/non-JSON success bodies must not throw.
+  // empty/non-JSON success bodies must not throw.
   return (await res.json().catch(() => undefined)) as T;
 }
 

@@ -9,6 +9,7 @@ import { Plus, Loader2, X, Upload, ImagePlus, Trash2, Crop } from "lucide-react"
 import { toast } from "sonner";
 import { showDeleteConfirm } from "@/lib/swal";
 import { uploadFileSimple } from "@/lib/chunked-upload";
+import { resolveUploadMime } from "@/lib/upload-config";
 import { parseCropRect, cropCoverStyle, type CropRect } from "@/lib/image-crop";
 import { getOptimizedImageUrl } from "@/lib/cloudinary-urls";
 import PhotoCropper from "@/components/ui/PhotoCropper";
@@ -26,7 +27,7 @@ type WishFormProps = {
   onClose?: () => void;
 };
 
-// ponytail: 16:9 preview renders through the crop with the same math as the
+// 16:9 preview renders through the crop with the same math as the
 // card — plain <img> so object URLs (fresh uploads) work too. Keep the frame at
 // 16:9 everywhere (cropper, this preview, card) or cover-crop hides the match.
 function WishPreview({ src, crop, onError }: { src: string; crop: CropRect | null; onError: () => void }) {
@@ -47,7 +48,13 @@ function WishPreview({ src, crop, onError }: { src: string; crop: CropRect | nul
     return () => ro.disconnect();
   }, []);
 
-  useEffect(() => { setNatural(null); }, [src]);
+  // Reset measured dimensions when the image changes — render-time adjustment
+  // (React-endorsed), not a post-paint effect, so no cascading render.
+  const [prevSrc, setPrevSrc] = useState(src);
+  if (prevSrc !== src) {
+    setPrevSrc(src);
+    setNatural(null);
+  }
 
   const style = crop && natural && frame
     ? cropCoverStyle(natural.w, natural.h, frame.w, frame.h, crop)
@@ -160,7 +167,8 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
       if (fileInputRef.current) fileInputRef.current.value = "";
     };
 
-    if (!file.type.startsWith("image/")) {
+    // Extension fallback: browsers report "" for unrecognized formats (.heic).
+    if (!resolveUploadMime(file.name, file.type).startsWith("image/")) {
       toast.error("Pilih file gambar yang valid");
       resetFileInput();
       return;
@@ -208,7 +216,7 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
     clearLocalPreview();
     setPreviewFailed(false);
     setImageUrl(photo.url);
-    // ponytail: new image starts uncropped — crop is per-image, never inherited.
+    // new image starts uncropped — crop is per-image, never inherited.
     setImageCrop(null);
     setShowGalleryPicker(false);
   }
@@ -304,8 +312,9 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Judul *</label>
+                <label htmlFor="wish-title" className="text-sm font-medium">Judul *</label>
                 <input
+                  id="wish-title"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Apa yang kalian inginkan?"
@@ -315,8 +324,9 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">Deskripsi</label>
+                <label htmlFor="wish-description" className="text-sm font-medium">Deskripsi</label>
                 <textarea
+                  id="wish-description"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Ceritakan impian kalian..."
@@ -333,6 +343,7 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
                       key={cat.value}
                       type="button"
                       onClick={() => setCategory(cat.value)}
+                      aria-pressed={category === cat.value}
                       className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
                         category === cat.value
                           ? "border-primary bg-primary/10 text-primary"
@@ -346,8 +357,9 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">Link (opsional)</label>
+                <label htmlFor="wish-link" className="text-sm font-medium">Link (opsional)</label>
                 <input
+                  id="wish-link"
                   value={link}
                   onChange={(e) => setLink(e.target.value)}
                   placeholder="https://..."

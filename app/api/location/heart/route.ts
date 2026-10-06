@@ -23,7 +23,8 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json().catch(() => ({}));
-    const emoji = typeof body?.emoji === "string" ? body.emoji : "❤️";
+    const rawEmoji = typeof body?.emoji === "string" ? body.emoji : "❤️";
+    const emoji = [...rawEmoji].slice(0, 4).join("") || "❤️";
 
     try {
       const p = getPusherServer();

@@ -34,12 +34,12 @@ export default function SettingsForm() {
   const [uploadingHero, setUploadingHero] = useState(false);
   const [uploadingMusic, setUploadingMusic] = useState(false);
   const [showGalleryPicker, setShowGalleryPicker] = useState(false);
-  // ponytail: crop is coordinates over the ORIGINAL — no copy is ever produced.
+  // crop is coordinates over the ORIGINAL — no copy is ever produced.
   const [heroCrop, setHeroCrop] = useState<CropRect | null>(null);
   const [cropTarget, setCropTarget] = useState<{ src: string; file?: File; recrop?: boolean } | null>(null);
   const heroInputRef = useRef<HTMLInputElement>(null);
   const musicInputRef = useRef<HTMLInputElement>(null);
-  // ponytail: 16:9 mini-hero preview, same crop math as homepage — no extra file.
+  // 16:9 mini-hero preview, same crop math as homepage — no extra file.
   const previewRef = useRef<HTMLDivElement>(null);
   const [previewFrame, setPreviewFrame] = useState<{ w: number; h: number } | null>(null);
   const [previewNat, setPreviewNat] = useState<{ w: number; h: number } | null>(null);
@@ -167,7 +167,7 @@ export default function SettingsForm() {
         birthDate1: dateOrNull(birthDate1),
         birthDate2: dateOrNull(birthDate2),
         tagline: tagline.trim() || undefined,
-        // ponytail: explicit null clears (undefined would silently keep the old value).
+        // explicit null clears (undefined would silently keep the old value).
         heroPhotoUrl: heroPhotoUrl.trim() || null,
         heroCrop: heroPhotoUrl.trim() ? (heroCrop ?? null) : null,
         spotifyPlaylistUrl: spotifyPlaylistUrl.trim() || undefined,
@@ -203,8 +203,9 @@ export default function SettingsForm() {
     <form onSubmit={handleSave} className="w-full max-w-xl space-y-5">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2 min-w-0">
-          <label className="text-sm font-medium">Nama Pasangan 1</label>
+          <label htmlFor="settings-name1" className="text-sm font-medium">Nama Pasangan 1</label>
           <input
+            id="settings-name1"
             value={name1}
             onChange={(e) => setName1(e.target.value)}
             className="flex h-10 w-full min-w-0 rounded-xl border border-input bg-background px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -212,8 +213,9 @@ export default function SettingsForm() {
           />
         </div>
         <div className="space-y-2 min-w-0">
-          <label className="text-sm font-medium">Nama Pasangan 2</label>
+          <label htmlFor="settings-name2" className="text-sm font-medium">Nama Pasangan 2</label>
           <input
+            id="settings-name2"
             value={name2}
             onChange={(e) => setName2(e.target.value)}
             className="flex h-10 w-full min-w-0 rounded-xl border border-input bg-background px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -223,8 +225,9 @@ export default function SettingsForm() {
       </div>
 
       <div className="space-y-2">
-        <label className="text-sm font-medium">Tanggal Anniversary</label>
+        <label htmlFor="settings-anniversary" className="text-sm font-medium">Tanggal Anniversary</label>
         <input
+          id="settings-anniversary"
           type="date"
           value={anniversaryDate}
           onChange={(e) => setAnniversaryDate(e.target.value)}
@@ -234,11 +237,12 @@ export default function SettingsForm() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2 min-w-0">
-          <label className="flex items-center gap-1.5 text-sm font-medium">
+          <label htmlFor="settings-birth1" className="flex items-center gap-1.5 text-sm font-medium">
             <Cake className="h-3.5 w-3.5 shrink-0 text-secondary" />
             <span className="truncate">Tanggal Lahir {name1 || "Pasangan 1"}</span>
           </label>
           <input
+            id="settings-birth1"
             type="date"
             value={birthDate1}
             onChange={(e) => setBirthDate1(e.target.value)}
@@ -246,11 +250,12 @@ export default function SettingsForm() {
           />
         </div>
         <div className="space-y-2 min-w-0">
-          <label className="flex items-center gap-1.5 text-sm font-medium">
+          <label htmlFor="settings-birth2" className="flex items-center gap-1.5 text-sm font-medium">
             <Cake className="h-3.5 w-3.5 shrink-0 text-secondary" />
             <span className="truncate">Tanggal Lahir {name2 || "Pasangan 2"}</span>
           </label>
           <input
+            id="settings-birth2"
             type="date"
             value={birthDate2}
             onChange={(e) => setBirthDate2(e.target.value)}
@@ -260,8 +265,9 @@ export default function SettingsForm() {
       </div>
 
       <div className="space-y-2">
-        <label className="text-sm font-medium">Tagline</label>
+        <label htmlFor="settings-tagline" className="text-sm font-medium">Tagline</label>
         <input
+          id="settings-tagline"
           value={tagline}
           onChange={(e) => setTagline(e.target.value)}
           className="flex h-10 w-full rounded-xl border border-input bg-background px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -309,7 +315,8 @@ export default function SettingsForm() {
             <button
               type="button"
               onClick={() => { setHeroPhotoUrl(""); setHeroCrop(null); }}
-              className="absolute right-2 top-2 rounded-full bg-background/80 p-1 transition-colors hover:bg-background"
+              aria-label="Hapus foto beranda"
+              className="absolute right-2 top-2 rounded-full bg-background/80 p-2.5 transition-colors hover:bg-background"
             >
               <X className="h-4 w-4" />
             </button>
@@ -394,8 +401,9 @@ export default function SettingsForm() {
       </div>
 
       <div className="space-y-2">
-        <label className="text-sm font-medium">URL Spotify Playlist</label>
+        <label htmlFor="settings-spotify" className="text-sm font-medium">URL Spotify Playlist</label>
         <input
+          id="settings-spotify"
           value={spotifyPlaylistUrl}
           onChange={(e) => setSpotifyPlaylistUrl(e.target.value)}
           className="flex h-10 w-full rounded-xl border border-input bg-background px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -413,7 +421,8 @@ export default function SettingsForm() {
             <button
               type="button"
               onClick={() => setBackgroundMusicUrl("")}
-              className="shrink-0 rounded-full p-1 transition-colors hover:bg-muted"
+              className="shrink-0 rounded-full p-2.5 transition-colors hover:bg-muted"
+              aria-label="Hapus musik latar"
             >
               <X className="h-4 w-4" />
             </button>

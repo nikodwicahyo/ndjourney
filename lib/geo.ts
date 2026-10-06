@@ -1,5 +1,5 @@
 export const MEET_THRESHOLD_METERS = 100;
-// ponytail: distance-based road factor, shorter routes have more turns
+// distance-based road factor, shorter routes have more turns
 function roadFactor(meters: number): number {
   if (meters < 1000) return 1.6;
   if (meters < 5000) return 1.5;
@@ -8,7 +8,7 @@ function roadFactor(meters: number): number {
   return 1.2;
 }
 
-// ponytail: time-of-day traffic adjustment, driving only
+// time-of-day traffic adjustment, driving only
 function trafficMultiplier(): number {
   const h = new Date().getHours();
   if (h >= 22 || h < 5) return 1.3;

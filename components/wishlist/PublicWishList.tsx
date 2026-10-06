@@ -17,7 +17,7 @@ const CATEGORIES = [
 ];
 
 export default function PublicWishList() {
-  const { data: wishes, isLoading, error } = useWishes();
+  const { data: wishes, isLoading, error, refetch } = useWishes();
   const [filter, setFilter] = useState("");
 
   if (isLoading) {
@@ -33,8 +33,8 @@ export default function PublicWishList() {
   if (error) {
     return (
       <div className="flex flex-col items-center gap-3 py-12 text-center">
-        <p className="text-sm text-destructive">Gagal memuat wish list</p>
-        <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+        <p role="alert" className="text-sm text-destructive">Gagal memuat wish list</p>
+        <Button variant="outline" size="sm" onClick={() => refetch()}>
           Coba Lagi
         </Button>
       </div>

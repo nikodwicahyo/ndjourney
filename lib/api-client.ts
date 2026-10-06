@@ -23,7 +23,7 @@ async function request<T>(
     };
 
     const controller = new AbortController();
-    // ponytail: honour caller signal AND our timeout (old code aborted an unused controller).
+    // honour caller signal AND our timeout (old code aborted an unused controller).
     const signal = options?.signal
       ? typeof AbortSignal.any === "function"
         ? AbortSignal.any([options.signal, controller.signal])
@@ -107,12 +107,12 @@ export const api = {
         clearTimeout(timeoutId);
       }
 
-      // ponytail: empty/204/non-JSON must not throw here.
+      // empty/204/non-JSON must not throw here.
       const json = await res.json().catch(() => null);
 
       if (!res.ok) {
         return {
-          error: json.error || `Upload gagal dengan status ${res.status}`,
+          error: (json as ApiErrorResponse | null)?.error || `Upload gagal dengan status ${res.status}`,
           status: res.status,
         };
       }

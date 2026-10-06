@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { getCached, setCached, cacheKey } from "@/lib/redis";
 import { batchLoadUsers, toPublicUser } from "@/lib/batch";
+import { withAnonymousRateLimit } from "@/lib/rate-limit";
+import { auth } from "@/lib/auth";
 
 const CACHE_TTL = 300;
 const ARCADE_TYPES = ["SLIDING_PUZZLE", "MEMORY_BLOCK_BLAST"] as const;
@@ -16,6 +18,12 @@ type RawRow = {
 
 export async function GET(request: NextRequest) {
   try {
+    // MR-07: same full-table aggregation cost as the quiz board — see games/leaderboard.
+    const session = await auth();
+    if (!session?.user) {
+      const rl = await withAnonymousRateLimit(request, { maxRequests: 300, windowSeconds: 3600, keyPrefix: "games:arcade-leaderboard" });
+      if (!rl.allowed) return rl.response;
+    }
     const { searchParams } = new URL(request.url);
     const type = searchParams.get("type");
 
@@ -57,7 +65,7 @@ export async function GET(request: NextRequest) {
     const userMap = authedUserIds.length > 0 ? await batchLoadUsers(authedUserIds) : new Map();
 
     const leaderboard = rows.map((row) => ({
-      // ponytail: public endpoint — no emails in response.
+      // public endpoint — no emails in response.
       user: toPublicUser(userMap.get(row.userId)),
       playerName: null,
       totalScore: Number(row.totalScore),

@@ -15,8 +15,26 @@ function getRedis(): Redis | undefined {
 
 export const redis = globalForRedis.redis ?? getRedis();
 
-if (process.env.NODE_ENV !== "production") {
-  globalForRedis.redis = redis;
+// P-10: reuse across invocations in prod too (REST client construction per request is waste).
+globalForRedis.redis = redis;
+
+// Fail-open must also be FAST: a black-holed Redis host stalls each call
+// ~4s+ (measured against a dead endpoint), turning one login into a 9s+ hang
+// while limiter/cache/counter calls serially time out. Bound every round-trip.
+const REDIS_TIMEOUT_MS = 2000;
+
+export async function withRedisTimeout<T>(promise: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("[redis] timeout")), REDIS_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
 }
 
 export async function checkRateLimit(
@@ -25,9 +43,11 @@ export async function checkRateLimit(
   windowSeconds: number,
 ): Promise<{ allowed: boolean; remaining: number; reset: number }> {
   if (!redis) {
-    // ponytail: fail-open is intentional (dev without redis) — but warn once so prod misconfig is visible.
+    // MR-07: fail-open is intentional (dev without redis) — but in production
+    // this disables ALL throttling AND caching, so log at error level with the
+    // fix attached (wire this string to alerting, not just log tailing).
     if (process.env.NODE_ENV === "production") {
-      console.warn("[rate-limit] Redis missing — rate limiting DISABLED");
+      console.error("[rate-limit] Redis missing — rate limiting AND cache DISABLED. Set UPSTASH_REDIS_REST_URL/UPSTASH_REDIS_REST_TOKEN.");
     }
     return { allowed: true, remaining: maxRequests, reset: 0 };
   }
@@ -36,18 +56,18 @@ export async function checkRateLimit(
   const windowKey = `ratelimit:${key}:${Math.floor(now / windowSeconds)}`;
 
   try {
-    const current = await redis.incr(windowKey);
+    const current = await withRedisTimeout(redis.incr(windowKey));
 
     if (current === 1) {
-      await redis.expire(windowKey, windowSeconds);
+      await withRedisTimeout(redis.expire(windowKey, windowSeconds));
     }
 
     if (current > maxRequests) {
-      // ponytail: self-heal a leaked bucket (expire lost on an earlier blip)
+      // self-heal a leaked bucket (expire lost on an earlier blip)
       // instead of 429-ing forever — happy path costs zero extra RTT.
       try {
-        if ((await redis.ttl(windowKey)) === -1) {
-          await redis.expire(windowKey, windowSeconds);
+        if ((await withRedisTimeout(redis.ttl(windowKey))) === -1) {
+          await withRedisTimeout(redis.expire(windowKey, windowSeconds));
           return { allowed: true, remaining: maxRequests - 1, reset: now + windowSeconds };
         }
       } catch {
@@ -61,7 +81,7 @@ export async function checkRateLimit(
       reset: Math.ceil(now / windowSeconds) * windowSeconds,
     };
   } catch {
-    // ponytail: fail-open — Redis outage must not turn writes into 500s.
+    // fail-open — Redis outage must not turn writes into 500s.
     return { allowed: true, remaining: maxRequests, reset: 0 };
   }
 }
@@ -74,7 +94,7 @@ export async function getCached<T>(
   if (!redis) return null;
 
   try {
-    const data = await redis.get<T>(`${CACHE_PREFIX}${key}`);
+    const data = await withRedisTimeout(redis.get<T>(`${CACHE_PREFIX}${key}`));
     return data ?? null;
   } catch {
     return null;
@@ -89,7 +109,7 @@ export async function setCached<T>(
   if (!redis) return;
 
   try {
-    await redis.set(`${CACHE_PREFIX}${key}`, data, { ex: ttlSeconds });
+    await withRedisTimeout(redis.set(`${CACHE_PREFIX}${key}`, data, { ex: ttlSeconds }));
   } catch {
   }
 }
@@ -100,16 +120,16 @@ export async function invalidateCache(pattern: string): Promise<void> {
   try {
     const matchPattern = `${CACHE_PREFIX}${pattern}`;
     let cursor: number | string = 0;
-    // ponytail: pipeline SCAN rounds — was strictly sequential RTTs.
+    // pipeline SCAN rounds — was strictly sequential RTTs.
     const pending: Promise<unknown>[] = [];
 
     do {
-      const result = await redis.scan(cursor, { match: matchPattern, count: 100 }) as [string, string[]];
+      const result = await withRedisTimeout(redis.scan(cursor, { match: matchPattern, count: 100 })) as [string, string[]];
       cursor = result[0];
       const keys = result[1];
 
       if (keys.length > 0) {
-        pending.push(redis.del(...keys));
+        pending.push(withRedisTimeout(redis.del(...keys)));
         // bound concurrency so a huge namespace can't fan out unbounded.
         if (pending.length >= 4) await Promise.all(pending.splice(0));
       }

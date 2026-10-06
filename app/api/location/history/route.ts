@@ -21,8 +21,26 @@ export async function GET() {
       );
     }
 
+    // share-gated — opted-out users' trails stay private.
+    // Missing share rows = legacy sharing (visible); explicit false hides.
+    const partnerId = await getPartnerId(userId, coupleId);
+    let visibleIds = [userId, partnerId].filter((v): v is string => !!v);
+    try {
+      const shares = await prisma.locationShare.findMany({
+        where: { userId: { in: visibleIds } },
+        select: { userId: true, isSharing: true },
+      });
+      if (Array.isArray(shares) && shares.length > 0) {
+        const hidden = new Set(shares.filter((s) => s.isSharing === false).map((s) => s.userId));
+        hidden.delete(userId);
+        visibleIds = visibleIds.filter((v) => !hidden.has(v));
+      }
+    } catch {
+      // share table unavailable — fall back to couple-visible (legacy behavior).
+    }
+
     const history = await prisma.userLocationHistory.findMany({
-      where: { userId: { in: [userId, (await getPartnerId(userId, coupleId))].filter(Boolean) as string[] } },
+      where: { userId: { in: visibleIds } },
       orderBy: { createdAt: "desc" },
       take: 100,
       select: {

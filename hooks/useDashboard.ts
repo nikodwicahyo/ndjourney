@@ -16,7 +16,7 @@ export function useDashboardStats() {
       const json = await res.json();
       return json.data as DashboardStats;
     },
-    // ponytail: stats change on writes (pusher INVALIDATES) — poll is a fallback, not the source.
+    // stats change on writes (pusher INVALIDATES) — poll is a fallback, not the source.
     staleTime: 30_000,
     refetchInterval: 60_000,
     refetchIntervalInBackground: false,
@@ -26,10 +26,10 @@ export function useDashboardStats() {
 export function useRecentActivity() {
   return useQuery({
     queryKey: dashboardKeys.activity(),
-    queryFn: async () => {
-      const res = await fetch("/api/dashboard/activity");
+    queryFn: async ({ signal }) => {
+      const res = await fetch("/api/dashboard/activity", { signal });
       const json = await res.json().catch(() => ({}));
-      // ponytail: surface errors instead of silent [] — but keep [] for 404/no-couple.
+      // surface errors instead of silent [] — but keep [] for 404/no-couple.
       if (res.status === 404) return [];
       if (!res.ok) throw new Error(json.error ?? `Gagal memuat aktivitas (${res.status})`);
       return (json.data ?? []) as RecentActivity[];

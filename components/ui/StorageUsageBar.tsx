@@ -208,48 +208,56 @@ export default function StorageUsageBar({
 
   return (
     <div className={cn("rounded-2xl border border-border bg-card", className)}>
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex w-full items-center justify-between gap-3 p-4 text-left sm:p-5"
-      >
-        <div className="flex items-center gap-3 min-w-0">
-          <div
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-            style={{ backgroundColor: "#6366F1" + "15" }}
-          >
-            <HardDrive className="h-5 w-5" style={{ color: "#6366F1" }} />
+      <div className="flex w-full items-center justify-between gap-3 p-4 text-left sm:p-5">
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={isOpen}
+          className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+              style={{ backgroundColor: "#6366F1" + "15" }}
+            >
+              <HardDrive className="h-5 w-5" style={{ color: "#6366F1" }} />
+            </div>
+            <div className="min-w-0">
+              <p className="font-heading text-sm font-semibold">Penyimpanan</p>
+              <p className="text-xs text-muted-foreground">
+                {formatBytes(used)}{limit > 0 ? ` dari ${formatBytes(limit)}` : ""}
+              </p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <p className="font-heading text-sm font-semibold">Penyimpanan</p>
-            <p className="text-xs text-muted-foreground">
-              {formatBytes(used)}{limit > 0 ? ` dari ${formatBytes(limit)}` : ""}
-            </p>
-          </div>
-        </div>
+        </button>
         <div className="flex shrink-0 items-center gap-2">
           {onRefresh && (
-            <span
-              role="button"
-              tabIndex={0}
+            <button
+              type="button"
               onClick={(e) => { e.stopPropagation(); onRefresh(); }}
-              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); onRefresh(); } }}
+              aria-label="Muat ulang penggunaan penyimpanan"
               className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
             >
               <RefreshCw className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")} />
               {isRefreshing ? "Memuat..." : "Refresh"}
-            </span>
+            </button>
           )}
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted">
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-expanded={isOpen}
+            aria-label={isOpen ? "Tutup rincian penyimpanan" : "Buka rincian penyimpanan"}
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted transition-colors hover:bg-accent"
+          >
             <ChevronDown
               className={cn(
                 "h-4 w-4 text-foreground transition-transform duration-200",
                 isOpen && "rotate-180"
               )}
             />
-          </span>
+          </button>
         </div>
-      </button>
+      </div>
 
       {limit > 0 && (
         <div className="px-4 sm:px-5">

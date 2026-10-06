@@ -9,7 +9,7 @@ import { getJakartaToday } from "@/lib/date";
 
 export default function NoteList() {
   const today = getJakartaToday();
-  const { data: notes, isLoading, error } = useDailyNotes(today);
+  const { data: notes, isLoading, error, refetch } = useDailyNotes(today);
 
   if (isLoading) {
     return (
@@ -24,8 +24,8 @@ export default function NoteList() {
   if (error) {
     return (
       <div className="flex flex-col items-center gap-3 py-8 text-center">
-        <p className="text-sm text-destructive">Gagal memuat catatan</p>
-        <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+        <p role="alert" className="text-sm text-destructive">Gagal memuat catatan</p>
+        <Button variant="outline" size="sm" onClick={() => refetch()}>
           Coba Lagi
         </Button>
       </div>

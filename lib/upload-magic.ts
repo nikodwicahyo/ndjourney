@@ -2,7 +2,7 @@
  * Magic-bytes content sniffing for uploads.
  * Client-controlled `file.type` is a claim, not a fact — verify the bytes.
  */
-// ponytail: single table shared by /upload, /upload/bulk, /upload/server.
+// single table shared by /upload, /upload/bulk, /upload/server.
 export const MAGIC_BYTES: Record<string, string[]> = {
   "image/jpeg": ["ffd8ff"],
   "image/png": ["89504e47"],

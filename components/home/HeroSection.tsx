@@ -24,7 +24,7 @@ export default function HeroSection({
   heroCrop = null,
 }: HeroSectionProps) {
   const heroIsVideo = useMemo(() => isVideoUrl(heroPhotoUrl), [heroPhotoUrl]);
-  // ponytail: crop renders with the SAME math as the cropper preview (lib/image-crop),
+  // crop renders with the SAME math as the cropper preview (lib/image-crop),
   // measured against the real viewport — preview IS the output.
   const [viewport, setViewport] = useState<{ w: number; h: number } | null>(null);
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
@@ -51,6 +51,7 @@ export default function HeroSection({
 
   useEffect(() => {
     let i = 0;
+    let interval2: ReturnType<typeof setInterval> | null = null;
     setShowCursor1(true);
     const interval1 = setInterval(() => {
       if (i < name1.length) {
@@ -62,21 +63,26 @@ export default function HeroSection({
         setShowCursor2(true);
 
         let j = 0;
-        const interval2 = setInterval(() => {
+        const inner = setInterval(() => {
           if (j < name2.length) {
             setDisplayedName2(name2.slice(0, j + 1));
             j++;
           } else {
-            clearInterval(interval2);
+            clearInterval(inner);
             setShowCursor2(false);
             setTypingDone(true);
           }
         }, 80);
+        interval2 = inner;
       }
     }, 100);
 
     return () => {
       clearInterval(interval1);
+      if (interval2) {
+        clearInterval(interval2);
+        interval2 = null;
+      }
     };
   }, [name1, name2]);
 

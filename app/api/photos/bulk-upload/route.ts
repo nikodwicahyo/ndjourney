@@ -61,13 +61,31 @@ export async function POST(request: Request) {
     const flatParams: unknown[] = [];
     let idx = 1;
 
-    // ponytail: per-item isolation — one bad file must not fail the whole batch
+    // P-05: one album lookup for the whole batch (was N serial findUniques).
+    const batchAlbumIds = [...new Set(parsed.data.photos.map((p) => p.albumId).filter((a): a is string => !!a))];
+    const batchAlbums = batchAlbumIds.length
+      ? await prisma.album.findMany({
+          where: { id: { in: batchAlbumIds } },
+          select: { id: true, coupleId: true },
+        })
+      : [];
+    const batchAlbumById = new Map(batchAlbums.map((a) => [a.id, a]));
+
+    // per-item isolation — one bad file must not fail the whole batch
     const failed: { publicId: string; error: string }[] = [];
     const valid: typeof parsed.data.photos = [];
     for (const p of parsed.data.photos) {
       if (!isAllowedCloudinaryUrl(p.url) || !publicIdBelongsToUser(p.publicId, session.user.id)) {
         failed.push({ publicId: p.publicId, error: `Invalid or unowned media: ${p.publicId}` });
         continue;
+      }
+
+      if (p.albumId) {
+        const albumOwner = batchAlbumById.get(p.albumId);
+        if (!albumOwner || (albumOwner.coupleId !== null && albumOwner.coupleId !== coupleId)) {
+          failed.push({ publicId: p.publicId, error: "Album tidak ditemukan" });
+          continue;
+        }
       }
 
       if (p.thumbnailUrl && !isAllowedCloudinaryUrl(p.thumbnailUrl)) {
@@ -102,7 +120,7 @@ export async function POST(request: Request) {
         p.thumbnailUrl ?? null,
         p.caption ?? null,
         p.takenAt ? new Date(p.takenAt) : null,
-        // ponytail: null sentinel like single POST (0 breaks SUM math)
+        // null sentinel like single POST (0 breaks SUM math)
         p.width || null,
         p.height || null,
         p.fileSize || null,
@@ -122,7 +140,7 @@ export async function POST(request: Request) {
     try {
       photos = await prisma.$queryRawUnsafe<Photo[]>(query, ...flatParams);
     } catch {
-      // ponytail: one bad row (e.g. stale albumId FK) must not kill the batch -> per-row fallback
+      // one bad row (e.g. stale albumId FK) must not kill the batch -> per-row fallback
       const settled = await Promise.allSettled(
         valid.map((p) =>
           prisma.photo.create({
@@ -147,7 +165,7 @@ export async function POST(request: Request) {
       photos = [];
       settled.forEach((r, i) => {
         if (r.status === "fulfilled") photos.push(r.value as Photo);
-        // ponytail: per-item DB errors stay server-side (Prisma messages leak schema).
+        // per-item DB errors stay server-side (Prisma messages leak schema).
         else failed.push({ publicId: valid[i].publicId, error: "Gagal menyimpan foto" });
       });
       if (photos.length === 0) {
@@ -159,6 +177,7 @@ export async function POST(request: Request) {
       invalidateCache("photos:*"),
       invalidateCache("albums:*"),
       invalidateCache("dashboard:*"),
+      invalidateCache("home:*"),
     ]);
 
     if (coupleId) {
@@ -172,7 +191,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Error bulk uploading photos:", error);
     const code = (error as { code?: string })?.code;
-    // ponytail: DB-unreachable / schema drift must read 503 (retryable), not 500 — same mapping as POST /api/albums.
+    // DB-unreachable / schema drift must read 503 (retryable), not 500 — same mapping as POST /api/albums.
     if (code && (/^P1(001|002|008|017|019|020)$/.test(code) || code === "P2022")) {
       return NextResponse.json(
         { error: "Database tidak dapat dijangkau. Coba lagi nanti.", code },

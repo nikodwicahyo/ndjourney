@@ -7,7 +7,7 @@ import { queryKeys } from "@/lib/query-keys";
 import type { Photo, CloudinaryUsage } from "@/types";
 import { getUploadQueue, type QueuedUpload } from "@/lib/upload-queue";
 import { getResourceType, generatePublicId } from "@/lib/upload-config";
-import { parseResponseBody } from "@/lib/utils";
+import { parseResponseBody, buildPhotoPayload } from "@/lib/utils";
 
 type UploadResult = {
   uploaded: Photo[];
@@ -44,26 +44,12 @@ async function savePhotoToDb(
   const res = await fetch("/api/photos", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      url: u.result!.url,
-      publicId: u.result!.publicId,
-      thumbnailUrl: u.result!.thumbnailUrl,
-      width: u.result!.width,
-      height: u.result!.height,
-      fileSize: u.result!.bytes,
-      isVideo:
-        u.result!.format?.includes("mp4") ||
-        u.result!.format?.includes("mov") ||
-        u.result!.isVideo ||
-        false,
-      albumId,
-      isPublic,
-    }),
+    body: JSON.stringify(buildPhotoPayload(u.result!, albumId, isPublic)),
   });
 
   if (!res.ok) {
     const err = await parseResponseBody(res);
-    // ponytail: DB save failed after Cloudinary success -> delete orphan so storage doesn't leak
+    // DB save failed after Cloudinary success -> delete orphan so storage doesn't leak
     const publicId = u.result!.publicId;
     try {
       const del = await fetch(`/api/upload/${encodeURIComponent(publicId)}`, { method: "DELETE" });
@@ -144,7 +130,7 @@ export function useUploadPhotos(): UseUploadPhotosReturn {
       );
       setQueue(uploadQueue.getAll());
 
-      // ponytail: saves run max 3-at-a-time — 20-way Promise.all exhausted
+      // saves run max 3-at-a-time — 20-way Promise.all exhausted
       // the Neon pool (max 5) and the next album create 500/503d right after.
       const saveTasks = uploadPromises.map((promise, idx) => async () => {
         const file = files[idx];
@@ -176,7 +162,7 @@ export function useUploadPhotos(): UseUploadPhotosReturn {
         .filter((r): r is { status: "fulfilled"; value: Photo } => r.status === "fulfilled")
         .map((r) => r.value);
 
-      // ponytail: only invalidate caches when at least one save succeeded.
+      // only invalidate caches when at least one save succeeded.
       if (uploaded.length > 0) invalidateAfterSave(qc);
 
       const failed = results
@@ -284,20 +270,7 @@ export function useUploadPhoto() {
       const photoRes = await fetch("/api/photos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          url: result.url,
-          publicId: result.publicId,
-          thumbnailUrl: result.thumbnailUrl,
-          width: result.width,
-          height: result.height,
-          fileSize: result.bytes,
-          isVideo:
-            result.format?.includes("mp4") ||
-            result.format?.includes("mov") ||
-            result.isVideo ||
-            false,
-          albumId,
-        }),
+        body: JSON.stringify(buildPhotoPayload(result, albumId)),
       });
 
       if (!photoRes.ok) {

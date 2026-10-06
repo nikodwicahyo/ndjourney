@@ -33,14 +33,18 @@ export async function GET(request: NextRequest) {
       const cacheK = cacheKey("storage", "usage");
       const cached = await getCached<CloudinaryUsage>(cacheK);
       if (cached) {
-        return NextResponse.json({ data: cached });
+        return NextResponse.json({ data: cached }, {
+          headers: { "Cache-Control": "private, no-cache" },
+        });
       }
     }
 
     const usage = await getCloudinaryUsage();
     await setCached(cacheKey("storage", "usage"), usage, CACHE_TTL);
 
-    return NextResponse.json({ data: usage });
+    return NextResponse.json({ data: usage }, {
+      headers: { "Cache-Control": "private, no-cache" },
+    });
   } catch (error) {
     console.error("Error fetching storage usage:", error);
     return NextResponse.json(

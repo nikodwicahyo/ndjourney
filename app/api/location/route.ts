@@ -57,7 +57,7 @@ export async function GET() {
       );
     }
 
-    // ponytail: avatar comes from the session (refreshed on PROFILE via updateSession) — was a 4th query.
+    // avatar comes from the session (refreshed on PROFILE via updateSession) — was a 4th query.
     const [selfShare, partnerMember, selfLocation] = await Promise.all([
       prisma.locationShare.findUnique({
         where: { userId },
@@ -203,34 +203,36 @@ export async function POST(request: Request) {
 
     const now = new Date();
 
-    // Upsert current location
-    await prisma.userLocation.upsert({
-      where: { userId },
-      create: {
-        userId,
-        coupleId,
-        latitude,
-        longitude,
-        accuracy: accuracy ?? null,
-        heading: heading ?? null,
-        speed: speed ?? null,
-        altitude: altitude ?? null,
-        deviceType,
-      },
-      update: {
-        latitude,
-        longitude,
-        accuracy: accuracy ?? null,
-        heading: heading ?? null,
-        speed: speed ?? null,
-        altitude: altitude ?? null,
-        deviceType,
-      },
-    });
-
-    // Write to location history (throttled: only if last history entry is >30s old or doesn't exist).
-    // ponytail: single transaction — concurrent 8s polls from 2 tabs can't duplicate/over-trim.
+    // P-11: current position + history in ONE transaction — a history-trim rollback
+    // used to leave the current row advanced past the trail.
     await prisma.$transaction(async (tx) => {
+      // Upsert current location
+      await tx.userLocation.upsert({
+        where: { userId },
+        create: {
+          userId,
+          coupleId,
+          latitude,
+          longitude,
+          accuracy: accuracy ?? null,
+          heading: heading ?? null,
+          speed: speed ?? null,
+          altitude: altitude ?? null,
+          deviceType,
+        },
+        update: {
+          latitude,
+          longitude,
+          accuracy: accuracy ?? null,
+          heading: heading ?? null,
+          speed: speed ?? null,
+          altitude: altitude ?? null,
+          deviceType,
+        },
+      });
+
+      // Write to location history (throttled: only if last history entry is >30s old or doesn't exist).
+      // single transaction — concurrent 8s polls from 2 tabs can't duplicate/over-trim.
       const lastHistory = await tx.userLocationHistory.findFirst({
         where: { userId },
         orderBy: { createdAt: "desc" },

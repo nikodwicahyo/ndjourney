@@ -382,7 +382,7 @@ export default function GameManager() {
 
               {type === "SLIDING_PUZZLE" || type === "MEMORY_BLOCK_BLAST" ? (
                 <div className="rounded-xl border border-border bg-muted/30 p-4 text-center text-sm text-muted-foreground">
-                  Game ini tidak menggunakan pertanyaan. Klik "Tutup" untuk kembali.
+                  Game ini tidak menggunakan pertanyaan. Klik &quot;Tutup&quot; untuk kembali.
                 </div>
               ) : (
               <>
@@ -551,6 +551,7 @@ export default function GameManager() {
               <div
                 role="button"
                 tabIndex={0}
+                aria-expanded={expandedId === q.id}
                 onClick={() =>
                   setExpandedId(expandedId === q.id ? null : q.id)
                 }
@@ -576,7 +577,7 @@ export default function GameManager() {
                       e.stopPropagation();
                       startEditing(q);
                     }}
-                    className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+                    className="rounded-full p-2.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
                     aria-label="Edit pertanyaan"
                   >
                     <Pencil className="h-3.5 w-3.5" />
@@ -592,7 +593,7 @@ export default function GameManager() {
                         deleteQuestion.mutate(q.id);
                       }
                     }}
-                    className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                    className="rounded-full p-2.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
                     aria-label="Hapus pertanyaan"
                   >
                     <Trash2 className="h-3.5 w-3.5" />

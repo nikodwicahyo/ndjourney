@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     }
 
     const rawMeta = parsed.data.metadata ?? {};
-    // ponytail: cap metadata size — unbounded JSON bloats the row.
+    // cap metadata size — unbounded JSON bloats the row.
     if (JSON.stringify(rawMeta).length > 4000) {
       return NextResponse.json(
         { error: "Metadata terlalu besar (maks 4KB)" },
@@ -66,6 +66,7 @@ export async function POST(request: Request) {
     });
 
     await invalidateCache("games:*");
+    await invalidateCache("home:*");
 
     if (isAuthed) {
       const coupleId = await getUserCoupleId(session!.user.id);

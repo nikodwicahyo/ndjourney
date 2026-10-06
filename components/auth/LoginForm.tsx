@@ -4,12 +4,15 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui";
+import { useMounted } from "@/hooks/useMounted";
 import { Loader2, Mail, Lock, Eye, EyeOff } from "lucide-react";
 
 export default function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
+  const rawCallback = searchParams.get("callbackUrl") || "/dashboard";
+  // same-origin only — crafted ?callbackUrl=https://evil must not navigate away.
+  const callbackUrl = rawCallback.startsWith("/") && !rawCallback.startsWith("//") ? rawCallback : "/dashboard";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -17,6 +20,10 @@ export default function LoginForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  // Pre-hydration submit fires a native GET (credentials leak into the URL
+  // query, no session) — keep every submitter inert until handlers exist.
+  const mounted = useMounted();
+  const submitDisabled = loading || !mounted;
 
   async function handleGoogleSignIn() {
     setError("");
@@ -56,11 +63,19 @@ export default function LoginForm() {
     setError("");
     setLoading(true);
 
-    const result = await signIn("credentials", {
-      email,
-      password,
-      redirect: false,
-    });
+    let result: Awaited<ReturnType<typeof signIn>>;
+    try {
+      result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+      });
+    } catch {
+      // network failure etc. — never leave the button spinning forever.
+      setError("Tidak dapat menghubungi server. Coba lagi nanti.");
+      setLoading(false);
+      return;
+    }
 
     setLoading(false);
 
@@ -85,7 +100,7 @@ export default function LoginForm() {
         size="lg"
         className="w-full"
         onClick={handleGoogleSignIn}
-        disabled={googleLoading}
+        disabled={googleLoading || !mounted}
       >
         {googleLoading ? (
           <Loader2 className="h-4 w-4 animate-spin" />
@@ -170,14 +185,14 @@ export default function LoginForm() {
         </div>
 
         {error && (
-          <p className="text-sm text-destructive">{error}</p>
+          <p role="alert" className="text-sm text-destructive">{error}</p>
         )}
 
         <Button
           type="submit"
           size="lg"
           className="w-full"
-          disabled={loading}
+          disabled={submitDisabled}
         >
           {loading ? (
             <>

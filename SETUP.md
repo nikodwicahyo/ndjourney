@@ -148,7 +148,7 @@ git push origin main
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `DATABASE_URL` | ✅ | Neon PostgreSQL connection string |
-| `NEXTAUTH_SECRET` | ✅ | Generate: `openssl rand -base64 32` |
+| `AUTH_SECRET` | ✅ | Generate: `openssl rand -base64 32` (`NEXTAUTH_SECRET` accepted as fallback) |
 | `NEXTAUTH_URL` | ✅ | `http://localhost:3000` (dev) / production URL |
 | `GOOGLE_CLIENT_ID` | ✅ | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | ✅ | Google OAuth client secret |
@@ -162,6 +162,8 @@ git push origin main
 | `SMTP_USER` | ❌ | SMTP username (Gmail email) |
 | `SMTP_PASS` | ❌ | SMTP password (Gmail App Password) |
 | `SMTP_FROM_EMAIL` | ❌ | Sender email address |
+| `CRON_SECRET` | ✅ | Secret for Vercel Cron (`Authorization: Bearer` on `/api/cron/time-capsule`) |
+| `SEED_PASSWORD` | ❌ | Min 12 chars; required only to run `db:seed` (never in production) |
 | `INVITE_TOKEN` | ✅ | Token untuk registrasi invite-only |
 | `PUSHER_APP_ID` | ❌ | Pusher App ID (real-time sync) |
 | `PUSHER_SECRET` | ❌ | Pusher App Secret |

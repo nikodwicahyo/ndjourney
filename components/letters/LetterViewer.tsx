@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLetter, useOpenLetter } from "@/hooks/useLetters";
+import type { LetterWithUsers } from "@/hooks/useLetters";
 import { formatDateTime, formatRelativeTime } from "@/lib/utils";
 
 import { LETTER_MOOD_CONFIG } from "@/types";
@@ -27,27 +28,40 @@ export default function LetterViewer({ id, isRecipient, backHref = "/dashboard/l
 
   const [sanitizedContent, setSanitizedContent] = useState("");
 
+  // Locked capsules arrive as a partial payload (no content/recipient) —
+  // narrow via explicit casts: Prisma model types carry index signatures,
+  // so `"content" in letter` does not discriminate the union.
+  const asFull = letter as Partial<LetterWithUsers> | null;
+  const fullLetter = letter && asFull?.content !== undefined ? (letter as LetterWithUsers) : null;
+
   useEffect(() => {
-    if (!letter?.content) {
+    if (!fullLetter?.content) {
       setSanitizedContent("");
       return;
     }
     import("dompurify").then((DOMPurify) => {
       setSanitizedContent(
-        DOMPurify.default.sanitize(letter.content, {
+        DOMPurify.default.sanitize(fullLetter.content, {
           ALLOWED_TAGS: ["p", "br", "strong", "em", "u", "h1", "h2", "h3", "ul", "ol", "li", "blockquote", "pre", "code", "span", "div", "hr", "a"],
           ALLOWED_ATTR: ["href", "target", "rel", "class", "style"],
           ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):|[^a-z]|[a-z+.-]+(?:[^a-z+.-:]|$))/i,
         }),
       );
     });
-  }, [letter?.content]);
+  }, [fullLetter?.content]);
 
+  // A locked capsule arrives as the partial payload (no content) — that alone
+  // means locked; otherwise evaluate the time condition on the full letter.
   const isLocked =
-    letter?.isTimeCapsule &&
-    letter?.unlockAt &&
-    new Date(letter.unlockAt) > new Date() &&
-    !letter?.isOpened;
+    !!letter &&
+    (asFull?.content === undefined
+      ? true
+      : !!(
+          asFull.isTimeCapsule &&
+          asFull.unlockAt &&
+          new Date(asFull.unlockAt) > new Date() &&
+          !asFull.isOpened
+        ));
 
   async function handleOpen() {
     setIsOpening(true);
@@ -87,11 +101,11 @@ export default function LetterViewer({ id, isRecipient, backHref = "/dashboard/l
     );
   }
 
-  const mood = letter.mood
-    ? LETTER_MOOD_CONFIG[letter.mood as keyof typeof LETTER_MOOD_CONFIG]
+  const mood = fullLetter?.mood
+    ? LETTER_MOOD_CONFIG[fullLetter.mood as keyof typeof LETTER_MOOD_CONFIG]
     : null;
 
-  if ("isTimeCapsule" in letter && isLocked) {
+  if (isLocked) {
     return (
       <TimeCapsuleLock
         unlockAt={letter.unlockAt ? new Date(letter.unlockAt).toISOString() : new Date().toISOString()}
@@ -103,7 +117,12 @@ export default function LetterViewer({ id, isRecipient, backHref = "/dashboard/l
     );
   }
 
-  const showUnlockAnimation = isRecipient && !letter.isOpened && !opened;
+  // Locked capsules return above — below is always the full letter.
+  if (!fullLetter) {
+    return null;
+  }
+
+  const showUnlockAnimation = isRecipient && !fullLetter.isOpened && !opened;
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -111,8 +130,8 @@ export default function LetterViewer({ id, isRecipient, backHref = "/dashboard/l
         {showUnlockAnimation ? (
           <EnvelopeAnimation
             key="envelope"
-            senderName={letter.author?.name || "Pasangan"}
-            letterTitle={letter.title}
+            senderName={fullLetter.author?.name || "Pasangan"}
+            letterTitle={fullLetter.title}
             isOpening={isOpening}
             onOpen={handleOpen}
           />
@@ -144,26 +163,26 @@ export default function LetterViewer({ id, isRecipient, backHref = "/dashboard/l
               )}
 
               <h1 className="font-heading text-2xl font-semibold">
-                {letter.title}
+                {fullLetter.title}
               </h1>
 
               <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                 <span className="inline-flex items-center gap-1.5">
                   <Heart className="h-3.5 w-3.5" />
                   <Avatar className="h-6 w-6 shrink-0">
-                    <AvatarImage src={letter.author?.image ?? undefined} alt={letter.author?.name ?? "Author"} />
-                    <AvatarFallback>{letter.author?.name?.charAt(0) || "P"}</AvatarFallback>
+                    <AvatarImage src={fullLetter.author?.image ?? undefined} alt={fullLetter.author?.name ?? "Author"} />
+                    <AvatarFallback>{fullLetter.author?.name?.charAt(0) || "P"}</AvatarFallback>
                   </Avatar>
-                  {letter.author?.name || "Pasangan"}
+                  {fullLetter.author?.name || "Pasangan"}
                 </span>
                 <span>·</span>
-                <span>{formatDateTime(letter.createdAt)}</span>
-                {letter.isTimeCapsule && letter.openedAt && (
+                <span>{formatDateTime(fullLetter.createdAt)}</span>
+                {fullLetter.isTimeCapsule && fullLetter.openedAt && (
                   <>
                     <span>·</span>
                     <span className="inline-flex items-center gap-1">
                       <Sparkles className="h-3.5 w-3.5" />
-                      Dibuka {formatRelativeTime(letter.openedAt)}
+                      Dibuka {formatRelativeTime(fullLetter.openedAt)}
                     </span>
                   </>
                 )}

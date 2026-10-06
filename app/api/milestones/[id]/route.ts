@@ -7,6 +7,8 @@ import { parseJakartaDateOnly } from "@/lib/date";
 import { invalidateCache } from "@/lib/redis";
 import { deleteFromCloudinary } from "@/lib/cloudinary";
 import { getUserCoupleId } from "@/lib/couple";
+import { isAllowedCloudinaryUrl } from "@/lib/upload-policy";
+import { verifyUploadForSave } from "@/lib/upload-verify";
 import { triggerCoupleEvent } from "@/lib/pusher-server";
 
 export async function GET(
@@ -30,6 +32,7 @@ export async function GET(
         color: true,
         location: true,
         isPublic: true,
+        coupleId: true,
         createdById: true,
         createdAt: true,
         updatedAt: true,
@@ -51,13 +54,26 @@ export async function GET(
       );
     }
 
+    // authed callers may only read own couple's milestones (legacy null = shared).
+    // P-04: coupleId selected on the first read — no second findUnique, static import.
+    if (isAuthed) {
+      const callerCoupleId = session?.user ? await getUserCoupleId(session.user.id) : null;
+      const ownerCoupleId = (milestone as { coupleId?: string | null }).coupleId ?? null;
+      if (ownerCoupleId !== null && ownerCoupleId !== callerCoupleId) {
+        return NextResponse.json(
+          { error: "Milestone tidak ditemukan" },
+          { status: 404 },
+        );
+      }
+    }
+
     const [user, photos] = await Promise.all([
       prisma.user.findUnique({
         where: { id: milestone.createdById },
         select: { id: true, name: true, image: true },
       }),
       prisma.milestonePhoto.findMany({
-        // ponytail: same public-photo rule as list — anon never gets private photo URLs via a public milestone.
+        // same public-photo rule as list — anon never gets private photo URLs via a public milestone.
         where: {
           milestoneId: id,
           ...(isAuthed ? {} : {
@@ -80,6 +96,7 @@ export async function GET(
     return NextResponse.json({
       data: {
         ...milestone,
+        coupleId: undefined,
         createdBy: user ?? null,
         photos,
       },
@@ -140,13 +157,24 @@ export async function PUT(
       date = parsed;
     }
 
-    // ponytail: per-item isolation — one bad upload must not 500 the whole update
+    // per-item isolation — one bad upload must not 500 the whole update
     const createdPhotos: Array<{ id: string; crop?: { x: number; y: number; w: number; h: number } | null }> = [];
     const failedPhotos: { publicId: string; error: string }[] = [];
     if (photoUploads?.length) {
       const settled = await Promise.allSettled(
-        photoUploads.map((upload) =>
-          prisma.photo.create({
+        photoUploads.map(async (upload) => {
+          // SEC: same end-to-end byte trust as /api/photos — this path
+          // previously persisted uploads with no URL checks at all.
+          await verifyUploadForSave({
+            url: upload.url,
+            publicId: upload.publicId,
+            userId: session.user.id,
+            isVideo: false,
+          });
+          if (upload.thumbnailUrl && !isAllowedCloudinaryUrl(upload.thumbnailUrl)) {
+            throw new Error("URL thumbnail tidak valid");
+          }
+          return prisma.photo.create({
             data: {
               url: upload.url,
               publicId: upload.publicId,
@@ -155,8 +183,8 @@ export async function PUT(
               isMilestoneOnly: true,
             },
             select: { id: true },
-          }),
-        ),
+          });
+        }),
       );
       settled.forEach((r, i) => {
         if (r.status === "fulfilled") createdPhotos.push({ id: r.value.id, crop: photoUploads[i].crop ?? null });
@@ -178,36 +206,44 @@ export async function PUT(
       const keepSet = new Set(allPhotoIds);
       const removedPhotoIds = currentPhotoIds.filter((pid) => !keepSet.has(pid));
 
-      if (removedPhotoIds.length > 0) {
-        const orphanedPhotos = await prisma.photo.findMany({
-          where: { id: { in: removedPhotoIds }, isMilestoneOnly: true },
-          select: { id: true, publicId: true, isVideo: true },
-        });
+      // P-11: link replace + orphan cleanup in one transaction — crash between
+      // deleteMany and createMany used to leave the milestone with zero photos.
+      // (Cloudinary deletes stay outside: external side-effects can't roll back.)
+      const orphanedPhotos = removedPhotoIds.length > 0
+        ? await prisma.photo.findMany({
+            where: { id: { in: removedPhotoIds }, isMilestoneOnly: true },
+            select: { id: true, publicId: true, isVideo: true },
+          })
+        : [];
 
-        await prisma.milestonePhoto.deleteMany({ where: { milestoneId: id } });
+      await prisma.$transaction([
+        prisma.milestonePhoto.deleteMany({ where: { milestoneId: id } }),
+        ...(allPhotoIds.length > 0
+          ? [
+              prisma.milestonePhoto.createMany({
+                data: allPhotoIds.map((pid) => ({
+                  milestoneId: id,
+                  photoId: pid,
+                  crop: uploadCropById.get(pid) ?? photoCrops?.[pid] ?? undefined,
+                })),
+              }),
+            ]
+          : []),
+        ...(orphanedPhotos.length > 0
+          ? [
+              prisma.photo.deleteMany({
+                where: { id: { in: orphanedPhotos.map((p) => p.id) } },
+              }),
+            ]
+          : []),
+      ]);
 
-        if (orphanedPhotos.length > 0) {
-          await Promise.allSettled(
-            orphanedPhotos.map((p) =>
-              deleteFromCloudinary(p.publicId, p.isVideo ? "video" : "image")
-            )
-          );
-          await prisma.photo.deleteMany({
-            where: { id: { in: orphanedPhotos.map((p) => p.id) } },
-          });
-        }
-      } else {
-        await prisma.milestonePhoto.deleteMany({ where: { milestoneId: id } });
-      }
-
-      if (allPhotoIds.length > 0) {
-        await prisma.milestonePhoto.createMany({
-          data: allPhotoIds.map((pid) => ({
-            milestoneId: id,
-            photoId: pid,
-            crop: uploadCropById.get(pid) ?? photoCrops?.[pid] ?? undefined,
-          })),
-        });
+      if (orphanedPhotos.length > 0) {
+        await Promise.allSettled(
+          orphanedPhotos.map((p) =>
+            deleteFromCloudinary(p.publicId, p.isVideo ? "video" : "image")
+          )
+        );
       }
     }
 
@@ -251,6 +287,7 @@ export async function PUT(
 
     await invalidateCache("milestones:*");
     await invalidateCache("dashboard:*");
+    await invalidateCache("home:*");
 
     const coupleId = await getUserCoupleId(session.user.id);
     if (coupleId) {
@@ -323,13 +360,14 @@ export async function DELETE(
 
     await invalidateCache("milestones:*");
     await invalidateCache("dashboard:*");
+    await invalidateCache("home:*");
 
     const coupleId = await getUserCoupleId(userId);
     if (coupleId) {
       triggerCoupleEvent(coupleId, 'TIMELINE');
     }
 
-    return NextResponse.json({ message: "Milestone deleted" });
+    return NextResponse.json({ data: { id } });
   } catch (error) {
     return NextResponse.json(
       { error: "Terjadi kesalahan pada server. Coba lagi nanti." },

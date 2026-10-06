@@ -11,6 +11,17 @@ export type LetterWithUsers = Letter & {
   recipient: Pick<User, "id" | "name" | "image">;
 };
 
+// GET /api/letters omits `content` (list select) — the full Letter type lies here.
+// GET /api/letters/[id] on a locked capsule returns this partial shape.
+export type LetterListItem = Omit<LetterWithUsers, "content">;
+export type LockedLetter = Pick<
+  Letter,
+  "id" | "title" | "isTimeCapsule" | "unlockAt" | "mood" | "createdAt"
+> & {
+  author: Pick<User, "id" | "name" | "image">;
+};
+export type LetterDetail = LetterWithUsers | LockedLetter;
+
 export type LetterListType = "inbox" | "sent";
 
 export type CreateLetterInput = {
@@ -44,7 +55,7 @@ export function useLetters(type: LetterListType) {
   return useQuery({
     queryKey: letterKeys.list(type),
     queryFn: async () => {
-      return fetchJsonList<LetterWithUsers>(`/api/letters?type=${type}`);
+      return fetchJsonList<LetterListItem>(`/api/letters?type=${type}`);
     },
     staleTime: 30_000,
   });
@@ -58,7 +69,7 @@ export function useLetter(id: string) {
       if (res.status === 404) return null;
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error ?? `Gagal memuat surat (${res.status})`);
-      return (json.data ?? null) as LetterWithUsers | null;
+      return (json.data ?? null) as LetterDetail | null;
     },
     enabled: !!id,
     staleTime: 60_000,
@@ -69,8 +80,14 @@ export function useCreateLetter() {
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: CreateLetterInput) =>
-      api.post("/api/letters", data),
+    mutationFn: async (data: CreateLetterInput) => {
+      const res = await api.post("/api/letters", data);
+      if (res.error) throw new Error(res.error);
+      const body = res.data as { data?: unknown } | unknown;
+      return (body && typeof body === "object" && "data" in body
+        ? (body as { data: unknown }).data
+        : body) as LetterWithUsers;
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: letterKeys.all, refetchType: 'all' });
       qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats(), refetchType: 'all' });
@@ -83,7 +100,11 @@ export function useOpenLetter() {
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: string) => api.put(`/api/letters/${id}/open`),
+    mutationFn: async (id: string) => {
+      const res = await api.put(`/api/letters/${id}/open`);
+      if (res.error) throw new Error(res.error);
+      return res.data;
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: letterKeys.all, refetchType: 'all' });
       qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats(), refetchType: 'all' });
@@ -96,7 +117,11 @@ export function useDeleteLetter() {
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: string) => api.delete(`/api/letters/${id}`),
+    mutationFn: async (id: string) => {
+      const res = await api.delete(`/api/letters/${id}`);
+      if (res.error) throw new Error(res.error);
+      return res.data;
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: letterKeys.all, refetchType: 'all' });
       qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats(), refetchType: 'all' });

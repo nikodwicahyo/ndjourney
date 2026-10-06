@@ -8,7 +8,7 @@ const prismaMock = vi.hoisted(() => ({
   $queryRawUnsafe: vi.fn(),
   $transaction: vi.fn(async (ops: unknown[]) => ops),
   coupleMember: { findFirst: vi.fn(async () => ({ coupleId: "couple-1" })) },
-  album: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+  album: { findUnique: vi.fn(), findMany: vi.fn(async () => []), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
   milestone: { findMany: vi.fn(), count: vi.fn(), create: vi.fn(), findUnique: vi.fn(), update: vi.fn(), delete: vi.fn() },
   milestonePhoto: { findMany: vi.fn(), deleteMany: vi.fn(), createMany: vi.fn() },
   photo: { create: vi.fn(), findMany: vi.fn(), deleteMany: vi.fn(), updateMany: vi.fn() },
@@ -33,6 +33,8 @@ vi.mock("@/lib/batch", () => ({
   batchLoadUsers: vi.fn(async (ids: string[]) => new Map(ids.map((id) => [id, { id, name: "P", email: null, image: null }]))),
 }));
 vi.mock("@/lib/cloudinary", () => ({ deleteFromCloudinary: vi.fn(async () => {}) }));
+const verifyMock = vi.hoisted(() => vi.fn(async () => ({ resourceType: "image", format: "jpg", bytes: 8 })));
+vi.mock("@/lib/upload-verify", () => ({ verifyUploadForSave: verifyMock }));
 
 const albums = await import("@/app/api/albums/route");
 const albumById = await import("@/app/api/albums/[id]/route");
@@ -169,6 +171,43 @@ describe("milestones API contracts", () => {
     expect(combined.status).toBe(400);
   });
 
+  it("TML-05b: raw delivery URL uploads land in failedPhotos, never in DB", async () => {
+    const RAW = `https://res.cloudinary.com/test-cloud/raw/upload/v1/ndjourney-web/${ME}/evil.html`;
+    verifyMock.mockRejectedValueOnce(new Error("Media tidak valid atau tidak diizinkan"));
+    prismaMock.milestone.create.mockResolvedValue({ id: "m1", createdById: ME });
+    const res = await milestones.POST(new Request("http://localhost/api/milestones", {
+      method: "POST",
+      body: JSON.stringify({
+        title: "T",
+        date: "2024-02-14",
+        photoUploads: [{ url: RAW, publicId: `ndjourney-web/${ME}/evil` }],
+      }),
+    }));
+    expect(res.status).toBe(207);
+    const body = await res.json();
+    expect(body.failedPhotos).toHaveLength(1);
+    expect(prismaMock.photo.create).not.toHaveBeenCalled();
+  });
+
+  it("milestones/[id] PUT: raw delivery URL uploads land in failedPhotos, never in DB", async () => {
+    const RAW = `https://res.cloudinary.com/test-cloud/raw/upload/v1/ndjourney-web/${ME}/evil.html`;
+    verifyMock.mockRejectedValueOnce(new Error("Media tidak valid atau tidak diizinkan"));
+    prismaMock.milestone.findUnique.mockResolvedValue({ createdById: ME });
+    prismaMock.milestone.update.mockResolvedValue({ id: "m1", createdById: ME });
+    prismaMock.user.findUnique.mockResolvedValue({ id: ME, name: "A", image: null });
+    prismaMock.milestonePhoto.findMany.mockResolvedValue([]);
+    const res = await milestoneById.PUT(new Request("http://localhost/api/milestones/m1", {
+      method: "PUT",
+      body: JSON.stringify({
+        photoUploads: [{ url: RAW, publicId: `ndjourney-web/${ME}/evil` }],
+      }),
+    }), { params: Promise.resolve({ id: "m1" }) });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.failedPhotos).toHaveLength(1);
+    expect(prismaMock.photo.create).not.toHaveBeenCalled();
+  });
+
   it("milestones/[id] GET: 200, 404 missing + private hidden from anon", async () => {
     prismaMock.milestone.findUnique.mockResolvedValue({ id: "m1", createdById: ME, isPublic: true });
     prismaMock.user.findUnique.mockResolvedValue({ id: ME, name: "A", image: null });
@@ -203,6 +242,22 @@ describe("milestones API contracts", () => {
     expect(ok.status).toBe(200);
   });
 
+  it("milestones/[id] PUT: link replace runs in one transaction", async () => {
+    const pid = "cjld2cjxh0000qz8n0p3q4w5e9";
+    prismaMock.milestone.findUnique.mockResolvedValue({ createdById: ME });
+    prismaMock.milestone.update.mockResolvedValue({ id: "m1", createdById: ME });
+    prismaMock.milestonePhoto.findMany.mockResolvedValue([{ photoId: "old1" }]);
+    prismaMock.photo.findMany.mockResolvedValue([]);
+    prismaMock.user.findUnique.mockResolvedValue({ id: ME, name: "A", image: null });
+    const ok = await milestoneById.PUT(new Request("http://localhost/api/milestones/m1", {
+      method: "PUT",
+      body: JSON.stringify({ title: "Baru", photoIds: [pid] }),
+    }), { params: Promise.resolve({ id: "m1" }) });
+    expect(ok.status).toBe(200);
+    // P-11: deleteMany + createMany submitted atomically (single $transaction call).
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+  });
+
   it("milestones/[id] DELETE: creator-only + 200", async () => {
     prismaMock.milestone.findUnique.mockResolvedValue({ createdById: "someone-else" });
     const forbidden = await milestoneById.DELETE(new Request("http://localhost/api/milestones/m1", { method: "DELETE" }), { params: Promise.resolve({ id: "m1" }) });
@@ -222,6 +277,18 @@ describe("milestones API contracts", () => {
       body: JSON.stringify({ photos: [{ url: IMG(ME), publicId: `ndjourney-web/${ME}/a` }] }),
     }));
     expect([201, 207]).toContain(ok.status);
+    // P-05: one album lookup per batch, not one per item.
+    const alid = "cjld2cjxh0000qz8n0p3q4w5ea";
+    prismaMock.album.findMany.mockResolvedValue([{ id: alid, coupleId: COUPLE }] as never);
+    const batched = await bulkPost(new Request("http://localhost/api/photos/bulk-upload", {
+      method: "POST",
+      body: JSON.stringify({ photos: [
+        { url: IMG(ME), publicId: `ndjourney-web/${ME}/a`, albumId: alid },
+        { url: IMG(ME), publicId: `ndjourney-web/${ME}/b`, albumId: alid },
+      ] }),
+    }));
+    expect([201, 207]).toContain(batched.status);
+    expect(prismaMock.album.findMany).toHaveBeenCalledTimes(1);
     const empty = await bulkPost(new Request("http://localhost/api/photos/bulk-upload", { method: "POST", body: JSON.stringify({ photos: [] }) }));
     expect(empty.status).toBe(400);
   });

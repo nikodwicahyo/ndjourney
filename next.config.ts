@@ -2,6 +2,11 @@ import type { NextConfig } from "next";
 import { CSP_DIRECTIVES } from "./lib/csp";
 import { readFileSync } from "fs";
 import { join } from "path";
+import bundleAnalyzer from "@next/bundle-analyzer";
+
+const withBundleAnalyzer = bundleAnalyzer({
+  enabled: process.env.ANALYZE === "true",
+});
 
 const CSP_STRING = CSP_DIRECTIVES.join("; ");
 
@@ -17,9 +22,9 @@ try {
     (h: { key: string }) => h.key === "Content-Security-Policy",
   );
   if (vercelCspEntry?.value !== CSP_STRING) {
-    console.warn(
-      "\x1b[33m⚠ CSP drift detected: vercel.json CSP does not match lib/csp.ts\x1b[0m\n" +
-        "\x1b[33m  Run `node scripts/sync-csp.mjs` to sync them.\x1b[0m",
+    throw new Error(
+      "CSP drift detected: vercel.json CSP does not match lib/csp.ts. " +
+        "Run `npm run sync:csp` to sync them.",
     );
   }
 } catch {
@@ -52,7 +57,9 @@ const nextConfig: NextConfig = {
 
   headers: async () => [
     {
-      source: "/(.*)",
+      // P-14: pages/static only — the global `public` Cache-Control competed with
+      // per-route `private, no-cache` on /api/* JSON (sensitive payloads).
+      source: "/((?!api/).*)",
       headers: [
         {
           key: "Content-Security-Policy",
@@ -75,7 +82,7 @@ const nextConfig: NextConfig = {
           value: "max-age=63072000; includeSubDomains; preload",
         },
         {
-          // ponytail: least-privilege sensors — location comes from GPS API prompts, not ambient sensors.
+          // least-privilege sensors — location comes from GPS API prompts, not ambient sensors.
           key: "Permissions-Policy",
           value: "camera=(), microphone=(), geolocation=(self), payment=(), usb=()",
         },
@@ -117,4 +124,4 @@ const nextConfig: NextConfig = {
   compress: true,
 };
 
-export default nextConfig;
+export default withBundleAnalyzer(nextConfig);

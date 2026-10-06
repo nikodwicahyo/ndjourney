@@ -18,25 +18,35 @@ export default defineConfig({
     {
       name: "chromium",
       dependencies: ["setup"],
-      use: { ...devices["Desktop Chrome"] },
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: "playwright/.auth/partner-a.json",
+      },
     },
     {
       name: "mobile",
       dependencies: ["setup"],
-      use: { ...devices["Pixel 7"] },
+      use: {
+        ...devices["Pixel 7"],
+        storageState: "playwright/.auth/partner-a.json",
+      },
     },
     {
       name: "firefox",
       dependencies: ["setup"],
-      use: { ...devices["Desktop Firefox"] },
+      use: {
+        ...devices["Desktop Firefox"],
+        storageState: "playwright/.auth/partner-a.json",
+      },
     },
   ],
-  webServer: process.env.CI
-    ? undefined
-    : {
-        command: "npm run dev",
-        url: "http://localhost:3000",
-        reuseExistingServer: true,
-        timeout: 120000,
-      },
+  // CI builds first (test.yml), then serves the production build so specs run
+  // against something. reuseExistingServer lets the workflow start the server
+  // once for both the smoke check and the specs. Locally keep `next dev`.
+  webServer: {
+    command: process.env.CI ? "npm run start" : "npm run dev",
+    url: "http://localhost:3000",
+    reuseExistingServer: true,
+    timeout: 120000,
+  },
 });

@@ -26,7 +26,7 @@ vi.mock("@/lib/batch", () => ({
   batchLoadUsers: vi.fn(async (ids: string[]) => new Map(ids.map((id) => [id, { id, name: "P", image: null }]))),
   mapUsersToRecords: vi.fn((rows: unknown[]) => rows),
 }));
-vi.mock("@/lib/resend", () => ({ sendEmail: vi.fn(), letterNotificationHtml: () => "<p>x</p>" }));
+vi.mock("@/lib/email", () => ({ sendEmail: vi.fn(), letterNotificationHtml: () => "<p>x</p>", safeAppUrl: (p: string) => `http://localhost${p}` }));
 vi.mock("@/lib/pusher-server", () => ({ triggerCoupleEvent: vi.fn() }));
 vi.mock("@/lib/couple", () => ({ getUserCoupleId: vi.fn(async () => null) }));
 
@@ -71,6 +71,26 @@ describe("letters API contracts", () => {
       }),
     );
     expect(forbidden.status).toBe(403);
+  });
+
+  it("LTR-07: POST 429 when throttled, 500 keeps {error} shape on DB failure", async () => {
+    vi.mocked(withRateLimit).mockResolvedValueOnce({
+      allowed: false, remaining: 0, response: new Response(JSON.stringify({ error: "Rate limited" }), { status: 429 }),
+    } as never);
+    const throttled = await POST(new Request("http://localhost/api/letters", {
+      method: "POST",
+      body: JSON.stringify({ title: "t", content: "c", recipientId: PARTNER, mood: "LOVE" }),
+    }));
+    expect(throttled.status).toBe(429);
+
+    prismaMock.coupleMember.findUnique.mockResolvedValue({ couple: { id: "couple-1", members: [{ userId: PARTNER }] } });
+    prismaMock.letter.create.mockRejectedValueOnce(new Error("db down"));
+    const failed = await POST(new Request("http://localhost/api/letters", {
+      method: "POST",
+      body: JSON.stringify({ title: "t", content: "c", recipientId: PARTNER, mood: "LOVE" }),
+    }));
+    expect(failed.status).toBe(500);
+    expect((await failed.json()).error).toEqual(expect.any(String));
   });
 
   it("LTR-04/SEC-06: GET locked capsule hides content; outsider 403; missing 404", async () => {

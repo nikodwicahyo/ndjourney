@@ -109,6 +109,8 @@ export default async function AuthErrorPage({ searchParams }: Props) {
   const authErrorReason = cookieStore.get("auth_error_reason")?.value;
 
   const info = getInfo(error, reason, authErrorReason);
+  // All values are stable module-level lucide references (see errorIcons
+  // above), so this alias never remounts or closes over render scope.
   const Icon = getIcon(error, reason, authErrorReason);
 
   return (
@@ -122,6 +124,9 @@ export default async function AuthErrorPage({ searchParams }: Props) {
           <div className="rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8">
             <div className="flex flex-col items-center text-center">
               <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10 sm:h-16 sm:w-16">
+                {/* Icon is a stable module-level lucide reference (see errorIcons/getIcon
+                    above) — never remounted, never closes over render scope. */}
+                {/* eslint-disable-next-line react-hooks/static-components */}
                 <Icon className="h-7 w-7 text-destructive sm:h-8 sm:w-8" />
               </div>
               <h1 className="font-heading text-xl text-foreground break-words">

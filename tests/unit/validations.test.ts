@@ -6,6 +6,8 @@ import { createMilestoneSchema } from "@/lib/validations/milestone";
 import { createQuestionSchema, submitScoreSchema, submitArcadeScoreSchema } from "@/lib/validations/game";
 import { createWishSchema } from "@/lib/validations/wish";
 import { createPhotoSchema, createAlbumSchema } from "@/lib/validations/photo";
+import { updateUserSchema } from "@/lib/validations/user";
+import { updateCoupleSchema, cropRectSchema } from "@/lib/validations/couple";
 
 // LTR-02, NOTE-01, LOC-03 + GAM/WISH/TML/PHOTO validation matrix
 describe("zod validation contracts", () => {
@@ -15,8 +17,9 @@ describe("zod validation contracts", () => {
       recipientId: "ck12345678901234567890123",
       mood: "LOVE", isTimeCapsule: false, isPublic: false,
     });
-    // cuid() needs valid cuid; use a real one
-    expect(ok.success || JSON.stringify(ok)).toBeTruthy();
+    // T-01: assert the boolean itself — `ok.success || JSON.stringify(ok)` was
+    // tautological (a failure serializes to a truthy string).
+    expect(ok.success).toBe(true);
     expect(createLetterSchema.safeParse({ title: "", content: "x", recipientId: "ckabc", mood: "LOVE" }).success).toBe(false);
     expect(createLetterSchema.safeParse({ title: "t", content: "x", recipientId: "not-a-cuid-at-all-123456", mood: "ANGRY" }).success).toBe(false);
     expect(updateLetterSchema.safeParse({ mood: "NOPE" }).success).toBe(false);
@@ -64,5 +67,20 @@ describe("zod validation contracts", () => {
     expect(createPhotoSchema.safeParse({ url: "https://example.com/a.jpg", publicId: "" }).success).toBe(false);
     expect(createPhotoSchema.safeParse({ url: "https://example.com/a.jpg", publicId: "a/b" }).success).toBe(true);
     expect(createAlbumSchema.safeParse({ name: "" }).success).toBe(false);
+  });
+
+  it("USER/COUPLE contracts: name/image bounds, date-only refine, crop bounds", () => {
+    expect(updateUserSchema.safeParse({}).success).toBe(true);
+    expect(updateUserSchema.safeParse({ name: "" }).success).toBe(false);
+    expect(updateUserSchema.safeParse({ name: "a".repeat(101) }).success).toBe(false);
+    expect(updateUserSchema.safeParse({ image: "javascript:alert(1)" }).success).toBe(false);
+    expect(updateUserSchema.safeParse({ image: "https://x.com/a.jpg" }).success).toBe(true);
+    expect(updateCoupleSchema.safeParse({ anniversaryDate: "2024-02-14" }).success).toBe(true);
+    expect(updateCoupleSchema.safeParse({ anniversaryDate: "14-02-2024" }).success).toBe(false);
+    expect(updateCoupleSchema.safeParse({ anniversaryDate: "2024-02-30" }).success).toBe(false);
+    expect(updateCoupleSchema.safeParse({ birthDate1: null }).success).toBe(true);
+    expect(cropRectSchema.safeParse({ x: 0, y: 0, w: 1, h: 1 }).success).toBe(true);
+    expect(cropRectSchema.safeParse({ x: 0.9, y: 0, w: 0.2, h: 0.2 }).success).toBe(false);
+    expect(updateCoupleSchema.safeParse({ heroPhotoUrl: "notaurl" }).success).toBe(false);
   });
 });

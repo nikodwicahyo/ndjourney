@@ -6,7 +6,7 @@ async function main() {
   const partners = await prisma.user.findMany({
     where: { role: "PARTNER" },
     orderBy: { createdAt: "asc" },
-    // ponytail: no emails in logs — ids suffice for a dev script.
+    // no emails in logs — ids suffice for a dev script.
     select: { id: true, name: true },
   });
 

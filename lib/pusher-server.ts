@@ -1,7 +1,7 @@
 import Pusher from 'pusher';
 import type { SyncScope } from '@/types';
 
-// ponytail: lazy-init — missing env must disable realtime, not crash every importing route at boot.
+// lazy-init — missing env must disable realtime, not crash every importing route at boot.
 let _pusher: Pusher | null = null;
 
 function getPusher(): Pusher | null {

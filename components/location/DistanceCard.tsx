@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { motion, useSpring, useTransform, AnimatePresence } from "framer-motion";
 import {
   Clock,
@@ -163,7 +163,6 @@ export default function DistanceCard({
   const [localMode, setLocalMode] = useState<TravelMode>("walking");
   const activeMode = travelMode ?? localMode;
   const setActiveMode = onTravelModeChange ?? setLocalMode;
-  const prevDistanceRef = useRef(distance);
 
   const trend = distance !== null ? distanceTrend(distance, previousDistance) : null;
 
@@ -185,15 +184,19 @@ export default function DistanceCard({
   }
 
   const [showSparkle, setShowSparkle] = useState(false);
+  const [prevDistance, setPrevDistance] = useState<number | null>(distance);
+  // Track distance changes during render (React-endorsed adjustment) and let
+  // the timeout effect below hide the sparkle — no synchronous setState in
+  // an effect, so no cascading render.
+  if (distance !== prevDistance) {
+    setPrevDistance(distance);
+    if (distance !== null && prevDistance !== null) setShowSparkle(true);
+  }
   useEffect(() => {
-    if (distance !== null && prevDistanceRef.current !== null && distance !== prevDistanceRef.current) {
-      setShowSparkle(true);
-      const t = setTimeout(() => setShowSparkle(false), 1200);
-      prevDistanceRef.current = distance;
-      return () => clearTimeout(t);
-    }
-    prevDistanceRef.current = distance;
-  }, [distance]);
+    if (!showSparkle) return;
+    const t = setTimeout(() => setShowSparkle(false), 1200);
+    return () => clearTimeout(t);
+  }, [showSparkle]);
 
   const selfInitial = (self.name ?? "K").charAt(0).toUpperCase();
   const partnerInitial = (partner.name ?? "P").charAt(0).toUpperCase();

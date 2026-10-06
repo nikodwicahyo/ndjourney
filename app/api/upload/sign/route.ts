@@ -2,7 +2,8 @@ import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { v2 as cloudinary } from "cloudinary";
 import { getChunkSize } from "@/lib/upload-config";
-import { UPLOAD_FOLDER, validateUploadRequest } from "@/lib/upload-policy";
+import { generatePublicId } from "@/lib/upload-config";
+import { UPLOAD_FOLDER, validateUploadRequest, ALLOWED_IMAGE_FORMATS, ALLOWED_VIDEO_FORMATS } from "@/lib/upload-policy";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 
 cloudinary.config({
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
 
     const session = rateCheck.session;
 
-    // ponytail: fail closed with 503, not a TypeError 500 on `!`.
+    // fail closed with 503, not a TypeError 500 on `!`.
     if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
       return NextResponse.json({ error: "Layanan upload belum dikonfigurasi" }, { status: 503 });
     }
@@ -39,7 +40,7 @@ export async function POST(request: Request) {
     }
 
     const numericFileSize = Number(fileSize);
-    // ponytail: NaN / non-finite must 400 here, not leak into chunk math.
+    // NaN / non-finite must 400 here, not leak into chunk math.
     if (!Number.isFinite(numericFileSize) || numericFileSize <= 0) {
       return NextResponse.json(
         { error: "Ukuran file tidak valid" },
@@ -52,7 +53,7 @@ export async function POST(request: Request) {
     }
 
     const timestamp = Math.floor(Date.now() / 1000);
-    const publicId = generatePublicId(session.user.id);
+    const publicId = generatePublicId(fileName, session.user.id);
     const resourceType = validation.policy.resourceType;
     
     // Use the same chunk size calculation as the client
@@ -68,6 +69,17 @@ export async function POST(request: Request) {
       type: "upload",
       timestamp: String(timestamp),
     };
+
+    // Bind the delivery format at signing time — the client forwards every
+    // signed param verbatim (see uploadChunk in lib/chunked-upload.ts), so
+    // Cloudinary itself rejects e.g. SVG bytes on an image signature.
+    // Raw (audio) uploads take no format binding; their delivery URLs are
+    // rejected at save time by verifyUploadForSave instead.
+    if (resourceType === "image") {
+      paramsToSign.allowed_formats = ALLOWED_IMAGE_FORMATS.join(",");
+    } else if (resourceType === "video") {
+      paramsToSign.allowed_formats = ALLOWED_VIDEO_FORMATS.join(",");
+    }
 
     const signature = cloudinary.utils.api_sign_request(paramsToSign, process.env.CLOUDINARY_API_SECRET!);
 
@@ -95,12 +107,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-}
-
-function generatePublicId(userId: string): string {
-  const timestamp = Date.now();
-  const random = Math.random().toString(36).substring(2, 10);
-  // ponytail: no original extension — Cloudinary appends the delivery format,
-  // so keeping it produced urls like name.webp.webp.
-  return `${userId}/${timestamp}-${random}`;
 }

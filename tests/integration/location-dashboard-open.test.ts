@@ -5,16 +5,17 @@ const PARTNER = "cjld2cjxh0000qz8n0p3q4w5e2";
 const COUPLE = "couple-1";
 
 const txMock = vi.hoisted(() => ({
-  userLocationHistory: { findFirst: vi.fn(async () => null), create: vi.fn(async () => ({})), findMany: vi.fn(async () => []) },
+  userLocationHistory: { findFirst: vi.fn(async () => null), create: vi.fn(async () => ({})), findMany: vi.fn(async () => []), deleteMany: vi.fn(async () => ({})) },
+  userLocation: { upsert: vi.fn(async () => ({})) },
 }));
 const prismaMock = vi.hoisted(() => ({
   $queryRaw: vi.fn(),
-  $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn({ userLocationHistory: txMock.userLocationHistory })),
+  $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn({ userLocationHistory: txMock.userLocationHistory, userLocation: txMock.userLocation })),
   coupleMember: { findUnique: vi.fn(), findFirst: vi.fn() },
-  locationShare: { findUnique: vi.fn(), upsert: vi.fn() },
+  locationShare: { findUnique: vi.fn(), findMany: vi.fn(async () => []), upsert: vi.fn() },
   userLocation: { findUnique: vi.fn(), upsert: vi.fn(), delete: vi.fn(async () => ({})) },
   userLocationHistory: { findMany: vi.fn() },
-  letter: { count: vi.fn(async () => 0), findUnique: vi.fn(), update: vi.fn() },
+  letter: { count: vi.fn(async () => 0), findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn(async () => ({ count: 1 })) },
 }));
 
 vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
@@ -34,7 +35,7 @@ vi.mock("@/lib/pusher-server", () => ({
   triggerCoupleEvent: vi.fn(),
   getPusherServer: vi.fn(() => ({ trigger: vi.fn(async () => {}) })),
 }));
-vi.mock("@/lib/resend", () => ({ sendEmail: vi.fn(async () => ({ data: { id: "m1" } })), letterNotificationHtml: () => "<p>x</p>" }));
+vi.mock("@/lib/email", () => ({ sendEmail: vi.fn(async () => ({ data: { id: "m1" } })), letterNotificationHtml: () => "<p>x</p>", safeAppUrl: (p: string) => `http://localhost${p}` }));
 vi.mock("@/lib/batch", () => ({
   batchLoadUsers: vi.fn(async (ids: string[]) => new Map(ids.map((id) => [id, { id, name: "P", email: null, image: null }]))),
 }));
@@ -128,8 +129,30 @@ describe("location API contracts", () => {
     prismaMock.userLocationHistory.findMany.mockResolvedValue([]);
     const h = await history.GET();
     expect(h.status).toBe(200);
+    // audit regression: partner opted out → trail hidden
+    prismaMock.locationShare.findMany.mockResolvedValueOnce([
+      { userId: ME, isSharing: true },
+      { userId: PARTNER, isSharing: false },
+    ] as never);
+    const gated = await history.GET();
+    expect(gated.status).toBe(200);
+    expect(prismaMock.userLocationHistory.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { userId: { in: [ME] } } }),
+    );
     const heartRes = await heart.POST(new Request("http://localhost/api/location/heart", { method: "POST", body: JSON.stringify({}) }));
     expect(heartRes.status).toBe(200);
+    // T-02: the cap lives in the route, not in test-side string ops — 10 emojis in, 4 out.
+    const { getPusherServer } = await import("@/lib/pusher-server");
+    const flood = await heart.POST(new Request("http://localhost/api/location/heart", {
+      method: "POST",
+      body: JSON.stringify({ emoji: "❤️".repeat(10) }),
+    }));
+    expect(flood.status).toBe(200);
+    const calls = vi.mocked(getPusherServer).mock.results;
+    const floodTrigger = calls[calls.length - 1]?.value.trigger as ReturnType<typeof vi.fn>;
+    const sentEmoji = floodTrigger.mock.calls[0]?.[2]?.emoji as string;
+    expect(typeof sentEmoji).toBe("string");
+    expect([...sentEmoji].length).toBeLessThanOrEqual(4);
   });
 });
 
@@ -147,6 +170,12 @@ describe("dashboard + letters-open contracts", () => {
     const body = await s.json();
     expect(body.data).toMatchObject({ photoCount: 2, videoCount: 1, letterCount: 3, milestoneCount: 1, unreadLetterCount: 0, storageUsed: 5, storageLimit: 100 });
     expect(body.data.daysSinceAnniversary).toBeGreaterThan(1000);
+    // P-01: counts keyed on indexed coupleId, not uploadedById/authorId IN-subqueries.
+    const [statsSql] = prismaMock.$queryRaw.mock.calls[0];
+    const flatSql = String(statsSql).replace(/\s+/g, " ");
+    expect(flatSql).toContain('"coupleId"');
+    expect(flatSql).not.toContain("uploadedById");
+    expect(flatSql).not.toContain("CoupleMember");
 
     prismaMock.coupleMember.findUnique.mockResolvedValue(null);
     const solo = await stats.GET();
@@ -168,7 +197,7 @@ describe("dashboard + letters-open contracts", () => {
     prismaMock.letter.update.mockResolvedValue({ id: "l1", isOpened: true, openedAt: new Date() });
     const ok = await open.PUT(new Request("http://localhost/api/letters/l1/open", { method: "PUT" }), { params: Promise.resolve({ id: "l1" }) });
     expect(ok.status).toBe(200);
-    const { sendEmail } = await import("@/lib/resend");
+    const { sendEmail } = await import("@/lib/email");
     expect(sendEmail).toHaveBeenCalledOnce();
 
     prismaMock.letter.findUnique.mockResolvedValue(null);
@@ -179,6 +208,11 @@ describe("dashboard + letters-open contracts", () => {
 
     prismaMock.letter.findUnique.mockResolvedValue({ ...fresh, isOpened: true });
     expect((await open.PUT(new Request("http://localhost/api/letters/l1/open", { method: "PUT" }), { params: Promise.resolve({ id: "l1" }) })).status).toBe(400);
+
+    // audit regression: lost the atomic race → 409, no duplicate mail
+    prismaMock.letter.findUnique.mockResolvedValue(fresh);
+    prismaMock.letter.updateMany.mockResolvedValueOnce({ count: 0 });
+    expect((await open.PUT(new Request("http://localhost/api/letters/l1/open", { method: "PUT" }), { params: Promise.resolve({ id: "l1" }) })).status).toBe(409);
 
     prismaMock.letter.findUnique.mockResolvedValue({ ...fresh, isTimeCapsule: true, unlockAt: new Date(Date.now() + 86400000) });
     expect((await open.PUT(new Request("http://localhost/api/letters/l1/open", { method: "PUT" }), { params: Promise.resolve({ id: "l1" }) })).status).toBe(423);

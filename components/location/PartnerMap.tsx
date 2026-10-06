@@ -184,7 +184,7 @@ export default function PartnerMap({
     });
   }, [self?.point?.lat, self?.point?.lng, partner?.point?.lat, partner?.point?.lng]);
 
-  // ponytail: triple-fallback leaflet CSS — import in globals.css + LocationManager.tsx + inline here
+  // triple-fallback leaflet CSS — import in globals.css + LocationManager.tsx + inline here
   useEffect(() => {
     if (mapRef.current || !containerRef.current) return;
 
@@ -642,8 +642,15 @@ export default function PartnerMap({
       const addrKey = `${p.point.lat.toFixed(4)},${p.point.lng.toFixed(4)}`;
       const address = addressCache[addrKey];
 
+      // SEC: popup is innerHTML — escape every interpolated string (names, device, geocode).
+      const esc = (s: string) =>
+        s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
+      const safeImg = p.image && /^https:\/\/(res\.cloudinary\.com|lh3\.googleusercontent\.com|avatars\.githubusercontent\.com)\//.test(p.image)
+        ? p.image.replace(/"/g, "%22")
+        : null;
+
       const deviceInfo = p.deviceType
-        ? `<span style="font-size:11px;opacity:0.7;">${p.deviceType}</span>`
+        ? `<span style="font-size:11px;opacity:0.7;">${esc(p.deviceType)}</span>`
         : "";
       const accuracyInfo = p.point.accuracy
         ? `<div style="font-size:11px;margin-top:2px;">±${Math.round(p.point.accuracy)}m · ${accuracyLabel(p.point.accuracy)}</div>`
@@ -652,7 +659,7 @@ export default function PartnerMap({
         ? `<div style="font-size:11px;opacity:0.6;margin-top:2px;">${timeAgo(p.point.updatedAt)}</div>`
         : "";
       const addressInfo = address
-        ? `<div style="font-size:11px;margin-top:2px;color:#64748b;">📍 ${address}</div>`
+        ? `<div style="font-size:11px;margin-top:2px;color:#64748b;">📍 ${esc(address)}</div>`
         : "";
       const headingInfo =
         p.point.heading !== null && p.point.heading >= 0
@@ -663,8 +670,8 @@ export default function PartnerMap({
           ? `<div style="font-size:11px;margin-top:2px;opacity:0.6;">⚡ ${(p.point.speed * 3.6).toFixed(1)} km/j</div>`
           : "";
 
-      const avatarHtml = p.image
-        ? `<img src="${p.image}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;" />`
+      const avatarHtml = safeImg
+        ? `<img src="${safeImg}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;" />`
         : `<div style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;background:#f1f5f9;">${p.isSelf ? "💙" : "💖"}</div>`;
 
       marker.bindPopup(
@@ -673,7 +680,7 @@ export default function PartnerMap({
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
             ${avatarHtml}
             <div>
-              <div style="font-weight:600;font-size:14px;">${p.label}</div>
+              <div style="font-weight:600;font-size:14px;">${esc(p.label)}</div>
               ${deviceInfo}
             </div>
           </div>

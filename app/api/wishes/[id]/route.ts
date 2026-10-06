@@ -23,12 +23,15 @@ export async function PUT(
     if (body == null) return NextResponse.json({ error: "Body JSON tidak valid" }, { status: 400 });
     const parsed = updateWishSchema.safeParse(body);
 
-    // ponytail: ownership gate — legacy rows have null coupleId (lenient), new rows are scoped.
-    const owner = await prisma.wishItem.findUnique({
-      where: { id },
-      select: { coupleId: true },
-    });
-    const callerCoupleId = await getUserCoupleId(rateCheck.session.user.id);
+    // ownership gate — legacy rows have null coupleId (lenient), new rows are scoped.
+    // P-04: single row read serves gate + old-image cleanup (was 2 serial findUniques).
+    const [owner, callerCoupleId] = await Promise.all([
+      prisma.wishItem.findUnique({
+        where: { id },
+        select: { coupleId: true, imageUrl: true },
+      }),
+      getUserCoupleId(rateCheck.session.user.id),
+    ]);
     if (!owner || (owner.coupleId !== null && owner.coupleId !== callerCoupleId)) {
       return NextResponse.json({ error: "Wish tidak ditemukan" }, { status: 404 });
     }
@@ -43,22 +46,17 @@ export async function PUT(
     const data: Record<string, unknown> = { ...parsed.data };
     if (data.isDone === true) {
       data.doneAt = new Date();
+    } else if (data.isDone === false) {
+      data.doneAt = null;
     }
-    // ponytail: explicit null clears the crop (DbNull = SQL NULL, not JSON null);
+    // explicit null clears the crop (DbNull = SQL NULL, not JSON null);
     // dropping the image always drops its crop.
     if (data.imageUrl === null || data.imageCrop === null) {
       data.imageCrop = Prisma.DbNull;
     }
 
     // Fetch old imageUrl before update so we can clean up if changed
-    let oldImageUrl: string | null = null;
-    if ("imageUrl" in data) {
-      const existing = await prisma.wishItem.findUnique({
-        where: { id },
-        select: { imageUrl: true },
-      });
-      oldImageUrl = existing?.imageUrl ?? null;
-    }
+    const oldImageUrl = "imageUrl" in data ? (owner.imageUrl ?? null) : null;
 
     const wish = await prisma.wishItem.update({
       where: { id },
@@ -91,10 +89,10 @@ export async function PUT(
     }
 
     await invalidateCache("wishes:*");
+    await invalidateCache("home:*");
 
-    const coupleId = await getUserCoupleId(rateCheck.session.user.id);
-    if (coupleId) {
-      triggerCoupleEvent(coupleId, 'WISHLIST');
+    if (callerCoupleId) {
+      triggerCoupleEvent(callerCoupleId, 'WISHLIST');
     }
 
     return NextResponse.json({ data: wish });
@@ -119,12 +117,15 @@ export async function DELETE(
 
     const { id } = await params;
 
-    // ponytail: ownership gate (see PUT above).
-    const target = await prisma.wishItem.findUnique({
-      where: { id },
-      select: { coupleId: true, imageUrl: true },
-    });
-    const deleterCoupleId = await getUserCoupleId(rateCheck.session.user.id);
+    // ownership gate (see PUT above).
+    // P-04: gate + deleter couple in parallel (was 2 serial).
+    const [target, deleterCoupleId] = await Promise.all([
+      prisma.wishItem.findUnique({
+        where: { id },
+        select: { coupleId: true, imageUrl: true },
+      }),
+      getUserCoupleId(rateCheck.session.user.id),
+    ]);
     if (!target || (target.coupleId !== null && target.coupleId !== deleterCoupleId)) {
       return NextResponse.json({ error: "Wish tidak ditemukan" }, { status: 404 });
     }
@@ -147,13 +148,13 @@ export async function DELETE(
     }
 
     await invalidateCache("wishes:*");
+    await invalidateCache("home:*");
 
-    const coupleId = await getUserCoupleId(rateCheck.session.user.id);
-    if (coupleId) {
-      triggerCoupleEvent(coupleId, 'WISHLIST');
+    if (deleterCoupleId) {
+      triggerCoupleEvent(deleterCoupleId, 'WISHLIST');
     }
 
-    return NextResponse.json({ message: "Wish deleted" });
+    return NextResponse.json({ data: { id } });
   } catch (error) {
     console.error("Error deleting wish:", error);
     return NextResponse.json(

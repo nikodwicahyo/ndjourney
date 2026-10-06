@@ -10,7 +10,6 @@ test("public notes + wishlist headings", async ({ page }) => {
 
 test("dashboard notes shows Kelola Daily Note when logged in", async ({ page }) => {
   await page.goto("/dashboard/notes");
-  await page.waitForLoadState("networkidle");
   if (page.url().includes("/login")) {
     await expect(page.getByRole("button", { name: /login dengan google/i })).toBeVisible({ timeout: 15000 });
   } else {
@@ -20,7 +19,6 @@ test("dashboard notes shows Kelola Daily Note when logged in", async ({ page }) 
 
 test("dashboard wishlist shows Kelola Wish List when logged in", async ({ page }) => {
   await page.goto("/dashboard/wishlist");
-  await page.waitForLoadState("networkidle");
   if (page.url().includes("/login")) {
     await expect(page.getByRole("button", { name: /login dengan google/i })).toBeVisible({ timeout: 15000 });
   } else {

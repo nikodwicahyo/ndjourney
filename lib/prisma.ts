@@ -37,7 +37,6 @@ export const prisma =
 export const sql =
   globalForPrisma.sql ?? (process.env.DATABASE_URL ? neon(process.env.DATABASE_URL) : undefined);
 
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
-  globalForPrisma.sql = sql;
-}
+// P-10: reuse across invocations in prod too — fresh pools per isolate exhaust Neon.
+globalForPrisma.prisma = prisma;
+globalForPrisma.sql = sql;

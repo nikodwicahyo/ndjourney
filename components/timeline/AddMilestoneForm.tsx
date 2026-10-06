@@ -30,11 +30,11 @@ type AddMilestoneFormProps = {
   onClose: () => void;
 };
 
-// ponytail: square thumb renders through the crop with the same math as the
+// square thumb renders through the crop with the same math as the
 // card — the form shows exactly what the timeline will show. src = ORIGINAL
 // url (rects are original-space), thumb = square fill for the no-crop case.
 function FormThumb({ src, thumb, crop }: { src: string; thumb?: string | null; crop: CropRect | null }) {
-  // ponytail: Cloudinary variant of the picked URL (aspect-preserving, so crop
+  // Cloudinary variant of the picked URL (aspect-preserving, so crop
   // fractions stay exact) — raw originals are multi-MB/HEIC and blow up
   // /_next/image's 7s fetch timeout (500) or never decode in the browser.
   const url = getOptimizedImageUrl(cropDisplaySrc(src, thumb, crop), 640);
@@ -55,7 +55,13 @@ function FormThumb({ src, thumb, crop }: { src: string; thumb?: string | null; c
     return () => ro.disconnect();
   }, []);
 
-  useEffect(() => { setNatural(null); }, [url]);
+  // Reset measured dimensions when the image changes — render-time adjustment
+  // (React-endorsed), not a post-paint effect, so no cascading render.
+  const [prevUrl, setPrevUrl] = useState(url);
+  if (prevUrl !== url) {
+    setPrevUrl(url);
+    setNatural(null);
+  }
 
   const style = crop && natural && frame
     ? cropCoverStyle(natural.w, natural.h, frame.w, frame.h, crop)
@@ -127,7 +133,7 @@ export default function AddMilestoneForm({
   >(milestone?.photos?.map((p) => ({ ...p.photo, publicId: undefined, crop: parseCropRect(p.crop) })) || []);
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [showGalleryPicker, setShowGalleryPicker] = useState(false);
-  // ponytail: crop rides the photo item — removing the photo drops its crop, no orphans.
+  // crop rides the photo item — removing the photo drops its crop, no orphans.
   const [cropTarget, setCropTarget] = useState<{ key: string; src: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -135,7 +141,7 @@ export default function AddMilestoneForm({
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    // ponytail: hard cap 2 (server 400s beyond) — trim extras instead of failing the batch.
+    // hard cap 2 (server 400s beyond) — trim extras instead of failing the batch.
     const slots = Math.max(0, 2 - selectedPhotos.length);
     if (slots === 0) {
       toast.error("Maksimal 2 foto per milestone");
@@ -262,8 +268,9 @@ export default function AddMilestoneForm({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium">Judul *</label>
+            <label htmlFor="milestone-title" className="text-sm font-medium">Judul *</label>
             <input
+              id="milestone-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Contoh: First Date"
@@ -273,8 +280,9 @@ export default function AddMilestoneForm({
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">Tanggal *</label>
+            <label htmlFor="milestone-date" className="text-sm font-medium">Tanggal *</label>
             <input
+              id="milestone-date"
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
@@ -284,8 +292,9 @@ export default function AddMilestoneForm({
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">Deskripsi</label>
+            <label htmlFor="milestone-description" className="text-sm font-medium">Deskripsi</label>
             <textarea
+              id="milestone-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Ceritakan momen ini..."
@@ -302,6 +311,8 @@ export default function AddMilestoneForm({
                   key={e}
                   type="button"
                   onClick={() => setIcon(e)}
+                  aria-label={`Icon ${e}`}
+                  aria-pressed={icon === e}
                   className={`flex h-8 w-8 items-center justify-center rounded-lg text-base transition-colors ${
                     icon === e
                       ? "bg-primary/10 ring-2 ring-primary"
@@ -322,6 +333,8 @@ export default function AddMilestoneForm({
                   key={c}
                   type="button"
                   onClick={() => setColor(c)}
+                  aria-label={`Warna ${c}`}
+                  aria-pressed={color === c}
                   className={`h-7 w-7 rounded-full transition-transform ${
                     color === c ? "ring-2 ring-ring ring-offset-2 scale-110" : ""
                   }`}
@@ -332,8 +345,9 @@ export default function AddMilestoneForm({
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">Lokasi</label>
+            <label htmlFor="milestone-location" className="text-sm font-medium">Lokasi</label>
             <input
+              id="milestone-location"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
               placeholder="Contok: Café Senja, Bandung"

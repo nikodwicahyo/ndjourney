@@ -8,7 +8,7 @@ import {
 import {
   getDaysSince, formatBytes, truncate, seededRandom, pickFromSeed,
   encodeCompositeCursor, decodeCompositeCursor, formatRelativeTime,
-  isVideoUrl, isRenderableImageUrl,
+  isVideoUrl, isRenderableImageUrl, buildPhotoPayload,
 } from "@/lib/utils";
 import {
   parseJakartaDateOnly, isSameDayJakarta, getJakartaDateOnly,
@@ -103,6 +103,51 @@ describe("format utils", () => {
     expect(decodeCompositeCursor(c)).toEqual({ createdAt: "2024-01-01T00:00:00.000Z", id: "abc" });
     expect(decodeCompositeCursor("!!!")).toBeNull();
     expect(formatRelativeTime(new Date(Date.now() - 1000))).toBe("baru saja");
+  });
+
+  it("buildPhotoPayload classifies webm/avi/extensionless video (not mp4|mov only)", () => {
+    const base = { url: "", publicId: "ndjourney-web/u/a", bytes: 8 };
+    expect(buildPhotoPayload({ ...base, url: "https://x/a.webm" }).isVideo).toBe(true);
+    expect(buildPhotoPayload({ ...base, url: "https://x/a.avi" }).isVideo).toBe(true);
+    expect(buildPhotoPayload({ ...base, url: "https://res.cloudinary.com/x/video/upload/v1/f" }).isVideo).toBe(true);
+    expect(buildPhotoPayload({ ...base, url: "https://x/a.jpg" }).isVideo).toBe(false);
+    expect(buildPhotoPayload({ ...base, url: "https://x/a.jpg" }, "al1", true)).toMatchObject({ albumId: "al1", isPublic: true });
+  });
+
+  it("buildPhotoPayload omits unset keys (explicit nulls 400 createPhotoSchema)", async () => {
+    const { createPhotoSchema } = await import("@/lib/validations/photo");
+    const bare = buildPhotoPayload({
+      url: "https://res.cloudinary.com/t/image/upload/v1/a.jpg",
+      publicId: "ndjourney-web/u1/a",
+      bytes: 8,
+    });
+    expect("albumId" in bare).toBe(false);
+    expect("thumbnailUrl" in bare).toBe(false);
+    expect(createPhotoSchema.safeParse(bare).success).toBe(true);
+    const full = buildPhotoPayload(
+      {
+        url: "https://res.cloudinary.com/t/image/upload/v1/a.jpg",
+        publicId: "ndjourney-web/u1/a",
+        thumbnailUrl: "https://res.cloudinary.com/t/image/upload/t.jpg",
+        width: 100,
+        height: 100,
+        bytes: 8,
+      },
+      "ck12345678901234567890123",
+      true,
+    );
+    expect(createPhotoSchema.safeParse(full).success).toBe(true);
+  });
+
+  it("buildPhotoPayload stamps takenAt so year filtering sees uploads", async () => {
+    const { createPhotoSchema } = await import("@/lib/validations/photo");
+    const payload = buildPhotoPayload({
+      url: "https://res.cloudinary.com/t/image/upload/v1/a.jpg",
+      publicId: "ndjourney-web/u1/a",
+      bytes: 8,
+    });
+    expect(typeof payload.takenAt).toBe("string");
+    expect(createPhotoSchema.safeParse(payload).success).toBe(true);
   });
 });
 

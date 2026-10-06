@@ -9,7 +9,6 @@ test("public gallery shows Gallery heading", async ({ page }) => {
 
 test("dashboard gallery requires auth and shows Kelola Gallery when logged in", async ({ page }) => {
   await page.goto("/dashboard/gallery");
-  await page.waitForLoadState("networkidle");
   if (page.url().includes("/login")) {
     await expect(page.getByRole("button", { name: /login dengan google/i })).toBeVisible({ timeout: 15000 });
   } else {

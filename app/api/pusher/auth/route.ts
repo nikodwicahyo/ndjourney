@@ -2,13 +2,16 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { getPusherServer } from '@/lib/pusher-server';
 import { prisma } from '@/lib/prisma';
+import { withRateLimit } from '@/lib/rate-limit';
 
 export async function POST(req: Request) {
   try {
-    const session = await auth();
-    if (!session?.user) {
-      return new NextResponse('Unauthorized', { status: 401 });
+    // SEC: channel-auth/socket enumeration must not be unthrottled.
+    const rateCheck = await withRateLimit(req, { maxRequests: 60, windowSeconds: 3600, keyPrefix: "pusher-auth" });
+    if (!rateCheck.allowed) {
+      return rateCheck.response;
     }
+    const session = rateCheck.session;
 
     const membership = await prisma.coupleMember.findUnique({
       where: { userId: session.user.id },

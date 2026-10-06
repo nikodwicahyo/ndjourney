@@ -5,7 +5,7 @@ import { useDropZone } from "@/hooks/useDropZone";
 import { Button } from "@/components/ui";
 import { Upload, X, Loader2, ImagePlus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getMaxFileSize, formatBytes } from "@/lib/upload-config";
+import { getMaxFileSize, formatBytes, resolveUploadMime } from "@/lib/upload-config";
 
 type UploadButtonProps = {
   onUpload: (file: File) => Promise<void>;
@@ -16,7 +16,7 @@ type UploadButtonProps = {
 export default function UploadButton({
   onUpload,
   maxFiles = 50,
-  // ponytail: deprecated, kept for compat — limits now come from getMaxFileSize() per type
+  // deprecated, kept for compat — limits now come from getMaxFileSize() per type
   maxSizeMB: _maxSizeMB = 200,
 }: UploadButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -33,16 +33,18 @@ export default function UploadButton({
       const validFiles: File[] = [];
 
       for (const file of fileArray) {
-        const isImage = file.type.startsWith("image/");
-        const isVideo = file.type.startsWith("video/");
+        // Same extension fallback as GalleryManager (unrecognized .heic etc.).
+        const kind = resolveUploadMime(file.name, file.type);
+        const isImage = kind.startsWith("image/");
+        const isVideo = kind.startsWith("video/");
 
         if (!isImage && !isVideo) {
           setErrors((prev) => [...prev, `${file.name}: Format tidak didukung`]);
           continue;
         }
 
-        // ponytail: per-type limit (10MB image / 100MB video), consistent with server policy — flat maxSizeMB lied
-        const maxSize = getMaxFileSize(file.type);
+        // per-type limit (10MB image / 100MB video), consistent with server policy — flat maxSizeMB lied
+        const maxSize = getMaxFileSize(kind);
         if (file.size > maxSize) {
           setErrors((prev) => [
             ...prev,
@@ -128,25 +130,21 @@ export default function UploadButton({
                     setErrors([]);
                   }
                 }}
-                className="rounded-full p-1 transition-colors hover:bg-muted"
+                className="rounded-full p-2.5 transition-colors hover:bg-muted"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <div
+            <button
+              type="button"
               onClick={() => inputRef.current?.click()}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") inputRef.current?.click();
-              }}
               className={cn(
-                "flex cursor-pointer flex-col items-center gap-3 rounded-xl border-2 border-dashed p-10 transition-colors",
+                "flex w-full cursor-pointer flex-col items-center gap-3 rounded-xl border-2 border-dashed p-10 text-center transition-colors",
                 isDragging
                   ? "border-primary bg-primary/5"
                   : "border-border hover:border-primary/50",
               )}
-              role="button"
-              tabIndex={0}
             >
               <ImagePlus
                 className={cn(
@@ -164,7 +162,7 @@ export default function UploadButton({
                   JPG, PNG, WEBP, HEIC, MP4, MOV — foto 10MB, video 100MB
                 </p>
               </div>
-            </div>
+            </button>
 
             <input
               ref={inputRef}

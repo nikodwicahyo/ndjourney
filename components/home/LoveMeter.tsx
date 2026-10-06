@@ -52,12 +52,12 @@ export default function LoveMeter({
   const isInView = useInView(ref, { once: true, margin: "-40px" });
   const [isHovered, setIsHovered] = useState(false);
 
-  const quantityMetrics = [
+  const quantityMetrics = useMemo(() => [
     { value: milestoneCount, key: "milestoneCount", Icon: MapPin, label: "Momen", goal: targetMilestones },
     { value: noteCount, key: "noteCount", Icon: NotebookPen, label: "Catatan", goal: targetNotes },
     { value: letterCount, key: "letterCount", Icon: Mail, label: "Surat", goal: targetLetters },
     { value: photoCount, key: "photoCount", Icon: Camera, label: "Foto & Video", goal: targetPhotos },
-  ];
+  ], [milestoneCount, noteCount, letterCount, photoCount, targetMilestones, targetNotes, targetLetters, targetPhotos]);
 
   const { quantityProgress, avgProgress, nonZero, atTargetPercent } = useMemo(() => {
     const qp = quantityMetrics.map((m) => {
@@ -69,14 +69,16 @@ export default function LoveMeter({
     const nz = quantityMetrics.filter((m) => m.value > 0).length;
     const atp = qp.every((m) => m.value >= m.goal);
     return { quantityProgress: qp, avgProgress: ap, nonZero: nz, atTargetPercent: atp };
-  }, [milestoneCount, noteCount, letterCount, photoCount, targetMilestones, targetNotes, targetLetters, targetPhotos]);
+  }, [quantityMetrics]);
 
   const is100Pct = atTargetPercent;
 
+  // Snapshot once per mount (not during render): the text has day/hour
+  // granularity, so a ticking clock would only waste renders.
+  const [now] = useState(() => Date.now());
   const countdownText = useMemo(() => {
     if (!targetMetAt || !is100Pct) return null;
     const met = new Date(targetMetAt).getTime();
-    const now = Date.now();
     const elapsed = now - met;
     const remaining = 7 * 24 * 60 * 60 * 1000 - elapsed;
     if (remaining <= 0) return null;
@@ -85,7 +87,7 @@ export default function LoveMeter({
     if (days > 0) return `Target baru dalam ${days} hari`;
     if (hours > 0) return `Target baru dalam ${hours} jam`;
     return "Target baru sebentar lagi";
-  }, [targetMetAt, is100Pct]);
+  }, [targetMetAt, is100Pct, now]);
 
   const rawScore =
     avgProgress * 30 +

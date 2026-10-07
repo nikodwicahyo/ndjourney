@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { useWishes } from "@/hooks/useWishes";
 import WishCard from "./WishCard";
 import { Skeleton, Button } from "@/components/ui";
 import { motion } from "framer-motion";
-import { Gift, Heart, PartyPopper, Filter } from "lucide-react";
+import { Gift, Heart, PartyPopper } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const CATEGORIES = [
@@ -17,8 +19,24 @@ const CATEGORIES = [
 ];
 
 export default function PublicWishList() {
+  const { data: session } = useSession();
   const { data: wishes, isLoading, error, refetch } = useWishes();
   const [filter, setFilter] = useState("");
+
+  if (!session?.user) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
+        <Gift className="h-12 w-12 text-muted-foreground" />
+        <p className="text-muted-foreground">Login untuk melihat wish</p>
+        <Link
+          href="/login"
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-primary px-6 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+        >
+          Login
+        </Link>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (

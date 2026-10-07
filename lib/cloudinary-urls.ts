@@ -22,11 +22,11 @@ function buildTransform(opts: Record<string, string | number | undefined>): stri
 export function getOptimizedImageUrl(
   imageUrl: string,
   width = 800,
-  options: { quality?: string | number; format?: string; crop?: string } = {},
+  options: { quality?: string | number; format?: string; crop?: string; height?: number } = {},
 ): string {
   const extracted = extractUploadBaseAndId(imageUrl);
   if (!extracted) return imageUrl;
-  const opts = { q: options.quality ?? "auto", f: options.format ?? "auto", w: width, c: options.crop ?? "limit" };
+  const opts = { q: options.quality ?? "auto", f: options.format ?? "auto", w: width, h: options.height, c: options.crop ?? "limit" };
   return `${extracted.base}${buildTransform(opts)}/${extracted.publicId}`;
 }
 

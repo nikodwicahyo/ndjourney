@@ -153,17 +153,20 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
     staleTime: 60_000,
   });
 
-  const photoUrl = selectedPhoto?.thumbnailUrl || selectedPhoto?.url || "";
-
-  // cap at 1024w once — was full-res original in 6 <img> tags.
+  // Square center-fill from the ORIGINAL (thumbnail skipped: a 400px fill
+  // would upscale soft). The board and every preview are square, and the
+  // tile slice math (backgroundSize G×100% + col/(G-1) position) is exact
+  // only for a square source — non-square sources repeated inside tiles,
+  // the "double cut" artifact. Cap at 1024 (was full-res in 6 <img> tags).
   const displayUrl = useMemo(() => {
-    if (!photoUrl) return "";
+    const src = selectedPhoto?.url;
+    if (!src) return "";
     try {
-      return getOptimizedImageUrl(photoUrl, 1024, { crop: "limit" });
+      return getOptimizedImageUrl(src, 1024, { crop: "fill", height: 1024 });
     } catch {
-      return photoUrl;
+      return src;
     }
-  }, [photoUrl]);
+  }, [selectedPhoto?.url]);
 
   const thumbOf = useCallback((p: Photo) => {
     const raw = p.thumbnailUrl || p.url;
@@ -705,6 +708,11 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
                 backgroundImage: `url(${displayUrl})`,
                 backgroundSize: `${gridSize * 100}%`,
                 backgroundPosition: bgPos(origCol, origRow, gridSize),
+                // Slice math is exact on the tile's border box (the 0.5px
+                // hairlines would otherwise shrink every slice slightly);
+                // never repeat so a stray non-square source can't double it.
+                backgroundOrigin: "border-box",
+                backgroundRepeat: "no-repeat",
                 transition: isSwapping
                   ? "none"
                   : "transform 150ms ease, box-shadow 150ms ease",

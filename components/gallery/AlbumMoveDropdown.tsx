@@ -58,7 +58,7 @@ export default function AlbumMoveDropdown({
             className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="mb-5 flex items-center justify-between">
+            <div className="mb-4 flex items-center justify-between border-b border-border pb-4">
               <h2 className="font-heading text-lg font-semibold">Pindahkan ke Album</h2>
               <button
                 onClick={() => setOpen(false)}

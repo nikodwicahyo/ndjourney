@@ -35,7 +35,7 @@ export default function NoteForm({ onSuccess }: { onSuccess?: () => void }) {
           placeholder="Apa yang kamu rasakan hari ini? (maks 280 karakter)"
           maxLength={MAX_LENGTH}
           rows={3}
-          className="flex w-full resize-none rounded-xl border border-input bg-background px-4 py-3 pr-16 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex w-full resize-none rounded-xl border border-input bg-card px-4 py-3 pr-16 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
         <span
           className={`absolute bottom-3 right-3 text-xs ${

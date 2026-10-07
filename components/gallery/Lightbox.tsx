@@ -93,6 +93,13 @@ function Lightbox({
   // ref mirror for gesture handlers (no stale closures, no re-subscribe).
   const viewRef = useRef(view);
   viewRef.current = view;
+  // Swipe-to-navigate (single pointer at 1x): the slide follows the finger,
+  // releasing past SWIPE_PX flips it. Nav buttons share the same 1x gate
+  // (auto-hidden while zoomed).
+  const SWIPE_PX = 60;
+  const [dragX, setDragX] = useState(0);
+  const [swiping, setSwiping] = useState(false);
+  const swipeRef = useRef<{ x0: number; y0: number; active: boolean } | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [direction, setDirection] = useState(1);
   const photo = photos[currentIndex];
@@ -301,7 +308,10 @@ function Lightbox({
     pointersRef.current.clear();
     gestureRef.current = null;
     tapRef.current = null;
+    swipeRef.current = null;
     setPanning(false);
+    setSwiping(false);
+    setDragX(0);
     setView({ s: 1, tx: 0, ty: 0 });
   }, []);
 
@@ -324,6 +334,10 @@ function Lightbox({
       }
       pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (pointersRef.current.size === 2) {
+        // Second finger = pinch intent, not a swipe.
+        swipeRef.current = null;
+        setSwiping(false);
+        setDragX(0);
         const [a, b] = [...pointersRef.current.values()];
         const v = viewRef.current;
         gestureRef.current = {
@@ -337,6 +351,8 @@ function Lightbox({
       } else if (pointersRef.current.size === 1) {
         tapRef.current = { x: e.clientX, y: e.clientY, t: Date.now() };
         if (viewRef.current.s > 1) setPanning(true);
+        swipeRef.current =
+          viewRef.current.s === 1 ? { x0: e.clientX, y0: e.clientY, active: false } : null;
       }
     },
     [photo?.isVideo],
@@ -370,9 +386,23 @@ function Lightbox({
         ty = 0;
       }
       setView({ s, tx: Math.round(tx), ty: Math.round(ty) });
-    } else if (pts.size === 1 && viewRef.current.s > 1) {
+    } else if (pts.size === 1) {
       const v = viewRef.current;
-      setView({ s: v.s, tx: Math.round(v.tx + (e.clientX - prev.x)), ty: Math.round(v.ty + (e.clientY - prev.y)) });
+      if (v.s > 1) {
+        setView({ s: v.s, tx: Math.round(v.tx + (e.clientX - prev.x)), ty: Math.round(v.ty + (e.clientY - prev.y)) });
+      } else {
+        const sw = swipeRef.current;
+        if (sw && !sw.active) {
+          const dx = e.clientX - sw.x0;
+          const dy = e.clientY - sw.y0;
+          if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy)) sw.active = true;
+          else if (Math.abs(dy) > 12) swipeRef.current = null; // vertical intent: not ours
+        }
+        if (swipeRef.current?.active) {
+          setSwiping(true);
+          setDragX(e.clientX - swipeRef.current.x0);
+        }
+      }
     }
   }, []);
 
@@ -382,6 +412,17 @@ function Lightbox({
       if (pointersRef.current.size < 2) gestureRef.current = null;
       if (pointersRef.current.size === 0) {
         setPanning(false);
+        const sw = swipeRef.current;
+        swipeRef.current = null;
+        if (sw?.active) {
+          setSwiping(false);
+          const dx = e.clientX - sw.x0;
+          setDragX(0);
+          if (e.type !== "pointercancel") {
+            if (dx <= -SWIPE_PX) handleNext();
+            else if (dx >= SWIPE_PX) handlePrev();
+          }
+        }
         const tap = tapRef.current;
         tapRef.current = null;
         // Clean tap on the photo toggles a quick 2x peek centered on the
@@ -395,7 +436,7 @@ function Lightbox({
         }
       }
     },
-    [zoomAt, resetView],
+    [zoomAt, resetView, handlePrev, handleNext],
   );
 
   // Desktop (and mobile) wheel: plain = coarse step, ctrlKey (trackpad
@@ -502,9 +543,9 @@ function Lightbox({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.15 }}
-        className="fixed inset-0 z-50 flex flex-col bg-black/95 outline-none"
+        className="fixed inset-0 z-50 bg-black/95 outline-none"
       >
-        <div className="relative z-10 flex items-center justify-between px-4 py-3">
+        <div className="absolute inset-x-0 top-0 z-30 flex items-center justify-between bg-gradient-to-b from-black/80 via-black/40 to-transparent px-4 pt-[max(env(safe-area-inset-top),0.75rem)] pb-8">
           <div className="flex items-center gap-2">
             <button
               onClick={handleClose}
@@ -569,47 +610,30 @@ function Lightbox({
           </div>
         </div>
 
-        <div className="flex flex-1 justify-center gap-1 overflow-hidden">
-          {!isZoomed && (
-          <div
-            onClick={handlePrev}
-            className="flex shrink-0 cursor-pointer items-center justify-start pl-1 sm:pl-2"
-          >
-              <button
-                disabled={currentIndex === 0}
-                className="rounded-full bg-black/40 p-2.5 text-white/80 transition-colors hover:bg-black/60 hover:text-white disabled:opacity-30 disabled:hover:bg-black/40 disabled:hover:text-white/80 sm:p-3"
-                aria-label="Sebelumnya"
-              >
-                <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />
-              </button>
-          </div>
-          )}
-
-          <div
-            ref={mediaBoxRef}
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={endPointer}
-            onPointerCancel={endPointer}
-            className="relative grid min-h-0 shrink-0 place-items-center overflow-hidden"
-            style={{
-              flex: "1 1 0",
-              minWidth: 0,
-              maxWidth: isZoomed ? "100%" : "85%",
-              // fully locked — no scroll, no browser gestures;
-              // zoom is transform-anchored so there is nothing to drag.
-              touchAction: "none",
-            }}
-          >
+        {/* Full-viewport media stage — nav + bars float above it so portrait
+            media can use the entire screen. */}
+        <div
+          ref={mediaBoxRef}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={endPointer}
+          onPointerCancel={endPointer}
+          className="absolute inset-0 grid place-items-center overflow-hidden"
+          style={{
+            // fully locked — no scroll, no browser gestures;
+            // zoom is transform-anchored so there is nothing to drag.
+            touchAction: "none",
+          }}
+        >
             <AnimatePresence initial={false} custom={direction}>
               <motion.div
                 key={photo.isVideo ? `v-${photo.id}` : `i-${photo.id}`}
                 custom={direction}
                 variants={slideVariants}
                 initial="enter"
-                animate="center"
+                animate={{ x: dragX }}
                 exit="exit"
-                transition={{ x: { duration: 0.35, ease: [0.4, 0, 0.2, 1] } }}
+                transition={{ x: { duration: swiping ? 0 : 0.35, ease: [0.4, 0, 0.2, 1] } }}
                 className="absolute inset-0 flex items-center justify-center"
                 style={{ willChange: "transform" }}
               >
@@ -620,7 +644,7 @@ function Lightbox({
                     controls
                     preload="metadata"
                     poster={getVideoPosterUrl(photo.url)}
-                    className="max-h-[80vh] w-auto rounded-lg object-contain"
+                    className="max-h-full w-auto max-w-full rounded-lg object-contain"
                     autoPlay
                     onPlay={() => dispatchBgEvent("pause")}
                     onPause={() => dispatchBgEvent("resume")}
@@ -634,15 +658,6 @@ function Lightbox({
                       transformOrigin: "0 0",
                     }}
                   >
-                  <div
-                    className="relative flex max-h-[80vh] max-w-full items-center justify-center"
-                  >
-                    {mediaState === "loading" && (
-                      <div
-                        className="absolute inset-0 z-10 animate-pulse rounded-lg bg-white/20"
-                      />
-                    )}
-
                     {mediaState === "error" ? (
                       <div className="flex flex-col items-center gap-4 text-white/70">
                         <p className="text-sm">Gagal memuat gambar</p>
@@ -660,11 +675,11 @@ function Lightbox({
                         alt={photo.caption ?? "Photo"}
                         draggable={false}
                         srcSet={mediaState === "loaded" ? srcSet : undefined}
-                        sizes="(max-width: 768px) 85vw, (max-width: 1200px) 70vw, 60vw"
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 90vw, 80vw"
                         decoding="async"
                         fetchPriority={mediaState === "loading" ? "low" : "high"}
                         className={cn(
-                          "max-h-[80vh] w-auto rounded-lg object-contain transition-opacity duration-500 select-none",
+                          "max-h-full w-auto max-w-full rounded-lg object-contain transition-opacity duration-500 select-none",
                           mediaState === "loading" ? "opacity-40" : "opacity-100",
                           !isZoomed
                             ? "cursor-zoom-in"
@@ -675,7 +690,6 @@ function Lightbox({
                         style={{ maxWidth: "100%", height: "auto" }}
                       />
                     )}
-                  </div>
                   </div>
                 ) : (
                   <div className="flex max-w-sm flex-col items-center gap-4 rounded-lg border border-white/10 bg-white/5 p-6 text-center">
@@ -697,25 +711,30 @@ function Lightbox({
                 )}
               </motion.div>
             </AnimatePresence>
-          </div>
-
-          {!isZoomed && (
-          <div
-            onClick={handleNext}
-            className="flex shrink-0 cursor-pointer items-center justify-end pr-1 sm:pr-2"
-          >
-              <button
-                disabled={currentIndex >= photos.length - 1 && !hasNextPage}
-                className="rounded-full bg-black/40 p-2.5 text-white/80 transition-colors hover:bg-black/60 hover:text-white disabled:opacity-30 disabled:hover:bg-black/40 disabled:hover:text-white/80 sm:p-3"
-                aria-label="Berikutnya"
-              >
-                <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />
-              </button>
-          </div>
-          )}
         </div>
 
-        <div className="px-6 py-4">
+        {!isZoomed && (
+          <button
+            onClick={handlePrev}
+            disabled={currentIndex === 0}
+            className="absolute left-2 top-1/2 z-30 -translate-y-1/2 rounded-full bg-black/40 p-2.5 text-white/80 transition-colors hover:bg-black/60 hover:text-white disabled:opacity-30 disabled:hover:bg-black/40 disabled:hover:text-white/80 sm:p-3"
+            aria-label="Sebelumnya"
+          >
+            <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />
+          </button>
+        )}
+        {!isZoomed && (
+          <button
+            onClick={handleNext}
+            disabled={currentIndex >= photos.length - 1 && !hasNextPage}
+            className="absolute right-2 top-1/2 z-30 -translate-y-1/2 rounded-full bg-black/40 p-2.5 text-white/80 transition-colors hover:bg-black/60 hover:text-white disabled:opacity-30 disabled:hover:bg-black/40 disabled:hover:text-white/80 sm:p-3"
+            aria-label="Berikutnya"
+          >
+            <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />
+          </button>
+        )}
+
+        <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-6 pt-8 pb-[max(env(safe-area-inset-bottom),1rem)]">
           <div className="flex items-center justify-between">
             <div className="flex-1 min-w-0">
               {photo.caption && (
@@ -723,11 +742,6 @@ function Lightbox({
               )}
               <div className="mt-1 flex items-center gap-3 text-xs text-white/50">
                 <span>{formatDate(photo.createdAt)}</span>
-                {photo.width && photo.height && (
-                  <span>
-                    {photo.width}x{photo.height}px
-                  </span>
-                )}
               </div>
             </div>
           </div>
@@ -742,7 +756,7 @@ function Lightbox({
               className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="mb-5 flex items-center justify-between">
+              <div className="mb-4 flex items-center justify-between border-b border-border pb-4">
                 <h2 className="font-heading text-lg font-semibold">Detail Media</h2>
                 <button
                   onClick={() => setShowInfo(false)}
@@ -782,7 +796,7 @@ function Lightbox({
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">Resolusi</p>
-                      <p className="text-sm font-medium">{photo.width} x {photo.height} px</p>
+                      <p className="text-sm font-medium">{photo.width}x{photo.height}px</p>
                     </div>
                   </div>
                 )}

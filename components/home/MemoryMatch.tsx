@@ -72,14 +72,13 @@ export default function MemoryMatch({ photos }: MemoryMatchProps) {
   const photoPool = useMemo(() => selectMemoryMatchImages(photos), [photos]);
   const [cards, setCards] = useState<Card[]>([]);
 
-  // Deal on mount and whenever the pool identity changes — render-time
-  // adjustment (React-endorsed), replacing the post-paint effect so the
-  // first paint already shows cards instead of an empty grid.
-  const [dealtPool, setDealtPool] = useState<GalleryPhoto[] | null>(null);
-  if (dealtPool !== photoPool) {
-    setDealtPool(photoPool);
+  // Deal after mount (and when the pool changes): shuffling with
+  // Math.random() during render produces different HTML on server vs
+  // client = hydration mismatch. Empty grid first paint is identical on
+  // both, then the effect deals — invisible, this sits below the fold.
+  useEffect(() => {
     setCards(initCards(shuffleArray(buildPool(photoPool)).slice(0, 6)));
-  }
+  }, [photoPool]);
 
   const [flippedIds, setFlippedIds] = useState<string[]>([]);
   const [moves, setMoves] = useState(0);

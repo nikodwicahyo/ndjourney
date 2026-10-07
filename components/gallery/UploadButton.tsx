@@ -118,7 +118,7 @@ export default function UploadButton({
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="mx-4 w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-xl">
-            <div className="mb-4 flex items-center justify-between">
+            <div className="mb-4 flex items-center justify-between border-b border-border pb-4">
               <h2 className="font-heading text-lg font-semibold">
                 Upload Media
               </h2>

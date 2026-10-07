@@ -111,7 +111,7 @@ export default function PublicGameClient() {
             value={playerName}
             onChange={(e) => setPlayerName(e.target.value)}
             placeholder="Nama kamu..."
-            className="flex h-12 w-full rounded-xl border border-input bg-background px-4 text-center text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex h-12 w-full rounded-xl border border-input bg-card px-4 text-center text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
             autoFocus
             maxLength={50}
           />

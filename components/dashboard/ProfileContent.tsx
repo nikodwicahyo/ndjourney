@@ -167,7 +167,7 @@ export default function ProfileContent({ user, couple }: ProfileContentProps) {
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl max-h-[90vh] overflow-y-auto">
-            <div className="mb-5 flex items-center justify-between">
+            <div className="mb-4 flex items-center justify-between border-b border-border pb-4">
               <h2 className="font-heading text-lg font-semibold">
                 Edit Profil
               </h2>
@@ -231,7 +231,7 @@ export default function ProfileContent({ user, couple }: ProfileContentProps) {
                   id="profile-name"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="flex h-10 w-full rounded-xl border border-input bg-background px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="flex h-10 w-full rounded-xl border border-input bg-muted px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   placeholder="Nama kamu"
                   autoFocus
                   maxLength={100}

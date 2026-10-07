@@ -254,7 +254,7 @@ export default function AddMilestoneForm({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div className="relative mx-4 max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-xl">
-        <div className="mb-5 flex items-center justify-between">
+        <div className="mb-4 flex items-center justify-between border-b border-border pb-4">
           <h2 className="font-heading text-lg font-semibold">
             {isEditing ? "Edit Milestone" : "Tambah Milestone"}
           </h2>
@@ -274,7 +274,7 @@ export default function AddMilestoneForm({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Contoh: First Date"
-              className="flex h-10 w-full rounded-xl border border-input bg-background px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex h-10 w-full rounded-xl border border-input bg-muted px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
               required
             />
           </div>
@@ -286,7 +286,7 @@ export default function AddMilestoneForm({
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="flex h-10 w-full rounded-xl border border-input bg-background px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex h-10 w-full rounded-xl border border-input bg-muted px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
               required
             />
           </div>
@@ -299,7 +299,7 @@ export default function AddMilestoneForm({
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Ceritakan momen ini..."
               rows={3}
-              className="flex w-full resize-none rounded-xl border border-input bg-background px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex w-full resize-none rounded-xl border border-input bg-muted px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           </div>
 
@@ -351,7 +351,7 @@ export default function AddMilestoneForm({
               value={location}
               onChange={(e) => setLocation(e.target.value)}
               placeholder="Contok: Café Senja, Bandung"
-              className="flex h-10 w-full rounded-xl border border-input bg-background px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex h-10 w-full rounded-xl border border-input bg-muted px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           </div>
 

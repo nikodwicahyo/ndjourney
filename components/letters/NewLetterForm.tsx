@@ -136,7 +136,7 @@ export default function NewLetterForm({ onClose }: { onClose?: () => void }) {
 
       <div className="space-y-2">
         <p className="text-sm font-medium">Untuk</p>
-        <div className="flex items-center gap-2 rounded-xl border border-input bg-background px-4 py-2.5 text-sm">
+        <div className="flex items-center gap-2 rounded-xl border border-input bg-card px-4 py-2.5 text-sm">
           <span className="text-lg">{partner.image ? <Image src={partner.image} alt="" className="h-5 w-5 rounded-full" width={20} height={20} /> : <Heart className="h-5 w-5 fill-primary text-primary" />}</span>
           <span className="font-medium">{partner.name || "Pasangan"}</span>
         </div>
@@ -153,7 +153,7 @@ export default function NewLetterForm({ onClose }: { onClose?: () => void }) {
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Judul surat..."
           maxLength={200}
-          className="flex h-10 w-full rounded-xl border border-input bg-background px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex h-10 w-full rounded-xl border border-input bg-card px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
           required
         />
       </div>
@@ -227,7 +227,7 @@ export default function NewLetterForm({ onClose }: { onClose?: () => void }) {
                 value={unlockDate}
                 onChange={(e) => setUnlockDate(e.target.value)}
                 min={getJakartaToday()}
-                className="flex h-9 w-full rounded-lg border border-input bg-background px-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex h-9 w-full rounded-lg border border-input bg-card px-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
             </div>
             <div className="space-y-1.5">
@@ -239,7 +239,7 @@ export default function NewLetterForm({ onClose }: { onClose?: () => void }) {
                 type="time"
                 value={unlockTime}
                 onChange={(e) => setUnlockTime(e.target.value)}
-                className="flex h-9 w-full rounded-lg border border-input bg-background px-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex h-9 w-full rounded-lg border border-input bg-card px-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
             </div>
           </div>

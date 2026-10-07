@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { useSession } from "next-auth/react";
-import { MapPin, Loader2, Clock } from "lucide-react";
+import { MapPin, Loader2 } from "lucide-react";
 import { Card, Avatar, AvatarImage, AvatarFallback } from "@/components/ui";
 import {
   useLocationSettings,
@@ -66,7 +66,6 @@ export default function LocationWidget() {
   }
 
   const bothSharing = self.isSharing && partner.isSharing;
-  const partnerHasLoc = !!partner.location;
   const selfLive = self.isSharing && !self.isStale;
   const partnerLive = partner.isSharing && !partner.isStale;
   const selfInitial = (self.name ?? "K").charAt(0).toUpperCase();
@@ -134,10 +133,17 @@ export default function LocationWidget() {
             {distance !== null ? formatDistance(distance) : "—"}
           </span>
           {bothSharing && (
-            <span className="flex items-center gap-1 text-[12px] text-emerald-500">
-              <span className="h-1 w-1 animate-pulse rounded-full bg-emerald-500" />
-              live
-            </span>
+            selfLive && partnerLive ? (
+              <span className="flex items-center gap-1 text-[12px] text-emerald-500">
+                <span className="h-1 w-1 animate-pulse rounded-full bg-emerald-500" />
+                live
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 text-[12px] text-amber-500">
+                <span className="h-1 w-1 rounded-full bg-amber-500" />
+                offline
+              </span>
+            )
           )}
         </div>
 
@@ -176,14 +182,6 @@ export default function LocationWidget() {
           </div>
         </div>
       </div>
-
-      {/* Last updated */}
-      {partnerHasLoc && bothSharing && (
-        <div className="mt-4 flex items-center justify-center gap-2 border-t border-border/40 pt-3 text-[12px] text-muted-foreground">
-          <Clock className="h-3 w-3" />
-          <span>Lokasi bersama diperbarui: {timeAgo(partner.locationAgeSeconds)}</span>
-        </div>
-      )}
 
       {/* Meeting banner */}
       <AnimatePresence>

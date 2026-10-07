@@ -54,7 +54,7 @@ export default function PublicWishList() {
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-2xl border border-primary/20 bg-primary/[0.03] p-5"
+          className="rounded-2xl border border-border bg-card p-5 shadow-sm"
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">

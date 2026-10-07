@@ -186,7 +186,7 @@ export default function RegisterForm({ token }: { token: string }) {
               placeholder="Nama kamu"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="flex h-10 w-full rounded-xl border border-input bg-background pl-10 pr-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex h-10 w-full rounded-xl border border-input bg-card pl-10 pr-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
               required
             />
           </div>
@@ -204,7 +204,7 @@ export default function RegisterForm({ token }: { token: string }) {
               placeholder="nama@email.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="flex h-10 w-full rounded-xl border border-input bg-background pl-10 pr-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex h-10 w-full rounded-xl border border-input bg-card pl-10 pr-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
               required
             />
           </div>
@@ -223,7 +223,7 @@ export default function RegisterForm({ token }: { token: string }) {
               minLength={6}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="flex h-10 w-full rounded-xl border border-input bg-background pl-10 pr-10 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex h-10 w-full rounded-xl border border-input bg-card pl-10 pr-10 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
               required
             />
             <button

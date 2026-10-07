@@ -89,7 +89,7 @@ export default function HeroSection({
   return (
     <section className="relative flex min-h-[90vh] items-center justify-center overflow-hidden" style={{ width: "100vw", marginLeft: "calc(-50vw + 50%)" }}>
       {heroPhotoUrl ? (
-        <div className="absolute inset-0">
+        <div className="absolute inset-0 [mask-image:linear-gradient(to_bottom,black_90%,transparent)]">
           {heroIsVideo ? (
             <video
               src={heroPhotoUrl}
@@ -126,7 +126,6 @@ export default function HeroSection({
               sizes="100vw"
             />
           )}
-          <div className="absolute inset-0 bg-gradient-to-b from-background/60 via-background/40 to-background" />
         </div>
       ) : (
         <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-secondary/30" />
@@ -138,7 +137,7 @@ export default function HeroSection({
         <div className="absolute top-1/3 right-1/4 h-40 w-40 rounded-full bg-primary/10 blur-2xl" />
       </div>
 
-      <div className="relative z-10 mx-auto max-w-4xl px-4 text-center">
+      <div className="relative z-10 mx-auto max-w-4xl px-4 text-center [paint-order:stroke] [-webkit-text-stroke:1.25px_rgba(255,255,255,0.9)] dark:[-webkit-text-stroke:1.25px_rgba(0,0,0,0.85)]">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

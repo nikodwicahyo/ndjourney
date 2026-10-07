@@ -291,8 +291,8 @@ export default function GameManager() {
             className={cn(
               "inline-flex items-center justify-center gap-1 rounded-full border px-3 py-1.5 text-xs font-medium transition-all",
               activeTab === value
-                ? "border-primary bg-primary/10 text-primary shadow-sm"
-                : "border-border text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground",
+                ? "border-primary bg-card text-primary shadow-sm"
+                : "border-border bg-card text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground",
             )}
           >
             <Icon className="h-3.5 w-3.5 shrink-0" />
@@ -333,7 +333,7 @@ export default function GameManager() {
           onClick={(e) => { if (e.target === e.currentTarget) cancelEdit(); }}
         >
           <div className="mx-4 max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-xl sm:p-6">
-            <div className="mb-5 flex items-center justify-between">
+            <div className="mb-4 flex items-center justify-between border-b border-border pb-4">
               <h2 className="font-heading text-base font-semibold sm:text-lg">{isEditing ? "Edit Pertanyaan" : "Pertanyaan Baru"}</h2>
               <button
                 type="button"
@@ -361,7 +361,7 @@ export default function GameManager() {
                 </div>
               ) : (
                 <div className="flex flex-wrap gap-2">
-                  {GAME_TYPES.map(({ value, label, icon: Icon }) => (
+                  {GAME_TYPES.filter((t) => !t.isArcade).map(({ value, label, icon: Icon }) => (
                     <button
                       key={value}
                       type="button"
@@ -390,7 +390,7 @@ export default function GameManager() {
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
                 placeholder="Pertanyaan..."
-                className="flex h-10 w-full rounded-xl border border-input bg-background px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex h-10 w-full rounded-xl border border-input bg-muted px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 required
               />
 
@@ -401,14 +401,14 @@ export default function GameManager() {
                       value={optionA}
                       onChange={(e) => setOptionA(e.target.value)}
                       placeholder="Opsi A"
-                      className="flex h-10 w-full rounded-xl border border-input bg-background px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="flex h-10 w-full rounded-xl border border-input bg-muted px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       required
                     />
                     <input
                       value={optionB}
                       onChange={(e) => setOptionB(e.target.value)}
                       placeholder="Opsi B"
-                      className="flex h-10 w-full rounded-xl border border-input bg-background px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="flex h-10 w-full rounded-xl border border-input bg-muted px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       required
                     />
                   </div>
@@ -440,7 +440,7 @@ export default function GameManager() {
                   value={answer}
                   onChange={(e) => setAnswer(e.target.value)}
                   placeholder="Jawaban (atau 'None' untuk diskusi)"
-                  className="flex h-10 w-full rounded-xl border border-input bg-background px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="flex h-10 w-full rounded-xl border border-input bg-muted px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
               )}
 
@@ -482,7 +482,7 @@ export default function GameManager() {
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                   placeholder="Kategori (opsional)"
-                  className="flex h-10 w-full rounded-xl border border-input bg-background px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="flex h-10 w-full rounded-xl border border-input bg-muted px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
               )}
               </>
@@ -507,11 +507,6 @@ export default function GameManager() {
 
       {isArcadeTab ? (
         <div className="space-y-6">
-          <div className="rounded-2xl border border-border bg-card p-6 text-center">
-            <p className="text-sm text-muted-foreground">
-              Game ini tidak menggunakan pertanyaan. Skor diambil langsung dari permainan.
-            </p>
-          </div>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             {statCards.map((card) => (
               <div

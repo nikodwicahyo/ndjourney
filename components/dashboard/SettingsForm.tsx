@@ -208,7 +208,7 @@ export default function SettingsForm() {
             id="settings-name1"
             value={name1}
             onChange={(e) => setName1(e.target.value)}
-            className="flex h-10 w-full min-w-0 rounded-xl border border-input bg-background px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex h-10 w-full min-w-0 rounded-xl border border-input bg-card px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             placeholder="Nama kamu"
           />
         </div>
@@ -218,7 +218,7 @@ export default function SettingsForm() {
             id="settings-name2"
             value={name2}
             onChange={(e) => setName2(e.target.value)}
-            className="flex h-10 w-full min-w-0 rounded-xl border border-input bg-background px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex h-10 w-full min-w-0 rounded-xl border border-input bg-card px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             placeholder="Nama pasangan"
           />
         </div>
@@ -231,14 +231,13 @@ export default function SettingsForm() {
           type="date"
           value={anniversaryDate}
           onChange={(e) => setAnniversaryDate(e.target.value)}
-          className="flex h-10 w-full rounded-xl border border-input bg-background px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex h-10 w-full rounded-xl border border-input bg-card px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2 min-w-0">
           <label htmlFor="settings-birth1" className="flex items-center gap-1.5 text-sm font-medium">
-            <Cake className="h-3.5 w-3.5 shrink-0 text-secondary" />
             <span className="truncate">Tanggal Lahir {name1 || "Pasangan 1"}</span>
           </label>
           <input
@@ -246,12 +245,11 @@ export default function SettingsForm() {
             type="date"
             value={birthDate1}
             onChange={(e) => setBirthDate1(e.target.value)}
-            className="flex h-10 w-full rounded-xl border border-input bg-background px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex h-10 w-full rounded-xl border border-input bg-card px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </div>
         <div className="space-y-2 min-w-0">
           <label htmlFor="settings-birth2" className="flex items-center gap-1.5 text-sm font-medium">
-            <Cake className="h-3.5 w-3.5 shrink-0 text-secondary" />
             <span className="truncate">Tanggal Lahir {name2 || "Pasangan 2"}</span>
           </label>
           <input
@@ -259,7 +257,7 @@ export default function SettingsForm() {
             type="date"
             value={birthDate2}
             onChange={(e) => setBirthDate2(e.target.value)}
-            className="flex h-10 w-full rounded-xl border border-input bg-background px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex h-10 w-full rounded-xl border border-input bg-card px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </div>
       </div>
@@ -270,7 +268,7 @@ export default function SettingsForm() {
           id="settings-tagline"
           value={tagline}
           onChange={(e) => setTagline(e.target.value)}
-          className="flex h-10 w-full rounded-xl border border-input bg-background px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex h-10 w-full rounded-xl border border-input bg-card px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
           placeholder="Contoh: Dua hati, satu cerita"
         />
       </div>
@@ -406,7 +404,7 @@ export default function SettingsForm() {
           id="settings-spotify"
           value={spotifyPlaylistUrl}
           onChange={(e) => setSpotifyPlaylistUrl(e.target.value)}
-          className="flex h-10 w-full rounded-xl border border-input bg-background px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex h-10 w-full rounded-xl border border-input bg-card px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
           placeholder="https://open.spotify.com/playlist/..."
         />
       </div>

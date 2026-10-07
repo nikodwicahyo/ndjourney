@@ -203,6 +203,7 @@ export default function DistanceCard({
 
   const selfLive = self.isSharing && !self.isStale;
   const partnerLive = partner.isSharing && !partner.isStale;
+  const bothLive = selfLive && partnerLive;
 
   return (
     <Card className="relative overflow-hidden border-primary/10">
@@ -258,22 +259,27 @@ export default function DistanceCard({
               {distance !== null ? <AnimatedNumber value={distance} /> : "—"}
             </motion.div>
             <div className="flex items-center gap-1.5 mt-0.5">
-              {bothSharing && trend === "closing" && (
+              {bothLive && trend === "closing" && (
                 <span className="inline-flex items-center gap-1 text-[10px] text-emerald-500">
                   <TrendingDown className="h-3 w-3" />Semakin dekat
                 </span>
               )}
-              {bothSharing && trend === "away" && (
+              {bothLive && trend === "away" && (
                 <span className="inline-flex items-center gap-1 text-[10px] text-red-500">
                   <TrendingUp className="h-3 w-3" />Semakin jauh
                 </span>
               )}
-              {bothSharing && (
+              {bothSharing && (bothLive ? (
                 <span className="flex items-center gap-1 text-[9px] text-emerald-500">
                   <span className="h-1 w-1 rounded-full bg-emerald-500 animate-pulse" />
                   live
                 </span>
-              )}
+              ) : (
+                <span className="flex items-center gap-1 text-[9px] text-amber-500">
+                  <span className="h-1 w-1 rounded-full bg-amber-500" />
+                  offline
+                </span>
+              ))}
             </div>
           </div>
           <PersonAvatar
@@ -400,15 +406,6 @@ export default function DistanceCard({
                 )}
               </div>
             )}
-          </div>
-        )}
-
-        {partnerHasLoc && (
-          <div className="flex items-center justify-center gap-1.5 text-[10px] text-muted-foreground border-t border-border/40 pt-2">
-            <Clock className="h-3 w-3 shrink-0" />
-            <span className={partner.locationAgeSeconds !== null && partner.locationAgeSeconds > 3600 ? "text-amber-500" : ""}>
-              Lokasi bersama diperbarui: {timeAgo(partner.locationAgeSeconds)}
-            </span>
           </div>
         )}
 

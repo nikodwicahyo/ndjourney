@@ -183,15 +183,15 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Nama album"
-              className="flex h-10 w-full rounded-xl border border-input bg-background px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex h-10 w-full rounded-xl border border-input bg-card px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
             <input
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Deskripsi (opsional)"
-              className="flex h-10 w-full rounded-xl border border-input bg-background px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex h-10 w-full rounded-xl border border-input bg-card px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-input bg-background px-4 py-2.5 text-sm">
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-input bg-card px-4 py-2.5 text-sm">
               <span className="flex flex-col">
                 <span className="font-medium">Visibilitas</span>
                 <span className="text-xs text-muted-foreground">
@@ -277,15 +277,15 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
                           }}
                           placeholder="Nama album"
                           autoFocus
-                          className="h-8 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          className="h-8 w-full rounded-lg border border-input bg-card px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         />
                         <input
                           value={editDescription}
                           onChange={(e) => setEditDescription(e.target.value)}
                           placeholder="Deskripsi (opsional)"
-                          className="h-8 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          className="h-8 w-full rounded-lg border border-input bg-card px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         />
-                        <div className="flex items-center justify-between gap-3 rounded-lg border border-input bg-background px-3 py-1.5 text-sm">
+                        <div className="flex items-center justify-between gap-3 rounded-lg border border-input bg-card px-3 py-1.5 text-sm">
                           <span className="font-medium">Visibilitas</span>
                           <div className="flex items-center gap-1 rounded-full border border-border p-0.5">
                             <button

@@ -64,7 +64,7 @@ export default function NotesManager() {
               placeholder="Apa yang kamu rasakan hari ini?"
               maxLength={280}
               rows={3}
-              className="flex w-full resize-none rounded-xl border border-input bg-background px-4 py-3 pr-16 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex w-full resize-none rounded-xl border border-input bg-card px-4 py-3 pr-16 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
             <span className={`absolute bottom-3 right-3 text-xs ${content.length >= 280 ? "text-destructive" : "text-muted-foreground"}`}>
               {content.length}/280
@@ -117,7 +117,7 @@ export default function NotesManager() {
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
                 max={today}
-                className="flex h-9 rounded-lg border border-input bg-background px-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex h-9 rounded-lg border border-input bg-card px-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
             )}
           </div>

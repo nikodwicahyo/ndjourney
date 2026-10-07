@@ -220,7 +220,7 @@ export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: T
             onChange={(e) => setUserAnswer(e.target.value)}
             onKeyDown={handleInputKeyDown}
             placeholder="Ketik jawabanmu..."
-            className="flex h-12 w-full rounded-xl border border-input bg-background px-4 text-center text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex h-12 w-full rounded-xl border border-input bg-card px-4 text-center text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
             autoFocus
           />
           <Button

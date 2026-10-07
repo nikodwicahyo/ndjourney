@@ -8,7 +8,6 @@ import PwaRegister from "@/components/PwaRegister";
 import InstallPrompt from "@/components/InstallPrompt";
 import VersionCheck from "@/components/VersionCheck";
 import BackgroundEffect from "@/components/BackgroundEffect";
-import FloatingHearts from "@/components/FloatingHearts";
 import "./globals.css";
 
 const playfairDisplay = Playfair_Display({
@@ -97,7 +96,6 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <BackgroundEffect />
-          <FloatingHearts />
           <QueryProvider>
             <SessionProvider>
             {children}

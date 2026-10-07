@@ -32,7 +32,7 @@ export default function LetterEditor({
     editorProps: {
       attributes: {
         class:
-          "prose prose-sm dark:prose-invert min-h-[280px] w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "prose prose-sm dark:prose-invert min-h-[280px] w-full rounded-xl border border-input bg-card px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring",
         ...(ariaLabel ? { "aria-label": ariaLabel } : {}),
       },
     },

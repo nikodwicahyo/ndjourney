@@ -240,7 +240,7 @@ function WishCard({ wish, readOnly = false, onEdit }: WishCardProps) {
                 "flex h-7 w-7 items-center justify-center rounded-full border-2 transition-all",
                 wish.isDone
                   ? "scale-110 border-green-500 bg-green-500 text-white"
-                  : "border-muted-foreground/30 hover:border-primary",
+                  : "border-muted-foreground/30 text-muted-foreground hover:border-primary hover:text-primary",
                 animating && "scale-90",
               )}
               aria-label={wish.isDone ? "Tandai belum selesai" : "Tandai selesai"}
@@ -251,11 +251,7 @@ function WishCard({ wish, readOnly = false, onEdit }: WishCardProps) {
                 animate={{ scale: 1, rotate: 0 }}
                 transition={{ type: "spring", stiffness: 400, damping: 15 }}
               >
-                {wish.isDone ? (
-                  <Check className="h-3.5 w-3.5" />
-                ) : (
-                  <span className="block h-2 w-2 rounded-full bg-muted-foreground/30" />
-                )}
+                <Check className="h-3.5 w-3.5" />
               </motion.div>
             </button>
           </div>

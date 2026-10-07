@@ -517,7 +517,7 @@ export default function GalleryManager() {
             <select
               value={selectedAlbumId}
               onChange={(e) => setSelectedAlbumId(e.target.value)}
-              className="h-9 w-full max-w-xs rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="h-9 w-full max-w-xs rounded-lg border border-input bg-card px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <option value="">Tanpa album</option>
               {albums.map((a) => (
@@ -881,7 +881,7 @@ export default function GalleryManager() {
             className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="mb-5 flex items-center justify-between">
+            <div className="mb-4 flex items-center justify-between border-b border-border pb-4">
               <h2 className="font-heading text-lg font-semibold">Pindahkan ke Album</h2>
               <button
                 onClick={() => { setShowMoveModal(false); setMoveAlbumId(""); }}

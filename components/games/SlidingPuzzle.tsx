@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { useSubmitArcadeScore } from "@/hooks/useGames";
 import { getOptimizedImageUrl } from "@/lib/cloudinary-urls";
+import { selectPublicPhotos } from "@/lib/utils";
 import { Button, Skeleton } from "@/components/ui";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -143,15 +144,43 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
   const remainingMoves = maxMoves - moveCount;
   const isLowMoves = remainingMoves <= Math.ceil(maxMoves * 0.2);
 
-  const { data: photosData, isLoading: photosLoading } = useQuery({
-    queryKey: ["photos", "list", { mediaType: "foto" }],
-    queryFn: async () => {
-      const res = await fetch("/api/photos?limit=100&mediaType=foto");
-      const json = await res.json();
-      return (json.data ?? []) as Photo[];
+  const {
+    data: photosPages,
+    isLoading: photosLoading,
+    hasNextPage: hasMorePhotos,
+    isFetchingNextPage: photosMoreLoading,
+    fetchNextPage: fetchMorePhotos,
+  } = useInfiniteQuery({
+    queryKey: [
+      "photos",
+      "list",
+      { mediaType: "foto", visibility: "public", scope: "puzzle-picker" },
+    ],
+    queryFn: async ({ pageParam }) => {
+      const params = new URLSearchParams({
+        limit: "100",
+        mediaType: "foto",
+        visibility: "public",
+      });
+      if (pageParam) params.set("cursor", pageParam);
+      const res = await fetch(`/api/photos?${params}`);
+      if (!res.ok)
+        return { data: [] as Photo[], nextCursor: null as string | null };
+      const json = await res.json().catch(() => null);
+      return {
+        data: selectPublicPhotos((json?.data ?? []) as Photo[]),
+        nextCursor: (json?.nextCursor ?? null) as string | null,
+      };
     },
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    initialPageParam: null as string | null,
     staleTime: 60_000,
   });
+
+  const photosData = useMemo(
+    () => photosPages?.pages.flatMap((p) => p.data) ?? [],
+    [photosPages],
+  );
 
   // Square center-fill from the ORIGINAL (thumbnail skipped: a 400px fill
   // would upscale soft). The board and every preview are square, and the
@@ -315,29 +344,42 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
-            {photosData.map((photo) => (
-              <button
-                key={photo.id}
-                onClick={() => {
-                  setSelectedPhoto(photo);
-                  setPhase("difficulty");
-                }}
-                className="group relative aspect-square overflow-hidden rounded-xl border-2 border-border bg-muted transition-all hover:border-pink-400 hover:shadow-md"
-              >
-                <img
-                  src={thumbOf(photo)}
-                  alt={photo.caption || "Foto"}
-                  className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                  loading="lazy"
-                  decoding="async"
-                />
-                <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/20">
-                  <Heart className="h-6 w-6 text-white opacity-0 transition-opacity group-hover:opacity-100" />
-                </div>
-              </button>
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+              {photosData.map((photo) => (
+                <button
+                  key={photo.id}
+                  onClick={() => {
+                    setSelectedPhoto(photo);
+                    setPhase("difficulty");
+                  }}
+                  className="group relative aspect-square overflow-hidden rounded-xl border-2 border-border bg-muted transition-all hover:border-pink-400 hover:shadow-md"
+                >
+                  <img
+                    src={thumbOf(photo)}
+                    alt={photo.caption || "Foto"}
+                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/20">
+                    <Heart className="h-6 w-6 text-white opacity-0 transition-opacity group-hover:opacity-100" />
+                  </div>
+                </button>
+              ))}
+            </div>
+            {hasMorePhotos && (
+              <div className="mt-6 text-center">
+                <Button
+                  variant="outline"
+                  onClick={() => fetchMorePhotos()}
+                  disabled={photosMoreLoading}
+                >
+                  {photosMoreLoading ? "Memuat…" : "Lihat Lebih Banyak"}
+                </Button>
+              </div>
+            )}
+          </>
         )}
       </div>
     );

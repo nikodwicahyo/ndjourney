@@ -164,6 +164,17 @@ export function isRenderableImageUrl(url?: string | null): boolean {
   return !/\.(heic|heif)(\?|$)/i.test(url);
 }
 
+// Single public-media gate for games: private rows must never render even
+// if the caller passes an unfiltered list (stale cache → isPublic missing
+// counts as public, explicit false is always excluded).
+export function selectPublicPhotos<T extends Record<string, unknown>>(
+  photos: T[],
+): T[] {
+  return photos.filter(
+    (p) => (p as { isPublic?: unknown }).isPublic !== false,
+  );
+}
+
 export function getInitials(name: string): string {
   return name
     .split(" ")

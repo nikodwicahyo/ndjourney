@@ -1,12 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useAllQuestions } from "@/hooks/useGames";
 import { Button, Skeleton } from "@/components/ui";
 import { motion, AnimatePresence } from "framer-motion";
 import { RefreshCw, Shuffle } from "lucide-react";
+import { pruneSeen } from "@/lib/game-deck";
 
 const LS_KEY = "tod-history";
+// Bounded but bank-sized: the old cap of 20 repeated cards long before
+// bigger banks were exhausted.
+const HISTORY_LIMIT = 200;
 
 type HistoryItem = {
   id: string;
@@ -36,10 +40,25 @@ export default function TruthOrDare() {
   const [currentCard, setCurrentCard] = useState<HistoryItem | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>(loadHistory);
   const [lastCategory, setLastCategory] = useState<"Truth" | "Dare" | null>(null);
+  const [reshuffled, setReshuffled] = useState<"Truth" | "Dare" | null>(null);
 
   useEffect(() => {
     saveHistory(history);
   }, [history]);
+
+  // Drop history entries whose cards left the bank (deleted/archived) so
+  // stale ids can neither inflate the remaining count nor fake exhaustion.
+  const bankIds = useMemo(
+    () => new Set((questions ?? []).map((q) => q.id)),
+    [questions],
+  );
+  const usableHistory = useMemo(
+    () => pruneSeen(history, (h) => h.id, bankIds),
+    [history, bankIds],
+  );
+  useEffect(() => {
+    if (usableHistory.length !== history.length) setHistory(usableHistory);
+  }, [usableHistory, history.length]);
 
   if (isLoading) {
     return (
@@ -60,16 +79,41 @@ export default function TruthOrDare() {
     );
   }
 
-  const truths = questions.filter((q) => q.category === "Truth");
-  const dares = questions.filter((q) => q.category === "Dare");
+  const truths = (questions ?? []).filter((q) => q.category === "Truth");
+  const dares = (questions ?? []).filter((q) => q.category === "Dare");
+  const usedIds = useMemo(
+    () => new Set(usableHistory.map((h) => h.id)),
+    [usableHistory],
+  );
+  const truthsLeft = truths.filter((q) => !usedIds.has(q.id)).length;
+  const daresLeft = dares.filter((q) => !usedIds.has(q.id)).length;
 
-  function pick(category: "Truth" | "Dare") {
+  function pushHistory(card: HistoryItem) {
+    setHistory((prev) => [card, ...prev].slice(0, HISTORY_LIMIT));
+  }
+
+  function pick(category: "Truth" | "Dare", extraExclude?: string) {
     const pool = category === "Truth" ? truths : dares;
     if (pool.length === 0) return;
 
-    const usedIds = new Set(history.map((h) => h.id));
-    const available = pool.filter((q) => !usedIds.has(q.id));
-    const pickFrom = available.length > 0 ? available : pool;
+    const used = new Set(usedIds);
+    if (extraExclude) used.add(extraExclude);
+    const available = pool.filter((q) => !used.has(q.id));
+    let pickFrom = available;
+    if (available.length === 0) {
+      // Category exhausted — reshuffle it explicitly instead of silently
+      // repeating. Other category's history is kept.
+      setHistory((prev) =>
+        prev.filter(
+          (h) => !(h.category === category && pool.some((q) => q.id === h.id)),
+        ),
+      );
+      setReshuffled(category);
+      pickFrom = pool.filter((q) => q.id !== extraExclude);
+      if (pickFrom.length === 0) pickFrom = pool;
+    } else {
+      setReshuffled(null);
+    }
 
     const card = pickFrom[Math.floor(Math.random() * pickFrom.length)];
     setCurrentCard({ id: card.id, question: card.question, category });
@@ -79,14 +123,16 @@ export default function TruthOrDare() {
 
   function lagi() {
     if (!currentCard || !lastCategory) return;
-    setHistory((prev) => [currentCard, ...prev].slice(0, 20));
+    pushHistory(currentCard);
     setCurrentCard(null);
-    pick(lastCategory);
+    // Exclude the just-played card: history state hasn't settled yet, so
+    // without this the same card could be drawn twice in a row.
+    pick(lastCategory, currentCard.id);
   }
 
   function gantiMode() {
     if (currentCard) {
-      setHistory((prev) => [currentCard, ...prev].slice(0, 20));
+      pushHistory(currentCard);
     }
     setCurrentCard(null);
     setMode("select");
@@ -137,10 +183,11 @@ export default function TruthOrDare() {
                 </span>
               </button>
             </div>
-            {history.length > 0 && (
+            {usableHistory.length > 0 && (
               <div className="flex flex-col items-center gap-2">
                 <p className="text-xs text-muted-foreground">
-                  Sisa {truths.length + dares.length - new Set(history.map(h => h.id)).size} dari {truths.length + dares.length} kartu
+                  Sisa {truthsLeft} Truth &middot; {daresLeft} Dare dari{" "}
+                  {truths.length + dares.length} kartu
                 </p>
                 <Button
                   variant="ghost"
@@ -153,12 +200,12 @@ export default function TruthOrDare() {
                 </Button>
               </div>
             )}
-            {history.length > 0 && (
+            {usableHistory.length > 0 && (
               <div className="w-full space-y-2 rounded-2xl border border-border bg-card p-4 text-left">
                 <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                   Riwayat
                 </p>
-                {history.map((h, i) => (
+                {usableHistory.map((h, i) => (
                   <p key={i} className="flex items-start gap-2 text-sm">
                     <span>{h.category === "Truth" ? "😇" : "😈"}</span>
                     <span className="text-muted-foreground">{h.question}</span>
@@ -183,6 +230,11 @@ export default function TruthOrDare() {
                   : "border-orange-500/30 bg-orange-500/5"
               }`}
             >
+              {reshuffled && (
+                <p className="mb-3 text-xs text-muted-foreground">
+                  Kartu {reshuffled} habis — dikocok ulang 🎲
+                </p>
+              )}
               <span className="text-4xl">
                 {currentCard.category === "Truth" ? "😇" : "😈"}
               </span>

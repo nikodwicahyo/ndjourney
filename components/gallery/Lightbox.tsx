@@ -325,8 +325,11 @@ function Lightbox({
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
-      if (photo?.isVideo) return;
       if (e.pointerType === "mouse" && e.button !== 0) return;
+      // Video controls own the <video> surface — swipe starts from the
+      // stage around it, never from the frame itself (a horizontal
+      // seek-drag would otherwise flip the gallery past SWIPE_PX).
+      if ((e.target as HTMLElement).closest?.("video")) return;
       try {
         (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
       } catch {
@@ -334,6 +337,16 @@ function Lightbox({
       }
       pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (pointersRef.current.size === 2) {
+        if (photo?.isVideo) {
+          // No pinch-zoom on video (nothing renders the transform — it
+          // would only hide the nav arrows via isZoomed). Cancel swipe.
+          swipeRef.current = null;
+          setSwiping(false);
+          setDragX(0);
+          tapRef.current = null;
+          setPanning(false);
+          return;
+        }
         // Second finger = pinch intent, not a swipe.
         swipeRef.current = null;
         setSwiping(false);

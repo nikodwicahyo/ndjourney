@@ -131,13 +131,23 @@ export default function HeroSection({
         <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-secondary/30" />
       )}
 
+      {/* Readability scrim (photo heroes only): darkens any image so the
+          stroke-free text stays legible — bright, dark, or busy photos. */}
+      {heroPhotoUrl && (
+        <div
+          aria-hidden
+          data-testid="hero-scrim"
+          className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/25 to-black/60"
+        />
+      )}
+
       <div className="absolute inset-0">
         <div className="absolute -top-40 -left-40 h-80 w-80 rounded-full bg-primary/5 blur-3xl" />
         <div className="absolute -bottom-40 -right-40 h-80 w-80 rounded-full bg-secondary/20 blur-3xl" />
         <div className="absolute top-1/3 right-1/4 h-40 w-40 rounded-full bg-primary/10 blur-2xl" />
       </div>
 
-      <div className="relative z-10 mx-auto max-w-4xl px-4 text-center [paint-order:stroke] [-webkit-text-stroke:1.25px_rgba(255,255,255,0.9)] dark:[-webkit-text-stroke:1.25px_rgba(0,0,0,0.85)]">
+      <div className="relative z-10 mx-auto max-w-4xl px-4 text-center [text-shadow:0_1px_3px_rgb(0_0_0/0.7),0_4px_24px_rgb(0_0_0/0.5)]">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -157,12 +167,12 @@ export default function HeroSection({
           transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
           className="font-heading text-2xl leading-tight sm:text-4xl md:text-7xl break-words"
         >
-          <span className="text-foreground">{displayedName1}</span>
+          <span className={heroPhotoUrl ? "text-white" : "text-foreground"}>{displayedName1}</span>
           {showCursor1 && (
             <span className="ml-0.5 animate-pulse text-primary">|</span>
           )}
           <span className="mx-4 text-primary">&</span>
-          <span className="text-foreground">{displayedName2}</span>
+          <span className={heroPhotoUrl ? "text-white" : "text-foreground"}>{displayedName2}</span>
           {showCursor2 && (
             <span className="ml-0.5 animate-pulse text-primary">|</span>
           )}
@@ -173,7 +183,7 @@ export default function HeroSection({
             initial={{ opacity: 0 }}
             animate={typingDone ? { opacity: 1 } : {}}
             transition={{ duration: 0.8, delay: 0.3 }}
-            className="mt-4 text-sm text-muted-foreground sm:text-lg md:text-xl"
+            className={`mt-4 text-sm sm:text-lg md:text-xl ${heroPhotoUrl ? "text-white/85" : "text-muted-foreground"}`}
           >
             {tagline}
           </motion.p>
@@ -184,7 +194,7 @@ export default function HeroSection({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.8, delay: 0.3 }}
-            className="mt-4 text-sm text-muted-foreground sm:text-lg md:text-xl"
+            className={`mt-4 text-sm sm:text-lg md:text-xl ${heroPhotoUrl ? "text-white/85" : "text-muted-foreground"}`}
           >
             Tempat semua cerita kita tersimpan selamanya.
           </motion.p>
@@ -201,7 +211,7 @@ export default function HeroSection({
           animate={{ y: [0, 8, 0] }}
           transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
         >
-          <ChevronDown className="h-6 w-6 text-muted-foreground" />
+          <ChevronDown className={`h-6 w-6 ${heroPhotoUrl ? "text-white/70" : "text-muted-foreground"}`} />
         </motion.div>
       </motion.div>
     </section>

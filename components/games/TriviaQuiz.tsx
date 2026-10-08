@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { useQuestions, useSubmitScore } from "@/hooks/useGames";
+import { useState, useRef } from "react";
+import { useQuestionDeck, useSubmitScore } from "@/hooks/useGames";
 import { Button, Skeleton } from "@/components/ui";
 import { motion } from "framer-motion";
 import { Brain, RefreshCw, Check, X, ArrowRight } from "lucide-react";
@@ -14,8 +14,8 @@ type TriviaQuizProps = {
 };
 
 export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: TriviaQuizProps) {
-  const [seenIds, setSeenIds] = useState<string[]>([]);
-  const { data, isLoading, error, refetch } = useQuestions("TRIVIA", BATCH_SIZE, seenIds);
+  const deck = useQuestionDeck("TRIVIA", BATCH_SIZE);
+  const { isLoading, error, refetch } = deck;
   const submitScore = useSubmitScore();
   const [currentIdx, setCurrentIdx] = useState(0);
   const [userAnswer, setUserAnswer] = useState("");
@@ -26,14 +26,9 @@ export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: T
   const submittedRef = useRef<{ set: Set<string>, dataset: string }>({ set: new Set<string>(), dataset: '' });
   const { set: submittedSet, dataset } = submittedRef.current;
 
-  const batch = data?.questions ?? [];
-  const totalQuestions = data?.total ?? 0;
+  const batch = deck.batch;
+  const totalQuestions = deck.total;
   const current = batch[currentIdx];
-
-  // Do NOT reset state on data changes from random refetches
-  useEffect(() => {
-    // Session state remains stable during background refreshes.
-  }, [batch]);
 
   function handleInputKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Enter" && userAnswer.trim() && !revealed) {
@@ -92,7 +87,7 @@ export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: T
                 : "Yuk kenali pasanganmu lebih dalam lagi! 💪"}
           </p>
         </div>
-        <Button onClick={mainLagi} className="gap-2">
+        <Button onClick={putaranBaru} className="gap-2">
           <RefreshCw className="h-4 w-4" />
           Main Lagi
         </Button>
@@ -131,7 +126,9 @@ export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: T
       { question: current.question, correct: isCorrect },
     ]);
 
-    if (!disableScoreSubmit && !submittedSet.has(current.id)) {
+    // First attempts submit; repeats skip the POST (see WouldYouRather).
+    const fresh = deck.markAnswered(current.id);
+    if (fresh && !disableScoreSubmit && !submittedSet.has(current.id)) {
       submittedSet.add(current.id);
       try {
         await submitScore.mutateAsync({
@@ -156,7 +153,9 @@ export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: T
     }
   }
 
-  function mainLagi() {
+  // Fresh round from unseen questions — the deck key change auto-fetches,
+  // so no manual refetch to race it. Used by both Main Lagi and Acak Ulang.
+  function putaranBaru() {
     if (!batch) return;
     submittedSet.clear();
     setFinished(false);
@@ -165,15 +164,7 @@ export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: T
     setResults([]);
     setUserAnswer("");
     setRevealed(false);
-    const newSeen = [...seenIds, ...batch.map((q) => q.id)];
-    setSeenIds(newSeen);
-    refetch();
-  }
-
-  function acakUlang() {
-    if (!batch) return;
-    submittedSet.clear();
-    setSeenIds(prev => [...prev, ...batch.map(q => q.id)]);
+    deck.restart(batch.map((q) => q.id));
   }
 
   return (
@@ -186,13 +177,18 @@ export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: T
           </span>
         </span>
         <button
-          onClick={acakUlang}
+          onClick={putaranBaru}
           className="inline-flex items-center gap-1 hover:text-foreground"
         >
           <RefreshCw className="h-3.5 w-3.5" />
           Acak Ulang
         </button>
       </div>
+      {deck.cycled && (
+        <p className="mb-4 rounded-xl border border-primary/30 bg-primary/5 px-4 py-2 text-center text-xs text-muted-foreground">
+          Semua pertanyaan sudah dimainkan — mulai putaran baru 🎲
+        </p>
+      )}
 
       <motion.div
         key={current.id}

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { useQuestions, useSubmitScore } from "@/hooks/useGames";
+import { useState, useRef, useEffect } from "react";
+import { useQuestionDeck, useSubmitScore } from "@/hooks/useGames";
 import { Button, Skeleton } from "@/components/ui";
 import { motion } from "framer-motion";
 import { Shuffle, RefreshCw, Check, X, ArrowRight } from "lucide-react";
@@ -15,8 +15,8 @@ type WouldYouRatherProps = {
 };
 
 export default function WouldYouRather({ disableScoreSubmit = false, playerName }: WouldYouRatherProps) {
-  const [seenIds, setSeenIds] = useState<string[]>([]);
-  const { data, isLoading, error, refetch } = useQuestions("WOULD_YOU_RATHER", BATCH_SIZE, seenIds);
+  const deck = useQuestionDeck("WOULD_YOU_RATHER", BATCH_SIZE);
+  const { isLoading, error, refetch } = deck;
   const submitScore = useSubmitScore();
   const [currentIdx, setCurrentIdx] = useState(0);
   const [picked, setPicked] = useState<string | null>(null);
@@ -26,18 +26,17 @@ export default function WouldYouRather({ disableScoreSubmit = false, playerName 
   const [history, setHistory] = useState<Array<{ question: string; choice: string; correct: boolean }>>([]);
   const submittedRef = useRef<{ set: Set<string>, dataset: string }>({ set: new Set<string>(), dataset: '' });
   const { set: submittedSet, dataset } = submittedRef.current;
-
-  const batch = data?.questions ?? [];
-  const totalQuestions = data?.total ?? 0;
-  const current = batch[currentIdx];
-
-  // Do NOT reset state on data changes from random refetches
-  // Only reset when currentIdx is 0 and we are not finished
+  // Reveal auto-advance must not fire after unmount (back navigation).
+  const pickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    // This effect is now strictly for managing the session lifecycle.
-    // It is no longer triggered by background query cache invalidations 
-    // unless they actually change the batch structure in a way that breaks gameplay.
-  }, [batch]);
+    return () => {
+      if (pickTimeoutRef.current) clearTimeout(pickTimeoutRef.current);
+    };
+  }, []);
+
+  const batch = deck.batch;
+  const totalQuestions = deck.total;
+  const current = batch[currentIdx];
 
   if (isLoading) {
     return (
@@ -84,7 +83,7 @@ export default function WouldYouRather({ disableScoreSubmit = false, playerName 
           </p>
         </div>
         <div className="flex gap-3">
-          <Button onClick={mainLagi} className="gap-2">
+          <Button onClick={putaranBaru} className="gap-2">
             <RefreshCw className="h-4 w-4" />
             Main Lagi
           </Button>
@@ -128,7 +127,11 @@ export default function WouldYouRather({ disableScoreSubmit = false, playerName 
 
     if (correct) setScore((s) => s + 1);
 
-    if (!disableScoreSubmit && !submittedSet.has(current.id)) {
+    // First attempts submit; repeats (true-exhaustion recycles) skip the
+    // POST so the already-answered 409 never surfaces. Answered ids join
+    // the deck either way, so quitting mid-round still excludes them.
+    const fresh = deck.markAnswered(current.id);
+    if (fresh && !disableScoreSubmit && !submittedSet.has(current.id)) {
       submittedSet.add(current.id);
       submitScore.mutate(
         { questionId: current.id, isCorrect: correct, playerName },
@@ -140,7 +143,7 @@ export default function WouldYouRather({ disableScoreSubmit = false, playerName 
       ...prev,
       { question: current.question, choice, correct },
     ]);
-    setTimeout(() => {
+    pickTimeoutRef.current = setTimeout(() => {
       if (currentIdx < batch.length - 1) {
         setCurrentIdx((i) => i + 1);
         setPicked(null);
@@ -151,8 +154,11 @@ export default function WouldYouRather({ disableScoreSubmit = false, playerName 
     }, 1500);
   }
 
-  function mainLagi() {
+  // Fresh round from unseen questions — the deck key change auto-fetches,
+  // so no manual refetch to race it. Used by both Main Lagi and Acak Ulang.
+  function putaranBaru() {
     if (!batch) return;
+    if (pickTimeoutRef.current) clearTimeout(pickTimeoutRef.current);
     submittedSet.clear();
     setFinished(false);
     setScore(0);
@@ -160,15 +166,7 @@ export default function WouldYouRather({ disableScoreSubmit = false, playerName 
     setHistory([]);
     setPicked(null);
     setIsCorrect(null);
-    const newSeen = [...seenIds, ...batch.map((q) => q.id)];
-    setSeenIds(newSeen);
-    refetch();
-  }
-
-  function acakUlang() {
-    if (!batch) return;
-    submittedSet.clear();
-    setSeenIds(prev => [...prev, ...batch.map(q => q.id)]);
+    deck.restart(batch.map((q) => q.id));
   }
 
   const hasCorrectAnswer = !!(current?.answer && (current.answer === "A" || current.answer === "B"));
@@ -203,13 +201,18 @@ export default function WouldYouRather({ disableScoreSubmit = false, playerName 
           </span>
         </span>
         <button
-          onClick={acakUlang}
+          onClick={putaranBaru}
           className="inline-flex items-center gap-1 hover:text-foreground"
         >
           <RefreshCw className="h-3.5 w-3.5" />
           Acak Ulang
         </button>
       </div>
+      {deck.cycled && (
+        <p className="mb-4 rounded-xl border border-primary/30 bg-primary/5 px-4 py-2 text-center text-xs text-muted-foreground">
+          Semua pertanyaan sudah dimainkan — mulai putaran baru 🎲
+        </p>
+      )}
 
       <motion.div
         key={current.id}

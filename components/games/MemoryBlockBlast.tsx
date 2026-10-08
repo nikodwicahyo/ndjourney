@@ -6,7 +6,7 @@ import { useSubmitArcadeScore } from "@/hooks/useGames";
 import { motion, AnimatePresence } from "framer-motion";
 import { Heart, RotateCcw, Trophy, Sparkles, ImageIcon, Blocks, Info, Play } from "lucide-react";
 import { Button, Skeleton } from "@/components/ui";
-import { cn } from "@/lib/utils";
+import { cn, selectPublicPhotos } from "@/lib/utils";
 import {
   getRandomShapes,
   getAbsoluteCells,
@@ -248,11 +248,12 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
   // ── Fetch a random photo ──────────────────────────────────────
 
   const { data: photosData, isLoading: photosLoading } = useQuery({
-    queryKey: ["photos", "list", { mediaType: "foto", limit: 50 }],
+    queryKey: ["photos", "list", { mediaType: "foto", limit: 50, visibility: "public" }],
     queryFn: async () => {
-      const res = await fetch("/api/photos?limit=50&mediaType=foto");
-      const json = await res.json();
-      return (json.data ?? []) as Photo[];
+      const res = await fetch("/api/photos?limit=50&mediaType=foto&visibility=public");
+      if (!res.ok) return [] as Photo[];
+      const json = await res.json().catch(() => null);
+      return selectPublicPhotos((json?.data ?? []) as Photo[]);
     },
     staleTime: 60_000,
   });

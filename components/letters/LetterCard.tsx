@@ -24,6 +24,9 @@ function LetterCard({ letter, type, index = 0, baseHref = "/dashboard/letters", 
     letter.unlockAt &&
     new Date(letter.unlockAt) > new Date() &&
     !letter.isOpened;
+  // Both tabs anchor on the author: inbox reads who it's from,
+  // sent reads who it's for — avatar is always the sender (you).
+  const shown = letter.author;
 
   return (
     <div
@@ -38,8 +41,8 @@ function LetterCard({ letter, type, index = 0, baseHref = "/dashboard/letters", 
         className="flex w-full items-start gap-4"
       >
         <Avatar className="h-10 w-10 shrink-0">
-          <AvatarImage src={letter.author.image ?? undefined} alt={letter.author.name ?? "Author"} />
-          <AvatarFallback>{letter.author.name?.charAt(0) || "P"}</AvatarFallback>
+          <AvatarImage src={shown.image ?? undefined} alt={shown.name ?? "Pasangan"} />
+          <AvatarFallback>{shown.name?.charAt(0) || "P"}</AvatarFallback>
         </Avatar>
 
         <div className="min-w-0 flex-1">
@@ -58,9 +61,11 @@ function LetterCard({ letter, type, index = 0, baseHref = "/dashboard/letters", 
           </div>
 
           <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground flex-wrap">
-            <span>{letter.author.name || "Pasangan"}</span>
-            <span>→</span>
-            <span>{letter.recipient.name || "Pasangan"}</span>
+            <span>
+              {type === "inbox"
+                ? `From: ${letter.author.name || "Pasangan"}`
+                : `To: ${letter.recipient.name || "Pasangan"}`}
+            </span>
             <span>·</span>
             <span>{formatDateTime(letter.createdAt)}</span>
             {isLocked && (

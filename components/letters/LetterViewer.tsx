@@ -176,6 +176,12 @@ export default function LetterViewer({ id, isRecipient, backHref = "/dashboard/l
                   {fullLetter.author?.name || "Pasangan"}
                 </span>
                 <span>·</span>
+                <span>
+                  {isRecipient
+                    ? "To: me"
+                    : `To: ${fullLetter.recipient?.name || "Pasangan"}`}
+                </span>
+                <span>·</span>
                 <span>{formatDateTime(fullLetter.createdAt)}</span>
                 {fullLetter.isTimeCapsule && fullLetter.openedAt && (
                   <>

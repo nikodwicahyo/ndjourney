@@ -61,18 +61,31 @@ export default function SpinTheWheel() {
     saveSeenIds(seenIds);
   }, [seenIds]);
 
+  // Drop seen ids whose ideas left the bank (deleted/archived) — otherwise
+  // stale ids inflate the count and fake exhaustion while unseen ideas remain.
+  const validSeenIds = useMemo(() => {
+    if (!ideas || ideas.length === 0) return seenIds;
+    const bank = new Set(ideas.map((q) => q.id));
+    const pruned = [...seenIds].filter((id) => bank.has(id));
+    return pruned.length === seenIds.size ? seenIds : new Set(pruned);
+  }, [ideas, seenIds]);
+
+  useEffect(() => {
+    if (validSeenIds !== seenIds) setSeenIds(validSeenIds);
+  }, [validSeenIds, seenIds]);
+
   const allExhausted = useMemo(() => {
     if (!ideas || ideas.length === 0) return false;
-    return seenIds.size >= ideas.length;
-  }, [ideas, seenIds]);
+    return validSeenIds.size >= ideas.length;
+  }, [ideas, validSeenIds]);
 
   const segments = useMemo(() => {
     if (!ideas || ideas.length === 0) return [];
-    const unseen = ideas.filter(q => !seenIds.has(q.id));
+    const unseen = ideas.filter((q) => !validSeenIds.has(q.id));
     if (unseen.length === 0) return [];
     const count = Math.min(unseen.length, MAX_WHEEL_SEGMENTS);
     return shuffle(unseen).slice(0, count);
-  }, [ideas, seenIds]);
+  }, [ideas, validSeenIds]);
 
   const segmentAngle = segments.length > 0 ? 360 / segments.length : 0;
   const isManySegments = segments.length > 12;
@@ -218,7 +231,7 @@ export default function SpinTheWheel() {
 
       {segments.length > 0 && (
         <p className="text-xs text-muted-foreground">
-          Sisa {ideas.length - seenIds.size} dari {ideas.length} ide kencan
+          Sisa {ideas.length - validSeenIds.size} dari {ideas.length} ide kencan
         </p>
       )}
 

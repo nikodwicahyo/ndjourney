@@ -514,7 +514,7 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
         }
       }
     },
-    [spawnHeartParticles],
+    [spawnHeartParticles, setStatusMsg],
   );
 
   // ── Handle a block being dropped onto the grid ────────────────
@@ -559,7 +559,7 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
       // against the freshly drawn remaining blocks.
       processLineClears(nextGrid, nextRevealed, scoreRef.current, comboRef.current, newBlocks);
     },
-    [processLineClears],
+    [processLineClears, setStatusMsg],
   );
 
   // ── Pointer-based drag (mouse + touch) with Framer Motion ghost ─

@@ -57,12 +57,9 @@ export default function SpinTheWheel() {
 
   const spinTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    saveSeenIds(seenIds);
-  }, [seenIds]);
-
   // Drop seen ids whose ideas left the bank (deleted/archived) — otherwise
-  // stale ids inflate the count and fake exhaustion while unseen ideas remain.
+  // stale ids inflate the count and fake exhaustion while unseen ideas
+  // remain. Derived only, never synced back (no set-state-in-effect).
   const validSeenIds = useMemo(() => {
     if (!ideas || ideas.length === 0) return seenIds;
     const bank = new Set(ideas.map((q) => q.id));
@@ -70,9 +67,10 @@ export default function SpinTheWheel() {
     return pruned.length === seenIds.size ? seenIds : new Set(pruned);
   }, [ideas, seenIds]);
 
+  // Persist the pruned set (ref-stable when nothing prunes, so no loops).
   useEffect(() => {
-    if (validSeenIds !== seenIds) setSeenIds(validSeenIds);
-  }, [validSeenIds, seenIds]);
+    saveSeenIds(validSeenIds);
+  }, [validSeenIds]);
 
   const allExhausted = useMemo(() => {
     if (!ideas || ideas.length === 0) return false;

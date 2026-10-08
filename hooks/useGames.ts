@@ -68,30 +68,38 @@ export function useQuestionDeck(type: GameType, batchSize: number) {
   // so quit-then-start excludes even mid-round answers.
   const seenRef = useRef<string[]>(fetchSeen);
   const [cycled, setCycled] = useState(false);
-  const cycleArmedRef = useRef(true);
+  const [cycleArmed, setCycleArmed] = useState(true);
 
   const query = useQuestions(type, batchSize, fetchSeen);
   const batch = query.data?.questions ?? [];
   const total = query.data?.total ?? 0;
 
-  // Bank exhausted for this player (server returned nothing but the bank
-  // is non-empty): start a fresh cycle explicitly. Guarded to run once
-  // per cycle — an empty bank (total 0) shows the empty state instead.
+  // Bank exhausted for this player (server returned nothing but the bank is
+  // non-empty): start a fresh cycle explicitly. Render-time adjustment on
+  // state only — at empty-batch evaluation points (mount / post-restart
+  // fetch) the live set always equals the frozen snapshot, so no ref reads
+  // are needed. An empty bank (total 0) shows the empty state instead.
+  if (
+    !query.isLoading &&
+    query.data &&
+    cycleArmed &&
+    batch.length === 0 &&
+    fetchSeen.length > 0 &&
+    total > 0
+  ) {
+    setFetchSeen([]);
+    setCycled(true);
+    setCycleArmed(false);
+  }
+
+  // Sync the live set + storage with the cycle reset (ref writes and
+  // external writes belong in effects, never in render).
   useEffect(() => {
-    if (query.isLoading || !query.data) return;
-    if (
-      cycleArmedRef.current &&
-      batch.length === 0 &&
-      seenRef.current.length > 0 &&
-      total > 0
-    ) {
-      cycleArmedRef.current = false;
+    if (cycled) {
       seenRef.current = [];
       saveSeenIds(storageKey, []);
-      setFetchSeen([]);
-      setCycled(true);
     }
-  }, [query.data, query.isLoading, batch.length, total, storageKey]);
+  }, [cycled, storageKey]);
 
   // Record one answered question. Returns true when it is a first attempt
   // (→ submit the score); false on repeats (true-exhaustion recycles →
@@ -113,7 +121,7 @@ export function useQuestionDeck(type: GameType, batchSize: number) {
   // auto-fetch excludes it all, with no manual refetch to race it.
   const restart = useCallback(
     (currentBatchIds: string[]) => {
-      cycleArmedRef.current = true;
+      setCycleArmed(true);
       setCycled(false);
       const next = appendSeen(seenRef.current, currentBatchIds);
       seenRef.current = next;

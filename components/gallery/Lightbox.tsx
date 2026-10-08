@@ -213,13 +213,33 @@ function Lightbox({
     }),
   }), []);
 
+  // Gesture refs + resetView live above the nav handlers: the handlers list
+  // resetView in their dep arrays (evaluated during render), so it must be
+  // initialized before them — not just called later.
+  // One gesture system for mouse + touch — tracked pointers drive
+  // pan (1 pointer, zoomed) and pinch-zoom (2 pointers); a clean tap toggles.
+  const pointersRef = useRef(new Map<number, { x: number; y: number }>());
+  const gestureRef = useRef<{ pinchDist: number; scale: number; tx: number; ty: number } | null>(null);
+  const tapRef = useRef<{ x: number; y: number; t: number } | null>(null);
+
+  const resetView = useCallback(() => {
+    pointersRef.current.clear();
+    gestureRef.current = null;
+    tapRef.current = null;
+    swipeRef.current = null;
+    setPanning(false);
+    setSwiping(false);
+    setDragX(0);
+    setView({ s: 1, tx: 0, ty: 0 });
+  }, []);
+
   const handlePrev = useCallback(() => {
     if (isVideoRef.current) dispatchBgEvent("resume");
     if (currentIndex === 0) return;
     setDirection(-1);
       resetView();
     onNavigate(currentIndex - 1);
-  }, [currentIndex, onNavigate]);
+  }, [currentIndex, onNavigate, resetView]);
 
   const handleNext = useCallback(async () => {
     if (isVideoRef.current) dispatchBgEvent("resume");
@@ -242,7 +262,7 @@ function Lightbox({
     }
       resetView();
     onNavigate(currentIndex + 1);
-  }, [currentIndex, photos.length, onNavigate, hasNextPage, fetchNextPage]);
+  }, [currentIndex, photos.length, onNavigate, hasNextPage, fetchNextPage, resetView]);
 
   const handleClose = useCallback(() => {
     if (isVideoRef.current) dispatchBgEvent("resume");
@@ -251,7 +271,7 @@ function Lightbox({
     (restoreFocusRef.current as HTMLElement | null)?.focus?.();
     restoreFocusRef.current = null;
     onClose();
-  }, [onClose]);
+  }, [onClose, resetView]);
 
   const handleDownload = useCallback(async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -304,22 +324,9 @@ function Lightbox({
     setView({ s, tx: Math.round(tx), ty: Math.round(ty) });
   }, []);
 
-  const resetView = useCallback(() => {
-    pointersRef.current.clear();
-    gestureRef.current = null;
-    tapRef.current = null;
-    swipeRef.current = null;
-    setPanning(false);
-    setSwiping(false);
-    setDragX(0);
-    setView({ s: 1, tx: 0, ty: 0 });
-  }, []);
-
   // one gesture system for mouse + touch — tracked pointers drive
   // pan (1 pointer, zoomed) and pinch-zoom (2 pointers); a clean tap toggles.
-  const pointersRef = useRef(new Map<number, { x: number; y: number }>());
-  const gestureRef = useRef<{ pinchDist: number; scale: number; tx: number; ty: number } | null>(null);
-  const tapRef = useRef<{ x: number; y: number; t: number } | null>(null);
+  // (Refs + resetView live above the nav handlers; see note there.)
   const [panning, setPanning] = useState(false);
   const TAP_PX = 8;
 
@@ -536,7 +543,7 @@ function Lightbox({
       document.removeEventListener("keydown", handleKeyDown);
       document.body.style.overflow = "";
     };
-  }, [isOpen, handleClose, handlePrev, handleNext, isZoomed]);
+  }, [isOpen, handleClose, handlePrev, handleNext, isZoomed, resetView]);
 
   if (!isOpen || !photo) return null;
 

@@ -42,12 +42,10 @@ export default function TruthOrDare() {
   const [lastCategory, setLastCategory] = useState<"Truth" | "Dare" | null>(null);
   const [reshuffled, setReshuffled] = useState<"Truth" | "Dare" | null>(null);
 
-  useEffect(() => {
-    saveHistory(history);
-  }, [history]);
-
   // Drop history entries whose cards left the bank (deleted/archived) so
   // stale ids can neither inflate the remaining count nor fake exhaustion.
+  // Derived only — never synced back into state (no set-state-in-effect);
+  // storage converges to the pruned list on the next save below.
   const bankIds = useMemo(
     () => new Set((questions ?? []).map((q) => q.id)),
     [questions],
@@ -56,9 +54,25 @@ export default function TruthOrDare() {
     () => pruneSeen(history, (h) => h.id, bankIds),
     [history, bankIds],
   );
+
   useEffect(() => {
-    if (usableHistory.length !== history.length) setHistory(usableHistory);
-  }, [usableHistory, history.length]);
+    saveHistory(usableHistory);
+  }, [usableHistory]);
+
+  const truths = useMemo(
+    () => (questions ?? []).filter((q) => q.category === "Truth"),
+    [questions],
+  );
+  const dares = useMemo(
+    () => (questions ?? []).filter((q) => q.category === "Dare"),
+    [questions],
+  );
+  const usedIds = useMemo(
+    () => new Set(usableHistory.map((h) => h.id)),
+    [usableHistory],
+  );
+  const truthsLeft = truths.filter((q) => !usedIds.has(q.id)).length;
+  const daresLeft = dares.filter((q) => !usedIds.has(q.id)).length;
 
   if (isLoading) {
     return (
@@ -78,15 +92,6 @@ export default function TruthOrDare() {
       </div>
     );
   }
-
-  const truths = (questions ?? []).filter((q) => q.category === "Truth");
-  const dares = (questions ?? []).filter((q) => q.category === "Dare");
-  const usedIds = useMemo(
-    () => new Set(usableHistory.map((h) => h.id)),
-    [usableHistory],
-  );
-  const truthsLeft = truths.filter((q) => !usedIds.has(q.id)).length;
-  const daresLeft = dares.filter((q) => !usedIds.has(q.id)).length;
 
   function pushHistory(card: HistoryItem) {
     setHistory((prev) => [card, ...prev].slice(0, HISTORY_LIMIT));

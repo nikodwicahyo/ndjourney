@@ -310,6 +310,7 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
     timeElapsed,
     submitScore,
     playerName,
+    bestTimes,
   ]);
 
   const tileSizePct = 100 / gridSize;

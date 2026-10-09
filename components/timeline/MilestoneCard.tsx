@@ -183,7 +183,7 @@ function MilestoneCard({
               </div>
 
               {milestone.photos?.length > 0 && (
-                <div className="grid w-full grid-cols-1 min-[420px]:grid-cols-2 content-center gap-2 md:w-[min(260px,32vw)] md:shrink-0">
+                <div className="grid w-full grid-cols-2 content-center gap-2 md:w-[min(260px,32vw)] md:shrink-0">
                   {/* fixed 1:1 grid = same box as the cropper and form thumbs — crop is pixel-exact for 1 or 2 photos. */}
                   {milestone.photos.slice(0, 2).map(({ photo, crop }) => (
                     <button

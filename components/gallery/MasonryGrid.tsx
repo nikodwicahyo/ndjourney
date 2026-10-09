@@ -107,7 +107,7 @@ export default function MasonryGrid({ filters, onPhotoClick, visibility }: Mason
 
   if (isLoading) {
     return (
-      <div className="columns-1 min-[420px]:columns-2 gap-3 md:columns-3 lg:columns-4">
+      <div className="columns-2 gap-3 md:columns-3 lg:columns-4">
         {Array.from({ length: 8 }).map((_, i) => (
           <div key={i} className="mb-3 break-inside-avoid">
             <PhotoSkeleton />
@@ -144,7 +144,7 @@ export default function MasonryGrid({ filters, onPhotoClick, visibility }: Mason
 
   return (
     <>
-      <div className="columns-1 min-[420px]:columns-2 gap-3 md:columns-3 lg:columns-4">
+      <div className="columns-2 gap-3 md:columns-3 lg:columns-4">
         {orderedPhotos.map((photo, orderIndex) => {
           return (
             <div key={photo.id} className="mb-3 break-inside-avoid">
@@ -160,7 +160,7 @@ export default function MasonryGrid({ filters, onPhotoClick, visibility }: Mason
 
       <div ref={loadMoreRef} className="py-8">
         {isFetchingNextPage && (
-          <div className="columns-1 min-[420px]:columns-2 gap-3 md:columns-3 lg:columns-4">
+          <div className="columns-2 gap-3 md:columns-3 lg:columns-4">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="mb-3 break-inside-avoid">
                 <PhotoSkeleton />

@@ -94,8 +94,14 @@ export function useRealtimeSync(coupleId: string | undefined) {
           queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.stats(), refetchType: 'all' });
           queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.activity(), refetchType: 'all' });
           queryClient.invalidateQueries({ queryKey: queryKeys.storage.usage(), refetchType: 'all' });
+          // Same-user other devices/tabs hold a JWT with the OLD photo and
+          // Pusher cannot rewrite their cookie — so pull a real refresh.
+          // Payload is required: bare update() is a GET that never fires the
+          // jwt "update" trigger. POSTing re-stamps the token from the DB
+          // (see the jwt callback) and re-cookies it. On a partner's device
+          // this is a harmless no-op (their own row is unchanged).
           if (typeof updateSessionRef.current === 'function') {
-            void updateSessionRef.current();
+            void updateSessionRef.current({});
           }
           break;
         default:

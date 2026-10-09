@@ -512,7 +512,7 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
               decoding="async"
             />
           </div>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 min-[420px]:grid-cols-3">
             <div className="rounded-2xl border border-border bg-card p-4">
               <Move className="mx-auto mb-1 h-5 w-5 text-pink-500" aria-hidden="true" />
               <p className="text-lg font-bold">{moveCount}</p>
@@ -616,7 +616,7 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
               decoding="async"
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 min-[420px]:grid-cols-2">
             <div className="rounded-2xl border border-border bg-card p-4">
               <Move className="mx-auto mb-1 h-5 w-5 text-pink-500" aria-hidden="true" />
               <p className="text-lg font-bold">{moveCount}</p>
@@ -666,7 +666,7 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
 
   return (
     <div className="mx-auto max-w-lg">
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowPreview(true)}
@@ -684,7 +684,7 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
               <Eye className="h-4 w-4 text-white opacity-0 transition-opacity group-hover:opacity-100" aria-hidden="true" />
             </div>
           </button>
-          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
             <span className="inline-flex items-center gap-1">
               <Move className="h-3.5 w-3.5 text-pink-500" aria-hidden="true" />
               <span className="font-mono font-semibold tabular-nums">
@@ -711,7 +711,7 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
             </span>
           </div>
         </div>
-        <span className="whitespace-nowrap text-xs font-medium text-muted-foreground">
+        <span className="break-words text-right text-xs font-medium text-muted-foreground">
           {DIFFICULTY_CONFIG[difficulty].label}
         </span>
       </div>

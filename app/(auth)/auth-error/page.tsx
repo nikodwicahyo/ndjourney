@@ -120,7 +120,7 @@ export default async function AuthErrorPage({ searchParams }: Props) {
         <div className="absolute -top-40 -right-40 h-80 w-80 rounded-full bg-primary/10 blur-3xl" />
         <div className="absolute -bottom-40 -left-40 h-80 w-80 rounded-full bg-secondary/20 blur-3xl" />
 
-         <div className="relative z-10 w-full max-w-sm px-4">
+          <div className="relative z-10 w-full max-w-sm">
           <div className="rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8">
             <div className="flex flex-col items-center text-center">
               <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10 sm:h-16 sm:w-16">

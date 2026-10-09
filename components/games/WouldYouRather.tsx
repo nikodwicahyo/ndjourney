@@ -228,7 +228,7 @@ export default function WouldYouRather({ disableScoreSubmit = false, playerName 
         </h2>
       </motion.div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 min-[420px]:grid-cols-2">
         {[
           { value: current.optionA || "Opsi A", label: current.optionA || "Opsi A" },
           { value: current.optionB || "Opsi B", label: current.optionB || "Opsi B" },

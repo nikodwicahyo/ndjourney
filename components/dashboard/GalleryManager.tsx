@@ -902,11 +902,11 @@ export default function GalleryManager() {
 
       {showMoveModal && (
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 max-sm:items-end"
           onClick={() => { setShowMoveModal(false); setMoveAlbumId(""); }}
         >
           <div
-            className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl"
+            className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl max-sm:max-w-full max-sm:rounded-b-none"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between border-b border-border pb-4">

@@ -273,12 +273,12 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
           <span className="shrink-0 text-xs font-medium text-muted-foreground">
             {currentIndex + 1} / {length}
           </span>
-          <div className="flex min-w-0 flex-1 items-center justify-center gap-1.5 overflow-hidden">
+          <div className="scrollbar-hide flex min-w-0 flex-1 snap-x snap-proximity items-center justify-start gap-1.5 overflow-x-auto scroll-px-6 px-2">
             {displayPhotos.map((_, i) => (
               <button
                 key={i}
                 onClick={() => goTo(i)}
-                className="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center"
+                className="flex min-h-[44px] min-w-[44px] shrink-0 snap-center items-center justify-center"
                 aria-label={`Ke slide ${i + 1}`}
                 aria-current={i === currentIndex}
               >

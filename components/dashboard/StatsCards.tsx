@@ -89,7 +89,7 @@ export default function StatsCards() {
 
   if (statsLoading || configLoading) {
     return (
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
         {Array.from({ length: 8 }).map((_, i) => (
           <Skeleton key={i} className="h-28 rounded-2xl" />
         ))}
@@ -119,7 +119,7 @@ export default function StatsCards() {
   }
 
 return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
       {statConfig.map(({ key, label, icon: Icon, color, bgColor }, i) => {
         const value = stats[key];
         const isBirthday =

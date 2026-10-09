@@ -26,12 +26,10 @@ import type { Photo } from "@/types";
 // ── Constants ─────────────────────────────────────────────────────
 
 const GRID_SIZE = 8;
-const CELL_SIZE = 50;
 const TOTAL_CELLS = GRID_SIZE * GRID_SIZE;
 const BLOCKS_PER_ROUND = 3;
 const POINTS_PER_LINE = 100;
 const COMBO_MULTIPLIER = 1.5;
-const IMAGE_DIM = GRID_SIZE * CELL_SIZE; // 400
 const TRAY_CELL = 34; // block cell size inside the tray
 
 // ── Types ─────────────────────────────────────────────────────────
@@ -82,9 +80,11 @@ type BlockPreviewProps = {
   block: BlockShape;
   photoUrl: string;
   cellPx: number;
+  imageDim?: number;
 };
 
-const BlockPreview = memo(function BlockPreview({ block, photoUrl, cellPx }: BlockPreviewProps) {
+const BlockPreview = memo(function BlockPreview({ block, photoUrl, cellPx, imageDim }: BlockPreviewProps) {
+  const dim = imageDim ?? GRID_SIZE * cellPx;
   return (
     <div
       className="grid"
@@ -105,8 +105,8 @@ const BlockPreview = memo(function BlockPreview({ block, photoUrl, cellPx }: Blo
               width: cellPx,
               height: cellPx,
               backgroundImage: isPart && photoUrl ? `url(${photoUrl})` : undefined,
-              backgroundSize: `${IMAGE_DIM}px ${IMAGE_DIM}px`,
-              backgroundPosition: isPart ? cellBackgroundPosition(c, r) : undefined,
+              backgroundSize: `${dim}px ${dim}px`,
+              backgroundPosition: isPart ? cellBackgroundPosition(c, r, cellPx) : undefined,
               backgroundRepeat: "no-repeat",
               opacity: isPart ? 1 : 0,
             }}
@@ -126,6 +126,8 @@ type GridCellProps = {
   valid: boolean;
   clearing: boolean;
   photoUrl: string;
+  cellPx: number;
+  imageDim: number;
 };
 
 const GridCell = memo(function GridCell({
@@ -137,6 +139,8 @@ const GridCell = memo(function GridCell({
   valid,
   clearing,
   photoUrl,
+  cellPx,
+  imageDim,
 }: GridCellProps) {
   const showFragment = filled || hovered || revealed;
   return (
@@ -150,11 +154,11 @@ const GridCell = memo(function GridCell({
         clearing && "bg-yellow-300/70 dark:bg-yellow-500/50",
       )}
       style={{
-        width: CELL_SIZE,
-        height: CELL_SIZE,
+        width: cellPx,
+        height: cellPx,
         backgroundImage: showFragment && photoUrl ? `url(${photoUrl})` : undefined,
-        backgroundSize: `${IMAGE_DIM}px ${IMAGE_DIM}px`,
-        backgroundPosition: showFragment ? cellBackgroundPosition(col, row) : undefined,
+        backgroundSize: `${imageDim}px ${imageDim}px`,
+        backgroundPosition: showFragment ? cellBackgroundPosition(col, row, cellPx) : undefined,
         backgroundRepeat: "no-repeat",
         opacity: filled ? 1 : revealed ? 0.4 : hovered ? 0.85 : undefined,
       }}
@@ -215,6 +219,14 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
 
   // Refs
   const gridRef = useRef<HTMLDivElement>(null);
+  const boardWrapRef = useRef<HTMLDivElement>(null);
+  // Measured board width (fallback 343 ≈ 375px viewport minus padding).
+  // Cell = floor(width / 8) so the 8×8 grid never overflows narrow screens.
+  const [boardWidth, setBoardWidth] = useState(343);
+  const cell = Math.floor(boardWidth / GRID_SIZE);
+  const imageDim = cell * GRID_SIZE;
+  const cellRef = useRef(cell);
+  cellRef.current = cell;
   const particleIdRef = useRef(0);
   const clearedLineIdRef = useRef(0);
   const scorePopIdRef = useRef(0);
@@ -244,6 +256,19 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
   useEffect(() => { scoreRef.current = score; }, [score]);
   useEffect(() => { comboRef.current = combo; }, [combo]);
   useEffect(() => { phaseRef.current = phase; }, [phase]);
+
+  // Measure the board container so the cell size scales down on narrow screens.
+  useEffect(() => {
+    const el = boardWrapRef.current;
+    if (!el) return;
+    const measure = () => {
+      const w = el.clientWidth;
+      if (w > 0) setBoardWidth(w);
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [phase]);
 
   // ── Fetch a random photo ──────────────────────────────────────
 
@@ -443,13 +468,14 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
         const gridRect = gridRef.current?.getBoundingClientRect();
         if (gridRect) {
           const centers: { x: number; y: number }[] = [];
+          const cs = cellRef.current;
           for (const row of rows) {
-            spawnHeartParticles(gridRect.width / 2, row * CELL_SIZE + CELL_SIZE / 2, 12);
-            centers.push({ x: gridRect.width / 2, y: row * CELL_SIZE + CELL_SIZE / 2 });
+            spawnHeartParticles(gridRect.width / 2, row * cs + cs / 2, 12);
+            centers.push({ x: gridRect.width / 2, y: row * cs + cs / 2 });
           }
           for (const col of cols) {
-            spawnHeartParticles(col * CELL_SIZE + CELL_SIZE / 2, gridRect.height / 2, 12);
-            centers.push({ x: col * CELL_SIZE + CELL_SIZE / 2, y: gridRect.height / 2 });
+            spawnHeartParticles(col * cs + cs / 2, gridRect.height / 2, 12);
+            centers.push({ x: col * cs + cs / 2, y: gridRect.height / 2 });
           }
 
           // Floating "+points" pop at the centroid of the cleared lines.
@@ -586,8 +612,9 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
     // The block's top-left in viewport space, accounting for where it was grabbed.
     const originX = e.clientX - drag.grabOffsetX;
     const originY = e.clientY - drag.grabOffsetY;
-    const col = Math.floor((originX - rect.left) / CELL_SIZE);
-    const row = Math.floor((originY - rect.top) / CELL_SIZE);
+    const cs = cellRef.current;
+    const col = Math.floor((originX - rect.left) / cs);
+    const row = Math.floor((originY - rect.top) / cs);
 
     const inBounds = col >= 0 && col < GRID_SIZE && row >= 0 && row < GRID_SIZE;
     const cells = inBounds ? getAbsoluteCells(drag.block, row, col) : null;
@@ -595,8 +622,8 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
 
     // Snap the ghost to the exact cell origin when the drop is valid so the
     // preview lines up pixel-perfectly with where the block will land.
-    const ghostX = inBounds && valid ? rect.left + col * CELL_SIZE : originX;
-    const ghostY = inBounds && valid ? rect.top + row * CELL_SIZE : originY;
+    const ghostX = inBounds && valid ? rect.left + col * cs : originX;
+    const ghostY = inBounds && valid ? rect.top + row * cs : originY;
     setGhost({ x: ghostX, y: ghostY });
 
     if (!inBounds) {
@@ -637,8 +664,9 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
 
       const rect = gridRef.current?.getBoundingClientRect();
       if (rect) {
-        const col = Math.floor((e.clientX - drag.grabOffsetX - rect.left) / CELL_SIZE);
-        const row = Math.floor((e.clientY - drag.grabOffsetY - rect.top) / CELL_SIZE);
+        const cs = cellRef.current;
+        const col = Math.floor((e.clientX - drag.grabOffsetX - rect.left) / cs);
+        const row = Math.floor((e.clientY - drag.grabOffsetY - rect.top) / cs);
         if (col >= 0 && col < GRID_SIZE && row >= 0 && row < GRID_SIZE) {
           handleDrop(row, col, drag.block, drag.index);
           return;
@@ -662,8 +690,8 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
       // the grid cell size so the ghost mirrors the block's real footprint.
       const inner = (e.currentTarget.firstElementChild as HTMLElement | null) ?? (e.currentTarget as HTMLElement);
       const blockRect = inner.getBoundingClientRect();
-      const grabOffsetX = (e.clientX - blockRect.left) * (CELL_SIZE / TRAY_CELL);
-      const grabOffsetY = (e.clientY - blockRect.top) * (CELL_SIZE / TRAY_CELL);
+      const grabOffsetX = (e.clientX - blockRect.left) * (cellRef.current / TRAY_CELL);
+      const grabOffsetY = (e.clientY - blockRect.top) * (cellRef.current / TRAY_CELL);
       dragRef.current = { block, index, grabOffsetX, grabOffsetY };
       setDraggedBlock(block);
       setDragIndex(index);
@@ -705,8 +733,8 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
   if (photosLoading || phase === "loading") {
     return (
       <div className="flex flex-col items-center gap-6 py-12">
-        <Skeleton className="h-[400px] w-[400px] rounded-2xl" />
-        <Skeleton className="h-20 w-[400px] rounded-xl" />
+        <Skeleton className="aspect-square h-auto w-full max-w-[400px] rounded-2xl" />
+        <Skeleton className="h-20 w-full max-w-[400px] rounded-xl" />
       </div>
     );
   }
@@ -729,7 +757,7 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
   if (phase === "ready") {
     return (
       <div className="flex flex-col items-center gap-6 py-8 text-center">
-        <div className="relative h-[400px] w-[400px] overflow-hidden rounded-2xl shadow-xl ring-2 ring-rose-200/60 dark:ring-rose-800/60">
+        <div className="relative aspect-square h-auto w-full max-w-[400px] overflow-hidden rounded-2xl shadow-xl ring-2 ring-rose-200/60 dark:ring-rose-800/60">
           {blurredPhotoUrl && (
             <div
               className="absolute inset-0"
@@ -838,10 +866,11 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
       </div>
 
       {/* ── Grid ──────────────────────────────────────────────── */}
+      <div ref={boardWrapRef} className="w-full max-w-[400px]">
       <div
         ref={gridRef}
         className="relative select-none rounded-2xl shadow-xl ring-2 ring-rose-200/60 dark:ring-rose-800/60"
-        style={{ width: IMAGE_DIM, height: IMAGE_DIM }}
+        style={{ width: imageDim, height: imageDim, maxWidth: "100%" }}
       >
         {/* Blurred background preview */}
         {blurredPhotoUrl && (
@@ -849,7 +878,7 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
             className="pointer-events-none absolute inset-0 rounded-2xl opacity-30"
             style={{
               backgroundImage: `url(${blurredPhotoUrl})`,
-              backgroundSize: `${IMAGE_DIM}px ${IMAGE_DIM}px`,
+              backgroundSize: `${imageDim}px ${imageDim}px`,
               backgroundPosition: "0 0",
             }}
           />
@@ -859,8 +888,8 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
         <div
           className="relative z-10 grid rounded-2xl"
           style={{
-            gridTemplateColumns: `repeat(${GRID_SIZE}, ${CELL_SIZE}px)`,
-            gridTemplateRows: `repeat(${GRID_SIZE}, ${CELL_SIZE}px)`,
+            gridTemplateColumns: `repeat(${GRID_SIZE}, ${cell}px)`,
+            gridTemplateRows: `repeat(${GRID_SIZE}, ${cell}px)`,
           }}
         >
           {Array.from({ length: GRID_SIZE }, (_, row) =>
@@ -877,6 +906,8 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
                   valid={isValidDrop}
                   clearing={isCellClearing(row, col)}
                   photoUrl={photoUrl}
+                  cellPx={cell}
+                  imageDim={imageDim}
                 />
               );
             }),
@@ -921,6 +952,7 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
             </motion.div>
           ))}
         </AnimatePresence>
+      </div>
       </div>
 
       {/* ── Stats row ─────────────────────────────────────────── */}
@@ -991,7 +1023,7 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
             exit={{ scale: 0.85, opacity: 0 }}
             transition={{ type: "spring", stiffness: 500, damping: 30 }}
           >
-            <BlockPreview block={draggedBlock} photoUrl={photoUrl} cellPx={CELL_SIZE} />
+            <BlockPreview block={draggedBlock} photoUrl={photoUrl} cellPx={cell} imageDim={imageDim} />
           </motion.div>
         )}
       </AnimatePresence>

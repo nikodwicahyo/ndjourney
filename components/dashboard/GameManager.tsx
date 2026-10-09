@@ -334,10 +334,10 @@ export default function GameManager() {
 
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm max-sm:items-end"
           onClick={(e) => { if (e.target === e.currentTarget) cancelEdit(); }}
         >
-          <div className="mx-4 max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-xl sm:p-6">
+          <div className="mx-4 max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-xl sm:p-6 max-sm:max-w-full max-sm:rounded-b-none">
             <div className="mb-4 flex items-center justify-between border-b border-border pb-4">
               <h2 className="font-heading text-base font-semibold sm:text-lg">{isEditing ? "Edit Pertanyaan" : "Pertanyaan Baru"}</h2>
               <button

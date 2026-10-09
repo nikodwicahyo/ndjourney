@@ -425,13 +425,31 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         return false;
       }
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       // Persist identity into the token at sign-in — later session calls
       // carry only the token (no `user`), so everything session needs must
       // be stamped here. `sub` is set by core; role is ours to keep.
       if (user?.id) {
         (token as { role?: string }).role =
           (user as { role?: string }).role || "PARTNER";
+      }
+      // Profile edits call update() after PUT /api/user — re-stamp the token
+      // from the DB so Navbar/Sidebar avatars refresh in realtime instead of
+      // going stale until re-login. Fail-open: keep the old token on error.
+      if (trigger === "update" && token.sub) {
+        try {
+          const fresh = await prisma.user.findUnique({
+            where: { id: token.sub },
+            select: { name: true, image: true, role: true },
+          });
+          if (fresh) {
+            token.name = fresh.name;
+            token.picture = fresh.image;
+            (token as { role?: string }).role = fresh.role;
+          }
+        } catch (e) {
+          console.error("jwt update refresh error:", e);
+        }
       }
       return token;
     },

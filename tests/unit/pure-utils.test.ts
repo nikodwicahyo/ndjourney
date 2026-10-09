@@ -17,7 +17,7 @@ import {
 import { calculateTargets } from "@/lib/love-meter";
 import { getOptimizedImageUrl, getImageSrcSet, getVideoPosterUrl } from "@/lib/cloudinary-urls";
 import { CSP_DIRECTIVES } from "@/lib/csp";
-import { parseCropRect, clampCropRect, cropCoverStyle, cropDisplaySrc, cropViewForRect, FULL_CROP } from "@/lib/image-crop";
+import { parseCropRect, clampCropRect, cropCoverStyle, cropDisplaySrc, cropViewForRect, isFullCrop, FULL_CROP } from "@/lib/image-crop";
 
 // GEO + DATE + UTILS + LOVE-METER + CLOUDINARY-URLS + CSP unit
 describe("geo utils", () => {
@@ -257,5 +257,11 @@ describe("image-crop rect math", () => {
     expect(v.cx).toBeCloseTo(0.5, 6);
     expect(cropViewForRect(FULL_CROP, 0, 100, 100, 100)).toBeNull();
     expect(cropViewForRect(FULL_CROP, 100, 100, 0, 56)).toBeNull();
+  });
+
+  it("isFullCrop: full rect skips the bake, any inset bakes", () => {
+    expect(isFullCrop(FULL_CROP)).toBe(true);
+    expect(isFullCrop({ x: 0, y: 0, w: 1, h: 1 })).toBe(true);
+    expect(isFullCrop({ x: 0.1, y: 0.1, w: 0.8, h: 0.8 })).toBe(false);
   });
 });

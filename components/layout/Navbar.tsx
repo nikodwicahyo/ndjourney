@@ -95,7 +95,7 @@ export default function Navbar() {
             <span className="text-sm sm:text-lg">NDjourney</span>
           </Link>
 
-          <nav aria-label="Navigasi utama" className="hidden items-center gap-0.5 lg:flex">
+          <nav aria-label="Navigasi utama" className="hidden items-center gap-0.5 overflow-x-auto scrollbar-hide lg:flex">
             {[...primaryNav, ...desktopMore].map((link) => (
               <Link
                 key={link.href}
@@ -104,7 +104,7 @@ export default function Navbar() {
                 suppressHydrationWarning
                 aria-current={isActive(link.href) ? "page" : undefined}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-full px-2 py-2 text-[13px] font-medium whitespace-nowrap transition-colors xl:px-3",
+                  "flex shrink-0 items-center gap-1.5 rounded-full px-2 py-2 text-[13px] font-medium whitespace-nowrap transition-colors xl:px-3",
                   isActive(link.href)
                     ? "bg-primary/10 text-primary"
                     : "text-muted-foreground hover:bg-accent hover:text-foreground",

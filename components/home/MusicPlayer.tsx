@@ -62,7 +62,7 @@ export default function MusicPlayer({ spotifyUrl, onSpotifyPlay }: MusicPlayerPr
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="fixed bottom-24 right-4 z-50 w-80 overflow-hidden rounded-2xl border border-border bg-card shadow-xl lg:bottom-6"
+            className="fixed bottom-24 right-4 z-50 w-[calc(100vw-2rem)] max-w-80 overflow-hidden rounded-2xl border border-border bg-card shadow-xl lg:bottom-6"
           >
             <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
               <div className="flex items-center gap-2">
@@ -71,7 +71,7 @@ export default function MusicPlayer({ spotifyUrl, onSpotifyPlay }: MusicPlayerPr
               </div>
               <button
                 onClick={() => setIsOpen(false)}
-                className="rounded-full p-1 transition-colors hover:bg-muted"
+                className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full p-1 transition-colors hover:bg-muted"
                 aria-label="Tutup musik"
               >
                 <X className="h-3.5 w-3.5" />

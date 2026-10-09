@@ -46,7 +46,7 @@ export default function AlbumDropdown({
         type="button"
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          "inline-flex h-9 min-w-0 flex-1 items-center gap-1.5 rounded-full border px-3 text-xs font-medium outline-none transition-colors sm:w-44 sm:flex-none",
+          "inline-flex min-h-[44px] min-w-0 flex-1 items-center gap-1.5 rounded-full border px-3 text-xs font-medium outline-none transition-colors sm:w-44 sm:flex-none",
           value
             ? "border-primary bg-primary/10 text-primary"
             : "border-input bg-card text-muted-foreground hover:bg-accent",

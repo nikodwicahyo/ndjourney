@@ -131,7 +131,9 @@ export default function SpinTheWheel() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-16">
-        <Skeleton className="h-64 w-64 rounded-full" />
+        <div className="aspect-square w-[min(72vw,256px)]">
+          <Skeleton className="h-full w-full rounded-full" />
+        </div>
       </div>
     );
   }
@@ -160,7 +162,7 @@ export default function SpinTheWheel() {
         />
 
         <motion.div
-          className="relative h-64 w-64 rounded-full border-4 border-border shadow-xl"
+          className="relative aspect-square w-[min(72vw,256px)] rounded-full border-4 border-border shadow-xl"
           style={{
             background: `conic-gradient(${segments
               .map(
@@ -176,19 +178,20 @@ export default function SpinTheWheel() {
           {segments.map((idea, i) => {
             const midAngle = i * segmentAngle + segmentAngle / 2;
             const rad = (midAngle * Math.PI) / 180;
+            // 256-base coordinates → percentages so labels scale with the wheel.
             const radius = 95;
             const cx = 128;
             const cy = 128;
-            const x = cx + radius * Math.cos(rad - Math.PI / 2);
-            const y = cy + radius * Math.sin(rad - Math.PI / 2);
+            const x = ((cx + radius * Math.cos(rad - Math.PI / 2)) / 256) * 100;
+            const y = ((cy + radius * Math.sin(rad - Math.PI / 2)) / 256) * 100;
 
             return (
               <div
                 key={idea.id}
                 className={`absolute font-semibold leading-tight text-white ${fontSize}`}
                 style={{
-                  left: `${x}px`,
-                  top: `${y}px`,
+                  left: `${x}%`,
+                  top: `${y}%`,
                   transform: "translate(-50%, -50%)",
                   textShadow: "0 1px 3px rgba(0,0,0,0.4)",
                   maxWidth: labelMaxWidth,

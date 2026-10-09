@@ -304,8 +304,8 @@ export function canAnyShapeFit(
 
 /**
  * Returns a CSS background-position value for a grid cell at (col, row)
- * within a 400×400 image divided into 8×8 50px cells.
+ * within a GRID_SIZE×GRID_SIZE image divided into `cell`-px cells.
  */
-export function cellBackgroundPosition(col: number, row: number): string {
-  return `-${col * 50}px -${row * 50}px`;
+export function cellBackgroundPosition(col: number, row: number, cell = 50): string {
+  return `-${col * cell}px -${row * cell}px`;
 }

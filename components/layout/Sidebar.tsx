@@ -27,8 +27,8 @@ export const sidebarLinks = [
   { href: "/dashboard/timeline", label: "Timeline", icon: CalendarDays },
   { href: "/dashboard/games", label: "Games", icon: Gamepad2 },
   { href: "/dashboard/notes", label: "Notes", icon: StickyNote },
-  { href: "/dashboard/wishlist", label: "Wishlist", icon: Gift },
   { href: "/dashboard/letters", label: "Letters", icon: MessageCircleHeart },
+  { href: "/dashboard/wishlist", label: "Wishlist", icon: Gift },
   { href: "/dashboard/profile", label: "Profile", icon: User },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];

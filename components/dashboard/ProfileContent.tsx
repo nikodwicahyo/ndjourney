@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { useSession } from "next-auth/react";
-import { Heart, Mail, CalendarDays, Quote, Cake, Loader2, Upload, X, Pencil } from "lucide-react";
-import { Button } from "@/components/ui";
+import { Heart, Mail, CalendarDays, Quote, Cake, Loader2, Upload, X, Pencil, Crop } from "lucide-react";
+import { Button, PhotoCropper } from "@/components/ui";
 import { formatDate } from "@/lib/utils";
 import { uploadFileSimple } from "@/lib/chunked-upload";
+import { resolveUploadMime, validateFileSize } from "@/lib/upload-config";
+import { cropImageFile, isFullCrop, type CropRect } from "@/lib/image-crop";
 import { toast } from "sonner";
 
 type ProfileContentProps = {
@@ -39,24 +41,151 @@ export default function ProfileContent({ user, couple }: ProfileContentProps) {
   const [saving, setSaving] = useState(false);
   const [nameError, setNameError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Staged crop source: fresh picks carry their File; recrops of the saved
+  // avatar reference its URL and are fetched only on confirm (no re-upload
+  // when the user just opens and cancels the cropper).
+  const [cropTarget, setCropTarget] = useState<{ src: string; file?: File } | null>(null);
+  const ownedUrlRef = useRef<string | null>(null);
+  // Bake memory: the UN-baked source + last rect, so recrop reopens at the
+  // exact position (re-baked from the original, no generational loss).
+  // Scoped to the image it produced via forImage; dropped when stale.
+  // ponytail: holds one image File in memory, revoked on replace/unmount.
+  const [cropMemory, setCropMemory] = useState<{
+    src: string;
+    file?: File;
+    rect: CropRect | null;
+    forImage: string;
+  } | null>(null);
+  const memoryUrlRef = useRef<string | null>(null);
+
+  // Revoke the object URLs we own — never a remote URL.
+  useEffect(() => {
+    return () => {
+      if (ownedUrlRef.current) URL.revokeObjectURL(ownedUrlRef.current);
+      if (memoryUrlRef.current) URL.revokeObjectURL(memoryUrlRef.current);
+    };
+  }, []);
+
+  function setOwnedTarget(next: { src: string; file?: File } | null) {
+    if (ownedUrlRef.current) {
+      URL.revokeObjectURL(ownedUrlRef.current);
+      ownedUrlRef.current = null;
+    }
+    if (next?.file) ownedUrlRef.current = next.src;
+    setCropTarget(next);
+  }
+
+  function dropMemory() {
+    if (memoryUrlRef.current) {
+      URL.revokeObjectURL(memoryUrlRef.current);
+      memoryUrlRef.current = null;
+    }
+    setCropMemory(null);
+  }
 
   function openModal() {
     setEditName(displayName);
     setEditImage(displayImage);
+    // Memory belongs to the image it produced — a discarded unsaved upload
+    // takes its memory with it.
+    if (cropMemory && cropMemory.forImage !== displayImage) dropMemory();
     setShowModal(true);
   }
 
   function closeModal() {
+    setOwnedTarget(null);
     setShowModal(false);
     setUploading(false);
   }
 
-  async function handleUploadAvatar(file: File) {
+  function closeCropper() {
+    setOwnedTarget(null);
+  }
+
+  /** Validate, then stage into the 1:1 cropper — upload happens on confirm. */
+  function stageAvatarFile(file: File) {
+    if (!resolveUploadMime(file.name, file.type).startsWith("image/")) {
+      toast.error("Pilih file gambar yang valid");
+      return;
+    }
+    if (file.size === 0) {
+      toast.error("File gambar kosong");
+      return;
+    }
+    const sizeCheck = validateFileSize(file);
+    if (!sizeCheck.valid) {
+      toast.error(sizeCheck.error ?? "File terlalu besar");
+      return;
+    }
+    // New photo → fresh position; its own memory starts at first confirm.
+    dropMemory();
+    setOwnedTarget({ src: URL.createObjectURL(file), file });
+  }
+
+  /** Recrop: reopens on the un-baked source at the last position when known. */
+  function openRecrop() {
+    if (uploading || cropTarget) return;
+    if (cropMemory && cropMemory.forImage === editImage) {
+      // Same src the memory owns — staged without taking ownership, so
+      // cancelling never revokes the retained source.
+      setCropTarget({ src: cropMemory.src, file: cropMemory.file });
+      return;
+    }
+    if (!editImage) {
+      fileInputRef.current?.click();
+      return;
+    }
+    setCropTarget({ src: editImage });
+  }
+
+  async function fileFromUrl(url: string): Promise<File> {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    if (!blob.type.startsWith("image/")) throw new Error("not-an-image");
+    const name = url.split("?")[0].split("/").pop() || "avatar";
+    return new File([blob], name, { type: blob.type });
+  }
+
+  async function confirmCrop(rect: CropRect) {
+    const target = cropTarget;
+    if (!target || uploading) return;
     setUploading(true);
     try {
-      const result = await uploadFileSimple(file, () => {});
+      let source: File;
+      try {
+        source = target.file ?? (await fileFromUrl(target.src));
+      } catch {
+        toast.error("Gagal memuat foto untuk crop ulang");
+        return;
+      }
+      const sizeCheck = validateFileSize(source);
+      if (!sizeCheck.valid) {
+        toast.error(sizeCheck.error ?? "File terlalu besar");
+        return;
+      }
+      const full = isFullCrop(rect);
+      const toUpload = full ? source : await cropImageFile(source, rect);
+      const result = await uploadFileSimple(toUpload, () => {});
       setEditImage(result.url);
-      toast.success("Foto profil berhasil diupload!");
+      toast.success("Crop diterapkan! Klik Simpan untuk menyimpan.");
+      // Retain the un-baked source so the next recrop restores position.
+      if (cropMemory && target.src === cropMemory.src) {
+        setCropMemory({ ...cropMemory, file: source, rect: full ? null : rect, forImage: result.url });
+      } else {
+        dropMemory();
+        if (target.file) {
+          // Take over the staged URL instead of revoking + re-creating it.
+          memoryUrlRef.current = ownedUrlRef.current;
+          ownedUrlRef.current = null;
+          setCropMemory({ src: target.src, file: target.file, rect: full ? null : rect, forImage: result.url });
+        } else {
+          const url = URL.createObjectURL(source);
+          memoryUrlRef.current = url;
+          setCropMemory({ src: url, file: source, rect: full ? null : rect, forImage: result.url });
+        }
+      }
+      setCropTarget(null);
     } catch {
       toast.error("Gagal upload foto");
     } finally {
@@ -91,13 +220,29 @@ export default function ProfileContent({ user, couple }: ProfileContentProps) {
         return;
       }
 
-      await update();
-
-      setDisplayName(editName.trim());
+      // Local state first: the page reflects the save even if the session
+      // refresh below fails — a stale Navbar must never mask a good save.
+      const nextName = editName.trim();
+      setDisplayName(nextName);
       setDisplayImage(editImage);
-
-      toast.success("Profil berhasil diperbarui!");
       setShowModal(false);
+      toast.success("Profil berhasil diperbarui!");
+      try {
+        // Data is required: bare update() is a GET that never fires the jwt
+        // "update" trigger, leaving the token (Navbar/Sidebar/refresh) stale
+        // until re-login. POSTing re-stamps the token from the DB (see the
+        // jwt callback) and re-cookies it, so refresh stays correct.
+        const refreshed = await update({
+          user: { name: nextName, email: user.email, image: editImage },
+        });
+        // update() swallows fetch failures as null (no throw) — verify the
+        // token actually carries the new photo, or refresh would revert.
+        if (!refreshed || refreshed.user?.image !== editImage) {
+          toast.warning("Profil tersimpan, tetapi foto di menu belum segar. Login ulang untuk menyegarkannya.");
+        }
+      } catch {
+        // Session catches up on next login; this page is already correct.
+      }
     } catch {
       toast.error("Gagal menyimpan profil");
     } finally {
@@ -168,8 +313,8 @@ export default function ProfileContent({ user, couple }: ProfileContentProps) {
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 max-sm:items-end">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl max-h-[90vh] overflow-y-auto max-sm:max-w-full max-sm:rounded-b-none">
             <div className="mb-4 flex items-center justify-between border-b border-border pb-4">
               <h2 className="font-heading text-lg font-semibold">
                 Edit Profil
@@ -220,13 +365,26 @@ export default function ProfileContent({ user, couple }: ProfileContentProps) {
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (file) handleUploadAvatar(file);
+                    if (file) stageAvatarFile(file);
                     e.target.value = "";
                   }}
                 />
                 <p className="text-xs text-muted-foreground">
                   Klik foto untuk mengganti
                 </p>
+                {editImage && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={openRecrop}
+                    disabled={uploading}
+                  >
+                    <Crop className="h-4 w-4 shrink-0" aria-hidden="true" />
+                    Atur Crop
+                  </Button>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -252,7 +410,7 @@ export default function ProfileContent({ user, couple }: ProfileContentProps) {
                   variant="outline"
                   className="flex-1"
                   onClick={closeModal}
-                  disabled={saving}
+                  disabled={saving || uploading}
                 >
                   Batal
                 </Button>
@@ -260,7 +418,7 @@ export default function ProfileContent({ user, couple }: ProfileContentProps) {
                   type="button"
                   className="flex-1 gap-2"
                   onClick={handleSave}
-                  disabled={saving}
+                  disabled={saving || uploading}
                 >
                   {saving ? (
                     <>
@@ -275,6 +433,20 @@ export default function ProfileContent({ user, couple }: ProfileContentProps) {
             </div>
           </div>
         </div>
+      )}
+
+      {cropTarget && (
+        <PhotoCropper
+          open
+          src={cropTarget.src}
+          aspect={1}
+          initialRect={
+            cropMemory && cropTarget.src === cropMemory.src ? cropMemory.rect : null
+          }
+          title="Crop Foto Profil"
+          onCancel={closeCropper}
+          onDone={confirmCrop}
+        />
       )}
     </div>
   );

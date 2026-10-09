@@ -113,8 +113,8 @@ const SheetContent = forwardRef<
           "fixed z-50 gap-4 bg-background p-6 shadow-lg transition-transform",
           side === "right" && "inset-y-0 right-0 h-full w-3/4 max-w-sm border-l",
           side === "left" && "inset-y-0 left-0 h-full w-3/4 max-w-sm border-r",
-          side === "top" && "inset-x-0 top-0 border-b",
-          side === "bottom" && "inset-x-0 bottom-0 border-t",
+          side === "top" && "inset-x-0 top-0 max-h-[90dvh] overflow-y-auto rounded-b-2xl border-b",
+          side === "bottom" && "inset-x-0 bottom-0 max-h-[90dvh] overflow-y-auto rounded-t-2xl border-t",
           open
             ? "translate-x-0 translate-y-0"
             : side === "right"

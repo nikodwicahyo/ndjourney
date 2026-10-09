@@ -51,7 +51,7 @@ const actions = [
 
 export default function QuickActions() {
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
       {actions.map(({ href, label, icon: Icon, color, bgColor }, i) => (
         <motion.div
           key={href}

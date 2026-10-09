@@ -394,6 +394,13 @@
     margin: 1.5rem 0;
     border-color: var(--border);
   }
+
+  /* Sonner top-center toasts would cover the fixed navbar on mobile */
+  @media (max-width: 1023.98px) {
+    [data-sonner-toaster][data-position^="top"] {
+      top: 4.5rem !important;
+    }
+  }
 }
 
 .swal-popup {

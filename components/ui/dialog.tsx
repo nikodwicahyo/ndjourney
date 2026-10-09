@@ -138,7 +138,7 @@ const DialogContent = forwardRef<
         aria-modal="true"
         tabIndex={-1}
         className={cn(
-          "fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-background p-6 shadow-lg outline-none",
+          "fixed left-1/2 top-1/2 z-50 w-[calc(100vw-2rem)] max-w-lg max-h-[90dvh] overflow-y-auto -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-background p-6 shadow-lg outline-none",
           open ? "animate-in fade-in zoom-in-95" : "animate-out fade-out zoom-out-95",
           className,
         )}

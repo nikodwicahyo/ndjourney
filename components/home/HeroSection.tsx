@@ -111,7 +111,7 @@ export default function HeroSection({
   return (
     <section
       aria-label={fullName}
-      className="relative flex min-h-[90vh] items-center justify-center overflow-hidden"
+      className="relative flex min-h-[90svh] items-center justify-center overflow-hidden"
       style={{ width: "100vw", marginLeft: "calc(-50vw + 50%)" }}
     >
       {heroPhotoUrl ? (

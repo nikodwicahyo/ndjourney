@@ -818,7 +818,7 @@ export default function PartnerMap({
         ${
           isFullscreen
             ? "fixed inset-0 z-[9999] rounded-none border-0"
-            : "h-[420px] sm:h-[560px]"
+            : "h-[60vh] min-h-[280px] sm:h-[560px]"
         }
         transition-[border,border-radius] duration-300
       `}
@@ -827,7 +827,7 @@ export default function PartnerMap({
         ref={containerRef}
         role="application"
         aria-label="Peta lokasi pasangan"
-        className="h-full w-full min-h-[420px]"
+        className="h-full w-full min-h-[280px] sm:min-h-[420px]"
         style={{
           background: "#eef2f7",
         }}

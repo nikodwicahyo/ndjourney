@@ -88,7 +88,7 @@ export default function MeetBanner({ show, distance }: { show: boolean; distance
             <motion.button
               type="button"
               onClick={handleShare}
-              className="ml-2 flex h-7 w-7 items-center justify-center rounded-full bg-primary/20 text-primary hover:bg-primary/30 transition-colors"
+              className="ml-2 flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full bg-primary/20 text-primary hover:bg-primary/30 transition-colors"
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
               aria-label="Bagikan momen"

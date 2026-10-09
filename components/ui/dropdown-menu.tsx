@@ -86,7 +86,7 @@ const DropdownMenuContent = forwardRef<
         (menuRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
       }}
       className={cn(
-        "absolute right-0 top-full z-50 mt-1 min-w-48 rounded-xl border border-border bg-popover p-1 shadow-md",
+        "absolute right-0 top-full z-50 mt-1 min-w-48 max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-popover p-1 shadow-md",
         className,
       )}
       {...props}

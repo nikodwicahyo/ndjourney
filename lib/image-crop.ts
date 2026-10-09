@@ -17,6 +17,11 @@ export type CropRect = {
 /** Full-frame rect = legacy behavior (plain object-cover). */
 export const FULL_CROP: CropRect = { x: 0, y: 0, w: 1, h: 1 };
 
+/** True when the rect covers the whole frame — no bake needed, keep the original file. */
+export function isFullCrop(rect: CropRect): boolean {
+  return rect.x <= 0 && rect.y <= 0 && rect.w >= 1 && rect.h >= 1;
+}
+
 function isFrac(n: unknown): n is number {
   return typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 1;
 }
@@ -127,6 +132,95 @@ export function cropCoverStyle(
   const left = (frameWidth - cropW * scale) / 2 - r.x * width;
   const top = (frameHeight - cropH * scale) / 2 - r.y * height;
   return { width, height, left, top };
+}
+
+/**
+ * Bake a normalized rect into a new image File (client-side only).
+ * Used where the consumer stores a plain URL with no rect column (e.g. user
+ * avatar rendered by many places through `object-cover`): the crop is applied
+ * once, so every existing renderer shows the framed result with zero API or
+ * schema changes. Full rect returns the original file untouched (no re-encode).
+ * Output is capped at `maxSize` on the long edge — avatars never need 4000px.
+ */
+export async function cropImageFile(
+  file: File,
+  rect: CropRect,
+  opts: { maxSize?: number; quality?: number } = {},
+): Promise<File> {
+  const r = clampCropRect(rect);
+  if (isFullCrop(r)) return file;
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    throw new Error("Crop hanya tersedia di browser");
+  }
+
+  const { maxSize = 1024, quality = 0.92 } = opts;
+  let bitmap: ImageBitmap | null = null;
+  let objectUrl: string | null = null;
+  try {
+    if (typeof createImageBitmap === "function") {
+      try {
+        bitmap = await createImageBitmap(file);
+      } catch {
+        bitmap = null; // corrupt/unsupported → fall through to <img> path
+      }
+    }
+    let naturalW: number;
+    let naturalH: number;
+    let source: CanvasImageSource;
+    if (bitmap) {
+      naturalW = bitmap.width;
+      naturalH = bitmap.height;
+      source = bitmap;
+    } else {
+      objectUrl = URL.createObjectURL(file);
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const el = document.createElement("img");
+        el.onload = () => resolve(el);
+        el.onerror = () => reject(new Error("Gambar tidak dapat dibaca"));
+        el.src = objectUrl!;
+      });
+      if (!img.naturalWidth || !img.naturalHeight) {
+        throw new Error("Gambar tidak dapat dibaca");
+      }
+      naturalW = img.naturalWidth;
+      naturalH = img.naturalHeight;
+      source = img;
+    }
+
+    const sx = Math.round(r.x * naturalW);
+    const sy = Math.round(r.y * naturalH);
+    const sw = Math.max(1, Math.round(r.w * naturalW));
+    const sh = Math.max(1, Math.round(r.h * naturalH));
+    // Clamp the box inside the bitmap (rounding can overshoot by 1px).
+    const cx = Math.min(sx, naturalW - 1);
+    const cy = Math.min(sy, naturalH - 1);
+    const cw = Math.min(sw, naturalW - cx);
+    const ch = Math.min(sh, naturalH - cy);
+
+    const scale = Math.min(1, maxSize / Math.max(cw, ch));
+    const dw = Math.max(1, Math.round(cw * scale));
+    const dh = Math.max(1, Math.round(ch * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = dw;
+    canvas.height = dh;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Browser tidak mendukung crop gambar");
+    ctx.drawImage(source, cx, cy, cw, ch, 0, 0, dw, dh);
+
+    // Keep PNG as PNG (transparency); everything else → JPEG for avatars.
+    const srcType = file.type.toLowerCase();
+    const outType = srcType === "image/png" ? "image/png" : "image/jpeg";
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, outType, quality),
+    );
+    if (!blob) throw new Error("Gagal memotong gambar");
+    const ext = outType === "image/png" ? "png" : "jpg";
+    const base = file.name.replace(/\.[a-z0-9]+$/i, "") || "avatar";
+    return new File([blob], `${base}-cropped.${ext}`, { type: outType });
+  } finally {
+    bitmap?.close?.();
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+  }
 }
 
 // self-check — full rect == object-cover math; sub-rect stays inside frame.

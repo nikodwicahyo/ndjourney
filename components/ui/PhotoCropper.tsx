@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { X, RotateCcw } from "lucide-react";
+import { X, RotateCcw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { cropCoverStyle, cropViewForRect, clampCropRect, type CropRect } from "@/lib/image-crop";
@@ -21,6 +21,8 @@ type PhotoCropperProps = {
   onCancel: () => void;
   /** Rect over the ORIGINAL image — no copy is produced. */
   onDone: (rect: CropRect) => void;
+  /** True while the parent processes the confirmed rect (bake/upload) — locks the dialog and spins the confirm button. */
+  busy?: boolean;
 };
 
 const MIN_ZOOM = 1;
@@ -35,6 +37,7 @@ export default function PhotoCropper({
   title = "Atur Crop Foto",
   onCancel,
   onDone,
+  busy = false,
 }: PhotoCropperProps) {
   const frameRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ x: number; y: number; cx: number; cy: number } | null>(null);
@@ -150,7 +153,7 @@ export default function PhotoCropper({
       <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
         <div className="flex items-center justify-between p-4 pb-0">
           <h3 className="font-heading text-base font-semibold">{title}</h3>
-          <button type="button" onClick={onCancel} aria-label="Tutup" className="flex min-h-11 min-w-11 items-center justify-center rounded-full p-1 transition-colors hover:bg-muted">
+          <button type="button" onClick={onCancel} disabled={busy} aria-label="Tutup" className="flex min-h-11 min-w-11 items-center justify-center rounded-full p-1 transition-colors hover:bg-muted disabled:opacity-40">
             <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
@@ -251,25 +254,32 @@ export default function PhotoCropper({
         </div>
 
         <div className={cn("flex gap-2 p-4 pt-0", "flex-col sm:flex-row")}>
-          <Button type="button" variant="outline" className="flex-1" onClick={onCancel}>
+          <Button type="button" variant="outline" className="flex-1" onClick={onCancel} disabled={busy}>
             Batal
           </Button>
           <Button
             type="button"
             variant="outline"
             className="flex-1"
-            disabled={!rect || loadError}
+            disabled={!rect || loadError || busy}
             onClick={() => rect && onDone({ x: 0, y: 0, w: 1, h: 1 })}
           >
             Pakai Asli
           </Button>
           <Button
             type="button"
-            className="flex-1"
-            disabled={!rect || loadError}
+            className="flex-1 gap-2"
+            disabled={!rect || loadError || busy}
             onClick={() => rect && onDone(rect)}
           >
-            Terapkan Crop
+            {busy ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin shrink-0" aria-hidden="true" />
+                Menerapkan...
+              </>
+            ) : (
+              "Terapkan Crop"
+            )}
           </Button>
         </div>
       </div>

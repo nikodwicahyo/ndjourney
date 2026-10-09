@@ -446,6 +446,7 @@ export default function ProfileContent({ user, couple }: ProfileContentProps) {
           title="Crop Foto Profil"
           onCancel={closeCropper}
           onDone={confirmCrop}
+          busy={uploading}
         />
       )}
     </div>

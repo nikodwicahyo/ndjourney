@@ -452,6 +452,23 @@ async function main() {
 
   console.log(`✅ ${QUOTES.length} romantic quotes loaded (used by Quote of the Day)`);
 
+  // Singleton display config — dashboard/settings is the source of truth
+  // after this; seed only fills env (or neutral defaults) when empty.
+  const existingConfig = await prisma.coupleConfig.findFirst({ select: { id: true } });
+  if (!existingConfig) {
+    await prisma.coupleConfig.create({
+      data: {
+        name1: getEnv("COUPLE_NAME1", "Kamu"),
+        name2: getEnv("COUPLE_NAME2", "Pasangan"),
+        anniversaryDate: new Date(getEnv("COUPLE_ANNIVERSARY", "2024-01-01")),
+        tagline: getEnv("COUPLE_TAGLINE", "Tempat semua cerita kita tersimpan selamanya."),
+      },
+    });
+    console.log(`✅ Default couple config created (override via dashboard/settings)`);
+  } else {
+    console.log(`ℹ️  Couple config already exists, skipping`);
+  }
+
   await seedGameQuestions();
 
   console.log("🎉 Seeding complete!");

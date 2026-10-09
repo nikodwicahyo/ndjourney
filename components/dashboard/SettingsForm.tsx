@@ -167,12 +167,12 @@ export default function SettingsForm() {
         anniversaryDate: dateOrUndefined(anniversaryDate),
         birthDate1: dateOrNull(birthDate1),
         birthDate2: dateOrNull(birthDate2),
-        tagline: tagline.trim() || undefined,
         // explicit null clears (undefined would silently keep the old value).
+        tagline: tagline.trim() ? tagline.trim() : null,
         heroPhotoUrl: heroPhotoUrl.trim() || null,
         heroCrop: heroPhotoUrl.trim() ? (heroCrop ?? null) : null,
-        spotifyPlaylistUrl: spotifyPlaylistUrl.trim() || undefined,
-        backgroundMusicUrl: backgroundMusicUrl.trim() || undefined,
+        spotifyPlaylistUrl: spotifyPlaylistUrl.trim() ? spotifyPlaylistUrl.trim() : null,
+        backgroundMusicUrl: backgroundMusicUrl.trim() ? backgroundMusicUrl.trim() : null,
       });
 
       if (error) {

@@ -8,8 +8,8 @@ import { Heart, Sparkles } from "lucide-react";
 
 type CountdownTimerProps = {
   anniversaryDate: string | Date;
-  name1?: string;
-  name2?: string;
+  name1?: string | null;
+  name2?: string | null;
 };
 
 function AnimatedNumber({ value, label }: { value: number; label: string }) {
@@ -99,7 +99,7 @@ export default function CountdownTimer({
       <div className="mb-3 flex items-center justify-center gap-2">
         <Heart className="h-4 w-4 fill-primary text-primary" />
         <span className="text-xs font-medium text-muted-foreground sm:text-sm">
-          {name1 && name2 ? `${name1} & ${name2}` : "Bersama"}
+          {name1?.trim() && name2?.trim() ? `${name1.trim()} & ${name2.trim()}` : "Bersama"}
         </span>
         <Heart className="h-4 w-4 fill-primary text-primary" />
       </div>

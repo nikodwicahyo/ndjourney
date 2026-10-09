@@ -9,6 +9,7 @@ import InstallPrompt from "@/components/InstallPrompt";
 import VersionCheck from "@/components/VersionCheck";
 import BackgroundEffect from "@/components/BackgroundEffect";
 import MotionRoot from "@/components/MotionRoot";
+import { APP_NAME, DEFAULT_TAGLINE } from "@/lib/couple-display";
 import "./globals.css";
 const playfairDisplay = Playfair_Display({
   subsets: ["latin"],
@@ -24,15 +25,15 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "NDjourney",
-    template: "%s - NDjourney",
+    default: APP_NAME,
+    template: `%s - ${APP_NAME}`,
   },
-  description: "Tempat semua cerita kita tersimpan selamanya.",
+  description: DEFAULT_TAGLINE,
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "NDjourney",
+    title: APP_NAME,
   },
   formatDetection: {
     telephone: false,

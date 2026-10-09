@@ -5,6 +5,8 @@ import { ArrowLeft, Heart } from "lucide-react";
 import LoginForm from "@/components/auth/LoginForm";
 import AuthReasonAlert from "@/components/auth/AuthReasonAlert";
 import PageTransition from "@/components/PageTransition";
+import { getPublicCoupleConfig } from "@/lib/couple-config";
+import { APP_NAME, resolveTagline } from "@/lib/couple-display";
 
 export const metadata: Metadata = {
   title: "Login",
@@ -16,6 +18,7 @@ type Props = {
 
 export default async function LoginPage({ searchParams }: Props) {
   const { reason } = await searchParams;
+  const config = await getPublicCoupleConfig();
 
   return (
     <PageTransition>
@@ -30,10 +33,10 @@ export default async function LoginPage({ searchParams }: Props) {
             <span className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-primary/10"><Heart className="h-8 w-8 fill-primary text-primary" /></span>
           </div>
           <h1 className="font-heading text-2xl text-foreground sm:text-3xl break-words">
-            NDjourney
+            {APP_NAME}
           </h1>
           <p className="text-sm text-muted-foreground">
-            Tempat semua cerita kita tersimpan selamanya.
+            {resolveTagline(config?.tagline)}
           </p>
         </div>
 

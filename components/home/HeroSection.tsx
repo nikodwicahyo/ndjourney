@@ -7,25 +7,32 @@ import { ChevronDown, Heart } from "lucide-react";
 import { isVideoUrl } from "@/lib/utils";
 import { cropCoverStyle, type CropRect } from "@/lib/image-crop";
 import { getOptimizedImageUrl } from "@/lib/cloudinary-urls";
+import { DEFAULT_NAME1, DEFAULT_NAME2, nickname, resolveTagline } from "@/lib/couple-display";
 
 type HeroSectionProps = {
-  name1?: string;
-  name2?: string;
+  name1?: string | null;
+  name2?: string | null;
   tagline?: string | null;
   heroPhotoUrl?: string | null;
   heroCrop?: CropRect | null;
 };
 
 export default function HeroSection({
-  name1 = "Kamu",
-  name2 = "Pasangan",
+  name1,
+  name2,
   tagline,
   heroPhotoUrl,
   heroCrop = null,
 }: HeroSectionProps) {
+  const displayName1 = name1?.trim() || DEFAULT_NAME1;
+  const displayName2 = name2?.trim() || DEFAULT_NAME2;
+  const displayTagline = resolveTagline(tagline);
+  // Eyebrow uses first-word nicknames ("Niko Dwicahyo" -> "Niko"); the
+  // main title keeps the full names from settings.
+  const eyebrowName = `${nickname(displayName1, DEFAULT_NAME1)} & ${nickname(displayName2, DEFAULT_NAME2)}`;
   const heroIsVideo = useMemo(() => isVideoUrl(heroPhotoUrl), [heroPhotoUrl]);
   const reduceMotion = useReducedMotion();
-  const fullName = `${name1} & ${name2}`;
+  const fullName = `${displayName1} & ${displayName2}`;
   // crop renders with the SAME math as the cropper preview (lib/image-crop),
   // measured against the real viewport — preview IS the output.
   const [viewport, setViewport] = useState<{ w: number; h: number } | null>(null);
@@ -56,8 +63,8 @@ export default function HeroSection({
 
   useEffect(() => {
     if (reduceMotion) {
-      setDisplayedName1(name1);
-      setDisplayedName2(name2);
+      setDisplayedName1(displayName1);
+      setDisplayedName2(displayName2);
       setShowCursor1(false);
       setShowCursor2(false);
       setTypingDone(true);
@@ -70,8 +77,8 @@ export default function HeroSection({
     setShowCursor1(true);
     setTypingDone(false);
     const interval1 = setInterval(() => {
-      if (i < name1.length) {
-        setDisplayedName1(name1.slice(0, i + 1));
+      if (i < displayName1.length) {
+        setDisplayedName1(displayName1.slice(0, i + 1));
         i++;
       } else {
         clearInterval(interval1);
@@ -80,8 +87,8 @@ export default function HeroSection({
 
         let j = 0;
         const inner = setInterval(() => {
-          if (j < name2.length) {
-            setDisplayedName2(name2.slice(0, j + 1));
+          if (j < displayName2.length) {
+            setDisplayedName2(displayName2.slice(0, j + 1));
             j++;
           } else {
             clearInterval(inner);
@@ -100,13 +107,13 @@ export default function HeroSection({
         interval2 = null;
       }
     };
-  }, [name1, name2, reduceMotion]);
+  }, [displayName1, displayName2, reduceMotion]);
 
   const scrollToContent = () => {
     document.getElementById("home-content")?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth" });
   };
 
-  const heroAlt = `${name1} dan ${name2}`;
+  const heroAlt = `${displayName1} dan ${displayName2}`;
 
   return (
     <section
@@ -183,7 +190,7 @@ export default function HeroSection({
         >
           <Heart className="h-5 w-5 fill-primary text-primary" aria-hidden="true" />
           <span className={`text-sm font-medium uppercase tracking-widest ${heroPhotoUrl ? "text-white" : "text-primary"}`}>
-            Niko & Dzikria Journey
+            {eyebrowName} Journey
           </span>
           <Heart className="h-5 w-5 fill-primary text-primary" aria-hidden="true" />
         </motion.div>
@@ -208,26 +215,15 @@ export default function HeroSection({
           </span>
         </motion.h1>
 
-        {tagline ? (
+        {typingDone && (
           <motion.p
             initial={{ opacity: 0 }}
-            animate={typingDone ? { opacity: 1 } : {}}
-            transition={{ duration: 0.8, delay: 0.3 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: reduceMotion ? 0 : 0.8, delay: reduceMotion ? 0 : 0.3 }}
             className={`mt-4 text-sm sm:text-lg md:text-xl ${heroPhotoUrl ? "text-white/85" : "text-muted-foreground"}`}
           >
-            {tagline}
+            {displayTagline}
           </motion.p>
-        ) : (
-          typingDone && (
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: reduceMotion ? 0 : 0.8, delay: reduceMotion ? 0 : 0.3 }}
-              className={`mt-4 text-sm sm:text-lg md:text-xl ${heroPhotoUrl ? "text-white/85" : "text-muted-foreground"}`}
-            >
-              Tempat semua cerita kita tersimpan selamanya.
-            </motion.p>
-          )
         )}
       </div>
 

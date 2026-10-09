@@ -73,11 +73,13 @@ export default function HomeContent({
           </Suspense>
         </section>
         <section>
-          <CountdownTimer
-            anniversaryDate={coupleConfig?.anniversaryDate ?? new Date().toISOString()}
-            name1={coupleConfig?.name1}
-            name2={coupleConfig?.name2}
-          />
+          {coupleConfig?.anniversaryDate ? (
+            <CountdownTimer
+              anniversaryDate={coupleConfig.anniversaryDate}
+              name1={coupleConfig?.name1}
+              name2={coupleConfig?.name2}
+            />
+          ) : null}
         </section>
 
         <section>

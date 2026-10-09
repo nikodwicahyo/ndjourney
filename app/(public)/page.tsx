@@ -3,16 +3,17 @@ import { prisma } from "@/lib/prisma";
 import { getCached, setCached, cacheKey } from "@/lib/redis";
 import { ensureLoveMeterTargets } from "@/lib/love-meter";
 import { parseCropRect } from "@/lib/image-crop";
+import { APP_NAME, resolveTagline } from "@/lib/couple-display";
 import HomeContent from "@/components/home/HomeContent";
 import PageTransition from "@/components/PageTransition";
 
 export async function generateMetadata(): Promise<Metadata> {
   const config = await getCoupleConfig();
-  const tagline = (config as Record<string, unknown>)?.tagline as string | undefined;
-  const title = tagline ? `NDjourney - ${tagline}` : "NDjourney";
+  const tagline = (config as Record<string, unknown> | null)?.tagline as string | null | undefined;
+  const resolved = resolveTagline(tagline);
   return {
-    title,
-    description: tagline ?? "Tempat semua cerita kita tersimpan selamanya.",
+    title: `${APP_NAME} - ${resolved}`,
+    description: resolved,
   };
 }
 

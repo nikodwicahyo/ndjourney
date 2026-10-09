@@ -1,7 +1,7 @@
 {
-  "name": "NDjourney - Niko & Dzikria",
+  "name": "NDjourney",
   "short_name": "NDjourney",
-  "description": "Tempat cerita cinta Niko & Dzikria. Simpan kenangan, hitung hari bersama, dan mainkan game seru.",
+  "description": "Tempat semua cerita kita tersimpan selamanya. Simpan kenangan, hitung hari bersama, dan mainkan game seru.",
   "start_url": "/",
   "display": "standalone",
   "display_override": [

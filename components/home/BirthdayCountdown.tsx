@@ -5,10 +5,11 @@ import { motion, useInView, useAnimate } from "framer-motion";
 import { useCountdown } from "@/hooks/useCountdown";
 import { getNextBirthday, getAge, isSameMonthDayJakarta } from "@/lib/date";
 import { Cake, PartyPopper, Sparkles } from "lucide-react";
+import { DEFAULT_NAME1 } from "@/lib/couple-display";
 
 type BirthdayCountdownProps = {
   birthDate: string | Date | null;
-  name: string;
+  name?: string | null;
 };
 
 function AnimatedNumber({ value, label }: { value: number; label: string }) {
@@ -60,6 +61,7 @@ export default function BirthdayCountdown({
   birthDate,
   name,
 }: BirthdayCountdownProps) {
+  const displayName = name?.trim() || DEFAULT_NAME1;
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-50px" });
 
@@ -95,7 +97,7 @@ export default function BirthdayCountdown({
           <Cake className="h-4 w-4 text-primary" />
         )}
         <span className="text-sm font-medium text-muted-foreground">
-          {isBirthdayToday ? "Selamat Ulang Tahun!" : `Ulang Tahun ${name}`}
+          {isBirthdayToday ? "Selamat Ulang Tahun!" : `Ulang Tahun ${displayName}`}
         </span>
         {isBirthdayToday ? (
           <PartyPopper className="h-5 w-5 text-primary" />
@@ -113,7 +115,7 @@ export default function BirthdayCountdown({
             <Sparkles className="mx-auto h-8 w-8 text-primary" />
           </motion.div>
           <p className="mt-2 font-heading text-xl font-bold text-primary sm:text-2xl break-words">
-            Selamat Ulang Tahun {name}!
+            Selamat Ulang Tahun {displayName}!
           </p>
           <p className="mt-2 text-sm text-muted-foreground">
             Usia: {age} tahun
@@ -127,7 +129,7 @@ export default function BirthdayCountdown({
               : "Hari ini!"}
           </p>
           <p className="mb-3 text-sm text-muted-foreground">
-            Menuju ulang tahun {name} (usia ke-{age + 1} tahun)
+            Menuju ulang tahun {displayName} (usia ke-{age + 1} tahun)
           </p>
 
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">

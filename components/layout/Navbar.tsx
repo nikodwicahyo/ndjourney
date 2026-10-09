@@ -36,6 +36,7 @@ import {
   isNavActive,
   visibleNav,
 } from "./nav-config";
+import { APP_NAME } from "@/lib/couple-display";
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -92,7 +93,7 @@ export default function Navbar() {
             className="flex items-center gap-2 font-heading text-lg font-semibold text-foreground shrink-0"
           >
             <Heart className="h-5 w-5 fill-primary text-primary" aria-hidden="true" />
-            <span className="text-sm sm:text-lg">NDjourney</span>
+            <span className="text-sm sm:text-lg">{APP_NAME}</span>
           </Link>
 
           <nav aria-label="Navigasi utama" className="hidden items-center gap-0.5 overflow-x-auto scrollbar-hide lg:flex">

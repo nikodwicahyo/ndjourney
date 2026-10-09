@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/lib/generated/prisma";
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { getCached, setCached, invalidateCache, cacheKey } from "@/lib/redis";
 import { updateCoupleSchema } from "@/lib/validations/couple";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
@@ -130,24 +131,32 @@ export async function PUT(request: Request) {
       }
     }
 
+    // ?? would swallow explicit null (clear) into undefined (keep) —
+    // assign only when the key was actually sent.
+    const d = parsed.data;
     const updated = await prisma.coupleConfig.update({
       where: { id: config.id },
       data: {
-        name1: parsed.data.name1 ?? undefined,
-        name2: parsed.data.name2 ?? undefined,
-        anniversaryDate,
-        birthDate1,
-        birthDate2,
-        tagline: parsed.data.tagline ?? undefined,
-        heroPhotoUrl: parsed.data.heroPhotoUrl ?? undefined,
+        ...(d.name1 !== undefined ? { name1: d.name1 } : {}),
+        ...(d.name2 !== undefined ? { name2: d.name2 } : {}),
+        ...(anniversaryDate !== undefined ? { anniversaryDate } : {}),
+        ...(birthDate1 !== undefined ? { birthDate1 } : {}),
+        ...(birthDate2 !== undefined ? { birthDate2 } : {}),
+        ...(d.tagline !== undefined ? { tagline: d.tagline } : {}),
+        ...(d.heroPhotoUrl !== undefined ? { heroPhotoUrl: d.heroPhotoUrl } : {}),
         // crop without photo is meaningless — clearing the photo clears the crop.
         // DbNull = SQL NULL (plain null would store JSON null for Json fields).
         // Explicit null (Pakai Asli) clears; undefined leaves unchanged.
-        heroCrop: parsed.data.heroPhotoUrl === null || parsed.data.heroCrop === null
-          ? Prisma.DbNull
-          : (parsed.data.heroCrop ?? undefined),
-        spotifyPlaylistUrl: parsed.data.spotifyPlaylistUrl ?? undefined,
-        backgroundMusicUrl: parsed.data.backgroundMusicUrl ?? undefined,
+        ...(d.heroCrop !== undefined || d.heroPhotoUrl === null
+          ? {
+              heroCrop:
+                d.heroPhotoUrl === null || d.heroCrop === null
+                  ? Prisma.DbNull
+                  : d.heroCrop,
+            }
+          : {}),
+        ...(d.spotifyPlaylistUrl !== undefined ? { spotifyPlaylistUrl: d.spotifyPlaylistUrl } : {}),
+        ...(d.backgroundMusicUrl !== undefined ? { backgroundMusicUrl: d.backgroundMusicUrl } : {}),
       },
       select: {
         id: true,
@@ -167,6 +176,18 @@ export async function PUT(request: Request) {
     });
 
     await invalidateCache("couple:*");
+    // Server-rendered surfaces (homepage hero/metadata, notes subtitle,
+    // login tagline) read the same row — bust Next cache immediately so a
+    // settings save is visible end-to-end instead of after the 300s TTL.
+    // Best-effort: throws outside the Next runtime (unit tests), where
+    // redis invalidation is already the source of truth.
+    try {
+      revalidatePath("/", "page");
+      revalidatePath("/notes", "page");
+      revalidatePath("/login", "page");
+    } catch {
+      // ponytail: no Next static-generation store here (tests/edge) — skip.
+    }
 
     // Clean up old Cloudinary files if URLs changed — but never delete a hero
     // URL that is still referenced by a gallery photo (gallery-picked heroes

@@ -393,7 +393,7 @@ export default function GalleryManager() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [pendingFiles, selectedAlbumId, uploadPhotos, isSubmitting]);
+  }, [pendingFiles, selectedAlbumId, uploadPhotos, isSubmitting, photoPublic]);
 
   const handleDelete = useCallback(async (id: string) => {
     const confirmed = await showDeleteConfirm({ title: "Hapus Media", text: "Apakah Anda yakin ingin menghapus media ini?" });
@@ -430,7 +430,7 @@ export default function GalleryManager() {
       })) as UploadFileItem[];
     }
     return pendingFiles;
-  }, [isSubmitting, pendingFiles, uploadPhotos.queue]);
+  }, [pendingFiles, uploadPhotos.queue]);
 
   const pendingCount = uploadQueue.filter((u) => u.status === "pending").length;
   const uploadingCount = uploadQueue.filter((u) => u.status === "uploading").length;

@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- custom Cloudinary srcset plus transform anchored zoom; next/image wrappers break zoom math and hosts vary */
+
 import { memo, useEffect, useCallback, useState, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {

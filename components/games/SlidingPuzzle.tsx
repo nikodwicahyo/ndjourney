@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- game-canvas <img> with pre-sized Cloudinary URLs (400/1024px, lazy); hosts vary (non-Cloudinary legacy URLs pass through unchanged), so next/image would throw at runtime */
+
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useSubmitArcadeScore } from "@/hooks/useGames";

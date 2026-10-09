@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- canvas data URL thumbnail; next/image cannot optimize data URLs */
+
 import { useState, useEffect, useRef, memo } from "react";
 import { cn } from "@/lib/utils";
 import { Loader2, CheckCircle, AlertCircle, X, FileVideo, RotateCcw, Trash, Clock, Image as ImageIcon, WifiOff } from "lucide-react";

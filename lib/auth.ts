@@ -432,6 +432,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (user?.id) {
         (token as { role?: string }).role =
           (user as { role?: string }).role || "PARTNER";
+        // Stamp explicitly rather than relying on core's defaultToken — the
+        // token must carry the photo from the very first login, for both
+        // credentials and OAuth sign-ins.
+        token.name = user.name ?? token.name;
+        token.email = user.email ?? token.email;
+        token.picture = user.image ?? token.picture;
       }
       // Profile edits call update() after PUT /api/user — re-stamp the token
       // from the DB so Navbar/Sidebar avatars refresh in realtime instead of

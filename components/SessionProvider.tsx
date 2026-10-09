@@ -5,8 +5,10 @@ import { SessionProvider as NextAuthSessionProvider, useSession, signOut } from 
 import { toast } from "sonner";
 
 function SessionWatcher() {
-  const { data: session, status } = useSession();
+  const { data: session, status, update: updateSession } = useSession();
   const wasAuthenticated = useRef(false);
+  // Session photo URLs probed already — each distinct URL is checked once.
+  const probedImageRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (status === "loading") return;
@@ -27,6 +29,31 @@ function SessionWatcher() {
       });
     }
   }, [session, status]);
+
+  // Self-heal a stale session photo: if the token points at a rotated/deleted
+  // asset, Navbar/Sidebar fall back to the initial while API-driven avatars
+  // look fine. Probing reuses the browser cache (the avatar already attempted
+  // this URL), and a real refresh POST re-stamps the token from the DB.
+  useEffect(() => {
+    const image = session?.user?.image;
+    if (status !== "authenticated" || !image || probedImageRef.current === image) return;
+    let cancelled = false;
+    const probe = new Image();
+    probe.onload = () => {
+      if (!cancelled) probedImageRef.current = image;
+    };
+    probe.onerror = () => {
+      if (cancelled) return;
+      probedImageRef.current = image;
+      void updateSession({});
+    };
+    probe.src = image;
+    return () => {
+      cancelled = true;
+      probe.onload = null;
+      probe.onerror = null;
+    };
+  }, [session?.user?.image, status, updateSession]);
 
   return null;
 }

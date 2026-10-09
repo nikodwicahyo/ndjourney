@@ -715,7 +715,7 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-950/30">
-          <ImageIcon className="h-8 w-8 text-rose-400" />
+          <ImageIcon className="h-8 w-8 text-rose-400" aria-hidden="true" />
         </div>
         <h3 className="font-heading text-lg font-semibold">Belum Ada Foto</h3>
         <p className="max-w-xs text-sm text-muted-foreground">
@@ -741,13 +741,13 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
             />
           )}
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-black/40 p-6">
-            <Blocks className="h-12 w-12 text-white drop-shadow" />
+            <Blocks className="h-12 w-12 text-white drop-shadow" aria-hidden="true" />
             <h2 className="font-heading text-2xl font-bold text-white drop-shadow">Block Blast</h2>
             <p className="max-w-[260px] text-sm text-white/90">
               Susun blok untuk mengungkap foto, satu baris demi satu baris!
             </p>
             <Button onClick={startGame} className="mt-2 gap-2">
-              <Play className="h-4 w-4" />
+              <Play className="h-4 w-4" aria-hidden="true" />
               Mulai Bermain
             </Button>
           </div>
@@ -764,7 +764,7 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
       <div className="w-full max-w-[400px]">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-rose-400" />
+            <Sparkles className="h-5 w-5 text-rose-400" aria-hidden="true" />
             <motion.span
               key={score}
               initial={{ scale: 1.4 }}
@@ -782,7 +782,7 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
                 animate={{ scale: 1 }}
                 className="flex items-center gap-1 rounded-full bg-rose-100 px-3 py-1 dark:bg-rose-950/30"
               >
-                <Heart className="h-4 w-4 fill-rose-400 text-rose-400" />
+                <Heart className="h-4 w-4 fill-rose-400 text-rose-400" aria-hidden="true" />
                 <span className="text-sm font-bold text-rose-500">x{combo}</span>
               </motion.div>
             )}
@@ -791,7 +791,7 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
               className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent"
               aria-label="Mulai ulang"
             >
-              <RotateCcw className="h-5 w-5" />
+              <RotateCcw className="h-5 w-5" aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -800,7 +800,7 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
         <div className="mt-3">
           <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
-              <Blocks className="h-3.5 w-3.5" /> Foto terungkap
+              <Blocks className="h-3.5 w-3.5" aria-hidden="true" /> Foto terungkap
             </span>
             <span className="font-semibold text-rose-500">{revealPct}%</span>
           </div>
@@ -829,7 +829,7 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
                   status.tone === "neutral" && "bg-rose-100 text-rose-600 dark:bg-rose-950/30 dark:text-rose-300",
                 )}
               >
-                <Info className="h-3.5 w-3.5" />
+                <Info className="h-3.5 w-3.5" aria-hidden="true" />
                 <span>{status.text}</span>
               </motion.div>
             </AnimatePresence>
@@ -926,13 +926,13 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
       {/* ── Stats row ─────────────────────────────────────────── */}
       <div className="flex w-full max-w-[400px] items-center justify-center gap-3 text-xs text-muted-foreground">
         <span className="inline-flex items-center gap-1">
-          <Blocks className="h-3.5 w-3.5 text-rose-400" />
+          <Blocks className="h-3.5 w-3.5 text-rose-400" aria-hidden="true" />
           <span className="font-semibold text-rose-500">{blocks.length}</span>
           blok tersisa
         </span>
         <span className="h-3 w-px bg-border" />
         <span className="inline-flex items-center gap-1">
-          <Sparkles className="h-3.5 w-3.5 text-rose-400" />
+          <Sparkles className="h-3.5 w-3.5 text-rose-400" aria-hidden="true" />
           <span className="font-semibold text-rose-500">{linesCleared}</span>
           baris terungkap
         </span>
@@ -1012,7 +1012,7 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
               className="mx-4 flex max-w-sm flex-col items-center gap-4 rounded-2xl bg-white p-8 text-center shadow-2xl dark:bg-slate-900"
             >
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-950/30">
-                <Heart className="h-8 w-8 text-rose-400" />
+                <Heart className="h-8 w-8 text-rose-400" aria-hidden="true" />
               </div>
               <h2 className="font-heading text-2xl font-bold">Game Over</h2>
               <p className="text-muted-foreground">
@@ -1020,7 +1020,7 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
               </p>
               <div className="mt-2 flex flex-col gap-2 sm:flex-row">
                 <Button onClick={startGame} className="gap-2">
-                  <RotateCcw className="h-4 w-4" />
+                  <RotateCcw className="h-4 w-4" aria-hidden="true" />
                   Main Lagi
                 </Button>
                 {onExit && (
@@ -1053,7 +1053,7 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
                 animate={{ rotate: [0, -10, 10, -10, 0], scale: [1, 1.2, 1] }}
                 transition={{ duration: 0.6, delay: 0.2 }}
               >
-                <Trophy className="h-16 w-16 text-yellow-400" />
+                <Trophy className="h-16 w-16 text-yellow-400" aria-hidden="true" />
               </motion.div>
               <h2 className="font-heading text-2xl font-bold text-rose-500">Selamat! 🎉</h2>
               <p className="text-muted-foreground">Kamu berhasil mengungkap seluruh foto!</p>
@@ -1062,7 +1062,7 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
               </p>
               <div className="mt-2 flex flex-col gap-2 sm:flex-row">
                 <Button onClick={startGame} className="gap-2">
-                  <RotateCcw className="h-4 w-4" />
+                  <RotateCcw className="h-4 w-4" aria-hidden="true" />
                   Main Lagi
                 </Button>
                 {onExit && (

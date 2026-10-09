@@ -7,7 +7,7 @@ import { safeTokenEqual } from "@/lib/api-body";
 const RegisterForm = dynamic(
   () => import("@/components/auth/RegisterForm"),
   {
-    loading: () => <div className="h-48 animate-pulse rounded-xl bg-muted" />,
+    loading: () => <div className="h-48 animate-pulse motion-reduce:animate-none rounded-xl bg-muted" />,
   },
 );
 

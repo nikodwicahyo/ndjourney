@@ -10,6 +10,7 @@ import { useAppStore } from "@/stores/useAppStore";
 import { useMounted } from "@/hooks/useMounted";
 import { Avatar, AvatarFallback, AvatarImage, Button, Sheet, SheetContent } from "@/components/ui";
 import { SidebarContent } from "./Sidebar";
+import { showDeleteConfirm } from "@/lib/swal";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,13 +21,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Heart,
-  Home,
-  Image,
-  CalendarDays,
-  Gamepad2,
-  StickyNote,
-  Gift,
-  MessageCircleHeart,
   Moon,
   Sun,
   LogOut,
@@ -35,23 +29,13 @@ import {
   User,
   Menu,
   X,
-  MapPin,
 } from "lucide-react";
-
-const navLinks = [
-  { href: "/", label: "Home", icon: Home },
-  { href: "/gallery", label: "Gallery", icon: Image },
-  { href: "/timeline", label: "Timeline", icon: CalendarDays },
-  { href: "/games", label: "Games", icon: Gamepad2 },
-  { href: "/notes", label: "Note", icon: StickyNote },
-  { href: "/wishlist", label: "Wish", icon: Gift },
-  { href: "/letters", label: "Letters", icon: MessageCircleHeart },
-];
-
-const privateLinks = [
-  { href: "/location", label: "Location", icon: MapPin },
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-];
+import {
+  primaryNav,
+  moreNav,
+  isNavActive,
+  visibleNav,
+} from "./nav-config";
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -61,6 +45,16 @@ export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const mounted = useMounted();
   const { sidebarOpen, setSidebarOpen } = useAppStore();
+
+  const handleLogout = async () => {
+    const confirmed = await showDeleteConfirm({
+      title: "Keluar dari akun?",
+      text: "Apakah Anda yakin ingin keluar?",
+      confirmText: "Ya, keluar",
+      cancelText: "Batal",
+    });
+    if (confirmed) signOut({ callbackUrl: "/" });
+  };
 
   const isDashboard = pathname.startsWith("/dashboard");
 
@@ -72,14 +66,13 @@ export default function Navbar() {
 
   useEffect(() => {
     setSidebarOpen(false);
-  }, [pathname]);
+  }, [pathname, setSidebarOpen]);
 
-  const isActive = (href: string) => {
-    if (href === "/") return pathname === "/";
-    return pathname.startsWith(href);
-  };
+  const isActive = (href: string) => isNavActive(pathname, href);
 
-  const links = session?.user ? [...navLinks, ...privateLinks] : navLinks;
+  const isAuthed = !!session?.user;
+  // Desktop has its own Login button, so the More dropdown skips guest items.
+  const desktopMore = visibleNav(moreNav, isAuthed).filter((i) => !i.guest);
 
   return (
     <>
@@ -98,25 +91,26 @@ export default function Navbar() {
             prefetch={true}
             className="flex items-center gap-2 font-heading text-lg font-semibold text-foreground shrink-0"
           >
-            <Heart className="h-5 w-5 fill-primary text-primary" />
+            <Heart className="h-5 w-5 fill-primary text-primary" aria-hidden="true" />
             <span className="text-sm sm:text-lg">NDjourney</span>
           </Link>
 
-          <nav className="hidden items-center gap-1 lg:flex">
-            {links.map((link) => (
+          <nav aria-label="Navigasi utama" className="hidden items-center gap-0.5 lg:flex">
+            {[...primaryNav, ...desktopMore].map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
                 prefetch={true}
                 suppressHydrationWarning
+                aria-current={isActive(link.href) ? "page" : undefined}
                 className={cn(
-                  "flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium transition-colors xl:px-4",
+                  "flex items-center gap-1.5 rounded-full px-2 py-2 text-[13px] font-medium whitespace-nowrap transition-colors xl:px-3",
                   isActive(link.href)
                     ? "bg-primary/10 text-primary"
                     : "text-muted-foreground hover:bg-accent hover:text-foreground",
                 )}
               >
-                <link.icon className="h-4 w-4 shrink-0" />
+                <link.icon className="h-4 w-4 shrink-0" aria-hidden="true" />
                 {link.label}
               </Link>
             ))}
@@ -142,7 +136,10 @@ export default function Navbar() {
               <div className="relative">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="flex items-center gap-2 rounded-full p-1 transition-colors hover:bg-accent">
+                    <button
+                      aria-label="Menu akun"
+                      className="flex items-center gap-2 rounded-full p-1 transition-colors hover:bg-accent"
+                    >
                       <Avatar className="h-8 w-8">
                         <AvatarImage src={session.user.image || undefined} />
                         <AvatarFallback>
@@ -172,7 +169,7 @@ export default function Navbar() {
                       Settings
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/" })}>
+                    <DropdownMenuItem onClick={handleLogout}>
                       <LogOut className="h-4 w-4" />
                       Logout
                     </DropdownMenuItem>
@@ -195,6 +192,7 @@ export default function Navbar() {
                 variant="ghost"
                 size="icon"
                 className="lg:hidden"
+                aria-label={sidebarOpen ? "Tutup menu" : "Buka menu"}
                 onClick={() => setSidebarOpen(!sidebarOpen)}
               >
                 {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}

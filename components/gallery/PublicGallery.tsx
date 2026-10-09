@@ -53,7 +53,7 @@ export default function PublicGallery() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="flex items-center gap-2 font-heading text-3xl"><Images className="h-7 w-7 text-primary" /> Gallery</h1>
+          <h1 className="flex items-center gap-2 font-heading text-3xl"><Images className="h-7 w-7 text-primary" aria-hidden="true" /> Gallery</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Semua kenangan kita
           </p>

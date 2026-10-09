@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import Image from "next/image";
-import { motion, AnimatePresence, useInView } from "framer-motion";
+import { motion, AnimatePresence, useInView, useReducedMotion } from "framer-motion";
 import {
   Heart,
   RotateCcw,
@@ -69,6 +69,7 @@ function initCards(selected: GalleryPhoto[]): Card[] {
 export default function MemoryMatch({ photos }: MemoryMatchProps) {
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-40px" });
+  const reduceMotion = useReducedMotion();
   const photoPool = useMemo(() => selectMemoryMatchImages(photos), [photos]);
   const [cards, setCards] = useState<Card[]>([]);
 
@@ -206,7 +207,7 @@ export default function MemoryMatch({ photos }: MemoryMatchProps) {
         <div>
           <div className="flex items-center gap-2">
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
-              <Zap className="h-3.5 w-3.5 text-primary" />
+              <Zap className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
             </div>
             <span className="text-base font-medium">Memory Match</span>
           </div>
@@ -228,10 +229,10 @@ export default function MemoryMatch({ photos }: MemoryMatchProps) {
           <span className="tabular-nums">{moves} langkah</span>
           <button
             onClick={handleNewGame}
-            className="rounded-full p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             aria-label="Game baru"
           >
-            <RotateCcw className="h-3.5 w-3.5" />
+            <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -248,12 +249,12 @@ export default function MemoryMatch({ photos }: MemoryMatchProps) {
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{
                 opacity: 1,
-                scale: isMatchedNow ? 1.12 : 1,
+                scale: reduceMotion ? 1 : isMatchedNow ? 1.12 : 1,
               }}
               transition={{
-                delay: idx * 0.02,
-                duration: 0.35,
-                scale: isMatchedNow
+                delay: reduceMotion ? 0 : idx * 0.02,
+                duration: reduceMotion ? 0 : 0.35,
+                scale: isMatchedNow && !reduceMotion
                   ? { duration: 0.4, ease: "easeInOut", repeat: 1, repeatType: "mirror" }
                   : undefined,
               }}
@@ -279,7 +280,7 @@ export default function MemoryMatch({ photos }: MemoryMatchProps) {
                   className="absolute inset-0 flex items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 via-primary/10 to-secondary/20"
                   style={{ backfaceVisibility: "hidden" }}
                 >
-                  <Heart className="h-6 w-6 text-primary/40" />
+                  <Heart className="h-6 w-6 text-primary/40" aria-hidden="true" />
                 </div>
 
                 {/* BACK — image (visible at 180deg) */}
@@ -289,7 +290,7 @@ export default function MemoryMatch({ photos }: MemoryMatchProps) {
                 >
                   {hasError || card.url.startsWith("data:") ? (
                     <div className="flex h-full items-center justify-center bg-gradient-to-br from-primary/20 via-primary/10 to-secondary/20">
-                      <Heart className="h-8 w-8 text-primary/60" />
+                      <Heart className="h-8 w-8 text-primary/60" aria-hidden="true" />
                     </div>
                   ) : (
                     <div className="relative h-full w-full">
@@ -308,13 +309,17 @@ export default function MemoryMatch({ photos }: MemoryMatchProps) {
                     <div className="absolute inset-0 flex items-center justify-center bg-primary/10 backdrop-brightness-110">
                       <motion.div
                         initial={{ scale: 0 }}
-                        animate={{ scale: 1, rotate: [0, -15, 15, 0] }}
-                        transition={{
+                        animate={reduceMotion ? { scale: 1 } : { scale: 1, rotate: [0, -15, 15, 0] }}
+                        transition={
+                          reduceMotion
+                            ? { duration: 0 }
+                            : {
                           scale: { type: "spring", damping: 12, stiffness: 200 },
                           rotate: { duration: 0.4, ease: "easeInOut" },
-                        }}
+                        }
+                        }
                       >
-                        <Check className="h-8 w-8 text-primary drop-shadow-md" />
+                        <Check className="h-8 w-8 text-primary drop-shadow-md" aria-hidden="true" />
                       </motion.div>
                     </div>
                   )}
@@ -336,7 +341,7 @@ export default function MemoryMatch({ photos }: MemoryMatchProps) {
             transition={{ duration: 0.2 }}
             className="mt-3 flex items-center justify-center gap-1.5 rounded-lg bg-primary/10 py-2 text-sm font-medium text-primary"
           >
-            <Check className="h-3.5 w-3.5" />
+            <Check className="h-3.5 w-3.5" aria-hidden="true" />
             Cocok! ({matchedCount}/{pairCount})
           </motion.div>
         )}
@@ -352,18 +357,18 @@ export default function MemoryMatch({ photos }: MemoryMatchProps) {
             className="mt-4 overflow-hidden rounded-xl bg-gradient-to-r from-primary/10 via-primary/5 to-primary/10 p-5 text-center"
           >
             <motion.div
-              animate={{ rotate: [0, -10, 10, -10, 0] }}
-              transition={{ duration: 0.6, type: "tween", ease: "easeInOut" }}
+              animate={reduceMotion ? {} : { rotate: [0, -10, 10, -10, 0] }}
+              transition={{ duration: reduceMotion ? 0 : 0.6, type: "tween", ease: "easeInOut" }}
               className="mb-2"
             >
-              <PartyPopper className="mx-auto h-6 w-6 text-primary" />
+              <PartyPopper className="mx-auto h-6 w-6 text-primary" aria-hidden="true" />
             </motion.div>
             <div className="flex items-center justify-center gap-2">
-              <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+              <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" aria-hidden="true" />
               <span className="text-lg font-semibold text-primary">
                 Selamat! Semua cocok!
               </span>
-              <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+              <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" aria-hidden="true" />
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
               {moves} langkah &middot; {formatTime(elapsed)}
@@ -371,9 +376,9 @@ export default function MemoryMatch({ photos }: MemoryMatchProps) {
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={handleNewGame}
-              className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-primary px-5 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+              className="mt-3 inline-flex min-h-11 items-center gap-1.5 rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
             >
-              <RotateCcw className="h-3 w-3" />
+              <RotateCcw className="h-3 w-3" aria-hidden="true" />
               Main lagi
             </motion.button>
           </motion.div>

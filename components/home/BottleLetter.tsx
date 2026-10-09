@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
-import { motion, AnimatePresence, useInView } from "framer-motion";
-import { X, Heart, Sparkles } from "lucide-react";
+import { motion, AnimatePresence, useInView, useReducedMotion } from "framer-motion";
+import { X, Heart, Sparkles, Mail } from "lucide-react";
 
 const messages = [
   "Kamu itu kayak WiFi, kalau nggak ada, hidupku terasa putus.",
@@ -237,7 +237,7 @@ function EnvelopeContent({ phase }: { phase: Phase }) {
   return (
     <div className="relative h-full w-full" style={{ perspective: "1000px" }}>
       <motion.div
-        className="absolute inset-x-[10%] inset-y-[16%] z-0 rounded-sm bg-white/90"
+        className="absolute inset-x-[10%] inset-y-[16%] z-0 rounded-sm bg-white/90 dark:bg-stone-900/90"
         initial={false}
         animate={{
           y: isOpen ? 0 : 3,
@@ -253,7 +253,7 @@ function EnvelopeContent({ phase }: { phase: Phase }) {
         </div>
       </motion.div>
 
-      <div className="absolute inset-0 rounded-lg border border-amber-300/50 bg-gradient-to-br from-amber-50 to-amber-100 shadow-lg">
+      <div className="absolute inset-0 rounded-lg border border-amber-300/50 bg-gradient-to-br from-amber-50 to-amber-100 shadow-lg dark:border-amber-800/50 dark:from-amber-950 dark:to-amber-900">
         <div
           className="absolute bottom-0 left-0 right-0 h-1/2"
           style={{
@@ -276,7 +276,7 @@ function EnvelopeContent({ phase }: { phase: Phase }) {
         transition={{ duration: 0.8, ease: "easeInOut" }}
       >
         <div className="absolute bottom-[8%] left-1/2 -translate-x-1/2">
-          <Heart className="h-3.5 w-3.5 fill-rose-400 text-rose-400" />
+          <Heart className="h-3.5 w-3.5 fill-rose-400 text-rose-400" aria-hidden="true" />
         </div>
       </motion.div>
     </div>
@@ -325,13 +325,16 @@ function saveToLocal(key: string, value: unknown) {
 export default function BottleLetter() {
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-40px" });
+  const reduced = useReducedMotion();
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const modalCloseRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [isHovered, setIsHovered] = useState(false);
   const [phase, setPhase] = useState<Phase>("idle");
   const [displayText, setDisplayText] = useState("");
   const [confetti, setConfetti] = useState<
-    { x: number; y: number; rot: number; delay: number; emoji: string }[]
+    { x: number; y: number; rot: number; delay: number; variant: number }[]
   >([]);
   const [afterglow, setAfterglow] = useState(false);
 
@@ -386,7 +389,18 @@ export default function BottleLetter() {
       setConfetti([]);
       setTimeout(() => setAfterglow(false), 1000);
     }, 600);
+    triggerRef.current?.focus();
   };
+
+  useEffect(() => {
+    if (!open) return;
+    modalCloseRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") handleClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
 
   useEffect(() => {
     if (phase === "opening") {
@@ -396,7 +410,7 @@ export default function BottleLetter() {
           y: -(Math.random() * 140 + 30),
           rot: Math.random() * 360,
           delay: Math.random() * 0.18,
-          emoji: ["❤️", "✨", "💫", "🌟", "🦋", "💖", "⭐"][i % 7],
+          variant: i % 2,
         })),
       );
     } else {
@@ -421,14 +435,14 @@ export default function BottleLetter() {
 
   const swayVariants = {
     idle: {
-      y: [0, -4, 0],
-      rotate: [0, 2, -2, 0],
-      transition: { duration: 6, repeat: Infinity, ease: "easeInOut" as const },
+      y: reduced ? 0 : [0, -4, 0],
+      rotate: reduced ? 0 : [0, 2, -2, 0],
+      transition: { duration: 6, repeat: reduced ? 0 : Infinity, ease: "easeInOut" as const },
     },
     hover: {
-      y: [0, -6, 0],
-      rotate: [0, 3, -3, 0],
-      transition: { duration: 4, repeat: Infinity, ease: "easeInOut" as const },
+      y: reduced ? 0 : [0, -6, 0],
+      rotate: reduced ? 0 : [0, 3, -3, 0],
+      transition: { duration: 4, repeat: reduced ? 0 : Infinity, ease: "easeInOut" as const },
     },
   };
 
@@ -447,10 +461,10 @@ export default function BottleLetter() {
       Array.from({ length: 10 }, (_, i) => ({
         left: 5 + i * 9,
         delay: i * 0.15 + 0.3,
-        emoji: ["❤️", "✨", "💫", "🌟", "🦋"][i % 5],
-        drift: (Math.random() - 0.5) * 30,
+        variant: i % 2,
+        drift: reduced ? 0 : (Math.random() - 0.5) * 30,
       })),
-    [],
+    [reduced],
   );
 
   return (
@@ -466,15 +480,18 @@ export default function BottleLetter() {
     >
         <div className="mb-2 flex items-center gap-2">
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
-            <Heart className="h-3.5 w-3.5 fill-primary text-primary" />
+            <Heart className="h-3.5 w-3.5 fill-primary text-primary" aria-hidden="true" />
           </div>
           <span className="text-base font-medium">What&apos;s in the bottle</span>
         </div>
 
         <motion.button
+          ref={triggerRef}
           onClick={handleOpen}
+          aria-expanded={open || phase !== "idle"}
+          aria-label="Buka botol pesan"
           whileTap={{ scale: 0.97 }}
-          className={`group relative flex w-full cursor-pointer flex-col items-center justify-center ${phase === "emerging" || phase === "unfolding" ? "" : "overflow-hidden"} rounded-xl bg-gradient-to-b from-amber-50 via-rose-50/30 to-amber-100/50 py-14 transition-all duration-500 hover:from-amber-100 hover:to-amber-200/50 dark:from-amber-950/30 dark:via-rose-900/10 dark:to-amber-900/20 dark:hover:from-amber-900/40 dark:hover:to-amber-800/30`}
+          className={`group relative flex w-full max-w-full cursor-pointer flex-col items-center justify-center overflow-x-clip ${phase === "emerging" || phase === "unfolding" ? "" : "overflow-hidden"} rounded-xl bg-gradient-to-b from-amber-50 via-rose-50/30 to-amber-100/50 py-14 transition-all duration-500 hover:from-amber-100 hover:to-amber-200/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 dark:from-amber-950/30 dark:via-rose-900/10 dark:to-amber-900/20 dark:hover:from-amber-900/40 dark:hover:to-amber-800/30`}
           style={{
             boxShadow:
               phase !== "idle" || afterglow
@@ -488,10 +505,10 @@ export default function BottleLetter() {
               viewBox="0 0 400 60"
               preserveAspectRatio="none"
               className="h-full w-full"
-              animate={{ x: [0, -100, 0] }}
+              animate={reduced ? {} : { x: [0, -100, 0] }}
               transition={{
                 duration: 12,
-                repeat: Infinity,
+                repeat: reduced ? 0 : Infinity,
                 ease: "easeInOut",
               }}
             >
@@ -516,10 +533,10 @@ export default function BottleLetter() {
               viewBox="0 0 400 60"
               preserveAspectRatio="none"
               className="absolute inset-0 h-full w-full"
-              animate={{ x: [0, 100, 0] }}
+              animate={reduced ? {} : { x: [0, 100, 0] }}
               transition={{
                 duration: 18,
-                repeat: Infinity,
+                repeat: reduced ? 0 : Infinity,
                 ease: "easeInOut",
               }}
             >
@@ -541,19 +558,23 @@ export default function BottleLetter() {
                   left: `${12 + ((i * 11) % 76)}%`,
                   bottom: `${15 + ((i * 10) % 70)}%`,
                 }}
-                animate={{
-                  y: [-40 - (i % 3) * 20, -90 - (i % 3) * 30],
-                  x: [
-                    0,
-                    (i % 2 === 0 ? 10 : -10) * (1 + (i % 3)),
-                    0,
-                  ],
-                  opacity: [0, 0.6, 0],
-                  scale: [0.3, 1, 0.3],
-                }}
+                animate={
+                  reduced
+                    ? {}
+                    : {
+                        y: [-40 - (i % 3) * 20, -90 - (i % 3) * 30],
+                        x: [
+                          0,
+                          (i % 2 === 0 ? 10 : -10) * (1 + (i % 3)),
+                          0,
+                        ],
+                        opacity: [0, 0.6, 0],
+                        scale: [0.3, 1, 0.3],
+                      }
+                }
                 transition={{
                   duration: 5 + (i % 4),
-                  repeat: Infinity,
+                  repeat: reduced ? 0 : Infinity,
                   delay: i * 0.45,
                   ease: "easeInOut",
                 }}
@@ -577,7 +598,7 @@ export default function BottleLetter() {
                 }}
                 transition={{
                   duration: 3.5,
-                  repeat: Infinity,
+                  repeat: reduced ? 0 : Infinity,
                   delay: i * 0.3,
                   ease: "easeOut",
                 }}
@@ -608,10 +629,10 @@ export default function BottleLetter() {
                 background:
                   "radial-gradient(circle at 50% 40%, rgba(251,191,36,0.15), transparent 70%)",
               }}
-              animate={{ opacity: [0.3, 0.7, 0.3] }}
+              animate={reduced ? { opacity: 0.5 } : { opacity: [0.3, 0.7, 0.3] }}
               transition={{
                 duration: 2.5,
-                repeat: Infinity,
+                repeat: reduced ? 0 : Infinity,
                 ease: "easeInOut",
               }}
             />
@@ -716,19 +737,23 @@ export default function BottleLetter() {
                     left: "calc(50% - 9px)",
                     top: "calc(50% - 9px)",
                   }}
-                  animate={{
-                    x: orbit.x,
-                    y: orbit.y,
-                    opacity: [0.3, 0.8, 0.3],
-                    scale: [0.6, 1.1, 0.6],
-                  }}
+                  animate={
+                    reduced
+                      ? {}
+                      : {
+                          x: orbit.x,
+                          y: orbit.y,
+                          opacity: [0.3, 0.8, 0.3],
+                          scale: [0.6, 1.1, 0.6],
+                        }
+                  }
                   transition={{
                     duration: 7,
-                    repeat: Infinity,
+                    repeat: reduced ? 0 : Infinity,
                     ease: "linear",
                   }}
                 >
-                  ❤️
+                  <Heart className="h-5 w-5 fill-rose-400 text-rose-400" aria-hidden="true" />
                 </motion.span>
               ))}
 
@@ -749,7 +774,7 @@ export default function BottleLetter() {
                   }}
                   transition={{
                     duration: 2,
-                    repeat: Infinity,
+                    repeat: reduced ? 0 : Infinity,
                     delay: i * 0.35,
                     ease: "easeOut",
                   }}
@@ -821,7 +846,11 @@ export default function BottleLetter() {
                     ease: "easeOut",
                   }}
                 >
-                  {p.emoji}
+                  {p.variant % 2 === 0 ? (
+                    <Heart className="h-4 w-4 fill-rose-400 text-rose-400" aria-hidden="true" />
+                  ) : (
+                    <Sparkles className="h-4 w-4 text-amber-400" aria-hidden="true" />
+                  )}
                 </motion.span>
               ))}
 
@@ -854,13 +883,13 @@ export default function BottleLetter() {
           <motion.span
             className="mt-4 text-xs font-medium text-amber-700 dark:text-amber-300"
             animate={
-              phase === "idle"
+              phase === "idle" && !reduced
                 ? { opacity: [0.6, 1, 0.6] }
                 : { opacity: 1 }
             }
               transition={{
                 duration: 3,
-                repeat: phase === "idle" ? Infinity : 0,
+                repeat: phase === "idle" && !reduced ? Infinity : 0,
               }}
           >
             {hintLabels[phase]}
@@ -879,6 +908,12 @@ export default function BottleLetter() {
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
             onClick={handleClose}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") handleClose();
+            }}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Pesan dalam botol"
           >
             <motion.div
               initial={{ scale: 0.7, opacity: 0, rotateY: 90 }}
@@ -907,7 +942,11 @@ export default function BottleLetter() {
                     ease: "easeIn",
                   }}
                 >
-                  {mc.emoji}
+                  {mc.variant % 2 === 0 ? (
+                    <Heart className="h-4 w-4 fill-rose-400 text-rose-400" aria-hidden="true" />
+                  ) : (
+                    <Sparkles className="h-4 w-4 text-amber-400" aria-hidden="true" />
+                  )}
                 </motion.span>
               ))}
 
@@ -917,20 +956,24 @@ export default function BottleLetter() {
                   key={`mh-${i}`}
                   className="pointer-events-none absolute z-0 text-lg"
                   initial={{ y: "110%", opacity: 0 }}
-                  animate={{
-                    y: "-10%",
-                    opacity: [0, 0.4, 0],
-                    x: [0, (i % 2 === 0 ? 8 : -8), 0],
-                  }}
+                  animate={
+                    reduced
+                      ? { y: "40%", opacity: 0.4 }
+                      : {
+                          y: "-10%",
+                          opacity: [0, 0.4, 0],
+                          x: [0, (i % 2 === 0 ? 8 : -8), 0],
+                        }
+                  }
                   transition={{
                     duration: 8 + i,
-                    repeat: Infinity,
+                    repeat: reduced ? 0 : Infinity,
                     delay: i * 1.2,
                     ease: "easeInOut",
                   }}
                   style={{ left: `${12 + i * 25}%` }}
                 >
-                  ❤️
+                  <Heart className="h-5 w-5 fill-rose-400 text-rose-400" aria-hidden="true" />
                 </motion.span>
               ))}
               {Array.from({ length: 3 }, (_, i) => (
@@ -938,29 +981,35 @@ export default function BottleLetter() {
                   key={`ms-${i}`}
                   className="pointer-events-none absolute z-0 text-sm"
                   initial={{ y: "110%", opacity: 0 }}
-                  animate={{
-                    y: "-5%",
-                    opacity: [0, 0.3, 0],
-                    x: [0, (i % 2 === 0 ? -6 : 6), 0],
-                  }}
+                  animate={
+                    reduced
+                      ? { y: "40%", opacity: 0.3 }
+                      : {
+                          y: "-5%",
+                          opacity: [0, 0.3, 0],
+                          x: [0, (i % 2 === 0 ? -6 : 6), 0],
+                        }
+                  }
                   transition={{
                     duration: 10 + i,
-                    repeat: Infinity,
+                    repeat: reduced ? 0 : Infinity,
                     delay: i * 1.8,
                     ease: "easeInOut",
                   }}
                   style={{ left: `${28 + i * 22}%` }}
                 >
-                  ✨
+                  <Sparkles className="h-4 w-4 text-amber-400" aria-hidden="true" />
                 </motion.span>
               ))}
 
               {/* Close button */}
               <button
+                ref={modalCloseRef}
                 onClick={handleClose}
-                className="absolute right-3 top-3 z-10 rounded-full p-1.5 text-muted-foreground transition-all hover:scale-110 hover:bg-accent"
+                aria-label="Tutup"
+                className="absolute right-3 top-3 z-10 flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full p-2.5 text-muted-foreground transition-all hover:scale-110 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4" aria-hidden="true" />
               </button>
 
               {/* Envelope */}
@@ -977,15 +1026,15 @@ export default function BottleLetter() {
               >
                 <motion.span
                   className="inline-block"
-                  animate={{ y: [0, -3, 0] }}
+                  animate={reduced ? {} : { y: [0, -3, 0] }}
                   transition={{
                     delay: 1,
                     duration: 2,
-                    repeat: Infinity,
+                    repeat: reduced ? 0 : Infinity,
                     ease: "easeInOut",
                   }}
                 >
-                  💌
+                  <Mail className="h-12 w-12 text-rose-400" aria-hidden="true" />
                 </motion.span>
               </motion.div>
 
@@ -1001,10 +1050,10 @@ export default function BottleLetter() {
                   {displayText}
                   {displayText.length < message.length && (
                     <motion.span
-                      animate={{ opacity: [1, 0] }}
+                      animate={reduced ? { opacity: 1 } : { opacity: [1, 0] }}
                       transition={{
                         duration: 0.8,
-                        repeat: Infinity,
+                        repeat: reduced ? 0 : Infinity,
                       }}
                       className="inline-block"
                     >
@@ -1022,9 +1071,9 @@ export default function BottleLetter() {
                 transition={{ delay: 1.2 }}
                 className="relative z-10 mt-6 flex items-center justify-center gap-1.5 text-xs text-muted-foreground"
               >
-                <Heart className="h-3 w-3 fill-primary text-primary" />
+                <Heart className="h-3 w-3 fill-primary text-primary" aria-hidden="true" />
                 <span>Made with love</span>
-                <Heart className="h-3 w-3 fill-primary text-primary" />
+                <Heart className="h-3 w-3 fill-primary text-primary" aria-hidden="true" />
               </motion.div>
 
               {/* Decorative line */}
@@ -1041,9 +1090,9 @@ export default function BottleLetter() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 2 }}
                 onClick={handleClose}
-                className="relative z-10 mt-6 inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-4 py-2 text-xs font-medium text-primary transition-all hover:scale-105 hover:bg-primary/20"
+                className="relative z-10 mt-6 inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-primary/10 px-4 py-2 text-xs font-medium text-primary transition-all hover:scale-105 hover:bg-primary/20"
               >
-                <Sparkles className="h-3 w-3" />
+                <Sparkles className="h-3 w-3" aria-hidden="true" />
                 Tutup
               </motion.button>
             </motion.div>

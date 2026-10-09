@@ -28,16 +28,22 @@ export default function NoteForm({ onSuccess }: { onSuccess?: () => void }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
+      <label htmlFor="note-content" className="text-sm font-medium">
+        Catatan harian
+      </label>
       <div className="relative">
         <textarea
+          id="note-content"
           value={content}
           onChange={(e) => setContent(e.target.value)}
           placeholder="Apa yang kamu rasakan hari ini? (maks 280 karakter)"
+          aria-describedby="note-count"
           maxLength={MAX_LENGTH}
           rows={3}
           className="flex w-full resize-none rounded-xl border border-input bg-card px-4 py-3 pr-16 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
         <span
+          id="note-count"
           className={`absolute bottom-3 right-3 text-xs ${
             content.length >= MAX_LENGTH
               ? "text-destructive"
@@ -55,12 +61,12 @@ export default function NoteForm({ onSuccess }: { onSuccess?: () => void }) {
       >
         {createNote.isPending ? (
           <>
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
             Mengirim...
           </>
         ) : (
           <>
-            <Send className="h-4 w-4" />
+            <Send className="h-4 w-4" aria-hidden="true" />
             Kirim Catatan
           </>
         )}

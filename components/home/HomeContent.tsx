@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { Suspense, useMemo } from "react";
 import HeroSection from "./HeroSection";
 import CountdownTimer from "./CountdownTimer";
 import BirthdayCountdown from "./BirthdayCountdown";
@@ -66,9 +66,11 @@ export default function HomeContent({
         heroCrop={coupleConfig?.heroCrop}
       />
 
-      <div className="space-y-16 md:space-y-24">
+      <div id="home-content" className="space-y-16 scroll-mt-20 md:space-y-24">
         <section>
-          <LocationWidget />
+          <Suspense fallback={<div className="h-24 animate-pulse rounded-2xl bg-muted" />}>
+            <LocationWidget />
+          </Suspense>
         </section>
         <section>
           <CountdownTimer
@@ -97,7 +99,8 @@ export default function HomeContent({
         </section>
 
         <section>
-          <LoveMeter
+          <Suspense fallback={<div className="h-48 animate-pulse rounded-2xl bg-muted" />}>
+            <LoveMeter
             daysTogether={daysTogether}
             milestoneCount={summaries.timeline.milestoneCount}
             noteCount={summaries.notes.noteCount}
@@ -112,23 +115,32 @@ export default function HomeContent({
             targetPhotos={loveMeterTargets.targetPhotos}
             targetSetAt={loveMeterTargets.targetSetAt?.toISOString() ?? null}
             targetMetAt={loveMeterTargets.targetMetAt?.toISOString() ?? null}
-          />
+            />
+          </Suspense>
         </section>
 
         <section>
-          <GallerySlideshow photos={galleryPhotos} />
+          <Suspense fallback={<div className="h-64 animate-pulse rounded-2xl bg-muted" />}>
+            <GallerySlideshow photos={galleryPhotos} />
+          </Suspense>
         </section>
 
         <section>
-          <BottleLetter />
+          <Suspense fallback={<div className="h-48 animate-pulse rounded-2xl bg-muted" />}>
+            <BottleLetter />
+          </Suspense>
         </section>
 
         <section>
-          <MemoryMatch photos={galleryPhotos} />
+          <Suspense fallback={<div className="h-64 animate-pulse rounded-2xl bg-muted" />}>
+            <MemoryMatch photos={galleryPhotos} />
+          </Suspense>
         </section>
 
         <section>
-          <DailyLoveTask />
+          <Suspense fallback={<div className="h-32 animate-pulse rounded-2xl bg-muted" />}>
+            <DailyLoveTask />
+          </Suspense>
         </section>
       </div>
     </>

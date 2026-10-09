@@ -67,7 +67,7 @@ export default function QuickActions() {
               className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
               style={{ backgroundColor: bgColor }}
             >
-              <Icon className="h-5 w-5 shrink-0" style={{ color }} />
+              <Icon className="h-5 w-5 shrink-0" style={{ color }} aria-hidden="true" />
             </div>
             <span className="text-sm font-medium truncate w-full">{label}</span>
           </Link>

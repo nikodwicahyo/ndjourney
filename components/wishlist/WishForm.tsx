@@ -106,6 +106,15 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
 
   const isEditing = !!editingWish;
 
+  let linkInvalid = false;
+  if (link.trim()) {
+    try {
+      new URL(link.trim());
+    } catch {
+      linkInvalid = true;
+    }
+  }
+
   function clearLocalPreview() {
     if (localPreviewUrlRef.current) {
       URL.revokeObjectURL(localPreviewUrlRef.current);
@@ -304,9 +313,10 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
               </h2>
               <button
                 onClick={reset}
-                className="rounded-full p-1 transition-colors hover:bg-muted"
+                aria-label="Tutup"
+                className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full p-1 transition-colors hover:bg-muted"
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
 
@@ -320,7 +330,14 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
                   placeholder="Apa yang kalian inginkan?"
                   className="flex h-10 w-full rounded-xl border border-input bg-muted px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   required
+                  aria-invalid={!title.trim()}
+                  aria-describedby="wish-title-error"
                 />
+                {!title.trim() && (
+                  <p id="wish-title-error" role="alert" className="text-xs text-destructive">
+                    Judul wajib diisi
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -365,7 +382,14 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
                   placeholder="https://..."
                   type="url"
                   className="flex h-10 w-full rounded-xl border border-input bg-muted px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-invalid={linkInvalid}
+                  aria-describedby={linkInvalid ? "wish-link-error" : undefined}
                 />
+                {linkInvalid && (
+                  <p id="wish-link-error" role="alert" className="text-xs text-destructive">
+                    Link harus berupa URL yang valid (contoh: https://...)
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -394,9 +418,9 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
                       }}
                       disabled={imageUploading}
                       aria-label="Hapus foto"
-                      className="absolute right-2 top-2 z-10 rounded-full bg-black/50 p-1 text-white transition-colors hover:bg-black/70"
+                      className="absolute right-2 top-2 z-10 flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full bg-black/50 p-1 text-white transition-colors hover:bg-black/70"
                     >
-                      <X className="h-4 w-4" />
+                      <X className="h-4 w-4" aria-hidden="true" />
                     </button>
                   </div>
                 ) : null}

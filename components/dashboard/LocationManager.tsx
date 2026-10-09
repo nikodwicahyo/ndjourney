@@ -47,14 +47,14 @@ function StatusIndicator({ status }: { status: ShareStatus }) {
     case "sharing":
       return (
         <span className="flex items-center gap-1.5 text-xs text-emerald-500">
-          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" aria-hidden="true" />
           GPS Aktif
         </span>
       );
     case "locating":
       return (
         <span className="flex items-center gap-1.5 text-xs text-amber-500">
-          <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+          <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" aria-hidden="true" />
           Mencari GPS…
         </span>
       );
@@ -73,7 +73,7 @@ function StatusIndicator({ status }: { status: ShareStatus }) {
           <button
             type="button"
             onClick={() => retrySharing(qc)}
-            className="font-medium underline underline-offset-2 hover:text-foreground"
+            className="inline-flex min-h-[44px] items-center font-medium underline underline-offset-2 hover:text-foreground"
           >
             Coba lagi
           </button>
@@ -149,7 +149,7 @@ export default function LocationManager() {
       <div role="alert" className="flex items-center gap-2 rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
         <AlertTriangle className="h-4 w-4" />
         <span className="flex-1">Gagal memuat data lokasi. Coba lagi nanti.</span>
-        <Button variant="outline" size="sm" onClick={() => refetch()}>
+        <Button variant="outline" size="sm" onClick={() => refetch()} className="min-h-[44px]">
           Coba Lagi
         </Button>
       </div>
@@ -248,9 +248,10 @@ export default function LocationManager() {
                     if (!showHistory) qc.invalidateQueries({ queryKey: [...queryKeys.location.all, "history"] });
                     setShowHistory(!showHistory);
                   }}
-                  className="text-xs"
+                  className="min-h-[44px] text-xs"
+                  aria-pressed={showHistory}
                 >
-                  <History className="mr-1 h-3 w-3" />
+                  <History className="mr-1 h-3 w-3" aria-hidden="true" />
                   {showHistory ? "Sembunyikan riwayat" : "Tampilkan riwayat"}
                 </Button>
               </div>

@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useRef, useMemo, useEffect, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight, Camera, Video, RefreshCw } from "lucide-react";
+import Image from "next/image";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { ChevronLeft, ChevronRight, Camera, Video, RefreshCw, Pause, Play } from "lucide-react";
 import { cn, formatDate } from "@/lib/utils";
-import { getOptimizedImageUrl, getBlurImageUrl, getImageSrcSet } from "@/lib/cloudinary-urls";
+import { getOptimizedImageUrl, getBlurImageUrl } from "@/lib/cloudinary-urls";
 
 export type GalleryPhoto = {
   id: string;
@@ -23,6 +24,13 @@ type MediaState = "loading" | "loaded" | "error";
 
 const MAX_PHOTOS = 50;
 
+// next/image loader reusing the existing Cloudinary transforms (q_auto,
+// f_auto, per-width) — same bytes as the former manual srcSet, no Vercel
+// optimization cost, responsive widths via `sizes` below.
+function cloudinaryWidthLoader({ src, width }: { src: string; width: number }) {
+  return getOptimizedImageUrl(src, width, { crop: "limit" });
+}
+
 // single gate — home is public, private rows must never render
 // here even if a caller passes an unfiltered list (isPublic missing = public).
 export function selectSlideshowMedia(photos: GalleryPhoto[]): GalleryPhoto[] {
@@ -37,6 +45,7 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
   const [isPaused, setIsPaused] = useState(false);
   const [mediaState, setMediaState] = useState<MediaState>("loading");
   const [retryKey, setRetryKey] = useState(0);
+  const reduceMotion = useReducedMotion();
   // Reset the viewer when a new photo list arrives — render-time adjustment
   // (React-endorsed) instead of post-paint sync sets.
   const [prevInitialPhotos, setPrevInitialPhotos] = useState(initialPhotos);
@@ -67,15 +76,6 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
   const blurPlaceholderUrl = useMemo(() => {
     if (!photo?.url) return "";
     return getBlurImageUrl(photo.url);
-  }, [photo]);
-
-  const srcSet = useMemo(() => {
-    if (!photo?.url) return undefined;
-    try {
-      return getImageSrcSet(photo.url);
-    } catch {
-      return undefined;
-    }
   }, [photo]);
 
   useEffect(() => {
@@ -129,13 +129,15 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
   }, [length, currentIndex]);
 
   useEffect(() => {
-    if (isPaused || !hasPhotos) return;
+    if (isPaused || reduceMotion || !hasPhotos) return;
     intervalRef.current = setInterval(() => goNextRef.current(), 3000);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [isPaused, hasPhotos]);
+  }, [isPaused, reduceMotion, hasPhotos]);
 
+  // ponytail: variants stay STATIC — MotionRoot disables the slide for
+  // reduced-motion users. Branching here mismatches SSR vs first paint.
   const variants = {
     enter: (dir: number) => ({ x: dir > 0 ? 300 : -300, opacity: 0 }),
     center: { x: 0, opacity: 1 },
@@ -175,7 +177,7 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
               initial="enter"
               animate="center"
               exit="exit"
-              transition={{ duration: 0.35, ease: "easeInOut" }}
+              transition={{ duration: reduceMotion ? 0 : 0.35, ease: "easeInOut" }}
               className="absolute inset-0"
             >
               {photo.isVideo ? (
@@ -204,17 +206,19 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
                   {mediaState === "loading" && (
                     <div className="absolute inset-0 z-10 animate-pulse bg-muted" />
                   )}
-                  <img
-                    src={mediaState === "loaded" ? fullUrl : blurPlaceholderUrl}
-                    alt={photo.caption ?? "Gallery"}
+                  <Image
+                    loader={cloudinaryWidthLoader}
+                    src={photo.url}
+                    alt={photo.caption ?? `Foto galeri ${currentIndex + 1} dari ${length}`}
+                    fill
+                    sizes="(max-width: 768px) 100vw, 1024px"
+                    priority={currentIndex === 0}
+                    placeholder="blur"
+                    blurDataURL={blurPlaceholderUrl}
                     className={cn(
-                      "absolute inset-0 h-full w-full object-cover transition-opacity duration-500",
+                      "object-cover transition-opacity duration-500",
                       mediaState === "loading" ? "opacity-50" : "opacity-100",
                     )}
-                    srcSet={mediaState === "loaded" ? srcSet : undefined}
-                    sizes="(max-width: 768px) 100vw, 1024px"
-                    decoding="async"
-                    fetchPriority={currentIndex === 0 ? "high" : "auto"}
                   />
                 </>
               )}
@@ -243,21 +247,29 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
 
           <button
             onClick={(e) => { e.stopPropagation(); goPrev(); }}
-            className="absolute left-2 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/50 p-1.5 text-white shadow-md transition-colors hover:bg-black/70 md:p-2"
+            className="absolute left-2 top-1/2 z-10 flex min-h-[44px] min-w-[44px] -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white shadow-md transition-colors hover:bg-black/70"
             aria-label="Sebelumnya"
           >
-            <ChevronLeft className="h-4 w-4 md:h-5 md:w-5" />
+            <ChevronLeft className="h-4 w-4 md:h-5 md:w-5" aria-hidden="true" />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); goNext(); }}
-            className="absolute right-2 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/50 p-1.5 text-white shadow-md transition-colors hover:bg-black/70 md:p-2"
+            className="absolute right-2 top-1/2 z-10 flex min-h-[44px] min-w-[44px] -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white shadow-md transition-colors hover:bg-black/70"
             aria-label="Berikutnya"
           >
-            <ChevronRight className="h-4 w-4 md:h-5 md:w-5" />
+            <ChevronRight className="h-4 w-4 md:h-5 md:w-5" aria-hidden="true" />
           </button>
         </div>
 
         <div className="flex items-center gap-3 px-4 py-3">
+          <button
+            onClick={() => setIsPaused((p) => !p)}
+            aria-label={isPaused ? "Putar tayangan" : "Jeda tayangan"}
+            aria-pressed={!isPaused}
+            className="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            {isPaused ? <Play className="h-4 w-4" aria-hidden="true" /> : <Pause className="h-4 w-4" aria-hidden="true" />}
+          </button>
           <span className="shrink-0 text-xs font-medium text-muted-foreground">
             {currentIndex + 1} / {length}
           </span>
@@ -266,14 +278,20 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
               <button
                 key={i}
                 onClick={() => goTo(i)}
-                className={cn(
-                  "shrink-0 rounded-full transition-all duration-300",
-                  i === currentIndex
-                    ? "h-2 w-5 bg-primary"
-                    : "h-1.5 w-1.5 bg-muted-foreground/30 hover:bg-muted-foreground/50",
-                )}
-                aria-label={`Go to slide ${i + 1}`}
-              />
+                className="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center"
+                aria-label={`Ke slide ${i + 1}`}
+                aria-current={i === currentIndex}
+              >
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    "rounded-full transition-all duration-300",
+                    i === currentIndex
+                      ? "h-2 w-5 bg-primary"
+                      : "h-1.5 w-1.5 bg-muted-foreground/30 hover:bg-muted-foreground/50",
+                  )}
+                />
+              </button>
             ))}
           </div>
         </div>

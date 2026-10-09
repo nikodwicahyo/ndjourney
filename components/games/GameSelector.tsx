@@ -83,7 +83,7 @@ export default function GameSelector({
             className="flex h-14 w-14 items-center justify-center rounded-2xl"
             style={{ backgroundColor: color + "20" }}
           >
-            <Icon className="h-6 w-6" style={{ color }} />
+            <Icon className="h-6 w-6" style={{ color }} aria-hidden="true" />
           </div>
           <div>
             <p className="font-heading font-semibold">{label}</p>
@@ -94,7 +94,7 @@ export default function GameSelector({
               layoutId="selected-game"
               className="absolute -top-2 -right-2"
             >
-              <Heart className="h-5 w-5 fill-primary text-primary" />
+              <Heart className="h-5 w-5 fill-primary text-primary" aria-hidden="true" />
             </motion.div>
           )}
         </motion.button>

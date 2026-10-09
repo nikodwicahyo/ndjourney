@@ -140,7 +140,7 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
             style={{ backgroundColor: "#F59E0B" + "15" }}
           >
-            <FolderOpen className="h-5 w-5" style={{ color: "#F59E0B" }} />
+            <FolderOpen className="h-5 w-5" style={{ color: "#F59E0B" }} aria-hidden="true" />
           </div>
           <h2 className="font-heading text-sm sm:text-base font-semibold">Album</h2>
           {albumCount > 0 && (
@@ -151,9 +151,10 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted">
             <ChevronDown
               className={cn(
-                "h-4 w-4 text-foreground transition-transform duration-200",
+                "h-4 w-4 text-foreground transition-transform duration-200 motion-safe:transition-transform",
                 isOpen && "rotate-180"
               )}
+              aria-hidden="true"
             />
           </span>
         </button>
@@ -162,7 +163,7 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
           onClick={(e) => { e.stopPropagation(); setShowForm(!showForm); }}
           className="gap-2"
         >
-          <Plus className="h-4 w-4" />
+          <Plus className="h-4 w-4" aria-hidden="true" />
           {showForm ? "Batal" : "Tambah"}
         </Button>
       </div>
@@ -173,19 +174,24 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
             <p className="text-sm font-medium">Buat Album Baru</p>
             <button
               onClick={() => setShowForm(false)}
-              className="rounded-full p-1 transition-colors hover:bg-muted"
+              aria-label="Tutup formulir album"
+              className="flex min-h-11 min-w-11 items-center justify-center rounded-full p-1 transition-colors hover:bg-muted"
             >
-              <X className="h-4 w-4" />
+              <X className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
           <div className="space-y-3">
+            <label htmlFor="album-name" className="text-sm font-medium">Nama album</label>
             <input
+              id="album-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Nama album"
               className="flex h-10 w-full rounded-xl border border-input bg-card px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
+            <label htmlFor="album-description" className="text-sm font-medium">Deskripsi (opsional)</label>
             <input
+              id="album-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Deskripsi (opsional)"
@@ -202,6 +208,8 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
                 <button
                   type="button"
                   onClick={() => setIsPublic(true)}
+                  aria-label="Album publik"
+                  aria-pressed={isPublic}
                   className={cn(
                     "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
                     isPublic
@@ -209,12 +217,14 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
                       : "text-muted-foreground hover:text-foreground"
                   )}
                 >
-                  <Globe className="h-3.5 w-3.5" />
+                  <Globe className="h-3.5 w-3.5" aria-hidden="true" />
                   Publik
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsPublic(false)}
+                  aria-label="Album privat"
+                  aria-pressed={!isPublic}
                   className={cn(
                     "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
                     !isPublic
@@ -222,7 +232,7 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
                       : "text-muted-foreground hover:text-foreground"
                   )}
                 >
-                  <EyeOff className="h-3.5 w-3.5" />
+                  <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
                   Privat
                 </button>
               </div>
@@ -233,9 +243,9 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
               className="w-full gap-2"
             >
               {createAlbum.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-4 w-4 motion-safe:animate-spin" aria-hidden="true" />
               ) : (
-                <Plus className="h-4 w-4" />
+                <Plus className="h-4 w-4" aria-hidden="true" />
               )}
               Buat Album
             </Button>
@@ -244,7 +254,7 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
       )}
 
       <div
-        className="grid transition-[grid-template-rows] duration-200 ease-in-out"
+        className="grid transition-[grid-template-rows] duration-200 ease-in-out motion-safe:transition-[grid-template-rows]"
         style={{ gridTemplateRows: isOpen ? "1fr" : "0fr" }}
       >
         <div className="overflow-hidden">
@@ -268,7 +278,9 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
                   >
                     {editingId === album.id ? (
                       <div className="space-y-2">
+                        <label htmlFor={`edit-album-name-${album.id}`} className="text-sm font-medium">Nama album</label>
                         <input
+                          id={`edit-album-name-${album.id}`}
                           value={editName}
                           onChange={(e) => setEditName(e.target.value)}
                           onKeyDown={(e) => {
@@ -279,7 +291,9 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
                           autoFocus
                           className="h-8 w-full rounded-lg border border-input bg-card px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         />
+                        <label htmlFor={`edit-album-desc-${album.id}`} className="text-sm font-medium">Deskripsi (opsional)</label>
                         <input
+                          id={`edit-album-desc-${album.id}`}
                           value={editDescription}
                           onChange={(e) => setEditDescription(e.target.value)}
                           placeholder="Deskripsi (opsional)"
@@ -291,6 +305,8 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
                             <button
                               type="button"
                               onClick={() => setEditIsPublic(true)}
+                              aria-label="Album publik"
+                              aria-pressed={editIsPublic}
                               className={cn(
                                 "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors",
                                 editIsPublic
@@ -298,12 +314,14 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
                                   : "text-muted-foreground hover:text-foreground"
                               )}
                             >
-                              <Globe className="h-3 w-3" />
+                              <Globe className="h-3 w-3" aria-hidden="true" />
                               Publik
                             </button>
                             <button
                               type="button"
                               onClick={() => setEditIsPublic(false)}
+                              aria-label="Album privat"
+                              aria-pressed={!editIsPublic}
                               className={cn(
                                 "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors",
                                 !editIsPublic
@@ -311,7 +329,7 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
                                   : "text-muted-foreground hover:text-foreground"
                               )}
                             >
-                              <EyeOff className="h-3 w-3" />
+                              <EyeOff className="h-3 w-3" aria-hidden="true" />
                               Privat
                             </button>
                           </div>
@@ -320,20 +338,22 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
                           <button
                             onClick={saveEdit}
                             disabled={!editName.trim() || updateAlbum.isPending}
+                            aria-label="Simpan perubahan album"
                             className="rounded-full p-2.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:pointer-events-none disabled:opacity-50"
                           >
                             {updateAlbum.isPending ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <Loader2 className="h-4 w-4 motion-safe:animate-spin" aria-hidden="true" />
                             ) : (
-                              <Check className="h-4 w-4" />
+                              <Check className="h-4 w-4" aria-hidden="true" />
                             )}
                           </button>
                           <button
                             onClick={cancelEditing}
                             disabled={updateAlbum.isPending}
+                            aria-label="Batal edit album"
                             className="rounded-full p-2.5 text-muted-foreground transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
                           >
-                            <X className="h-4 w-4" />
+                            <X className="h-4 w-4" aria-hidden="true" />
                           </button>
                         </div>
                       </div>
@@ -348,7 +368,7 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
                               </span>
                             </h3>
                             <span
-                              className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                              className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
                                 album.isPublic
                                   ? "bg-primary/10 text-primary"
                                   : "bg-muted text-muted-foreground"
@@ -365,9 +385,10 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
                           <div className="flex shrink-0 items-center gap-1">
                             <button
                               onClick={() => startEditing(album)}
-                              className="rounded-full p-2.5 text-muted-foreground transition-all hover:bg-muted"
+                              aria-label={`Edit album ${album.name}`}
+                              className="flex min-h-11 min-w-11 items-center justify-center rounded-full p-2.5 text-muted-foreground transition-all hover:bg-muted"
                             >
-                              <Pencil className="h-3.5 w-3.5" />
+                              <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                             </button>
                             <button
                               onClick={async () => {
@@ -379,9 +400,10 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
                                   deleteAlbum.mutate(album.id);
                                 }
                               }}
-                              className="rounded-full p-2.5 text-muted-foreground transition-all hover:bg-destructive/10 hover:text-destructive"
+                              aria-label={`Hapus album ${album.name}`}
+                              className="flex min-h-11 min-w-11 items-center justify-center rounded-full p-2.5 text-muted-foreground transition-all hover:bg-destructive/10 hover:text-destructive"
                             >
-                              <Trash2 className="h-3.5 w-3.5" />
+                              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                             </button>
                           </div>
                         </div>

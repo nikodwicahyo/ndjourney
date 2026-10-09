@@ -78,16 +78,16 @@ export default function LetterList() {
               key={key}
               onClick={() => setTab(key)}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-all",
+                "inline-flex min-h-[44px] items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-all",
                 tab === key
                   ? "bg-background text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <Icon className="h-4 w-4" />
+              <Icon className="h-4 w-4" aria-hidden="true" />
               {label}
               {key === "inbox" && hasUnread > 0 && (
-                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-xs font-bold text-primary-foreground">
                   {hasUnread}
                 </span>
               )}
@@ -97,9 +97,9 @@ export default function LetterList() {
 
         <Link
               href="/dashboard/letters/new"
-          className="inline-flex h-9 items-center justify-center gap-2 rounded-full bg-primary px-4 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-primary px-4 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
         >
-          <PenLine className="h-4 w-4" />
+          <PenLine className="h-4 w-4" aria-hidden="true" />
           Tulis Surat
         </Link>
       </div>

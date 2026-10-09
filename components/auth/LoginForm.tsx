@@ -103,7 +103,7 @@ export default function LoginForm() {
         disabled={googleLoading || !mounted}
       >
         {googleLoading ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
+          <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
         ) : (
           <svg className="h-4 w-4" viewBox="0 0 24 24">
             <path
@@ -144,7 +144,7 @@ export default function LoginForm() {
             Email
           </label>
           <div className="relative">
-            <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <input
               id="email"
               type="email"
@@ -162,7 +162,7 @@ export default function LoginForm() {
             Password
           </label>
           <div className="relative">
-            <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <input
               id="password"
               type={showPassword ? "text" : "password"}
@@ -176,10 +176,9 @@ export default function LoginForm() {
               type="button"
               onClick={() => setShowPassword(!showPassword)}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
-              tabIndex={-1}
               aria-label={showPassword ? "Sembunyikan password" : "Tampilkan password"}
             >
-              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {showPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
             </button>
           </div>
         </div>
@@ -196,7 +195,7 @@ export default function LoginForm() {
         >
           {loading ? (
             <>
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
               Memproses...
             </>
           ) : (

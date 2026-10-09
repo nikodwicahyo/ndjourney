@@ -121,7 +121,7 @@ export default function GalleryPicker({
               className="rounded-full p-1 transition-colors hover:bg-muted"
               aria-label="Tutup"
             >
-              <X className="h-4 w-4" />
+              <X className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -129,7 +129,7 @@ export default function GalleryPicker({
         <div className="flex-1 overflow-y-auto p-4">
         {loading ? (
           <div className="flex h-full items-center justify-center">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <Loader2 className="h-6 w-6 text-muted-foreground motion-safe:animate-spin" aria-hidden="true" />
           </div>
         ) : error ? (
           <div className="flex h-full items-center justify-center">
@@ -137,19 +137,21 @@ export default function GalleryPicker({
           </div>
         ) : photos.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
-            <ImageOff className="h-6 w-6" />
+            <ImageOff className="h-6 w-6" aria-hidden="true" />
             <p className="text-sm">Belum ada foto di galeri</p>
           </div>
         ) : (
           <>
             <div className="grid w-full grid-cols-2 gap-1.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-              {photos.map((photo) => {
+              {photos.map((photo, i) => {
                 const selected = selectedIds.includes(photo.id);
                 return (
                   <button
                     key={photo.id}
                     type="button"
                     onClick={() => onSelect(photo)}
+                    aria-label={`Pilih foto ${i + 1}`}
+                    aria-pressed={selected}
                     className={cn(
                       "relative w-full overflow-hidden rounded-lg transition-all",
                       selected
@@ -170,7 +172,7 @@ export default function GalleryPicker({
                     {selected && (
                       <div className="absolute inset-0 flex items-center justify-center bg-primary/20">
                         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm text-white shadow-lg">
-                          <Check className="h-4 w-4" />
+                          <Check className="h-4 w-4" aria-hidden="true" />
                         </div>
                       </div>
                     )}
@@ -190,7 +192,7 @@ export default function GalleryPicker({
                 >
                   {loadingMore ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <Loader2 className="mr-2 h-4 w-4 motion-safe:animate-spin" aria-hidden="true" />
                       Memuat...
                     </>
                   ) : (

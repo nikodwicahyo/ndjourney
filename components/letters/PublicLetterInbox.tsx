@@ -75,16 +75,16 @@ export default function PublicLetterInbox() {
               key={key}
               onClick={() => setTab(key)}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-all",
+                "inline-flex min-h-[44px] items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-all",
                 tab === key
                   ? "bg-background text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <Icon className="h-4 w-4" />
+              <Icon className="h-4 w-4" aria-hidden="true" />
               {label}
               {key === "inbox" && hasUnread > 0 && (
-                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-xs font-bold text-primary-foreground">
                   {hasUnread}
                 </span>
               )}

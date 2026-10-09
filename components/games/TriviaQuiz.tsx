@@ -72,7 +72,7 @@ export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: T
           animate={{ scale: 1 }}
           className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10"
         >
-          <Brain className="h-10 w-10 text-primary" />
+          <Brain className="h-10 w-10 text-primary" aria-hidden="true" />
         </motion.div>
         <div>
           <p className="font-heading text-xl font-semibold">Selesai! 🎯</p>
@@ -88,7 +88,7 @@ export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: T
           </p>
         </div>
         <Button onClick={putaranBaru} className="gap-2">
-          <RefreshCw className="h-4 w-4" />
+          <RefreshCw className="h-4 w-4" aria-hidden="true" />
           Main Lagi
         </Button>
         {results.length > 0 && (
@@ -99,9 +99,9 @@ export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: T
             {results.map((r, i) => (
               <p key={i} className="flex items-center gap-2 text-sm">
                 {r.correct ? (
-                  <Check className="h-3.5 w-3.5 shrink-0 text-green-500" />
+                  <Check className="h-3.5 w-3.5 shrink-0 text-green-500" aria-hidden="true" />
                 ) : (
-                  <X className="h-3.5 w-3.5 shrink-0 text-red-500" />
+                  <X className="h-3.5 w-3.5 shrink-0 text-red-500" aria-hidden="true" />
                 )}
                 {r.question}
               </p>
@@ -178,9 +178,9 @@ export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: T
         </span>
         <button
           onClick={putaranBaru}
-          className="inline-flex items-center gap-1 hover:text-foreground"
+          className="inline-flex min-h-11 items-center gap-1 px-2 hover:text-foreground"
         >
-          <RefreshCw className="h-3.5 w-3.5" />
+          <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
           Acak Ulang
         </button>
       </div>
@@ -197,7 +197,7 @@ export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: T
         className="mb-8 text-center"
       >
         <div className="mb-2 flex justify-center">
-          <Brain className="h-5 w-5 text-primary" />
+          <Brain className="h-5 w-5 text-primary" aria-hidden="true" />
         </div>
         <h2 className="font-heading text-xl font-semibold">
           {current.question}
@@ -234,6 +234,8 @@ export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: T
           className="space-y-4 text-center"
         >
           <div
+            role="status"
+            aria-label={current.answer?.toLowerCase() === "none" || userAnswer.toLowerCase().trim() === current.answer?.toLowerCase().trim() ? "Jawaban benar" : "Jawaban salah"}
             className={`rounded-2xl border-2 p-6 ${
               current.answer?.toLowerCase() === "none"
                 ? "border-green-500/30 bg-green-500/5"
@@ -242,6 +244,9 @@ export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: T
                   : "border-red-500/30 bg-red-500/5"
             }`}
           >
+            <p className={`text-xs font-semibold ${current.answer?.toLowerCase() === "none" || userAnswer.toLowerCase().trim() === current.answer?.toLowerCase().trim() ? "text-green-600" : "text-red-600"}`}>
+              {current.answer?.toLowerCase() === "none" || userAnswer.toLowerCase().trim() === current.answer?.toLowerCase().trim() ? "✓ Benar" : "✗ Salah"}
+            </p>
             <p className="text-sm text-muted-foreground">Jawaban kamu:</p>
             <p className="mt-1 font-medium">{userAnswer}</p>
             {current.answer?.toLowerCase() !== "none" && (
@@ -259,7 +264,7 @@ export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: T
 
           <Button onClick={next} className="gap-2">
             {currentIdx < batch.length - 1 ? "Selanjutnya" : "Lihat Skor"}
-            <ArrowRight className="h-4 w-4" />
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Button>
         </motion.div>
       )}

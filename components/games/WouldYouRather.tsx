@@ -74,7 +74,7 @@ export default function WouldYouRather({ disableScoreSubmit = false, playerName 
           animate={{ scale: 1 }}
           className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10"
         >
-          <Check className="h-10 w-10 text-primary" />
+          <Check className="h-10 w-10 text-primary" aria-hidden="true" />
         </motion.div>
         <div>
           <p className="font-heading text-xl font-semibold">Selesai! 🎉</p>
@@ -84,7 +84,7 @@ export default function WouldYouRather({ disableScoreSubmit = false, playerName 
         </div>
         <div className="flex gap-3">
           <Button onClick={putaranBaru} className="gap-2">
-            <RefreshCw className="h-4 w-4" />
+            <RefreshCw className="h-4 w-4" aria-hidden="true" />
             Main Lagi
           </Button>
         </div>
@@ -99,9 +99,9 @@ export default function WouldYouRather({ disableScoreSubmit = false, playerName 
                 <br />
                 <span className="ml-4 inline-flex items-center gap-1 text-xs">
                   {h.correct ? (
-                    <Check className="h-3 w-3 text-green-500" />
+                    <Check className="h-3 w-3 text-green-500" aria-hidden="true" />
                   ) : (
-                    <X className="h-3 w-3 text-red-500" />
+                    <X className="h-3 w-3 text-red-500" aria-hidden="true" />
                   )}
                   → {h.choice}
                 </span>
@@ -202,9 +202,9 @@ export default function WouldYouRather({ disableScoreSubmit = false, playerName 
         </span>
         <button
           onClick={putaranBaru}
-          className="inline-flex items-center gap-1 hover:text-foreground"
+          className="inline-flex min-h-11 items-center gap-1 px-2 hover:text-foreground"
         >
-          <RefreshCw className="h-3.5 w-3.5" />
+          <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
           Acak Ulang
         </button>
       </div>
@@ -221,7 +221,7 @@ export default function WouldYouRather({ disableScoreSubmit = false, playerName 
         className="mb-8 text-center"
       >
         <div className="mb-2 flex justify-center">
-          <Shuffle className="h-5 w-5 text-primary" />
+          <Shuffle className="h-5 w-5 text-primary" aria-hidden="true" />
         </div>
         <h2 className="font-heading text-xl font-semibold">
           {current.question}
@@ -237,9 +237,15 @@ export default function WouldYouRather({ disableScoreSubmit = false, playerName 
             key={opt.value}
             onClick={() => !picked && pick(opt.value)}
             disabled={!!picked}
+            aria-label={picked && hasCorrectAnswer && isCorrectOption(opt.value) ? `${opt.label} — Benar` : opt.label}
             className={`relative rounded-2xl border-2 p-6 text-center font-medium transition-all ${optionStyle(opt.value)}`}
           >
             {opt.label}
+            {picked && hasCorrectAnswer && isCorrectOption(opt.value) && (
+              <span className="mt-1 block text-xs font-semibold text-green-600">
+                {picked === opt.value ? "✓ Benar" : "Benar"}
+              </span>
+            )}
             {picked && (
               <motion.div
                 initial={{ scale: 0 }}
@@ -248,13 +254,13 @@ export default function WouldYouRather({ disableScoreSubmit = false, playerName 
               >
                 {picked === opt.value && isCorrect !== null ? (
                   isCorrect ? (
-                    <Check className="h-5 w-5 text-green-500" />
+                    <Check className="h-5 w-5 text-green-500" aria-hidden="true" />
                   ) : (
-                    <X className="h-5 w-5 text-red-500" />
+                    <X className="h-5 w-5 text-red-500" aria-hidden="true" />
                   )
                 ) : null}
                 {picked !== opt.value && hasCorrectAnswer && isCorrectOption(opt.value) && (
-                  <Check className="h-5 w-5 text-green-500" />
+                  <Check className="h-5 w-5 text-green-500" aria-hidden="true" />
                 )}
               </motion.div>
             )}

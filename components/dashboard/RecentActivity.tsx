@@ -23,7 +23,7 @@ const typeConfig = {
 };
 
 export default function RecentActivity() {
-  const { data: activity, isLoading, error } = useRecentActivity();
+  const { data: activity, isLoading, error, refetch } = useRecentActivity();
 
   if (isLoading) {
     return (
@@ -44,10 +44,27 @@ export default function RecentActivity() {
     );
   }
 
-  if (error || !activity || activity.length === 0) {
+  if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
-        <History className="h-10 w-10 text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">
+          Gagal memuat aktivitas
+        </p>
+        <button
+          type="button"
+          onClick={() => refetch()}
+          className="mt-3 inline-flex min-h-[44px] items-center rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+        >
+          Coba lagi
+        </button>
+      </div>
+    );
+  }
+
+  if (!activity || activity.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-center">
+        <History className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
         <p className="mt-2 text-sm text-muted-foreground">
           Belum ada aktivitas
         </p>
@@ -76,7 +93,7 @@ export default function RecentActivity() {
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
                 style={{ backgroundColor: config.color + "15" }}
               >
-                <Icon className="h-4 w-4" style={{ color: config.color }} />
+                <Icon className="h-4 w-4" style={{ color: config.color }} aria-hidden="true" />
               </div>
 
               <div className="min-w-0 flex-1">

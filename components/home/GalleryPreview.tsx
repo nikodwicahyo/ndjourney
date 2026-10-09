@@ -42,20 +42,22 @@ export default function GalleryPreview({
                   src={latestPhotos[0].url}
                   muted
                   playsInline
+                  aria-hidden="true"
+                  tabIndex={-1}
                   className="h-full w-full object-cover"
                 />
               ) : (
                 <Image
                   src={latestPhotos[0].url}
-                  alt={latestPhotos[0].caption ?? "Gallery"}
+                  alt={latestPhotos[0].caption ?? "Foto galeri terbaru"}
                   fill
                   sizes="(max-width: 768px) 100vw, 512px"
                   className="object-cover transition-transform duration-700 group-hover:scale-105"
                 />
               )}
               {isVideoUrl(latestPhotos[0].url) && (
-                <div className="absolute top-3 right-3 rounded-full bg-black/60 p-1.5">
-                  <Video className="h-4 w-4 text-white" />
+                <div className="absolute top-3 right-3 rounded-full bg-black/60 p-1.5" aria-hidden="true">
+                  <Video className="h-4 w-4 text-white" aria-hidden="true" />
                 </div>
               )}
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/20 to-transparent" />
@@ -68,16 +70,18 @@ export default function GalleryPreview({
                     <div className="relative h-full w-full">
                       <video
                         src={photo.url}
+                        aria-hidden="true"
+                        tabIndex={-1}
                         className="h-full w-full object-cover"
                       />
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                        <Video className="h-5 w-5 text-white" />
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/30" aria-hidden="true">
+                        <Video className="h-5 w-5 text-white" aria-hidden="true" />
                       </div>
                     </div>
                   ) : (
                     <Image
                       src={photo.url}
-                      alt={photo.caption ?? ""}
+                      alt={photo.caption ?? `Foto galeri ${i + 2}`}
                       fill
                       sizes="33vw"
                       className="object-cover"
@@ -109,9 +113,9 @@ export default function GalleryPreview({
               {formatNumber(photoCount)} foto{ videoCount > 0 ? ` · ${formatNumber(videoCount)} video` : ""}
             </span>
           </div>
-          <div className="flex items-center gap-1 text-xs font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100">
+          <div className="flex items-center gap-1 text-xs font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100">
             <span>Lihat gallery</span>
-            <ChevronRight className="h-3.5 w-3.5" />
+            <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
           </div>
         </div>
       </Link>

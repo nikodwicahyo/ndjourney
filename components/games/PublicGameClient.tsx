@@ -98,7 +98,7 @@ export default function PublicGameClient() {
     return (
       <div className="mx-auto flex max-w-md flex-col items-center justify-center gap-6 py-16 text-center">
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-          <User className="h-8 w-8 text-primary" />
+          <User className="h-8 w-8 text-primary" aria-hidden="true" />
         </div>
         <div>
           <h1 className="font-heading text-2xl font-semibold">Masuk untuk Main</h1>
@@ -134,14 +134,14 @@ export default function PublicGameClient() {
           <div className="mb-8 flex items-center gap-3">
             <button
               onClick={handleBack}
-              className="rounded-full p-2 transition-colors hover:bg-accent"
+              className="flex min-h-11 min-w-11 items-center justify-center rounded-full transition-colors hover:bg-accent"
               aria-label="Kembali"
             >
-              <ArrowLeft className="h-5 w-5" />
+              <ArrowLeft className="h-5 w-5" aria-hidden="true" />
             </button>
             <div>
               <h1 className="flex items-center gap-2 font-heading text-2xl">
-                <Gamepad2 className="h-6 w-6 text-primary" />
+                <Gamepad2 className="h-6 w-6 text-primary" aria-hidden="true" />
                 {gameLabels[selected]}
               </h1>
               <p className="text-sm text-muted-foreground">
@@ -155,7 +155,7 @@ export default function PublicGameClient() {
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
           <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="mb-2">
-              <h1 className="flex items-center gap-2 font-heading text-3xl"><Gamepad2 className="h-7 w-7 text-primary" /> Fun Games</h1>
+              <h1 className="flex items-center gap-2 font-heading text-3xl"><Gamepad2 className="h-7 w-7 text-primary" aria-hidden="true" /> Fun Games</h1>
               <p className="mt-1 text-sm text-muted-foreground">
                 Pilih permainan seru untuk dimainkan bersama pasangan
               </p>
@@ -169,7 +169,7 @@ export default function PublicGameClient() {
 
           <div className="mt-12">
             <div className="mb-6 flex items-center gap-2">
-              <Trophy className="h-5 w-5 text-yellow-500" />
+              <Trophy className="h-5 w-5 text-yellow-500" aria-hidden="true" />
               <h2 className="font-heading text-xl font-semibold">Leaderboard</h2>
             </div>
             <LeaderBoard />

@@ -44,6 +44,7 @@ export default function GameManager() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
+  const [fieldError, setFieldError] = useState<{ field: "question" | "options" | "category"; message: string } | null>(null);
 
   const { data: allQuestions, isLoading } = useQuery({
     queryKey: ["games", "questions", "all", sortOrder] as const,
@@ -157,20 +158,24 @@ export default function GameManager() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setFieldError(null);
     if (type === "SLIDING_PUZZLE" || type === "MEMORY_BLOCK_BLAST") {
       toast.error("Game ini tidak menggunakan pertanyaan");
       return;
     }
     if (!question.trim()) {
       toast.error("Pertanyaan wajib diisi");
+      setFieldError({ field: "question", message: "Pertanyaan wajib diisi" });
       return;
     }
     if (type === "WOULD_YOU_RATHER" && (!optionA.trim() || !optionB.trim())) {
       toast.error("Kedua opsi wajib diisi");
+      setFieldError({ field: "options", message: "Kedua opsi wajib diisi" });
       return;
     }
     if (isTOD && !category.trim()) {
       toast.error("Kategori (Truth/Dare) wajib dipilih");
+      setFieldError({ field: "category", message: "Kategori (Truth/Dare) wajib dipilih" });
       return;
     }
 
@@ -289,7 +294,7 @@ export default function GameManager() {
             key={value}
             onClick={() => setActiveTab(value)}
             className={cn(
-              "inline-flex items-center justify-center gap-1 rounded-full border px-3 py-1.5 text-xs font-medium transition-all",
+              "inline-flex items-center justify-center gap-1 rounded-full border px-3 py-1.5 text-xs font-medium transition-all min-h-[44px] min-w-[44px]",
               activeTab === value
                 ? "border-primary bg-card text-primary shadow-sm"
                 : "border-border bg-card text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground",
@@ -298,7 +303,7 @@ export default function GameManager() {
             <Icon className="h-3.5 w-3.5 shrink-0" />
             <span className="text-xs sm:text-sm">{label}</span>
             {!isArcade && (
-            <span className="shrink-0 rounded-full bg-muted-foreground/10 px-1.5 text-[10px] tabular-nums">
+            <span className="shrink-0 rounded-full bg-muted-foreground/10 px-1.5 text-xs tabular-nums">
               {countByType[value] ?? 0}
             </span>
             )}
@@ -315,7 +320,7 @@ export default function GameManager() {
           <button
             type="button"
             onClick={() => setSortOrder(sortOrder === "desc" ? "asc" : "desc")}
-            className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary bg-primary/10 px-3 py-1 text-xs font-medium text-primary shadow-sm transition-colors"
+            className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary bg-primary/10 px-3 py-1 text-xs font-medium text-primary shadow-sm transition-colors min-h-[44px] min-w-[44px]"
           >
             {sortOrder === "desc" ? "Terbaru ↓" : "Terlama ↑"}
           </button>
@@ -338,9 +343,10 @@ export default function GameManager() {
               <button
                 type="button"
                 onClick={cancelEdit}
-                className="rounded-full p-1 transition-colors hover:bg-muted"
+                className="rounded-full p-2.5 min-h-[44px] min-w-[44px] transition-colors hover:bg-muted"
+                aria-label="Tutup"
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -367,7 +373,7 @@ export default function GameManager() {
                       type="button"
                       onClick={() => setType(value)}
                       className={cn(
-                        "inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                        "inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition-colors min-h-[44px] min-w-[44px]",
                         type === value
                           ? "border-primary bg-primary/10 text-primary"
                           : "border-border text-muted-foreground hover:bg-accent",
@@ -386,32 +392,53 @@ export default function GameManager() {
                 </div>
               ) : (
               <>
+              <div className="space-y-1.5">
+              <label htmlFor="game-question" className="text-xs font-medium text-muted-foreground">Pertanyaan</label>
               <input
+                id="game-question"
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
                 placeholder="Pertanyaan..."
+                aria-invalid={fieldError?.field === "question"}
                 className="flex h-10 w-full rounded-xl border border-input bg-muted px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 required
               />
+              {fieldError?.field === "question" && (
+                <p role="alert" className="text-xs text-destructive">{fieldError.message}</p>
+              )}
+              </div>
 
               {isWYR && (
                 <>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                    <label htmlFor="game-option-a" className="text-xs font-medium text-muted-foreground">Opsi A</label>
                     <input
+                      id="game-option-a"
                       value={optionA}
                       onChange={(e) => setOptionA(e.target.value)}
                       placeholder="Opsi A"
+                      aria-invalid={fieldError?.field === "options"}
                       className="flex h-10 w-full rounded-xl border border-input bg-muted px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       required
                     />
+                    </div>
+                    <div className="space-y-1.5">
+                    <label htmlFor="game-option-b" className="text-xs font-medium text-muted-foreground">Opsi B</label>
                     <input
+                      id="game-option-b"
                       value={optionB}
                       onChange={(e) => setOptionB(e.target.value)}
                       placeholder="Opsi B"
+                      aria-invalid={fieldError?.field === "options"}
                       className="flex h-10 w-full rounded-xl border border-input bg-muted px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       required
                     />
+                    </div>
                   </div>
+                  {fieldError?.field === "options" && (
+                    <p role="alert" className="text-xs text-destructive">{fieldError.message}</p>
+                  )}
                   <div className="space-y-1.5">
                     <p className="text-xs font-medium text-muted-foreground">Jawaban Benar (opsional):</p>
                     <div className="flex gap-2">
@@ -421,7 +448,7 @@ export default function GameManager() {
                           type="button"
                           onClick={() => setAnswer(opt === "none" ? "none" : opt)}
                           className={cn(
-                            "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                            "rounded-full border px-3 py-1 text-xs font-medium transition-colors min-h-[44px] min-w-[44px]",
                             (opt === "none" ? !answer : answer === opt)
                               ? "border-primary bg-primary/10 text-primary"
                               : "border-border text-muted-foreground hover:bg-accent",
@@ -436,12 +463,16 @@ export default function GameManager() {
               )}
 
               {type === "TRIVIA" && (
+                <div className="space-y-1.5">
+                <label htmlFor="game-answer" className="text-xs font-medium text-muted-foreground">Jawaban</label>
                 <input
+                  id="game-answer"
                   value={answer}
                   onChange={(e) => setAnswer(e.target.value)}
                   placeholder="Jawaban (atau 'None' untuk diskusi)"
                   className="flex h-10 w-full rounded-xl border border-input bg-muted px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
+                </div>
               )}
 
               {isTOD ? (
@@ -454,7 +485,7 @@ export default function GameManager() {
                         type="button"
                         onClick={() => setCategory(cat)}
                         className={cn(
-                          "rounded-full border px-4 py-1.5 text-xs font-medium transition-colors",
+                          "rounded-full border px-4 py-1.5 text-xs font-medium transition-colors min-h-[44px] min-w-[44px]",
                           category === cat
                             ? "border-primary bg-primary/10 text-primary"
                             : "border-border text-muted-foreground hover:bg-accent",
@@ -478,12 +509,20 @@ export default function GameManager() {
                   </div>
                 </div>
               ) : (
+                <div className="space-y-1.5">
+                <label htmlFor="game-category" className="text-xs font-medium text-muted-foreground">Kategori (opsional)</label>
                 <input
+                  id="game-category"
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                   placeholder="Kategori (opsional)"
+                  aria-invalid={fieldError?.field === "category"}
                   className="flex h-10 w-full rounded-xl border border-input bg-muted px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
+                {fieldError?.field === "category" && (
+                  <p role="alert" className="text-xs text-destructive">{fieldError.message}</p>
+                )}
+                </div>
               )}
               </>
               )}
@@ -494,7 +533,7 @@ export default function GameManager() {
                 className="w-full gap-2"
               >
                 {(editingId ? editQuestion.isPending : createQuestion.isPending) ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
                 ) : (
                   <Plus className="h-4 w-4" />
                 )}

@@ -106,13 +106,13 @@ export default function LocationWidget() {
             />
           </div>
           <div className="flex flex-col items-center gap-0.5">
-            <p className="max-w-[72px] truncate text-[12px] font-medium leading-tight text-foreground">
+            <p className="max-w-[72px] truncate text-xs font-medium leading-tight text-foreground">
               {self.name ?? "Kamu"}
             </p>
             <div className="flex items-center gap-1">
               {self.deviceType && <DeviceBadge deviceType={self.deviceType} />}
               <span
-                className={`text-[10px] ${
+                className={`text-xs ${
                   selfLive ? "text-emerald-500" : "text-muted-foreground"
                 }`}
               >
@@ -120,7 +120,7 @@ export default function LocationWidget() {
               </span>
             </div>
             {self.isSharing && (
-              <span className="text-[10px] text-muted-foreground">
+              <span className="text-xs text-muted-foreground">
                 {timeAgo(self.locationAgeSeconds)}
               </span>
             )}
@@ -134,13 +134,13 @@ export default function LocationWidget() {
           </span>
           {bothSharing && (
             selfLive && partnerLive ? (
-              <span className="flex items-center gap-1 text-[12px] text-emerald-500">
-                <span className="h-1 w-1 animate-pulse rounded-full bg-emerald-500" />
+              <span className="flex items-center gap-1 text-xs text-emerald-500">
+                <span className="h-1 w-1 animate-pulse rounded-full bg-emerald-500" aria-hidden="true" />
                 live
               </span>
             ) : (
-              <span className="flex items-center gap-1 text-[12px] text-amber-500">
-                <span className="h-1 w-1 rounded-full bg-amber-500" />
+              <span className="flex items-center gap-1 text-xs text-amber-500">
+                <span className="h-1 w-1 rounded-full bg-amber-500" aria-hidden="true" />
                 offline
               </span>
             )
@@ -161,13 +161,13 @@ export default function LocationWidget() {
             />
           </div>
           <div className="flex flex-col items-center gap-0.5">
-            <p className="max-w-[72px] truncate text-[12px] font-medium leading-tight text-foreground">
+            <p className="max-w-[72px] truncate text-xs font-medium leading-tight text-foreground">
               {partner.name}
             </p>
             <div className="flex items-center gap-1">
               {partner.deviceType && <DeviceBadge deviceType={partner.deviceType} />}
               <span
-                className={`text-[10px] ${
+                className={`text-xs ${
                   partnerLive ? "text-emerald-500" : "text-muted-foreground"
                 }`}
               >
@@ -175,7 +175,7 @@ export default function LocationWidget() {
               </span>
             </div>
             {partner.isSharing && (
-              <span className="text-[10px] text-muted-foreground">
+              <span className="text-xs text-muted-foreground">
                 {timeAgo(partner.locationAgeSeconds)}
               </span>
             )}

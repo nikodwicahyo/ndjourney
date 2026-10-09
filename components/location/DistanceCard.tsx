@@ -22,7 +22,6 @@ import {
   formatDistanceCategory,
   bearing,
   formatBearingId,
-  directionEmoji,
   distanceTrend,
   estimateArrivalSeconds,
   formatArrivalTime,
@@ -84,10 +83,10 @@ function PersonAvatar({
         />
       </div>
       <div className="flex flex-col items-center gap-0.5">
-        <p className="text-[11px] font-medium text-foreground leading-tight truncate max-w-[72px]">{name}</p>
+        <p className="text-xs font-medium text-foreground leading-tight truncate max-w-[72px]">{name}</p>
         <div className="flex items-center gap-1">
           {deviceType && <DeviceBadge deviceType={deviceType} />}
-          <span className={`text-[9px] ${isLive ? "text-emerald-500" : "text-muted-foreground"}`}>
+          <span className={`text-xs ${isLive ? "text-emerald-500" : "text-muted-foreground"}`}>
             {statusText}
           </span>
         </div>
@@ -131,14 +130,14 @@ function PersonInfoBox({
         {deviceType && <DeviceBadge deviceType={deviceType} />}
       </div>
       {isSharing ? (
-        <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-          <span className={`h-1.5 w-1.5 rounded-full ${dotColor} ${isStale ? "" : "animate-pulse"}`} />
+        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span className={`h-1.5 w-1.5 rounded-full ${dotColor} ${isStale ? "" : "animate-pulse"}`} aria-hidden="true" />
           <span className={labelColor}>{label}</span>
           <span>· {age}</span>
           {accuracy !== null && <span>· ±{Math.round(accuracy)}m</span>}
         </span>
       ) : (
-        <span className="text-[10px] text-muted-foreground">Berbagi lokasi dimatikan</span>
+        <span className="text-xs text-muted-foreground">Berbagi lokasi dimatikan</span>
       )}
     </div>
   );
@@ -168,7 +167,6 @@ export default function DistanceCard({
 
   let bearingDeg: number | null = null;
   let bearingId = "";
-  let bearingEmoji = "";
   let etaStr = "";
 
   if (self.location && partner.location) {
@@ -177,7 +175,6 @@ export default function DistanceCard({
       { latitude: partner.location.lat, longitude: partner.location.lng },
     );
     bearingId = formatBearingId(bearingDeg);
-    bearingEmoji = directionEmoji(bearingDeg);
     if (distance !== null && distance > 10) {
       etaStr = formatArrivalTime(estimateArrivalSeconds(distance, activeMode));
     }
@@ -211,13 +208,13 @@ export default function DistanceCard({
 
       <CardContent className="relative space-y-3 p-3 sm:p-4">
         <div className="flex items-center gap-2">
-          <MapPin className="h-5 w-5 shrink-0 text-pink-500" />
+          <MapPin className="h-5 w-5 shrink-0 text-pink-500" aria-hidden="true" />
           <div className="min-w-0">
             <p className="text-sm font-semibold text-foreground">Jarak Antar Kita</p>
             {distance !== null && bothSharing ? (
-              <p className="text-[10px] text-muted-foreground">{formatDistanceCategory(distance)}</p>
+              <p className="text-xs text-muted-foreground">{formatDistanceCategory(distance)}</p>
             ) : (
-              <p className="text-[10px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 {self.isSharing && !partner.isSharing
                   ? `Menunggu ${partner.name} berbagi lokasi`
                   : "Aktifkan berbagi lokasi"}
@@ -245,7 +242,7 @@ export default function DistanceCard({
                   transition={{ duration: 1 }}
                   className="absolute -top-4"
                 >
-                  <Sparkles className="h-4 w-4 text-pink-400" />
+                  <Sparkles className="h-4 w-4 text-pink-400" aria-hidden="true" />
                 </motion.div>
               )}
             </AnimatePresence>
@@ -260,23 +257,23 @@ export default function DistanceCard({
             </motion.div>
             <div className="flex items-center gap-1.5 mt-0.5">
               {bothLive && trend === "closing" && (
-                <span className="inline-flex items-center gap-1 text-[10px] text-emerald-500">
-                  <TrendingDown className="h-3 w-3" />Semakin dekat
+                <span className="inline-flex items-center gap-1 text-xs text-emerald-500">
+                  <TrendingDown className="h-3 w-3" aria-hidden="true" />Semakin dekat
                 </span>
               )}
               {bothLive && trend === "away" && (
-                <span className="inline-flex items-center gap-1 text-[10px] text-red-500">
-                  <TrendingUp className="h-3 w-3" />Semakin jauh
+                <span className="inline-flex items-center gap-1 text-xs text-red-500">
+                  <TrendingUp className="h-3 w-3" aria-hidden="true" />Semakin jauh
                 </span>
               )}
               {bothSharing && (bothLive ? (
-                <span className="flex items-center gap-1 text-[9px] text-emerald-500">
-                  <span className="h-1 w-1 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="flex items-center gap-1 text-xs text-emerald-500">
+                  <span className="h-1 w-1 rounded-full bg-emerald-500 animate-pulse" aria-hidden="true" />
                   live
                 </span>
               ) : (
-                <span className="flex items-center gap-1 text-[9px] text-amber-500">
-                  <span className="h-1 w-1 rounded-full bg-amber-500" />
+                <span className="flex items-center gap-1 text-xs text-amber-500">
+                  <span className="h-1 w-1 rounded-full bg-amber-500" aria-hidden="true" />
                   offline
                 </span>
               ))}
@@ -324,16 +321,20 @@ export default function DistanceCard({
                 className="flex items-center justify-center gap-2"
               >
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <Navigation className="h-3 w-3" />
+                  <Navigation className="h-3 w-3" aria-hidden="true" />
                   <span>Ke Arah:</span>
                 </div>
-                <motion.span
-                  animate={{ rotate: bearingDeg ?? 0 }}
-                  transition={{ type: "spring", stiffness: 60, damping: 10 }}
-                  className="text-lg"
+                <span
+                  className="inline-flex items-center"
+                  role="img"
+                  aria-label={`Arah ${bearingId}`}
                 >
-                  {bearingEmoji}
-                </motion.span>
+                  <Navigation
+                    className="h-5 w-5 text-foreground"
+                    aria-hidden="true"
+                    style={{ transform: `rotate(${bearingDeg ?? 0}deg)` }}
+                  />
+                </span>
                 <span className="text-sm font-medium text-foreground">
                   {bearingId}
                 </span>
@@ -342,7 +343,7 @@ export default function DistanceCard({
 
             <div className="space-y-2">
               <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
-                <Clock className="h-3 w-3" />
+                <Clock className="h-3 w-3" aria-hidden="true" />
                 <span>Estimasi waktu:</span>
                 <motion.span
                   key={activeMode + (etaStr || "")}
@@ -360,13 +361,15 @@ export default function DistanceCard({
                     type="button"
                     onClick={() => setActiveMode(mode)}
                     className={
-                      "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all " +
+                      "flex min-h-[44px] items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all " +
                       (activeMode === mode
                         ? "bg-primary text-primary-foreground shadow-sm ring-1 ring-primary/30"
                         : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground")
                     }
+                    aria-pressed={activeMode === mode}
+                    aria-label={`Mode ${label}`}
                   >
-                    <Icon className="h-3.5 w-3.5" />
+                    <Icon className="h-3.5 w-3.5" aria-hidden="true" />
                     <span>{label}</span>
                   </button>
                 ))}
@@ -392,14 +395,14 @@ export default function DistanceCard({
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 rounded-full border border-pink-500/30 bg-pink-500/5 px-4 py-1.5 text-xs font-medium text-pink-600 hover:bg-pink-500/10 hover:border-pink-500/50 transition-all dark:text-pink-400"
               >
-                <MapPin className="h-3.5 w-3.5" />
+                <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
                 Buka di Google Maps
               </a>
             </div>
 
             {self.location?.accuracy && (
-              <div className="flex items-center justify-center gap-1.5 text-[10px] text-muted-foreground border-t border-pink-500/10 pt-2">
-                <Crosshair className="h-3 w-3" />
+              <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground border-t border-pink-500/10 pt-2">
+                <Crosshair className="h-3 w-3" aria-hidden="true" />
                 <span>Akurasi: {accuracyLabel(self.location.accuracy)} (±{Math.round(self.location.accuracy)}m)</span>
                 {partner.location?.accuracy && partner.location.accuracy !== self.location.accuracy && (
                   <span className="text-muted-foreground"></span>
@@ -411,7 +414,7 @@ export default function DistanceCard({
 
         {!bothSharing && (
           <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border py-4 text-center text-xs text-muted-foreground">
-            <EyeOff className="h-5 w-5 text-muted-foreground/50" />
+            <EyeOff className="h-5 w-5 text-muted-foreground/50" aria-hidden="true" />
             <p>
               {self.isSharing
                 ? `Kamu sudah berbagi. Ajak ${partner.name} mengaktifkan berbagi lokasi untuk melihat jarak, arah, dan estimasi waktu.`

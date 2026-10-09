@@ -8,8 +8,8 @@ import PwaRegister from "@/components/PwaRegister";
 import InstallPrompt from "@/components/InstallPrompt";
 import VersionCheck from "@/components/VersionCheck";
 import BackgroundEffect from "@/components/BackgroundEffect";
+import MotionRoot from "@/components/MotionRoot";
 import "./globals.css";
-
 const playfairDisplay = Playfair_Display({
   subsets: ["latin"],
   variable: "--font-heading",
@@ -73,7 +73,6 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
   viewportFit: "cover",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#FFF1F2" },
@@ -95,6 +94,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
+          <MotionRoot>
           <BackgroundEffect />
           <QueryProvider>
             <SessionProvider>
@@ -112,6 +112,7 @@ export default function RootLayout({
               }}
             />
           </QueryProvider>
+          </MotionRoot>
         </ThemeProvider>
         <script
           dangerouslySetInnerHTML={{

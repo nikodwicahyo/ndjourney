@@ -322,7 +322,7 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
       <div className="mx-auto max-w-2xl">
         <div className="mb-6 text-center">
           <div className="mb-2 flex items-center justify-center gap-2">
-            <Grid3x3 className="h-5 w-5 text-pink-500" />
+            <Grid3x3 className="h-5 w-5 text-pink-500" aria-hidden="true" />
             <h2 className="font-heading text-xl font-semibold">Pilih Foto</h2>
           </div>
           <p className="text-sm text-muted-foreground">
@@ -338,7 +338,7 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
           </div>
         ) : !photosData || photosData.length === 0 ? (
           <div className="flex flex-col items-center gap-4 py-12 text-center">
-            <ImageIcon className="h-12 w-12 text-muted-foreground" />
+            <ImageIcon className="h-12 w-12 text-muted-foreground" aria-hidden="true" />
             <div>
               <p className="font-medium">Belum ada foto</p>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -366,7 +366,7 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
                     decoding="async"
                   />
                   <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/20">
-                    <Heart className="h-6 w-6 text-white opacity-0 transition-opacity group-hover:opacity-100" />
+                    <Heart className="h-6 w-6 text-white opacity-0 transition-opacity group-hover:opacity-100" aria-hidden="true" />
                   </div>
                 </button>
               ))}
@@ -439,7 +439,7 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
                 className="flex flex-col items-center gap-2 rounded-2xl border-2 border-border bg-card p-5 transition-all hover:border-pink-400 hover:shadow-md"
               >
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-pink-500/10">
-                  <Grid3x3 className="h-5 w-5 text-pink-500" />
+                  <Grid3x3 className="h-5 w-5 text-pink-500" aria-hidden="true" />
                 </div>
                 <span className="font-heading font-semibold">{cfg.label}</span>
                 <span className="text-xs text-muted-foreground">
@@ -460,7 +460,7 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
           onClick={() => setPhase("pick")}
           className="mt-6 gap-2"
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Ganti Foto
         </Button>
       </div>
@@ -480,7 +480,7 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
           className="mb-6 flex justify-center"
         >
           <div className="flex h-20 w-20 items-center justify-center rounded-full bg-yellow-500/10">
-            <Trophy className="h-10 w-10 text-yellow-500" />
+            <Trophy className="h-10 w-10 text-yellow-500" aria-hidden="true" />
           </div>
         </motion.div>
 
@@ -514,17 +514,17 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
           </div>
           <div className="grid grid-cols-3 gap-4">
             <div className="rounded-2xl border border-border bg-card p-4">
-              <Move className="mx-auto mb-1 h-5 w-5 text-pink-500" />
+              <Move className="mx-auto mb-1 h-5 w-5 text-pink-500" aria-hidden="true" />
               <p className="text-lg font-bold">{moveCount}</p>
               <p className="text-xs text-muted-foreground">Langkah</p>
             </div>
             <div className="rounded-2xl border border-border bg-card p-4">
-              <Timer className="mx-auto mb-1 h-5 w-5 text-pink-500" />
+              <Timer className="mx-auto mb-1 h-5 w-5 text-pink-500" aria-hidden="true" />
               <p className="text-lg font-bold">{formatTime(timeElapsed)}</p>
               <p className="text-xs text-muted-foreground">Waktu</p>
             </div>
             <div className="rounded-2xl border border-yellow-500/30 bg-yellow-500/5 p-4">
-              <Trophy className="mx-auto mb-1 h-5 w-5 text-yellow-500" />
+              <Trophy className="mx-auto mb-1 h-5 w-5 text-yellow-500" aria-hidden="true" />
               <p className="text-lg font-bold">{finalScore}</p>
               <p className="text-xs text-muted-foreground">Skor</p>
             </div>
@@ -550,7 +550,7 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
           className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center"
         >
           <Button onClick={startSamePuzzle} className="gap-2">
-            <RotateCcw className="h-4 w-4" />
+            <RotateCcw className="h-4 w-4" aria-hidden="true" />
             Main Lagi
           </Button>
           <Button
@@ -558,7 +558,7 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
             onClick={() => setPhase("difficulty")}
             className="gap-2"
           >
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             Ganti Kesulitan
           </Button>
           <Button
@@ -569,7 +569,7 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
             }}
             className="gap-2"
           >
-            <ImageIcon className="h-4 w-4" />
+            <ImageIcon className="h-4 w-4" aria-hidden="true" />
             Ganti Foto
           </Button>
         </motion.div>
@@ -618,12 +618,12 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="rounded-2xl border border-border bg-card p-4">
-              <Move className="mx-auto mb-1 h-5 w-5 text-pink-500" />
+              <Move className="mx-auto mb-1 h-5 w-5 text-pink-500" aria-hidden="true" />
               <p className="text-lg font-bold">{moveCount}</p>
               <p className="text-xs text-muted-foreground">Langkah</p>
             </div>
             <div className="rounded-2xl border border-border bg-card p-4">
-              <Timer className="mx-auto mb-1 h-5 w-5 text-pink-500" />
+              <Timer className="mx-auto mb-1 h-5 w-5 text-pink-500" aria-hidden="true" />
               <p className="text-lg font-bold">{formatTime(timeElapsed)}</p>
               <p className="text-xs text-muted-foreground">Waktu</p>
             </div>
@@ -637,7 +637,7 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
           className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center"
         >
           <Button onClick={startSamePuzzle} className="gap-2">
-            <RotateCcw className="h-4 w-4" />
+            <RotateCcw className="h-4 w-4" aria-hidden="true" />
             Coba Lagi
           </Button>
           <Button
@@ -645,7 +645,7 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
             onClick={() => setPhase("difficulty")}
             className="gap-2"
           >
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             Ganti Kesulitan
           </Button>
           <Button
@@ -656,7 +656,7 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
             }}
             className="gap-2"
           >
-            <ImageIcon className="h-4 w-4" />
+            <ImageIcon className="h-4 w-4" aria-hidden="true" />
             Ganti Foto
           </Button>
         </motion.div>
@@ -681,12 +681,12 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
               decoding="async"
             />
             <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/30">
-              <Eye className="h-4 w-4 text-white opacity-0 transition-opacity group-hover:opacity-100" />
+              <Eye className="h-4 w-4 text-white opacity-0 transition-opacity group-hover:opacity-100" aria-hidden="true" />
             </div>
           </button>
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
             <span className="inline-flex items-center gap-1">
-              <Move className="h-3.5 w-3.5 text-pink-500" />
+              <Move className="h-3.5 w-3.5 text-pink-500" aria-hidden="true" />
               <span className="font-mono font-semibold tabular-nums">
                 {moveCount}
               </span>
@@ -704,7 +704,7 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
               <span className="text-[10px]">sisa</span>
             </span>
             <span className="inline-flex items-center gap-1">
-              <Timer className="h-3.5 w-3.5 text-pink-500" />
+              <Timer className="h-3.5 w-3.5 text-pink-500" aria-hidden="true" />
               <span className="font-mono font-semibold tabular-nums">
                 {formatTime(timeElapsed)}
               </span>
@@ -786,7 +786,7 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
                     transition={{ duration: 0.2 }}
                     className="absolute bottom-0.5 right-0.5 z-10 flex h-4 w-4 items-center justify-center rounded-full bg-green-500/70"
                   >
-                    <CheckCircle2 className="h-3 w-3 text-white" />
+                    <CheckCircle2 className="h-3 w-3 text-white" aria-hidden="true" />
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -808,7 +808,7 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
           onClick={startSamePuzzle}
           className="gap-1.5 text-xs"
         >
-          <RotateCcw className="h-3.5 w-3.5" />
+          <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
           Acak Ulang
         </Button>
         <Button
@@ -817,7 +817,7 @@ export default function SlidingPuzzle({ playerName }: SlidingPuzzleProps) {
           onClick={() => setPhase("difficulty")}
           className="gap-1.5 text-xs"
         >
-          <ArrowLeft className="h-3.5 w-3.5" />
+          <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
           Ganti Kesulitan
         </Button>
       </div>

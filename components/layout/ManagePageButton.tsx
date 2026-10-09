@@ -21,9 +21,9 @@ export default function ManagePageButton({ href, label }: ManagePageButtonProps)
     <Link
       href={href}
       aria-label={label}
-      className="inline-flex shrink-0 items-center gap-1.5 self-start rounded-full bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 sm:self-center"
+      className="inline-flex min-h-[44px] shrink-0 items-center gap-1.5 self-start rounded-full bg-primary px-3 py-2.5 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 sm:self-center"
     >
-      <Settings2 className="h-4 w-4" />
+      <Settings2 className="h-4 w-4" aria-hidden="true" />
       {label}
     </Link>
   );

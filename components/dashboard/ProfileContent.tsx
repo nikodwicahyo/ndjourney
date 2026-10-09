@@ -37,6 +37,7 @@ export default function ProfileContent({ user, couple }: ProfileContentProps) {
   const [editImage, setEditImage] = useState<string | null>(user.image);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [nameError, setNameError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function openModal() {
@@ -66,8 +67,10 @@ export default function ProfileContent({ user, couple }: ProfileContentProps) {
   async function handleSave() {
     if (!editName.trim()) {
       toast.error("Nama wajib diisi");
+      setNameError("Nama wajib diisi");
       return;
     }
+    setNameError("");
 
     setSaving(true);
     try {
@@ -117,7 +120,7 @@ export default function ProfileContent({ user, couple }: ProfileContentProps) {
         <div className="min-w-0 flex-1">
           <h1 className="font-heading text-2xl truncate">{displayName}</h1>
           <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-            <Mail className="h-3.5 w-3.5 shrink-0" />
+            <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <span className="truncate">{user.email}</span>
           </div>
           <span className="mt-1 inline-block rounded-full bg-primary/10 px-3 py-0.5 text-xs font-medium text-primary">
@@ -129,28 +132,28 @@ export default function ProfileContent({ user, couple }: ProfileContentProps) {
       {couple && (
         <div className="rounded-2xl border border-border bg-card p-6 overflow-hidden">
           <h2 className="flex items-center gap-2 font-heading text-lg font-semibold">
-            <Heart className="h-5 w-5 shrink-0 fill-primary text-primary" />
+            <Heart className="h-5 w-5 shrink-0 fill-primary text-primary" aria-hidden="true" />
             <span className="truncate">{couple.name1} & {couple.name2}</span>
           </h2>
           {couple.tagline && (
             <p className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground">
-              <Quote className="h-3.5 w-3.5 shrink-0" />
+              <Quote className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               <span className="truncate">{couple.tagline}</span>
             </p>
           )}
           <p className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground">
-            <CalendarDays className="h-3.5 w-3.5 shrink-0" />
+            <CalendarDays className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <span className="truncate">Anniversary: {formatDate(couple.anniversaryDate)}</span>
           </p>
           {couple.birthDate1 && (
             <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
-              <Cake className="h-3.5 w-3.5 shrink-0" />
+              <Cake className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               <span className="truncate">Ultah {couple.name1}: {formatDate(couple.birthDate1)}</span>
             </p>
           )}
           {couple.birthDate2 && (
             <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
-              <Cake className="h-3.5 w-3.5 shrink-0" />
+              <Cake className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               <span className="truncate">Ultah {couple.name2}: {formatDate(couple.birthDate2)}</span>
             </p>
           )}
@@ -186,6 +189,7 @@ export default function ProfileContent({ user, couple }: ProfileContentProps) {
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploading}
+                  aria-label="Ubah foto profil"
                   className="relative h-24 w-24 shrink-0 overflow-hidden rounded-full ring-4 ring-primary/20 transition-opacity hover:opacity-80"
                 >
                   {editImage ? (
@@ -235,7 +239,11 @@ export default function ProfileContent({ user, couple }: ProfileContentProps) {
                   placeholder="Nama kamu"
                   autoFocus
                   maxLength={100}
+                  aria-invalid={!!nameError}
                 />
+                {nameError && (
+                  <p role="alert" className="text-xs text-destructive">{nameError}</p>
+                )}
               </div>
 
               <div className="flex gap-3 pt-2">

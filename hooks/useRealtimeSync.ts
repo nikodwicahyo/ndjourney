@@ -111,5 +111,5 @@ export function useRealtimeSync(coupleId: string | undefined) {
       pusher.unsubscribe(channelName);
       subscribedRef.current = false;
     };
-  }, [coupleId, queryClient]);
+  }, [coupleId, queryClient, updateSession]);
 }

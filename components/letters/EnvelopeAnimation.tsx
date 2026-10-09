@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { Sparkles, Heart, Mail } from "lucide-react";
 import type { ButtonHTMLAttributes } from "react";
 
@@ -18,6 +18,7 @@ export default function EnvelopeAnimation({
   isOpening = false,
   onOpen,
 }: EnvelopeAnimationProps) {
+  const reduceMotion = useReducedMotion();
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.9 }}
@@ -27,9 +28,9 @@ export default function EnvelopeAnimation({
       className="flex flex-col items-center justify-center py-16 text-center"
     >
       <motion.div
-        animate={{ y: [0, -10, 0] }}
+        animate={reduceMotion ? {} : { y: [0, -10, 0] }}
         transition={{
-          repeat: Infinity,
+          repeat: reduceMotion ? 0 : Infinity,
           duration: 2.5,
           ease: "easeInOut",
         }}
@@ -46,22 +47,22 @@ export default function EnvelopeAnimation({
             </div>
             <motion.span
               className="text-5xl"
-              animate={{ rotate: [-5, 5, -5] }}
+              animate={reduceMotion ? {} : { rotate: [-5, 5, -5] }}
               transition={{
-                repeat: Infinity,
+                repeat: reduceMotion ? 0 : Infinity,
                 duration: 3,
                 ease: "easeInOut",
               }}
             >
-              <Mail className="h-12 w-12 text-primary" />
+              <Mail className="h-12 w-12 text-primary" aria-hidden="true" />
             </motion.span>
           </div>
 
           <div className="flex h-20 w-40 items-end justify-center rounded-b-3xl border-2 border-t-0 border-primary/20 bg-card" style={{ backfaceVisibility: "hidden" }}>
             <div className="mb-3 flex items-center gap-1 text-xs text-muted-foreground">
-              <Sparkles className="h-3 w-3 text-primary" />
+              <Sparkles className="h-3 w-3 text-primary" aria-hidden="true" />
               <span>Surat Cinta</span>
-              <Sparkles className="h-3 w-3 text-primary" />
+              <Sparkles className="h-3 w-3 text-primary" aria-hidden="true" />
             </div>
           </div>
         </motion.div>
@@ -71,19 +72,23 @@ export default function EnvelopeAnimation({
             key={i}
             className="absolute -top-2 -right-2 text-sm"
             initial={{ opacity: 0, scale: 0 }}
-            animate={{
-              opacity: [0, 1, 0],
-              scale: [0, 1, 0],
-              y: [0, -20 - i * 10],
-            }}
+            animate={
+              reduceMotion
+                ? { opacity: 1, scale: 1, y: 0 }
+                : {
+                    opacity: [0, 1, 0],
+                    scale: [0, 1, 0],
+                    y: [0, -20 - i * 10],
+                  }
+            }
             transition={{
-              repeat: Infinity,
+              repeat: reduceMotion ? 0 : Infinity,
               duration: 2,
               delay: i * 0.3,
               ease: "easeOut",
             }}
           >
-            <Heart className="h-3.5 w-3.5 fill-primary text-primary" />
+            <Heart className="h-3.5 w-3.5 fill-primary text-primary" aria-hidden="true" />
           </motion.div>
         ))}
       </motion.div>
@@ -107,7 +112,7 @@ export default function EnvelopeAnimation({
         whileTap={{ scale: 0.97 }}
         onClick={onOpen}
         disabled={isOpening}
-        className="mt-8 inline-flex h-12 items-center gap-2 rounded-full bg-gradient-to-r from-primary to-pink-500 px-8 text-sm font-medium text-primary-foreground shadow-lg transition-all hover:shadow-xl disabled:opacity-60"
+        className="mt-8 inline-flex h-12 items-center gap-2 rounded-full bg-gradient-to-r from-primary to-pink-500 px-8 text-sm font-medium text-primary-foreground shadow-lg transition-all hover:shadow-xl disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
       >
         {isOpening ? (
           <>
@@ -116,7 +121,7 @@ export default function EnvelopeAnimation({
           </>
         ) : (
           <>
-            <Sparkles className="h-4 w-4" />
+            <Sparkles className="h-4 w-4" aria-hidden="true" />
             Buka Surat
           </>
         )}

@@ -17,13 +17,13 @@ interface UploadItemProps {
 }
 
 const statusIcons = {
-  pending: <Clock className="h-4 w-4 text-muted-foreground" />,
-  uploading: <Loader2 className="h-4 w-4 animate-spin text-primary" />,
-  retrying: <Loader2 className="h-4 w-4 animate-spin text-amber-500" />,
-  complete: <CheckCircle className="h-4 w-4 text-green-500" />,
-  error: <AlertCircle className="h-4 w-4 text-destructive" />,
-  interrupted: <WifiOff className="h-4 w-4 text-destructive" />,
-  cancelled: <X className="h-4 w-4 text-muted-foreground" />,
+  pending: <Clock className="h-4 w-4 text-muted-foreground" aria-hidden="true" />,
+  uploading: <Loader2 className="h-4 w-4 text-primary motion-safe:animate-spin" aria-hidden="true" />,
+  retrying: <Loader2 className="h-4 w-4 text-amber-500 motion-safe:animate-spin" aria-hidden="true" />,
+  complete: <CheckCircle className="h-4 w-4 text-green-500" aria-hidden="true" />,
+  error: <AlertCircle className="h-4 w-4 text-destructive" aria-hidden="true" />,
+  interrupted: <WifiOff className="h-4 w-4 text-destructive" aria-hidden="true" />,
+  cancelled: <X className="h-4 w-4 text-muted-foreground" aria-hidden="true" />,
 } as const;
 
 const statusColors = {
@@ -50,7 +50,7 @@ function ActionButton({
   variant?: "default" | "destructive";
   "aria-label": string;
 }) {
-  const baseStyles = "p-1.5 rounded-lg transition-all duration-150 flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40 disabled:cursor-not-allowed";
+  const baseStyles = "min-h-11 min-w-11 p-2.5 rounded-lg transition-all duration-150 motion-safe:transition-all flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40 disabled:cursor-not-allowed";
   
   const variants = {
     default: "bg-transparent hover:bg-accent text-muted-foreground hover:text-foreground",
@@ -178,7 +178,7 @@ function UploadItemInner({ item, onCancel, onRetry, onRemove, isUploading }: Upl
     <div
       ref={containerRef}
       className={cn(
-        "flex items-center gap-3 rounded-lg border p-2 transition-all duration-150",
+        "flex items-center gap-3 rounded-lg border p-2 transition-all duration-150 motion-safe:transition-all",
         statusColors[item.status],
         isUploadingItem && "ring-1 ring-primary/20",
         isCompleted && "ring-1 ring-green-500/20"
@@ -193,23 +193,23 @@ function UploadItemInner({ item, onCancel, onRetry, onRemove, isUploading }: Upl
             decoding="async"
           />
         ) : isImage && isVisible && !hasError ? (
-          <ImageIcon className="h-5 w-5 text-muted-foreground/50 animate-pulse" />
+          <ImageIcon className="h-5 w-5 text-muted-foreground/50 motion-safe:animate-pulse" aria-hidden="true" />
         ) : hasError ? (
-          <AlertCircle className="h-5 w-5 text-destructive/50" />
+          <AlertCircle className="h-5 w-5 text-destructive/50" aria-hidden="true" />
         ) : (
-          <FileVideo className="h-5 w-5 text-muted-foreground" />
+          <FileVideo className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
         )}
       </div>
         <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="truncate text-sm font-medium">{item.file.name}</span>
-          <span className="shrink-0 text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-mono tabular-nums">{formatBytes(item.file.size)}</span>
+          <span className="shrink-0 text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-mono tabular-nums">{formatBytes(item.file.size)}</span>
           {statusIcons[item.status]}
         </div>
         <div className="flex items-center gap-2 mt-1">
           <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
             <div
-              className="h-full bg-primary transition-all duration-300 ease-out"
+              className="h-full bg-primary transition-all duration-300 ease-out motion-safe:transition-all"
               style={{ width: `${percent}%` } as React.CSSProperties}
             />
           </div>
@@ -257,7 +257,7 @@ function UploadItemInner({ item, onCancel, onRetry, onRemove, isUploading }: Upl
             variant="default"
             aria-label="Batalkan upload"
           >
-            <X className="h-4 w-4" />
+            <X className="h-4 w-4" aria-hidden="true" />
           </ActionButton>
         )}
         {showRetry && (
@@ -267,7 +267,7 @@ function UploadItemInner({ item, onCancel, onRetry, onRemove, isUploading }: Upl
             variant="default"
             aria-label="Coba lagi"
           >
-            <RotateCcw className="h-4 w-4" />
+            <RotateCcw className="h-4 w-4" aria-hidden="true" />
           </ActionButton>
         )}
         {showRemove && (
@@ -277,7 +277,7 @@ function UploadItemInner({ item, onCancel, onRetry, onRemove, isUploading }: Upl
             variant="destructive"
             aria-label="Hapus file"
           >
-            <Trash className="h-4 w-4" />
+            <Trash className="h-4 w-4" aria-hidden="true" />
           </ActionButton>
         )}
       </div>

@@ -38,7 +38,7 @@ function LetterCard({ letter, type, index = 0, baseHref = "/dashboard/letters", 
     >
       <Link
         href={`${baseHref}/${letter.id}`}
-        className="flex w-full items-start gap-4"
+        className={cn("flex w-full items-start gap-4", onDelete && "pr-12")}
       >
         <Avatar className="h-10 w-10 shrink-0">
           <AvatarImage src={shown.image ?? undefined} alt={shown.name ?? "Pasangan"} />
@@ -72,7 +72,7 @@ function LetterCard({ letter, type, index = 0, baseHref = "/dashboard/letters", 
               <>
                 <span>·</span>
                 <span className="inline-flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
+                  <Clock className="h-3 w-3" aria-hidden="true" />
                   {letter.unlockAt
                     ? formatInJakarta(letter.unlockAt, { dateStyle: "long" })
                     : ""}
@@ -83,30 +83,30 @@ function LetterCard({ letter, type, index = 0, baseHref = "/dashboard/letters", 
 
           {isLocked && (
             <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Lock className="h-3 w-3" />
+              <Lock className="h-3 w-3" aria-hidden="true" />
               Time capsule — belum bisa dibuka
             </div>
           )}
         </div>
 
         <div className="flex items-center gap-1">
-          {onDelete && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onDelete();
-              }}
-              className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-              aria-label="Hapus surat"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          )}
-          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
         </div>
       </Link>
+      {onDelete && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onDelete();
+          }}
+          className="absolute top-1/2 right-2 flex min-h-[44px] min-w-[44px] -translate-y-1/2 items-center justify-center rounded-full p-2.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+          aria-label="Hapus surat"
+        >
+          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+      )}
     </div>
   );
 }

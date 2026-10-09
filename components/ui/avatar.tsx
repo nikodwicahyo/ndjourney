@@ -1,6 +1,7 @@
 "use client";
 
 import { forwardRef, useState } from "react";
+import NextImage from "next/image";
 import { cn } from "@/lib/utils";
 
 const Avatar = forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
@@ -17,14 +18,26 @@ const Avatar = forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
 );
 Avatar.displayName = "Avatar";
 
-const AvatarImage = forwardRef<HTMLImageElement, React.ImgHTMLAttributes<HTMLImageElement>>(
-  ({ className, onError, ...props }, ref) => {
+type AvatarImageProps = Omit<
+  React.ImgHTMLAttributes<HTMLImageElement>,
+  "src" | "alt" | "width" | "height" | "srcSet" | "loading" | "decoding"
+> & {
+  src?: string;
+  alt?: string;
+};
+
+const AvatarImage = forwardRef<HTMLImageElement, AvatarImageProps>(
+  ({ className, onError, src, alt = "", ...props }, ref) => {
     const [hasError, setHasError] = useState(false);
-    if (!props.src || hasError) return null;
+    if (!src || hasError) return null;
     return (
-      <img
+      <NextImage
         ref={ref}
-        className={cn("absolute inset-0 h-full w-full object-cover", className)}
+        src={src}
+        alt={alt}
+        fill
+        sizes="64px"
+        className={cn("object-cover", className)}
         onError={(e) => {
           setHasError(true);
           onError?.(e);

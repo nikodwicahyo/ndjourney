@@ -274,15 +274,12 @@ export default function GalleryManager() {
     clearSelection();
   }, [selectedIds, queryClient, clearSelection]);
 
-  const handleFilesSelected = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const fileList = e.target.files;
-    if (!fileList || fileList.length === 0) return;
-
+  const addFiles = useCallback((filesArray: File[]) => {
     setFileErrors([]);
     const newFiles: File[] = [];
     const errors: string[] = [];
 
-    for (const file of Array.from(fileList)) {
+    for (const file of filesArray) {
       // Extension fallback: browsers report "" for unrecognized formats (.heic).
       const kind = resolveUploadMime(file.name, file.type);
       if (!kind.startsWith("image/") && !kind.startsWith("video/")) {
@@ -320,8 +317,25 @@ export default function GalleryManager() {
       }
       return [...prev, ...newItems];
     });
+  }, []);
 
+  const handleFilesSelected = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
+    addFiles(Array.from(fileList));
     e.target.value = "";
+  }, [addFiles]);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    if (isSubmitting) return;
+    const files = e.dataTransfer.files;
+    if (!files || files.length === 0) return;
+    addFiles(Array.from(files));
+  }, [addFiles, isSubmitting]);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
   }, []);
 
   const removeFile = useCallback((id: string) => {
@@ -482,7 +496,7 @@ export default function GalleryManager() {
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
             style={{ backgroundColor: "#10B981" + "15" }}
           >
-            <ImagePlus className="h-5 w-5" style={{ color: "#10B981" }} />
+            <ImagePlus className="h-5 w-5" style={{ color: "#10B981" }} aria-hidden="true" />
           </div>
           <div>
             <h2 className="font-heading text-sm sm:text-base font-semibold">Upload Foto & Video</h2>
@@ -495,7 +509,7 @@ export default function GalleryManager() {
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex min-w-0 flex-1 items-center gap-2">
                 <div className="h-2 min-w-12 flex-1 max-w-xs overflow-hidden rounded-full bg-muted">
-                  <div className="h-full bg-primary transition-all duration-300" style={{ width: `${overallProgress}%` }} />
+                  <div className="h-full bg-primary transition-all duration-300 motion-safe:transition-all" style={{ width: `${overallProgress}%` }} />
                 </div>
                 <span className="whitespace-nowrap text-xs font-medium text-primary">
                   {formatBytes(uploadedBytes)}/{formatBytes(totalBytes)} {uploadingCount > 0 ? `(${uploadingCount} file diupload)` : retryingCount > 0 ? `(mencoba ulang ${retryingCount})` : pendingCount > 0 ? `(${pendingCount} antrian)` : ""}
@@ -517,6 +531,7 @@ export default function GalleryManager() {
             <select
               value={selectedAlbumId}
               onChange={(e) => setSelectedAlbumId(e.target.value)}
+              aria-label="Pilih album untuk upload"
               className="h-9 w-full max-w-xs rounded-lg border border-input bg-card px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <option value="">Tanpa album</option>
@@ -529,27 +544,31 @@ export default function GalleryManager() {
                 <button
                   type="button"
                   onClick={() => setPhotoPublic(true)}
+                  aria-pressed={photoPublic}
+                  aria-label="Upload sebagai publik"
                   className={cn(
-                    "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                    "inline-flex min-h-11 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
                     photoPublic
                       ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
                       : "text-muted-foreground hover:text-foreground"
                   )}
                 >
-                  <Globe className="h-3.5 w-3.5" />
+                  <Globe className="h-3.5 w-3.5" aria-hidden="true" />
                   Publik
                 </button>
                 <button
                   type="button"
                   onClick={() => setPhotoPublic(false)}
+                  aria-pressed={!photoPublic}
+                  aria-label="Upload sebagai privat"
                   className={cn(
-                    "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                    "inline-flex min-h-11 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
                     !photoPublic
                       ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
                       : "text-muted-foreground hover:text-foreground"
                   )}
                 >
-                  <EyeOff className="h-3.5 w-3.5" />
+                  <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
                   Privat
                 </button>
               </div>
@@ -564,27 +583,29 @@ export default function GalleryManager() {
           multiple
           onChange={handleFilesSelected}
           disabled={isSubmitting}
-          className="hidden"
+          className="sr-only"
           id="gallery-upload-input"
         />
 
         <label
           htmlFor="gallery-upload-input"
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
           className={cn(
             "flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed p-4 sm:p-6 transition-colors w-full",
             isSubmitting ? "pointer-events-none opacity-50" : "hover:border-primary/50 hover:bg-accent"
           )}
         >
           {isSubmitting ? (
-            <Loader2 className="h-8 w-8 sm:h-10 sm:w-10 animate-spin text-muted-foreground" />
+            <Loader2 className="h-8 w-8 sm:h-10 sm:w-10 text-muted-foreground motion-safe:animate-spin" aria-hidden="true" />
           ) : (
-            <Upload className="h-8 w-8 sm:h-10 sm:w-10 text-muted-foreground" />
+            <Upload className="h-8 w-8 sm:h-10 sm:w-10 text-muted-foreground" aria-hidden="true" />
           )}
           <div className="flex flex-col items-center justify-center text-center">
             <p className="text-xs sm:text-sm font-medium">
               {isSubmitting ? "Mengupload..." : "Klik atau drag file ke sini"}
             </p>
-            <p className="mt-0.5 text-[10px] sm:text-xs text-muted-foreground">
+            <p className="mt-0.5 text-xs text-muted-foreground">
               Max Foto 10MB, Max Video 100MB, Max {MAX_FILES} file per-upload.
             </p>
           </div>
@@ -611,7 +632,7 @@ export default function GalleryManager() {
           <div className="mt-2 space-y-1 text-left">
             {fileErrors.map((err, i) => (
               <p key={i} className="flex items-center gap-1.5 text-xs text-destructive">
-                <FileWarning className="h-3 w-3" />
+                <FileWarning className="h-3 w-3" aria-hidden="true" />
                 {err}
               </p>
             ))}
@@ -623,7 +644,7 @@ export default function GalleryManager() {
         ) && (
           <div className="mt-2 rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-2.5">
             <p className="flex items-center gap-1.5 text-xs text-yellow-600 dark:text-yellow-400">
-              <FileWarning className="h-3 w-3 shrink-0" />
+              <FileWarning className="h-3 w-3 shrink-0" aria-hidden="true" />
               Beberapa file berukuran besar. Upload mungkin memakan waktu lebih lama.
             </p>
           </div>
@@ -642,7 +663,7 @@ export default function GalleryManager() {
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 motion-safe:animate-spin" aria-hidden="true" />
                   Uploading...
                 </>
               ) : (
@@ -664,45 +685,49 @@ export default function GalleryManager() {
                 <button
                   key={key}
                   onClick={() => setMediaType(key || undefined)}
+                  aria-pressed={(mediaType || "") === key}
                   className={cn(
-                    "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                    "inline-flex min-h-11 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
                     (mediaType || "") === key
                       ? "bg-primary text-primary-foreground"
                       : "text-muted-foreground hover:text-foreground"
                   )}
                 >
-                  {Icon && <Icon className="h-3.5 w-3.5" />}
+                  {Icon && <Icon className="h-3.5 w-3.5" aria-hidden="true" />}
                   {label}
                 </button>
               ))}
             </div>
             <button
               onClick={() => setFavoriteFilter(!favoriteFilter)}
+              aria-pressed={favoriteFilter}
+              aria-label="Filter favorit"
               className={cn(
-                "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                "inline-flex min-h-11 items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
                 favoriteFilter
                   ? "border-primary bg-primary/10 text-primary"
                   : "border-border text-muted-foreground hover:bg-accent"
               )}
             >
-              <Heart className={cn("h-3.5 w-3.5", favoriteFilter && "fill-primary")} />
+              <Heart className={cn("h-3.5 w-3.5", favoriteFilter && "fill-primary")} aria-hidden="true" />
               Favorit
             </button>
             <button
               onClick={() =>
                 setVisibilityFilter((prev) => (prev === "private" ? "public" : "private"))
               }
+              aria-label="Filter visibilitas"
               className={cn(
-                "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                "inline-flex min-h-11 items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
                 visibilityFilter === "private"
                   ? "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400"
                   : "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
               )}
             >
               {visibilityFilter === "private" ? (
-                <EyeOff className="h-3.5 w-3.5" />
+                <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
               ) : (
-                <Globe className="h-3.5 w-3.5" />
+                <Globe className="h-3.5 w-3.5" aria-hidden="true" />
               )}
               <span className="hidden sm:inline">{visibilityFilter === "private" ? "Privat" : "Publik"}</span>
             </button>
@@ -724,14 +749,16 @@ export default function GalleryManager() {
             )}
             <button
               onClick={() => setSort(sort === "oldest" ? undefined : "oldest")}
+              aria-pressed={sort === "oldest"}
+              aria-label="Urutkan media"
               className={cn(
-                "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                "inline-flex min-h-11 items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
                 sort === "oldest"
                   ? "border-violet-500/40 bg-violet-500/10 text-violet-600 dark:text-violet-400"
                   : "border-primary bg-primary/10 text-primary"
               )}
             >
-              <ArrowUpDown className="h-3.5 w-3.5" />
+              <ArrowUpDown className="h-3.5 w-3.5" aria-hidden="true" />
               {sort === "oldest" ? "Terlama" : "Terbaru"}
             </button>
             <button
@@ -739,12 +766,13 @@ export default function GalleryManager() {
                 if (selectMode) clearSelection();
                 else setSelectMode(true);
               }}
+              aria-pressed={selectMode}
               className={cn(
-                "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                "inline-flex min-h-11 items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
                 selectMode ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-accent"
               )}
             >
-              <CheckSquare className="h-3.5 w-3.5" />
+              <CheckSquare className="h-3.5 w-3.5" aria-hidden="true" />
               {selectMode ? "Batal" : "Pilih"}
             </button>
           </div>
@@ -766,7 +794,7 @@ export default function GalleryManager() {
                   onClick={() => setShowMoveModal(true)}
                   className="gap-1.5"
                 >
-                  <Folder className="h-4 w-4" />
+                  <Folder className="h-4 w-4" aria-hidden="true" />
                   <span className="hidden sm:inline">Pindahkan ke album</span>
                 </Button>
               )}
@@ -776,18 +804,18 @@ export default function GalleryManager() {
                   onClick={() => handleBatchVisibility(true)}
                   title="Jadikan publik"
                   aria-label="Jadikan publik"
-                  className="inline-flex items-center justify-center gap-1.5 rounded-full border border-emerald-500/40 px-2.5 py-1.5 text-xs font-medium text-emerald-600 transition-colors hover:bg-emerald-500/10 dark:text-emerald-400"
+                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-emerald-500/40 px-2.5 py-1.5 text-xs font-medium text-emerald-600 transition-colors hover:bg-emerald-500/10 dark:text-emerald-400"
                 >
-                  <Globe className="h-3.5 w-3.5" />
+                  <Globe className="h-3.5 w-3.5" aria-hidden="true" />
                   <span className="hidden sm:inline">Publik</span>
                 </button>
                 <button
                   onClick={() => handleBatchVisibility(false)}
                   title="Jadikan privat"
                   aria-label="Jadikan privat"
-                  className="inline-flex items-center justify-center gap-1.5 rounded-full border border-amber-500/40 px-2.5 py-1.5 text-xs font-medium text-amber-600 transition-colors hover:bg-amber-500/10 dark:text-amber-400"
+                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-amber-500/40 px-2.5 py-1.5 text-xs font-medium text-amber-600 transition-colors hover:bg-amber-500/10 dark:text-amber-400"
                 >
-                  <EyeOff className="h-3.5 w-3.5" />
+                  <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
                   <span className="hidden sm:inline">Privat</span>
                 </button>
               </div>
@@ -798,7 +826,7 @@ export default function GalleryManager() {
                 onClick={handleBatchDelete}
                 className="gap-1.5"
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
                 <span className="hidden sm:inline">Hapus</span>
               </Button>
 
@@ -808,7 +836,7 @@ export default function GalleryManager() {
                 onClick={clearSelection}
                 className="ml-auto rounded-full border-foreground/30 text-foreground hover:bg-accent hover:text-foreground"
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4" aria-hidden="true" />
                 <span className="hidden sm:inline">Batal</span>
               </Button>
             </div>
@@ -818,13 +846,13 @@ export default function GalleryManager() {
           <div className="columns-2 gap-3 md:columns-3 lg:columns-4">
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="mb-3 break-inside-avoid">
-                <div className="aspect-[3/4] w-full animate-pulse rounded-2xl bg-muted" />
+                <div className="aspect-[3/4] w-full rounded-2xl bg-muted motion-safe:animate-pulse" />
               </div>
             ))}
           </div>
         ) : isError ? (
           <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-            <FileWarning className="h-10 w-10 text-muted-foreground" />
+            <FileWarning className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
             <p role="alert" className="text-sm text-muted-foreground">Gagal memuat media. Coba lagi.</p>
             <Button size="sm" variant="outline" onClick={() => refetch()}>
               Muat ulang
@@ -832,7 +860,7 @@ export default function GalleryManager() {
           </div>
         ) : photos.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-            <ImagePlus className="h-10 w-10 text-muted-foreground" />
+            <ImagePlus className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
             <p className="text-sm text-muted-foreground">Belum ada media</p>
           </div>
         ) : (
@@ -862,7 +890,7 @@ export default function GalleryManager() {
                 <div className="columns-2 gap-3 md:columns-3 lg:columns-4">
                   {Array.from({ length: 4 }).map((_, i) => (
                     <div key={i} className="mb-3 break-inside-avoid">
-                      <div className="aspect-[3/4] w-full animate-pulse rounded-2xl bg-muted" />
+                      <div className="aspect-[3/4] w-full rounded-2xl bg-muted motion-safe:animate-pulse" />
                     </div>
                   ))}
                 </div>
@@ -885,9 +913,10 @@ export default function GalleryManager() {
               <h2 className="font-heading text-lg font-semibold">Pindahkan ke Album</h2>
               <button
                 onClick={() => { setShowMoveModal(false); setMoveAlbumId(""); }}
-                className="rounded-full p-1 transition-colors hover:bg-muted"
+                aria-label="Tutup"
+                className="flex min-h-11 min-w-11 items-center justify-center rounded-full p-1 transition-colors hover:bg-muted"
               >
-                <X className="h-5 w-5" />
+                <X className="h-5 w-5" aria-hidden="true" />
               </button>
             </div>
 
@@ -909,15 +938,15 @@ export default function GalleryManager() {
                   )}
                 >
                   {moveAlbumId === album.id ? (
-                    <Check className="h-4 w-4 shrink-0 text-primary" />
+                    <Check className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
                   ) : (
                     <div className="h-4 w-4 shrink-0" />
                   )}
-                  <Folder className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <Folder className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
                   <div className="min-w-0 flex-1">
                     <span className="block truncate">{album.name}</span>
                     {album.description && (
-                      <span className="block truncate text-[10px] font-normal text-muted-foreground">
+                      <span className="block truncate text-xs font-normal text-muted-foreground">
                         {album.description}
                       </span>
                     )}
@@ -942,7 +971,7 @@ export default function GalleryManager() {
                 onClick={() => { handleBatchMove(); setShowMoveModal(false); }}
                 disabled={!moveAlbumId}
               >
-                <Folder className="h-4 w-4" />
+                <Folder className="h-4 w-4" aria-hidden="true" />
                 Pindahkan
               </Button>
             </div>

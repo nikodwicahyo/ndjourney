@@ -93,7 +93,7 @@ export default function GameClient({ disableScoreSubmit = false }: GameClientPro
               className="rounded-full p-2 transition-colors hover:bg-accent"
               aria-label="Kembali"
             >
-              <ArrowLeft className="h-5 w-5" />
+              <ArrowLeft className="h-5 w-5" aria-hidden="true" />
             </button>
             <div>
               <h1 className="font-heading text-2xl">
@@ -110,7 +110,7 @@ export default function GameClient({ disableScoreSubmit = false }: GameClientPro
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
           <div className="mb-8">
             <div className="mb-2 flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" />
+              <Sparkles className="h-5 w-5 text-primary" aria-hidden="true" />
               <h1 className="font-heading text-3xl">Fun Games</h1>
             </div>
             <p className="text-sm text-muted-foreground">

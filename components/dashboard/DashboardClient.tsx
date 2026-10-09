@@ -24,7 +24,7 @@ export default function DashboardClient() {
 
       <section>
         <div className="mb-4 flex items-center gap-2">
-          <Heart className="h-4 w-4 fill-primary text-primary" />
+          <Heart className="h-4 w-4 fill-primary text-primary" aria-hidden="true" />
           <h2 className="font-heading text-lg font-semibold">Statistik</h2>
         </div>
         <StatsCards />

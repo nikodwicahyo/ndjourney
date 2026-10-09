@@ -14,6 +14,7 @@ import { getJakartaDateOnly } from "@/lib/date";
 import { isVideoUrl } from "@/lib/utils";
 import { parseCropRect, cropCoverStyle, type CropRect } from "@/lib/image-crop";
 import { getOptimizedImageUrl } from "@/lib/cloudinary-urls";
+import { showDeleteConfirm } from "@/lib/swal";
 import GalleryPicker from "@/components/ui/GalleryPicker";
 import PhotoCropper from "@/components/ui/PhotoCropper";
 
@@ -274,7 +275,7 @@ export default function SettingsForm() {
       </div>
 
       <div className="space-y-2">
-        <label className="text-sm font-medium">Foto Beranda</label>
+        <label htmlFor="settings-hero" className="text-sm font-medium">Foto Beranda</label>
         {heroPhotoUrl ? (
           <div className="relative w-full">
             <div ref={previewRef} className="relative w-full overflow-hidden rounded-xl" style={{ aspectRatio: "16 / 9" }}>
@@ -312,16 +313,19 @@ export default function SettingsForm() {
             </div>
             <button
               type="button"
-              onClick={() => { setHeroPhotoUrl(""); setHeroCrop(null); }}
+              onClick={async () => {
+                const ok = await showDeleteConfirm({ title: "Hapus Foto Beranda", text: "Apakah Anda yakin ingin menghapus foto beranda?" });
+                if (ok) { setHeroPhotoUrl(""); setHeroCrop(null); }
+              }}
               aria-label="Hapus foto beranda"
               className="absolute right-2 top-2 rounded-full bg-background/80 p-2.5 transition-colors hover:bg-background"
             >
-              <X className="h-4 w-4" />
+              <X className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
         ) : (
           <div className="flex h-40 w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-input bg-muted/50 px-4">
-            <Upload className="h-6 w-6 shrink-0 text-muted-foreground" />
+            <Upload className="h-6 w-6 shrink-0 text-muted-foreground" aria-hidden="true" />
             <span className="text-sm text-muted-foreground text-center">
               Foto pada beranda yang tampil di halaman utama. <br />
             </span>
@@ -337,9 +341,9 @@ export default function SettingsForm() {
             disabled={uploadingHero}
           >
             {uploadingHero ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
             ) : (
-              <Upload className="h-4 w-4" />
+              <Upload className="h-4 w-4" aria-hidden="true" />
             )}
             Upload Foto Baru
           </Button>
@@ -350,7 +354,7 @@ export default function SettingsForm() {
             className="gap-1.5"
             onClick={() => setShowGalleryPicker(true)}
           >
-            <ImagePlus className="h-4 w-4" />
+            <ImagePlus className="h-4 w-4" aria-hidden="true" />
             Pilih dari Galeri
           </Button>
           {heroPhotoUrl && !isVideoUrl(heroPhotoUrl) && (
@@ -361,13 +365,14 @@ export default function SettingsForm() {
               className="gap-1.5"
               onClick={() => setCropTarget({ src: heroPhotoUrl, recrop: true })}
             >
-              <Crop className="h-4 w-4" />
+              <Crop className="h-4 w-4" aria-hidden="true" />
               {heroCrop ? "Ubah Crop" : "Atur Crop"}
             </Button>
           )}
         </div>
         <input
           ref={heroInputRef}
+          id="settings-hero"
           type="file"
           accept="image/jpeg,image/png,image/webp"
           className="hidden"
@@ -410,7 +415,7 @@ export default function SettingsForm() {
       </div>
 
       <div className="space-y-2">
-        <label className="text-sm font-medium">Background Music (MP3)</label>
+        <label htmlFor="settings-music" className="text-sm font-medium">Background Music (MP3)</label>
         {backgroundMusicUrl ? (
           <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 overflow-hidden">
             <audio controls className="h-9 min-w-0 flex-1">
@@ -418,11 +423,14 @@ export default function SettingsForm() {
             </audio>
             <button
               type="button"
-              onClick={() => setBackgroundMusicUrl("")}
+              onClick={async () => {
+                const ok = await showDeleteConfirm({ title: "Hapus Musik Latar", text: "Apakah Anda yakin ingin menghapus musik latar?" });
+                if (ok) setBackgroundMusicUrl("");
+              }}
               className="shrink-0 rounded-full p-2.5 transition-colors hover:bg-muted"
               aria-label="Hapus musik latar"
             >
-              <X className="h-4 w-4" />
+              <X className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
         ) : (
@@ -446,6 +454,7 @@ export default function SettingsForm() {
         )}
         <input
           ref={musicInputRef}
+          id="settings-music"
           type="file"
           accept="audio/mpeg"
           className="hidden"

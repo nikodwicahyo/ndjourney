@@ -54,6 +54,7 @@ export default function ClickHearts() {
   }, []);
 
   useEffect(() => {
+    const timers = timersRef.current;
     const handler = (e: MouseEvent) => {
       if (isInteractive(e.target)) return;
       addHearts(e.clientX, e.clientY);
@@ -61,7 +62,7 @@ export default function ClickHearts() {
     document.addEventListener("click", handler);
     return () => {
       document.removeEventListener("click", handler);
-      timersRef.current.forEach(clearTimeout);
+      timers.forEach(clearTimeout);
     };
   }, [addHearts]);
 

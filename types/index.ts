@@ -129,6 +129,5 @@ export type SyncPayload = {
 };
 
 declare global {
-  // eslint-disable-next-line no-var
   var pusherServer: import('pusher') | undefined;
 }

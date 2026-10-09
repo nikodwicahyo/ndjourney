@@ -1,7 +1,7 @@
 "use client";
 
 import { cn, formatBytes } from "@/lib/utils";
-import { HardDrive, RefreshCw, Image, Video, File, ChevronDown } from "lucide-react";
+import { HardDrive, RefreshCw, Image as ImageIcon, Video, File, ChevronDown } from "lucide-react";
 
 type Props = {
   used: number;
@@ -158,7 +158,7 @@ export default function StorageUsageBar({
             {imagesBytes !== undefined && (
               <div className="flex items-center justify-between text-xs">
                 <span className="flex items-center gap-1.5 text-muted-foreground">
-                  <Image className="h-3.5 w-3.5" />
+                  <ImageIcon className="h-3.5 w-3.5" />
                   Foto
                   {imagesCount !== undefined && (
                     <span className="text-muted-foreground/70">({imagesCount.toLocaleString("id-ID")})</span>
@@ -284,7 +284,7 @@ export default function StorageUsageBar({
                   {imagesBytes !== undefined && (
                     <div className="flex items-center justify-between text-xs">
                       <span className="flex items-center gap-1.5 text-muted-foreground">
-                        <Image className="h-3.5 w-3.5" />
+                        <ImageIcon className="h-3.5 w-3.5" />
                         Foto
                         {imagesCount !== undefined && (
                           <span className="text-muted-foreground/70">({imagesCount.toLocaleString("id-ID")})</span>

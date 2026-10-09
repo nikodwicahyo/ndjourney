@@ -17,7 +17,7 @@ import { motion } from "framer-motion";
 import { useMemo } from "react";
 
 export default function StatsCards() {
-  const { data: stats, isLoading: statsLoading, error } = useDashboardStats();
+  const { data: stats, isLoading: statsLoading, error, refetch } = useDashboardStats();
   const { data: config, isLoading: configLoading } = useCoupleConfig();
 
   const statConfig = useMemo(() => {
@@ -97,7 +97,24 @@ export default function StatsCards() {
     );
   }
 
-  if (error || !stats) {
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center rounded-2xl border border-border bg-card py-12 text-center">
+        <p className="text-sm text-muted-foreground">
+          Gagal memuat statistik
+        </p>
+        <button
+          type="button"
+          onClick={() => refetch()}
+          className="mt-3 inline-flex min-h-[44px] items-center rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+        >
+          Coba lagi
+        </button>
+      </div>
+    );
+  }
+
+  if (!stats) {
     return null;
   }
 
@@ -113,6 +130,14 @@ return (
         const storagePercent = isStorage && stats.storageLimit > 0
           ? Math.min(Math.round(((stats.storageUsed / stats.storageLimit) * 100) * 100) / 100, 100)
           : -1;
+
+        // "1.1/25.0GB" — single unit when both share it, else "900MB/25.0GB".
+        const [usedVal, usedUnit] = formatBytes(stats.storageUsed).split(" ");
+        const [limitVal, limitUnit] = formatBytes(stats.storageLimit).split(" ");
+        const storageCompact =
+          usedUnit === limitUnit
+            ? `${usedVal}/${limitVal}${usedUnit}`
+            : `${usedVal}${usedUnit}/${limitVal}${limitUnit}`;
 
         return (
           <motion.div
@@ -131,12 +156,13 @@ return (
               <Icon
                 className="h-4 w-4 shrink-0"
                 style={{ color }}
+                aria-hidden="true"
               />
             </div>
             <p className="font-heading text-xl font-bold truncate">
               {isBirthday
                 ? value === 0
-                  ? <PartyPopper className="h-5 w-5 text-amber-500" />
+                  ? <PartyPopper className="h-5 w-5 text-amber-500" aria-hidden="true" />
                   : `${value}`
                 : isStorage
                   ? storagePercent >= 0
@@ -146,17 +172,20 @@ return (
                     : formatNumber(value)
                   : formatNumber(value)}
             </p>
-            <p className="mt-0.5 text-xs text-muted-foreground truncate">{label}</p>
+            {!isStorage && (
+              <p className="mt-0.5 text-xs text-muted-foreground truncate">{label}</p>
+            )}
             {isLetter && stats.unreadLetterCount > 0 && (
-              <p className="text-[10px] text-muted-foreground truncate">
+              <p className="text-xs text-muted-foreground truncate">
                 {stats.unreadLetterCount} belum dibaca
               </p>
             )}
             {isStorage && (
               <>
                 {stats.storageLimit > 0 && (
-                  <p className="text-[10px] text-muted-foreground truncate">
-                    {formatBytes(stats.storageUsed)} / {formatBytes(stats.storageLimit)}
+                  <p className="mt-0.5 flex items-center justify-between gap-2 whitespace-nowrap text-xs text-muted-foreground">
+                    <span className="truncate">{label}</span>
+                    <span className="shrink-0 font-medium text-foreground">{storageCompact}</span>
                   </p>
                 )}
                 {storagePercent >= 0 && (
@@ -173,7 +202,7 @@ return (
               </>
             )}
             {isBirthday && value > 0 && (
-              <p className="text-[10px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 
               </p>
             )}

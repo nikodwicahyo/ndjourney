@@ -7,12 +7,13 @@ import type { LetterWithUsers } from "@/hooks/useLetters";
 import { formatDateTime, formatRelativeTime } from "@/lib/utils";
 
 import { LETTER_MOOD_CONFIG } from "@/types";
-import { Skeleton, Avatar, AvatarImage, AvatarFallback } from "@/components/ui";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui";
 import { Heart, ArrowLeft, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import EnvelopeAnimation from "./EnvelopeAnimation";
 import TimeCapsuleLock from "./TimeCapsuleLock";
+import LetterDetailSkeleton from "./LetterDetailSkeleton";
 
 type LetterViewerProps = {
   id: string;
@@ -43,7 +44,7 @@ export default function LetterViewer({ id, isRecipient, backHref = "/dashboard/l
       setSanitizedContent(
         DOMPurify.default.sanitize(fullLetter.content, {
           ALLOWED_TAGS: ["p", "br", "strong", "em", "u", "h1", "h2", "h3", "ul", "ol", "li", "blockquote", "pre", "code", "span", "div", "hr", "a"],
-          ALLOWED_ATTR: ["href", "target", "rel", "class", "style"],
+          ALLOWED_ATTR: ["href", "target", "rel", "class"],
           ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):|[^a-z]|[a-z+.-]+(?:[^a-z+.-:]|$))/i,
         }),
       );
@@ -79,10 +80,7 @@ export default function LetterViewer({ id, isRecipient, backHref = "/dashboard/l
   if (isLoading) {
     return (
       <div className="mx-auto max-w-2xl">
-        <div className="space-y-4">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-64 w-full rounded-2xl" />
-        </div>
+        <LetterDetailSkeleton />
       </div>
     );
   }
@@ -147,7 +145,7 @@ export default function LetterViewer({ id, isRecipient, backHref = "/dashboard/l
                 href={backHref}
                 className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
               >
-                <ArrowLeft className="h-4 w-4" />
+                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
                 Kembali
               </Link>
             </div>
@@ -168,7 +166,7 @@ export default function LetterViewer({ id, isRecipient, backHref = "/dashboard/l
 
               <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                 <span className="inline-flex items-center gap-1.5">
-                  <Heart className="h-3.5 w-3.5" />
+                  <Heart className="h-3.5 w-3.5" aria-hidden="true" />
                   <Avatar className="h-6 w-6 shrink-0">
                     <AvatarImage src={fullLetter.author?.image ?? undefined} alt={fullLetter.author?.name ?? "Author"} />
                     <AvatarFallback>{fullLetter.author?.name?.charAt(0) || "P"}</AvatarFallback>
@@ -187,7 +185,7 @@ export default function LetterViewer({ id, isRecipient, backHref = "/dashboard/l
                   <>
                     <span>·</span>
                     <span className="inline-flex items-center gap-1">
-                      <Sparkles className="h-3.5 w-3.5" />
+                      <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
                       Dibuka {formatRelativeTime(fullLetter.openedAt)}
                     </span>
                   </>

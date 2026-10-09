@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useAllQuestions } from "@/hooks/useGames";
 import { Button, Skeleton } from "@/components/ui";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { RefreshCw, Shuffle } from "lucide-react";
 import { pruneSeen } from "@/lib/game-deck";
 
@@ -41,6 +41,7 @@ export default function TruthOrDare() {
   const [history, setHistory] = useState<HistoryItem[]>(loadHistory);
   const [lastCategory, setLastCategory] = useState<"Truth" | "Dare" | null>(null);
   const [reshuffled, setReshuffled] = useState<"Truth" | "Dare" | null>(null);
+  const reduceMotion = useReducedMotion();
 
   // Drop history entries whose cards left the bank (deleted/archived) so
   // stale ids can neither inflate the remaining count nor fake exhaustion.
@@ -157,10 +158,10 @@ export default function TruthOrDare() {
             <p className="text-center text-muted-foreground">
               Pilih salah satu:
             </p>
-            <div className="flex gap-4">
+            <div className="flex w-full flex-col gap-4 sm:flex-row">
               <button
                 onClick={() => pick("Truth")}
-                className="flex flex-col items-center gap-3 rounded-2xl border-2 border-blue-500/30 bg-blue-500/5 p-8 transition-all hover:border-blue-500 hover:shadow-md"
+                className="flex w-full flex-col items-center gap-3 rounded-2xl border-2 border-blue-500/30 bg-blue-500/5 p-8 transition-all hover:border-blue-500 hover:shadow-md"
               >
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/20 text-3xl">
                   😇
@@ -175,7 +176,7 @@ export default function TruthOrDare() {
 
               <button
                 onClick={() => pick("Dare")}
-                className="flex flex-col items-center gap-3 rounded-2xl border-2 border-orange-500/30 bg-orange-500/5 p-8 transition-all hover:border-orange-500 hover:shadow-md"
+                className="flex w-full flex-col items-center gap-3 rounded-2xl border-2 border-orange-500/30 bg-orange-500/5 p-8 transition-all hover:border-orange-500 hover:shadow-md"
               >
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-orange-500/20 text-3xl">
                   😈
@@ -200,7 +201,7 @@ export default function TruthOrDare() {
                   onClick={() => setHistory([])}
                   className="gap-1 text-xs"
                 >
-                  <RefreshCw className="h-3 w-3" />
+                  <RefreshCw className="h-3 w-3" aria-hidden="true" />
                   Reset Riwayat
                 </Button>
               </div>
@@ -225,7 +226,7 @@ export default function TruthOrDare() {
             initial={{ opacity: 0, scale: 0.9, rotateY: 180 }}
             animate={{ opacity: 1, scale: 1, rotateY: 0 }}
             exit={{ opacity: 0, scale: 0.9 }}
-            transition={{ duration: 0.4 }}
+            transition={{ duration: reduceMotion ? 0 : 0.4 }}
             className="flex flex-col items-center gap-6 py-8"
           >
             <div
@@ -253,7 +254,7 @@ export default function TruthOrDare() {
 
             <div className="flex gap-3">
               <Button onClick={lagi} className="gap-2">
-                <Shuffle className="h-4 w-4" />
+                <Shuffle className="h-4 w-4" aria-hidden="true" />
                 {currentCard.category === "Truth" ? "😇 Lagi" : "😈 Lagi"}
               </Button>
               <Button variant="outline" onClick={gantiMode}>

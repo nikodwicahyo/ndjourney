@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element -- custom Cloudinary srcset plus transform anchored zoom; next/image wrappers break zoom math and hosts vary */
 
 import { memo, useEffect, useCallback, useState, useMemo, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
   X,
   ChevronLeft,
@@ -112,6 +112,7 @@ function Lightbox({
   const restoreFocusRef = useRef<Element | null>(null);
   const isFetchingRef = useRef(false);
   const currentIndexRef = useRef(currentIndex);
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     currentIndexRef.current = currentIndex;
@@ -207,13 +208,13 @@ function Lightbox({
 
   const slideVariants = useMemo(() => ({
     enter: (dir: number) => ({
-      x: dir > 0 ? 350 : -350,
+      x: reduceMotion ? 0 : dir > 0 ? 350 : -350,
     }),
     center: { x: 0 },
     exit: (dir: number) => ({
-      x: dir > 0 ? -350 : 350,
+      x: reduceMotion ? 0 : dir > 0 ? -350 : 350,
     }),
-  }), []);
+  }), [reduceMotion]);
 
   // Gesture refs + resetView live above the nav handlers: the handlers list
   // resetView in their dep arrays (evaluated during render), so it must be
@@ -519,6 +520,24 @@ function Lightbox({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Tab") {
+        const dialog = dialogRef.current;
+        if (!dialog) return;
+        const focusables = dialog.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], video[controls], input, [tabindex]:not([tabindex="-1"])',
+        );
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+        return;
+      }
       switch (e.key) {
         case "Escape":
           if (isZoomed) {
@@ -564,17 +583,17 @@ function Lightbox({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        transition={{ duration: 0.15 }}
+        transition={{ duration: reduceMotion ? 0 : 0.15 }}
         className="fixed inset-0 z-50 bg-black/95 outline-none"
       >
         <div className="absolute inset-x-0 top-0 z-30 flex items-center justify-between bg-gradient-to-b from-black/80 via-black/40 to-transparent px-4 pt-[max(env(safe-area-inset-top),0.75rem)] pb-8">
           <div className="flex items-center gap-2">
             <button
               onClick={handleClose}
-              className="rounded-full p-2 text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+              className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full text-white/80 transition-colors hover:bg-white/10 hover:text-white"
               aria-label="Tutup"
             >
-              <X className="h-5 w-5" />
+              <X className="h-5 w-5" aria-hidden="true" />
             </button>
             <span className="text-sm text-white/60">
               {currentIndex + 1} / {totalCount ?? photos.length}
@@ -590,10 +609,11 @@ function Lightbox({
             {onFavoriteToggle && (
               <button
                 onClick={() => onFavoriteToggle(photo.id, !photo.isFavorite)}
-                className="rounded-full p-2 text-white/80 transition-colors hover:bg-white/10"
+                className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full text-white/80 transition-colors hover:bg-white/10"
                 aria-label={photo.isFavorite ? "Hapus dari favorit" : "Tambah ke favorit"}
               >
                 <Heart
+                  aria-hidden="true"
                   className={cn("h-5 w-5", photo.isFavorite && "fill-primary text-primary")}
                 />
               </button>
@@ -604,29 +624,29 @@ function Lightbox({
             {showDownload && (
               <button
                 onClick={handleDownload}
-                className="rounded-full p-2 text-white/80 transition-colors hover:bg-white/10"
+                className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full text-white/80 transition-colors hover:bg-white/10"
                 aria-label="Unduh"
               >
-                <Download className="h-5 w-5" />
+                <Download className="h-5 w-5" aria-hidden="true" />
               </button>
             )}
             <button
               onClick={() => setShowInfo(!showInfo)}
               className={cn(
-                "rounded-full p-2 transition-colors",
+                "flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full transition-colors",
                 showInfo ? "text-white bg-white/20" : "text-white/80 hover:bg-white/10"
               )}
               aria-label="Detail"
             >
-              <Info className="h-5 w-5" />
+              <Info className="h-5 w-5" aria-hidden="true" />
             </button>
             {onDelete && (
               <button
                 onClick={() => onDelete(photo.id)}
-                className="rounded-full p-2 text-white/80 transition-colors hover:bg-white/10 hover:text-destructive"
+                className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full text-white/80 transition-colors hover:bg-white/10 hover:text-destructive"
                 aria-label="Hapus media"
               >
-                <Trash2 className="h-5 w-5" />
+                <Trash2 className="h-5 w-5" aria-hidden="true" />
               </button>
             )}
           </div>
@@ -655,7 +675,7 @@ function Lightbox({
                 initial="enter"
                 animate={{ x: dragX }}
                 exit="exit"
-                transition={{ x: { duration: swiping ? 0 : 0.35, ease: [0.4, 0, 0.2, 1] } }}
+                transition={{ x: { duration: reduceMotion || swiping ? 0 : 0.35, ease: [0.4, 0, 0.2, 1] } }}
                 className="absolute inset-0 flex items-center justify-center"
                 style={{ willChange: "transform" }}
               >
@@ -694,7 +714,7 @@ function Lightbox({
                     ) : (
                       <img
                         src={mediaState === "loaded" ? optimizedUrl : blurPlaceholderUrl}
-                        alt={photo.caption ?? "Photo"}
+                        alt={photo.caption ?? fileName}
                         draggable={false}
                         srcSet={mediaState === "loaded" ? srcSet : undefined}
                         sizes="(max-width: 768px) 100vw, (max-width: 1200px) 90vw, 80vw"
@@ -739,20 +759,20 @@ function Lightbox({
           <button
             onClick={handlePrev}
             disabled={currentIndex === 0}
-            className="absolute left-2 top-1/2 z-30 -translate-y-1/2 rounded-full bg-black/40 p-2.5 text-white/80 transition-colors hover:bg-black/60 hover:text-white disabled:opacity-30 disabled:hover:bg-black/40 disabled:hover:text-white/80 sm:p-3"
+            className="absolute left-2 top-1/2 z-30 flex min-h-[44px] min-w-[44px] -translate-y-1/2 items-center justify-center rounded-full bg-black/40 text-white/80 transition-colors hover:bg-black/60 hover:text-white disabled:opacity-30 disabled:hover:bg-black/40 disabled:hover:text-white/80"
             aria-label="Sebelumnya"
           >
-            <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />
+            <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" aria-hidden="true" />
           </button>
         )}
         {!isZoomed && (
           <button
             onClick={handleNext}
             disabled={currentIndex >= photos.length - 1 && !hasNextPage}
-            className="absolute right-2 top-1/2 z-30 -translate-y-1/2 rounded-full bg-black/40 p-2.5 text-white/80 transition-colors hover:bg-black/60 hover:text-white disabled:opacity-30 disabled:hover:bg-black/40 disabled:hover:text-white/80 sm:p-3"
+            className="absolute right-2 top-1/2 z-30 flex min-h-[44px] min-w-[44px] -translate-y-1/2 items-center justify-center rounded-full bg-black/40 text-white/80 transition-colors hover:bg-black/60 hover:text-white disabled:opacity-30 disabled:hover:bg-black/40 disabled:hover:text-white/80"
             aria-label="Berikutnya"
           >
-            <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />
+            <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" aria-hidden="true" />
           </button>
         )}
 
@@ -782,9 +802,10 @@ function Lightbox({
                 <h2 className="font-heading text-lg font-semibold">Detail Media</h2>
                 <button
                   onClick={() => setShowInfo(false)}
-                  className="rounded-full p-1 transition-colors hover:bg-muted"
+                  aria-label="Tutup detail"
+                  className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full transition-colors hover:bg-muted"
                 >
-                  <X className="h-5 w-5" />
+                  <X className="h-5 w-5" aria-hidden="true" />
                 </button>
               </div>
 

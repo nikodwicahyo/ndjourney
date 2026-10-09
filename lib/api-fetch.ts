@@ -22,8 +22,13 @@ async function handleAuthError(status: number) {
       onClick: () => signOut({ callbackUrl: "/login?reason=expired" }),
     },
   });
-  await signOut({ redirect: false });
-  window.location.href = "/login?reason=expired&callbackUrl=" + encodeURIComponent(window.location.pathname);
+  // Full-page reload via NextAuth (not router.push): purges all authed
+  // client state (queries, session) that a client-side nav would keep stale.
+  await signOut({
+    callbackUrl:
+      "/login?reason=expired&callbackUrl=" +
+      encodeURIComponent(window.location.pathname),
+  });
 }
 
 type ApiOptions = RequestInit & {

@@ -11,6 +11,7 @@ type LetterEditorProps = {
   onChange: (html: string) => void;
   placeholder?: string;
   ariaLabel?: string;
+  describedBy?: string;
 };
 
 export default function LetterEditor({
@@ -18,6 +19,7 @@ export default function LetterEditor({
   onChange,
   placeholder,
   ariaLabel,
+  describedBy,
 }: LetterEditorProps) {
   const editor = useEditor({
     extensions: [
@@ -34,6 +36,7 @@ export default function LetterEditor({
         class:
           "prose prose-sm dark:prose-invert min-h-[280px] w-full rounded-xl border border-input bg-card px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring",
         ...(ariaLabel ? { "aria-label": ariaLabel } : {}),
+        ...(describedBy ? { "aria-describedby": describedBy } : {}),
       },
     },
     immediatelyRender: false,
@@ -67,39 +70,40 @@ export default function LetterEditor({
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap gap-1 rounded-xl border border-border bg-muted/50 p-1">
+      <div role="toolbar" aria-label="Format surat" className="flex flex-wrap gap-1 rounded-xl border border-border bg-muted/50 p-1">
         {items.map(({ icon: Icon, action, active, label }) => (
           <button
             key={label}
             type="button"
             onClick={action}
             className={cn(
-              "rounded-lg p-1.5 transition-colors",
+              "flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg p-1.5 transition-colors",
               active
                 ? "bg-primary/10 text-primary"
                 : "text-muted-foreground hover:bg-accent hover:text-foreground",
             )}
             aria-label={label}
+            aria-pressed={active}
           >
-            <Icon className="h-4 w-4" />
+            <Icon className="h-4 w-4" aria-hidden="true" />
           </button>
         ))}
         <div className="mx-1 w-px bg-border" />
         <button
           type="button"
           onClick={undo}
-          className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           aria-label="Undo"
         >
-          <Undo className="h-4 w-4" />
+          <Undo className="h-4 w-4" aria-hidden="true" />
         </button>
         <button
           type="button"
           onClick={redo}
-          className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           aria-label="Redo"
         >
-          <Redo className="h-4 w-4" />
+          <Redo className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
 

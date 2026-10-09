@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { motion, useInView } from "framer-motion";
+import { motion, useInView, useReducedMotion } from "framer-motion";
 import { MapPin, Edit3, Trash2, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/utils";
@@ -24,7 +24,7 @@ type MilestoneCardProps = {
 // thumb renders through the link crop with the same math as the
 // cropper — null crop falls back to plain object-cover. src = ORIGINAL url
 // (rects are original-space), thumb = square center-fill for the no-crop case.
-function CropThumb({ src, thumb, crop, eager }: { src: string; thumb?: string | null; crop: unknown; eager?: boolean }) {
+function CropThumb({ src, thumb, crop, eager, alt }: { src: string; thumb?: string | null; crop: unknown; eager?: boolean; alt: string }) {
   const rect = parseCropRect(crop);
   // Cloudinary variant of the original (aspect-preserving → crop
   // fractions stay exact). Raw originals hang /_next/image past its 7s timeout
@@ -71,7 +71,7 @@ function CropThumb({ src, thumb, crop, eager }: { src: string; thumb?: string | 
       {style ? (
         <Image
           src={url}
-          alt=""
+          alt={alt}
           width={Math.round(style.width)}
           height={Math.round(style.height)}
           onLoad={onLoad}
@@ -83,7 +83,7 @@ function CropThumb({ src, thumb, crop, eager }: { src: string; thumb?: string | 
       ) : (
         <Image
           src={url}
-          alt=""
+          alt={alt}
           fill
           onLoad={onLoad}
           sizes="130px"
@@ -105,9 +105,10 @@ function MilestoneCard({
 }: MilestoneCardProps) {
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-60px" });
+  const reduceMotion = useReducedMotion();
 
   const isLeft = index % 2 === 0;
-  const cardColor = milestone.color || "#F43F5E";
+  const cardColor = milestone.color || "var(--primary)";
   // the first ~3 cards sit in the first viewport — their photos must
   // load eagerly or the browser reports them as a deferred LCP image.
   // Raise the bound if a viewport ever fits more cards.
@@ -118,7 +119,7 @@ function MilestoneCard({
       ref={ref}
       initial={{ opacity: 0, y: 40 }}
       animate={isInView ? { opacity: 1, y: 0 } : {}}
-      transition={{ duration: 0.5, delay: index * 0.08, ease: "easeOut" }}
+      transition={{ duration: reduceMotion ? 0 : 0.5, delay: reduceMotion ? 0 : index * 0.08, ease: "easeOut" }}
       className="relative"
     >
       <div
@@ -145,7 +146,7 @@ function MilestoneCard({
 
             <div className="flex flex-col gap-3 md:flex-row md:items-stretch">
               <div className={cn("min-w-0 flex-1 flex-col flex md:items-start", !isLeft && "text-justify")}>                <div className="mb-2 flex items-center gap-2 md:flex-row">
-                  <span className="flex items-center text-xl">{milestone.icon || <Heart className="h-5 w-5 fill-primary text-primary" />}</span>
+                  <span className="flex items-center text-xl">{milestone.icon || <Heart className="h-5 w-5 fill-primary text-primary" aria-hidden="true" />}</span>
                   <time className="text-xs text-muted-foreground">
                     {formatDate(milestone.date)}
                   </time>
@@ -163,13 +164,13 @@ function MilestoneCard({
 
                 {milestone.location && (
                   <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground md:flex-row">
-                    <MapPin className="h-3 w-3 shrink-0" />
+                    <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
                     <span>{milestone.location}</span>
                   </div>
                 )}
 
                 <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground md:flex-row"> 
-                  <Heart className="h-3 w-3 shrink-0" />
+                  <Heart className="h-3 w-3 shrink-0" aria-hidden="true" />
                   <Avatar className="h-5 w-5">
                     <AvatarImage src={milestone.createdBy.image ?? undefined} alt={milestone.createdBy.name ?? "Author"} />
                     <AvatarFallback>{milestone.createdBy.name?.charAt(0) || "P"}</AvatarFallback>
@@ -188,12 +189,13 @@ function MilestoneCard({
                     <button
                       key={photo.id}
                       onClick={() => onPhotoClick?.(photo.url)}
+                      aria-label={`Lihat foto ${milestone.title}`}
                       className={cn(
                         "relative aspect-square overflow-hidden rounded-lg",
                         milestone.photos.length === 1 && "col-start-2",
                       )}
                     >
-                      <CropThumb src={photo.url} thumb={photo.thumbnailUrl} crop={crop} eager={eager} />
+                      <CropThumb src={photo.url} thumb={photo.thumbnailUrl} crop={crop} eager={eager} alt={milestone.title} />
                     </button>
                   ))}
                   {milestone.photos.length > 2 && (
@@ -210,10 +212,10 @@ function MilestoneCard({
                 <div className="flex shrink-0 gap-1">
                   <button
                     onClick={() => onEdit?.(milestone)}
-                    className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                     aria-label="Ubah milestone"
                   >
-                    <Edit3 className="h-3.5 w-3.5" />
+                    <Edit3 className="h-3.5 w-3.5" aria-hidden="true" />
                   </button>
                   <button
                     onClick={async () => {
@@ -223,10 +225,10 @@ function MilestoneCard({
                       });
                       if (confirmed) onDelete?.(milestone.id);
                     }}
-                    className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                    className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
                     aria-label="Hapus milestone"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                   </button>
                 </div>
               )}
@@ -238,11 +240,13 @@ function MilestoneCard({
           <div
             className="flex h-10 w-10 items-center justify-center rounded-full border-4 border-background text-lg shadow-sm"
             style={{
-              backgroundColor: cardColor + "20",
+              backgroundColor: cardColor.startsWith("var(")
+                ? "color-mix(in srgb, var(--primary) 12%, transparent)"
+                : `${cardColor}20`,
               borderColor: cardColor,
             }}
           >
-            {milestone.icon || <Heart className="h-5 w-5 fill-primary text-primary" />}
+            {milestone.icon || <Heart className="h-5 w-5 fill-primary text-primary" aria-hidden="true" />}
           </div>
         </div>
       </div>

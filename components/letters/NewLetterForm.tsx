@@ -37,6 +37,7 @@ export default function NewLetterForm({ onClose }: { onClose?: () => void }) {
   const [isTimeCapsule, setIsTimeCapsule] = useState(false);
   const [unlockDate, setUnlockDate] = useState("");
   const [unlockTime, setUnlockTime] = useState("00:00");
+  const [unlockError, setUnlockError] = useState("");
   const [loading, setLoading] = useState(false);
 
   // F-12: disable until valid (same rules as handleSubmit) — toasts stay as backup.
@@ -61,8 +62,18 @@ export default function NewLetterForm({ onClose }: { onClose?: () => void }) {
       return;
     }
     if (isTimeCapsule && !unlockDate) {
+      setUnlockError("Pilih tanggal pembukaan time capsule");
       toast.error("Pilih tanggal pembukaan time capsule");
       return;
+    }
+    if (isTimeCapsule && unlockDate) {
+      const check = parseJakartaDateTime(unlockDate, unlockTime);
+      if (!check || check.getTime() <= Date.now()) {
+        setUnlockError("Tanggal pembukaan harus di masa depan");
+        toast.error("Tanggal pembukaan harus di masa depan");
+        return;
+      }
+      setUnlockError("");
     }
 
     setLoading(true);
@@ -127,9 +138,10 @@ export default function NewLetterForm({ onClose }: { onClose?: () => void }) {
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full p-1 transition-colors hover:bg-muted"
+            aria-label="Tutup"
+            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full p-1 transition-colors hover:bg-muted"
           >
-            <X className="h-4 w-4" />
+            <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
       )}
@@ -155,7 +167,14 @@ export default function NewLetterForm({ onClose }: { onClose?: () => void }) {
           maxLength={200}
           className="flex h-10 w-full rounded-xl border border-input bg-card px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
           required
+          aria-invalid={!title.trim()}
+          aria-describedby="letter-title-error"
         />
+        {!title.trim() && (
+          <p id="letter-title-error" role="alert" className="text-xs text-destructive">
+            Judul surat wajib diisi
+          </p>
+        )}
       </div>
 
       <div className="space-y-2">
@@ -193,7 +212,13 @@ export default function NewLetterForm({ onClose }: { onClose?: () => void }) {
           onChange={setContent}
           placeholder="Tulis isi surat dari hatimu..."
           ariaLabel="Isi surat"
+          describedBy="letter-content-error"
         />
+        {contentEmpty && (
+          <p id="letter-content-error" role="alert" className="text-xs text-destructive">
+            Konten surat wajib diisi
+          </p>
+        )}
       </div>
 
       <div className="rounded-xl border border-border bg-muted/30 p-4">
@@ -215,7 +240,7 @@ export default function NewLetterForm({ onClose }: { onClose?: () => void }) {
           </div>
         </label>
 
-        {isTimeCapsule && (
+        {isTimeCapsule ? (
           <div className="mt-4 grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label htmlFor="letter-unlock-date" className="text-xs font-medium text-muted-foreground">
@@ -225,9 +250,14 @@ export default function NewLetterForm({ onClose }: { onClose?: () => void }) {
                 id="letter-unlock-date"
                 type="date"
                 value={unlockDate}
-                onChange={(e) => setUnlockDate(e.target.value)}
+                onChange={(e) => {
+                  setUnlockDate(e.target.value);
+                  setUnlockError("");
+                }}
                 min={getJakartaToday()}
                 className="flex h-9 w-full rounded-lg border border-input bg-card px-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-invalid={!!unlockError}
+                aria-describedby={unlockError ? "letter-unlock-error" : undefined}
               />
             </div>
             <div className="space-y-1.5">
@@ -238,12 +268,20 @@ export default function NewLetterForm({ onClose }: { onClose?: () => void }) {
                 id="letter-unlock-time"
                 type="time"
                 value={unlockTime}
-                onChange={(e) => setUnlockTime(e.target.value)}
+                onChange={(e) => {
+                  setUnlockTime(e.target.value);
+                  setUnlockError("");
+                }}
                 className="flex h-9 w-full rounded-lg border border-input bg-card px-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
             </div>
           </div>
-        )}
+        ) : null}
+        {isTimeCapsule && unlockError ? (
+          <p id="letter-unlock-error" role="alert" className="mt-3 text-xs text-destructive">
+            {unlockError}
+          </p>
+        ) : null}
       </div>
 
       <div className="flex gap-3">

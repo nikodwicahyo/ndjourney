@@ -100,6 +100,10 @@ function WishCard({ wish, readOnly = false, onEdit }: WishCardProps) {
   const [imgError, setImgError] = useState(false);
   const cat = wish.category || "OTHER";
   const config = categoryConfig[cat] || categoryConfig.OTHER;
+  const reduceMotion =
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   async function handleToggle() {
     if (animating) return;
@@ -128,8 +132,8 @@ function WishCard({ wish, readOnly = false, onEdit }: WishCardProps) {
           : "border-border bg-card hover:scale-[1.02] hover:shadow-lg",
       )}
     >
-      {wish.isDone && (
-        <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">
+      {wish.isDone && !reduceMotion && (
+        <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl" aria-hidden="true">
           {Array.from({ length: 6 }).map((_, i) => (
             <motion.div
               key={i}
@@ -154,6 +158,7 @@ function WishCard({ wish, readOnly = false, onEdit }: WishCardProps) {
             >
               <Sparkles
                 className="h-4 w-4 text-yellow-400"
+                aria-hidden="true"
                 style={{
                   filter: "drop-shadow(0 0 2px rgba(250,204,21,0.5))",
                 }}
@@ -175,7 +180,7 @@ function WishCard({ wish, readOnly = false, onEdit }: WishCardProps) {
               {wish.title}
             </h3>
             <span
-              className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium"
+              className="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium"
               style={{
                 backgroundColor: config.color + "1a",
                 color: config.color,
@@ -215,7 +220,7 @@ function WishCard({ wish, readOnly = false, onEdit }: WishCardProps) {
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
               >
-                <ExternalLink className="h-3 w-3" />
+                <ExternalLink className="h-3 w-3" aria-hidden="true" />
                 Link
               </a>
             )}
@@ -227,17 +232,17 @@ function WishCard({ wish, readOnly = false, onEdit }: WishCardProps) {
             {onEdit && (
               <button
                 onClick={() => onEdit(wish)}
-                className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-all hover:bg-primary/10 hover:text-primary"
+                className="flex h-11 w-11 items-center justify-center rounded-full text-muted-foreground transition-all hover:bg-primary/10 hover:text-primary"
                 aria-label="Ubah wish"
               >
-                <Pencil className="h-3.5 w-3.5" />
+                <Pencil className="h-5 w-5" aria-hidden="true" />
               </button>
             )}
             <button
               onClick={handleToggle}
               disabled={animating}
               className={cn(
-                "flex h-7 w-7 items-center justify-center rounded-full border-2 transition-all",
+                "flex h-11 w-11 items-center justify-center rounded-full border-2 transition-all",
                 wish.isDone
                   ? "scale-110 border-green-500 bg-green-500 text-white"
                   : "border-muted-foreground/30 text-muted-foreground hover:border-primary hover:text-primary",
@@ -249,9 +254,9 @@ function WishCard({ wish, readOnly = false, onEdit }: WishCardProps) {
                 key={String(wish.isDone)}
                 initial={wish.isDone ? { scale: 0, rotate: -90 } : { scale: 1, rotate: 0 }}
                 animate={{ scale: 1, rotate: 0 }}
-                transition={{ type: "spring", stiffness: 400, damping: 15 }}
+                transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 400, damping: 15 }}
               >
-                <Check className="h-3.5 w-3.5" />
+                <Check className="h-5 w-5" aria-hidden="true" />
               </motion.div>
             </button>
           </div>
@@ -262,7 +267,7 @@ function WishCard({ wish, readOnly = false, onEdit }: WishCardProps) {
         <div
           className="relative mt-3 flex items-center gap-1.5 border-t border-green-500/20 pt-3 text-xs text-green-600 dark:text-green-400"
         >
-          <Heart className="h-3 w-3 fill-current" />
+          <Heart className="h-3 w-3 fill-current" aria-hidden="true" />
           <span>Tercapai!</span>
         </div>
       )}

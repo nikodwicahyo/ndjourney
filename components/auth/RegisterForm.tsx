@@ -150,7 +150,7 @@ export default function RegisterForm({ token }: { token: string }) {
         disabled={googleLoading || !mounted}
       >
         {googleLoading ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
+          <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
         ) : (
           <svg className="h-4 w-4" viewBox="0 0 24 24">
             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
@@ -179,7 +179,7 @@ export default function RegisterForm({ token }: { token: string }) {
             Nama
           </label>
           <div className="relative">
-            <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <input
               id="name"
               type="text"
@@ -197,7 +197,7 @@ export default function RegisterForm({ token }: { token: string }) {
             Email
           </label>
           <div className="relative">
-            <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <input
               id="email"
               type="email"
@@ -215,7 +215,7 @@ export default function RegisterForm({ token }: { token: string }) {
             Password
           </label>
           <div className="relative">
-            <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <input
               id="password"
               type={showPassword ? "text" : "password"}
@@ -230,10 +230,9 @@ export default function RegisterForm({ token }: { token: string }) {
               type="button"
               onClick={() => setShowPassword(!showPassword)}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
-              tabIndex={-1}
               aria-label={showPassword ? "Sembunyikan password" : "Tampilkan password"}
             >
-              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {showPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
             </button>
           </div>
         </div>
@@ -245,7 +244,7 @@ export default function RegisterForm({ token }: { token: string }) {
         <Button type="submit" size="lg" className="w-full" disabled={loading || !mounted}>
           {loading ? (
             <>
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
               Mendaftarkan...
             </>
           ) : (

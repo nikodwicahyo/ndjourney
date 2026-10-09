@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import L from "leaflet";
 import { useSession } from "next-auth/react";
+import { Heart, MapPin, Ruler } from "lucide-react";
 import {
   formatDistance,
   bearing,
@@ -29,6 +30,14 @@ const TILE_ATTR =
 
 const NOMINATIM_CACHE = new Map<string, string>();
 const NOMINATIM_CACHE_MAX = 50;
+
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
 
 async function reverseGeocode(
   lat: number,
@@ -88,14 +97,15 @@ function createAvatarIcon(
   image: string | null,
   isSelf: boolean,
 ): L.DivIcon {
-  const fallback = isSelf ? "💙" : "💖";
   const ring = isSelf ? "#3b82f6" : "#F43F5E";
-  const bg = "#fff";
+  const bg = "var(--card, #fff)";
+  const fg = "var(--foreground, #0f172a)";
   const shadow = "0 2px 6px rgba(0,0,0,.35)";
+  const heart = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="${ring}" stroke="${ring}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>`;
 
   const inner = image
     ? `<img src="${image}" alt="" style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:3px solid ${ring};box-shadow:${shadow};background:${bg};transition:transform 0.3s ease;" />`
-    : `<div style="width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;background:${bg};border:3px solid ${ring};box-shadow:${shadow};">${fallback}</div>`;
+    : `<div style="width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:${bg};border:3px solid ${ring};box-shadow:${shadow};color:${fg};">${heart}</div>`;
 
   return L.divIcon({
     className: "",
@@ -168,14 +178,16 @@ export default function PartnerMap({
   const [addressCache, setAddressCache] = useState<
     Record<string, string | null>
   >({});
+  const addressCacheRef = useRef(addressCache);
+  addressCacheRef.current = addressCache;
   const [isFullscreen, setIsFullscreen] = useState(false);
   const { data: session } = useSession();
 
   useEffect(() => {
-    [self, partner].forEach((p) => {
+    [selfRef.current, partnerRef.current].forEach((p) => {
       if (!p?.point) return;
       const key = `${p.point.lat.toFixed(4)},${p.point.lng.toFixed(4)}`;
-      if (!(key in addressCache)) {
+      if (!(key in addressCacheRef.current)) {
         reverseGeocode(p.point.lat, p.point.lng).then((addr) => {
           if (addr)
             setAddressCache((prev) => ({ ...prev, [key]: addr }));
@@ -291,10 +303,12 @@ export default function PartnerMap({
     const scaleStyle = document.createElement("style");
     scaleStyle.textContent = `
 .leaflet-control-scale{max-width:none!important;width:fit-content!important}
-.leaflet-control-scale-line{background:#fff!important;border:1px solid #ccc!important;border-top:none!important;color:#333!important;padding:0 6px 1px!important;font-size:11px!important;font-weight:500!important;width:fit-content!important;text-shadow:none!important;box-shadow:none!important}
+.leaflet-control-scale-line{background:var(--card,#fff)!important;border:1px solid #ccc!important;border-top:none!important;color:var(--foreground,#333)!important;padding:0 6px 1px!important;font-size:12px!important;font-weight:500!important;width:fit-content!important;text-shadow:none!important;box-shadow:none!important}
+.leaflet-bar a{width:44px!important;height:44px!important;line-height:44px!important;font-size:18px!important;}
 @keyframes leaflet-line-dash{to{stroke-dashoffset:-24}}
 .leaflet-connecting-line{animation:leaflet-line-dash 1.5s linear infinite}
 @keyframes leaflet-pulse{0%{transform:scale(1);opacity:.2}50%{transform:scale(2);opacity:0}100%{transform:scale(1);opacity:.2}}
+@media (prefers-reduced-motion: reduce){.leaflet-connecting-line{animation:none!important}div[style*="leaflet-pulse"]{animation:none!important}}
 `;
     containerRef.current?.appendChild(scaleStyle);
 
@@ -308,9 +322,10 @@ export default function PartnerMap({
       btn.title = title;
       btn.href = "#";
       btn.setAttribute("role", "button");
+      btn.setAttribute("aria-label", title);
       btn.style.cssText = [
-        "width:30px",
-        "height:35px",
+        "width:44px",
+        "height:44px",
         "display:flex",
         "align-items:center",
         "justify-content:center",
@@ -330,18 +345,18 @@ export default function PartnerMap({
       return btn;
     }
 
-    function zoomBtn(label: string, action: () => void): HTMLAnchorElement {
-      const btn = makeControlBtn(label, "", action);
+    function zoomBtn(label: string, title: string, action: () => void): HTMLAnchorElement {
+      const btn = makeControlBtn(label, title, action);
       btn.style.fontSize = "18px";
       btn.style.fontWeight = "bold";
-      btn.style.lineHeight = "35px";
+      btn.style.lineHeight = "44px";
       return btn;
     }
 
     const zoomBar = L.DomUtil.create("div");
     zoomBar.className = "leaflet-control-zoom leaflet-bar";
-    zoomBar.appendChild(zoomBtn("+", () => map.zoomIn()));
-    zoomBar.appendChild(zoomBtn("−", () => map.zoomOut()));
+    zoomBar.appendChild(zoomBtn("+", "Perbesar peta", () => map.zoomIn()));
+    zoomBar.appendChild(zoomBtn("−", "Perkecil peta", () => map.zoomOut()));
     const ZoomCtrl = L.Control.extend({ onAdd: () => zoomBar });
     new ZoomCtrl({ position: "bottomright" }).addTo(map);
 
@@ -352,17 +367,18 @@ export default function PartnerMap({
         `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>`,
         "Pusatkan ke lokasi saya",
         () => {
+          const reduceAnim = prefersReducedMotion();
           const currentSelf = selfRef.current;
           if (currentSelf?.point) {
             map.flyTo([currentSelf.point.lat, currentSelf.point.lng], 17, {
-              duration: 1.2,
+              duration: reduceAnim ? 0 : 1.2,
               easeLinearity: 0.3,
             });
           } else if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
               (pos) => {
                 map.flyTo([pos.coords.latitude, pos.coords.longitude], 17, {
-                  duration: 1.2,
+                  duration: reduceAnim ? 0 : 1.2,
                   easeLinearity: 0.3,
                 });
               },
@@ -379,18 +395,19 @@ export default function PartnerMap({
 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:-5px;"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>`,
         "Pusatkan ke pasangan",
         () => {
+          const reduceAnim = prefersReducedMotion();
           if (selfRef.current?.point && partnerRef.current?.point) {
             map.fitBounds(
               L.latLngBounds([
                 [selfRef.current.point.lat, selfRef.current.point.lng],
                 [partnerRef.current.point.lat, partnerRef.current.point.lng],
               ]),
-              { padding: [80, 80], maxZoom: 16, animate: true, duration: 1.2 },
+              { padding: [80, 80], maxZoom: 16, animate: !reduceAnim, duration: reduceAnim ? 0 : 1.2 },
             );
           } else if (selfRef.current?.point) {
-            map.flyTo([selfRef.current.point.lat, selfRef.current.point.lng], 16, { duration: 1.2 });
+            map.flyTo([selfRef.current.point.lat, selfRef.current.point.lng], 16, { duration: reduceAnim ? 0 : 1.2 });
           } else if (partnerRef.current?.point) {
-            map.flyTo([partnerRef.current.point.lat, partnerRef.current.point.lng], 16, { duration: 1.2 });
+            map.flyTo([partnerRef.current.point.lat, partnerRef.current.point.lng], 16, { duration: reduceAnim ? 0 : 1.2 });
           }
         },
       ),
@@ -496,15 +513,16 @@ export default function PartnerMap({
 
     const fitMarkerBounds = () => {
       if (markersFittedRef.current) return;
+      const reduceAnim = prefersReducedMotion();
       if (pins.length === 2) {
         map.fitBounds(L.latLngBounds(markerLatLngs), {
           padding: [80, 80],
           maxZoom: 16,
-          animate: true,
+          animate: !reduceAnim,
         });
         markersFittedRef.current = true;
       } else if (pins.length === 1) {
-        map.setView(markerLatLngs[0], 16, { animate: true });
+        map.setView(markerLatLngs[0], 16, { animate: !reduceAnim });
         markersFittedRef.current = true;
       }
     };
@@ -576,7 +594,7 @@ export default function PartnerMap({
       markerLatLngs.forEach((ll) => bounds.extend(ll));
     }
     if (!historyFittedRef.current) {
-      map.fitBounds(bounds, { padding: [80, 80], maxZoom: 16, animate: true });
+      map.fitBounds(bounds, { padding: [80, 80], maxZoom: 16, animate: !prefersReducedMotion() });
       historyFittedRef.current = true;
     }
   }, [history, showHistory, session?.user?.id, self, partner]);
@@ -650,33 +668,34 @@ export default function PartnerMap({
         : null;
 
       const deviceInfo = p.deviceType
-        ? `<span style="font-size:11px;opacity:0.7;">${esc(p.deviceType)}</span>`
+        ? `<span style="font-size:12px;opacity:0.7;">${esc(p.deviceType)}</span>`
         : "";
       const accuracyInfo = p.point.accuracy
-        ? `<div style="font-size:11px;margin-top:2px;">±${Math.round(p.point.accuracy)}m · ${accuracyLabel(p.point.accuracy)}</div>`
+        ? `<div style="font-size:12px;margin-top:2px;color:var(--foreground,#111827);">±${Math.round(p.point.accuracy)}m · ${accuracyLabel(p.point.accuracy)}</div>`
         : "";
       const timeInfo = p.point.updatedAt
-        ? `<div style="font-size:11px;opacity:0.6;margin-top:2px;">${timeAgo(p.point.updatedAt)}</div>`
+        ? `<div style="font-size:12px;opacity:0.6;margin-top:2px;">${timeAgo(p.point.updatedAt)}</div>`
         : "";
       const addressInfo = address
-        ? `<div style="font-size:11px;margin-top:2px;color:#64748b;">📍 ${esc(address)}</div>`
+        ? `<div style="font-size:12px;margin-top:2px;color:var(--muted-foreground,#64748b);">${esc(address)}</div>`
         : "";
       const headingInfo =
         p.point.heading !== null && p.point.heading >= 0
-          ? `<div style="font-size:11px;margin-top:2px;opacity:0.6;">🧭 ${formatBearing(p.point.heading)}</div>`
+          ? `<div style="font-size:12px;margin-top:2px;opacity:0.6;">${formatBearing(p.point.heading)}</div>`
           : "";
       const speedInfo =
         p.point.speed !== null && p.point.speed >= 0
-          ? `<div style="font-size:11px;margin-top:2px;opacity:0.6;">⚡ ${(p.point.speed * 3.6).toFixed(1)} km/j</div>`
+          ? `<div style="font-size:12px;margin-top:2px;opacity:0.6;">${(p.point.speed * 3.6).toFixed(1)} km/j</div>`
           : "";
 
+      const heartSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="${p.isSelf ? "#3b82f6" : "#F43F5E"}" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>`;
       const avatarHtml = safeImg
         ? `<img src="${safeImg}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;" />`
-        : `<div style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;background:#f1f5f9;">${p.isSelf ? "💙" : "💖"}</div>`;
+        : `<div style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--muted,#f1f5f9);">${heartSvg}</div>`;
 
       marker.bindPopup(
         `
-        <div style="min-width:180px;font-family:system-ui,sans-serif;">
+        <div style="min-width:180px;font-family:system-ui,sans-serif;background:var(--popover,var(--card,#fff));color:var(--popover-foreground,var(--foreground,#111827));border-radius:8px;">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
             ${avatarHtml}
             <div>
@@ -689,7 +708,7 @@ export default function PartnerMap({
           ${headingInfo}
           ${speedInfo}
           ${timeInfo}
-          <div style="font-size:10px;opacity:0.4;margin-top:4px;border-top:1px solid #e2e8f0;padding-top:4px;">
+          <div style="font-size:12px;opacity:0.4;margin-top:4px;border-top:1px solid var(--border,#e2e8f0);padding-top:4px;">
             ${p.point.lat.toFixed(6)}, ${p.point.lng.toFixed(6)}
           </div>
         </div>
@@ -724,7 +743,7 @@ export default function PartnerMap({
       distanceLabelRef.current = L.marker(mid, {
         icon: L.divIcon({
           className: "",
-          html: `<div style="color:#be185d;font-size:18px;font-weight:800;white-space:nowrap;display:flex;align-items:center;gap:6px;text-shadow:0 1px 4px rgba(255,255,255,0.9),0 1px 6px rgba(244,63,94,0.15);"><span style="font-size:16px;line-height:1;">❤️</span><span>${distLabel}</span></div>`,
+          html: `<div style="color:#be185d;font-size:18px;font-weight:800;white-space:nowrap;display:flex;align-items:center;gap:6px;text-shadow:0 1px 4px rgba(255,255,255,0.9),0 1px 6px rgba(244,63,94,0.15);"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#F43F5E" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg><span>${distLabel}</span></div>`,
           iconSize: [0, 0],
           iconAnchor: [0, 0],
         }),
@@ -734,21 +753,20 @@ export default function PartnerMap({
       const bearingId = bearingDeg !== null ? formatBearingId(bearingDeg) : "";
 
       if (!markersFittedRef.current) {
-        map.fitBounds(L.latLngBounds(latlngs), { padding: [80, 80], maxZoom: 16, animate: true });
+        map.fitBounds(L.latLngBounds(latlngs), { padding: [80, 80], maxZoom: 16, animate: !prefersReducedMotion() });
         markersFittedRef.current = true;
       }
     } else if (pins.length === 1) {
       if (!markersFittedRef.current) {
         map.setView([pins[0].point.lat, pins[0].point.lng], 16, {
-          animate: true,
+          animate: !prefersReducedMotion(),
         });
         markersFittedRef.current = true;
       }
     } else if (!markersFittedRef.current) {
       // No pins, show default view (once)
-      map.setView([-6.2, 106.816], 14, { animate: true });
+      map.setView([-6.2, 106.816], 14, { animate: !prefersReducedMotion() });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [self, partner, addressCache]);
 
   const toggleFullscreen = useCallback(() => {
@@ -807,21 +825,36 @@ export default function PartnerMap({
     >
       <div
         ref={containerRef}
+        role="application"
+        aria-label="Peta lokasi pasangan"
         className="h-full w-full min-h-[420px]"
         style={{
           background: "#eef2f7",
         }}
       />
+      <ul className="sr-only">
+        {self?.point && (
+          <li>
+            {self.label}: {self.point.lat.toFixed(6)}, {self.point.lng.toFixed(6)}
+          </li>
+        )}
+        {partner?.point && (
+          <li>
+            {partner.label}: {partner.point.lat.toFixed(6)}, {partner.point.lng.toFixed(6)}
+          </li>
+        )}
+      </ul>
 
       {showHistory && (
-        <div className="absolute left-3 top-3 z-[1001] rounded-full bg-background/75 px-3 py-1 text-xs font-medium text-foreground shadow-sm backdrop-blur-sm">
-          🗺️ Riwayat lokasi
+        <div className="absolute left-3 top-3 z-[1001] flex items-center gap-1.5 rounded-full bg-background/75 px-3 py-1 text-xs font-medium text-foreground shadow-sm backdrop-blur-sm">
+          <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
+          Riwayat lokasi
         </div>
       )}
 
       {/* Bottom info bar */}
       <div className="absolute bottom-6 left-2 right-2 z-[1001]">
-        <div className="mx-auto flex max-w-max flex-wrap items-center gap-2 rounded-full bg-background/80 px-4 py-1.5 shadow-sm backdrop-blur-sm text-xs text-muted-foreground">
+        <div className="mx-auto flex max-w-[calc(100%-1rem)] flex-wrap items-center gap-2 rounded-full bg-background/80 px-4 py-1.5 shadow-sm backdrop-blur-sm text-xs text-muted-foreground">
           {self?.point && (
             <>
               <span className="flex items-center gap-1">
@@ -839,7 +872,7 @@ export default function PartnerMap({
             <>
               <span className="text-muted-foreground/40">·</span>
               <span className="flex items-center gap-1">
-                💖 {partner.label}
+                <Heart className="h-3 w-3" aria-hidden="true" /> {partner.label}
               </span>
               {partnerAddress && (
                 <span className="hidden sm:inline text-muted-foreground/60 truncate max-w-[120px]">
@@ -852,7 +885,7 @@ export default function PartnerMap({
             <>
               <span className="text-muted-foreground/40">·</span>
               <span className="flex items-center gap-1">
-                📏{" "}
+                <Ruler className="h-3 w-3" aria-hidden="true" />{" "}
                 {formatDistance(
                   haversineMeters(
                     {

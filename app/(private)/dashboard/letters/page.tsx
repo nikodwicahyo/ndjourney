@@ -11,7 +11,7 @@ export default function LettersPage() {
     <PageTransition>
       <div>
         <div className="mb-8">
-          <h1 className="flex items-center gap-2 font-heading text-xl sm:text-2xl lg:text-3xl break-words"><Mail className="h-6 w-6 text-primary" /> Love Letters</h1>
+          <h1 className="flex items-center gap-2 font-heading text-xl sm:text-2xl lg:text-3xl break-words"><Mail className="h-6 w-6 text-primary" aria-hidden="true" /> Love Letters</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Surat cinta untuk pasanganmu
           </p>

@@ -5,7 +5,7 @@ import { useWishes } from "@/hooks/useWishes";
 import WishCard from "@/components/wishlist/WishCard";
 import WishForm from "@/components/wishlist/WishForm";
 import { Button, Skeleton } from "@/components/ui";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { Gift, Filter, Heart, PartyPopper } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { WishItem } from "@/types";
@@ -23,6 +23,7 @@ export default function WishlistManager() {
   const [filter, setFilter] = useState("");
   const [showDone, setShowDone] = useState(true);
   const [editingWish, setEditingWish] = useState<WishItem | null>(null);
+  const reduceMotion = useReducedMotion();
 
   const filtered = (wishes || [])
     .filter((w) => !filter || w.category === filter)
@@ -59,6 +60,7 @@ export default function WishlistManager() {
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: reduceMotion ? 0 : 0.3 }}
           className="rounded-2xl border border-border bg-card p-5 shadow-sm"
         >
           <div className="flex items-center justify-between">
@@ -77,7 +79,7 @@ export default function WishlistManager() {
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: `${progress}%` }}
-              transition={{ duration: 0.8, ease: "easeOut" }}
+              transition={{ duration: reduceMotion ? 0 : 0.8, ease: "easeOut" }}
               className="h-full rounded-full bg-primary"
             />
           </div>
@@ -89,15 +91,17 @@ export default function WishlistManager() {
           {CATEGORIES.map((cat) => (
             <button
               key={cat.value}
+              type="button"
               onClick={() => setFilter(cat.value)}
+              aria-pressed={filter === cat.value}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all",
+                "inline-flex min-h-[44px] items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all",
                 filter === cat.value
                   ? "border-primary bg-primary/10 text-primary shadow-sm"
                   : "border-border text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground",
               )}
             >
-              <cat.icon className="h-3 w-3" />
+              <cat.icon className="h-3 w-3" aria-hidden="true" />
               {cat.label}
             </button>
           ))}
@@ -105,15 +109,17 @@ export default function WishlistManager() {
 
         <div className="flex flex-wrap items-center gap-2">
           <button
+            type="button"
             onClick={() => setShowDone(!showDone)}
+            aria-pressed={showDone}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+              "inline-flex min-h-[44px] items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
               showDone
                 ? "border-border text-muted-foreground"
                 : "border-primary bg-primary/10 text-primary",
             )}
           >
-            <Filter className="h-3 w-3" />
+            <Filter className="h-3 w-3" aria-hidden="true" />
             {showDone ? "Semua" : "Belum"}
           </button>
 

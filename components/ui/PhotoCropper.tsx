@@ -150,8 +150,8 @@ export default function PhotoCropper({
       <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
         <div className="flex items-center justify-between p-4 pb-0">
           <h3 className="font-heading text-base font-semibold">{title}</h3>
-          <button type="button" onClick={onCancel} aria-label="Tutup" className="rounded-full p-1 transition-colors hover:bg-muted">
-            <X className="h-4 w-4" />
+          <button type="button" onClick={onCancel} aria-label="Tutup" className="flex min-h-11 min-w-11 items-center justify-center rounded-full p-1 transition-colors hover:bg-muted">
+            <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
         <p className="px-4 pt-1 text-xs text-muted-foreground">
@@ -197,13 +197,13 @@ export default function PhotoCropper({
                 className="pointer-events-none absolute left-1/2 top-0 h-full -translate-x-1/2 rounded-md border-2 border-dashed border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]"
                 style={{ aspectRatio: "9 / 16" }}
               >
-                <span className="absolute left-1/2 top-2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white">
+                <span className="absolute left-1/2 top-2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/60 px-2 py-0.5 text-xs font-medium text-white">
                   Area aman HP
                 </span>
               </div>
             )}
             {guide === "phone" && natural && !loadError && (
-              <span className="pointer-events-none absolute bottom-2 left-2 whitespace-nowrap rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white">
+              <span className="pointer-events-none absolute bottom-2 left-2 whitespace-nowrap rounded-full bg-black/60 px-2 py-0.5 text-xs font-medium text-white">
                 Desktop
               </span>
             )}
@@ -241,11 +241,11 @@ export default function PhotoCropper({
               type="button"
               onClick={() => { setCenter({ cx: 0.5, cy: 0.5 }); handleZoom(1); }}
               disabled={!natural || loadError}
-              className="rounded-full p-1.5 transition-colors hover:bg-muted disabled:opacity-40"
+              className="flex min-h-11 min-w-11 items-center justify-center rounded-full p-1.5 transition-colors hover:bg-muted disabled:opacity-40"
               aria-label="Reset"
               title="Reset"
             >
-              <RotateCcw className="h-4 w-4" />
+              <RotateCcw className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
         </div>

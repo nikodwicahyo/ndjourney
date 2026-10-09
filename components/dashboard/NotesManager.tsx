@@ -7,7 +7,7 @@ import { Button, Skeleton, Avatar, AvatarImage, AvatarFallback } from "@/compone
 import { Send, Heart, MessageCircle, Calendar, List, Loader2, Trash2 } from "lucide-react";
 import { formatDate, formatRelativeTime } from "@/lib/utils";
 import { getJakartaToday } from "@/lib/date";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { showDeleteConfirm } from "@/lib/swal";
@@ -20,6 +20,7 @@ export default function NotesManager() {
   const [content, setContent] = useState("");
   const [selectedDate, setSelectedDate] = useState(today);
   const [viewMode, setViewMode] = useState<"all" | "date">("date");
+  const reduceMotion = useReducedMotion();
   const { data: selectedNotes, isLoading, error } = useDailyNotes(
     viewMode === "all" ? undefined : selectedDate,
   );
@@ -57,16 +58,19 @@ export default function NotesManager() {
       <section>
         <h2 className="mb-4 font-heading text-lg font-semibold">Tulis Catatan</h2>
         <form onSubmit={handleSubmit} className="space-y-3">
+          <label htmlFor="note-content" className="text-sm font-medium">Catatan harian</label>
           <div className="relative">
             <textarea
+              id="note-content"
               value={content}
               onChange={(e) => setContent(e.target.value)}
               placeholder="Apa yang kamu rasakan hari ini?"
               maxLength={280}
               rows={3}
+              aria-describedby="note-counter"
               className="flex w-full resize-none rounded-xl border border-input bg-card px-4 py-3 pr-16 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
-            <span className={`absolute bottom-3 right-3 text-xs ${content.length >= 280 ? "text-destructive" : "text-muted-foreground"}`}>
+            <span id="note-counter" className={`absolute bottom-3 right-3 text-xs ${content.length >= 280 ? "text-destructive" : "text-muted-foreground"}`}>
               {content.length}/280
             </span>
           </div>
@@ -87,38 +91,46 @@ export default function NotesManager() {
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex overflow-hidden rounded-lg border border-input">
               <button
+                type="button"
                 onClick={() => setViewMode("all")}
+                aria-pressed={viewMode === "all"}
                 className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 text-xs transition-colors",
+                  "flex min-h-[44px] items-center gap-1.5 px-3 py-1.5 text-xs transition-colors",
                   viewMode === "all"
                     ? "bg-primary text-primary-foreground"
                     : "bg-background text-muted-foreground hover:text-foreground",
                 )}
               >
-                <List className="h-3.5 w-3.5" />
+                <List className="h-3.5 w-3.5" aria-hidden="true" />
                 Semua
               </button>
               <button
+                type="button"
                 onClick={() => setViewMode("date")}
+                aria-pressed={viewMode === "date"}
                 className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 text-xs transition-colors",
+                  "flex min-h-[44px] items-center gap-1.5 px-3 py-1.5 text-xs transition-colors",
                   viewMode === "date"
                     ? "bg-primary text-primary-foreground"
                     : "bg-background text-muted-foreground hover:text-foreground",
                 )}
               >
-                <Calendar className="h-3.5 w-3.5" />
+                <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
                 Tanggal
               </button>
             </div>
             {viewMode === "date" && (
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                max={today}
-                className="flex h-9 rounded-lg border border-input bg-card px-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
+              <>
+                <label htmlFor="notes-date-filter" className="sr-only">Filter tanggal</label>
+                <input
+                  id="notes-date-filter"
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  max={today}
+                  className="flex h-9 rounded-lg border border-input bg-card px-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+              </>
             )}
           </div>
         </div>
@@ -160,7 +172,7 @@ export default function NotesManager() {
                   key={note.id}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.05 }}
+                  transition={{ delay: reduceMotion ? 0 : i * 0.05 }}
                   className="rounded-2xl border border-border bg-card p-4"
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -180,10 +192,10 @@ export default function NotesManager() {
                       {isAuthor && (
                         <button
                           onClick={() => handleDelete(note.id)}
-                          className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                          className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
                           aria-label="Hapus catatan"
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
+                          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                         </button>
                       )}
                     </div>

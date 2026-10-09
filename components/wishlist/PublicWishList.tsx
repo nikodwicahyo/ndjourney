@@ -22,11 +22,15 @@ export default function PublicWishList() {
   const { data: session } = useSession();
   const { data: wishes, isLoading, error, refetch } = useWishes();
   const [filter, setFilter] = useState("");
+  const reduceMotion =
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   if (!session?.user) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
-        <Gift className="h-12 w-12 text-muted-foreground" />
+        <Gift className="h-12 w-12 text-muted-foreground" aria-hidden="true" />
         <p className="text-muted-foreground">Login untuk melihat wish</p>
         <Link
           href="/login"
@@ -76,7 +80,7 @@ export default function PublicWishList() {
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <PartyPopper className="h-5 w-5 text-primary" />
+              <PartyPopper className="h-5 w-5 text-primary" aria-hidden="true" />
               <p className="text-sm font-medium">
                 <span className="font-heading text-lg font-semibold text-primary">
                   {doneCount}
@@ -94,7 +98,7 @@ export default function PublicWishList() {
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: `${progress}%` }}
-              transition={{ duration: 0.8, ease: "easeOut" }}
+              transition={reduceMotion ? { duration: 0 } : { duration: 0.8, ease: "easeOut" }}
               className="h-full rounded-full bg-primary"
             />
           </div>
@@ -113,15 +117,15 @@ export default function PublicWishList() {
                 key={cat.value}
                 onClick={() => setFilter(cat.value)}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all",
+                  "inline-flex min-h-[44px] min-w-[44px] items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all",
                   filter === cat.value
                     ? "border-primary bg-primary/10 text-primary shadow-sm"
                     : "border-border text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground",
                 )}
               >
-                <cat.icon className="h-3 w-3" />
+                <cat.icon className="h-3 w-3" aria-hidden="true" />
                 {cat.label}
-                <span className="ml-0.5 rounded-full bg-muted-foreground/10 px-1.5 py-0.5 text-[10px] tabular-nums">
+                <span className="ml-0.5 rounded-full bg-muted-foreground/10 px-1.5 py-0.5 text-xs tabular-nums">
                   {count}
                 </span>
               </button>
@@ -132,7 +136,7 @@ export default function PublicWishList() {
 
       {filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
-          <Gift className="h-12 w-12 text-muted-foreground" />
+          <Gift className="h-12 w-12 text-muted-foreground" aria-hidden="true" />
           <div>
             <p className="font-medium">Belum ada wish</p>
             <p className="mt-1 text-sm text-muted-foreground">

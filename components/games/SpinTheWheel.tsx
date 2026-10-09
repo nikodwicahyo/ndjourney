@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useAllQuestions } from "@/hooks/useGames";
 import { Button, Skeleton } from "@/components/ui";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { Heart, RotateCcw, RefreshCw } from "lucide-react";
 
 const MAX_WHEEL_SEGMENTS = 15;
@@ -54,6 +54,7 @@ export default function SpinTheWheel() {
   const [history, setHistory] = useState<string[]>([]);
   const [seenIds, setSeenIds] = useState<Set<string>>(loadSeenIds);
   const [resetCount, setResetCount] = useState(0);
+  const reduceMotion = useReducedMotion();
 
   const spinTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -87,7 +88,7 @@ export default function SpinTheWheel() {
 
   const segmentAngle = segments.length > 0 ? 360 / segments.length : 0;
   const isManySegments = segments.length > 12;
-  const fontSize = isManySegments ? "text-[10px]" : "text-xs";
+  const fontSize = "text-xs";
   const labelMaxWidth = isManySegments ? "50px" : "65px";
   const labelTruncateLen = isManySegments ? 10 : 14;
 
@@ -110,8 +111,8 @@ export default function SpinTheWheel() {
       setHistory(prev => [idea.question, ...prev].slice(0, 10));
       setSeenIds(prev => new Set(prev).add(idea.id));
       setSpinning(false);
-    }, SPIN_DURATION_MS);
-  }, [spinning, segments, segmentAngle, rotation]);
+    }, reduceMotion ? 0 : SPIN_DURATION_MS);
+  }, [spinning, segments, segmentAngle, rotation, reduceMotion]);
 
   const resetAll = useCallback(() => {
     setSeenIds(new Set());
@@ -149,7 +150,7 @@ export default function SpinTheWheel() {
       <div className="relative">
         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-full bg-background shadow-lg">
-            <Heart className="h-6 w-6 fill-primary text-primary" />
+            <Heart className="h-6 w-6 fill-primary text-primary" aria-hidden="true" />
           </div>
         </div>
 
@@ -169,8 +170,8 @@ export default function SpinTheWheel() {
               .join(", ")})`,
           }}
           initial={{ rotate: 0 }}
-          animate={{ rotate: rotation }}
-          transition={{ duration: 3.8, ease: [0.17, 0.67, 0.12, 0.99] }}
+          animate={reduceMotion ? {} : { rotate: rotation }}
+          transition={{ duration: reduceMotion ? 0 : 3.8, ease: [0.17, 0.67, 0.12, 0.99] }}
         >
           {segments.map((idea, i) => {
             const midAngle = i * segmentAngle + segmentAngle / 2;
@@ -206,7 +207,7 @@ export default function SpinTheWheel() {
 
       {allExhausted ? (
         <Button size="lg" onClick={resetAll} className="gap-2">
-          <RefreshCw className="h-4 w-4" />
+          <RefreshCw className="h-4 w-4" aria-hidden="true" />
           Kocok Ulang Semua 🎲
         </Button>
       ) : (
@@ -220,7 +221,7 @@ export default function SpinTheWheel() {
             "Memutar..."
           ) : (
             <>
-              <RotateCcw className="h-4 w-4" />
+              <RotateCcw className="h-4 w-4" aria-hidden="true" />
               Putar Roda
             </>
           )}

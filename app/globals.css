@@ -301,6 +301,15 @@
     text-wrap: balance;
   }
 
+  .scrollbar-hide {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
   .bg-shimmer {
     background: linear-gradient(
       90deg,
@@ -375,6 +384,10 @@
     color: oklch(0.52 0.175 8);
     text-decoration: underline;
     text-underline-offset: 2px;
+  }
+
+  .dark .tiptap-content a {
+    color: oklch(0.72 0.15 8);
   }
 
   .tiptap-content hr {

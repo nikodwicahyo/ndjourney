@@ -42,7 +42,7 @@ export default async function LoginPage({ searchParams }: Props) {
         </Suspense>
 
         <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-          <Suspense fallback={<div className="h-48 animate-pulse rounded-xl bg-muted" />}>
+          <Suspense fallback={<div className="h-48 animate-pulse motion-reduce:animate-none rounded-xl bg-muted" />}>
             <LoginForm />
           </Suspense>
         </div>

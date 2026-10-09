@@ -20,6 +20,29 @@ const EMOJIS = [
   "🌸", "🍀", "🎁", "💍", "🏠", "🍝", "🎬", "📸", "🎵", "💌",
 ];
 
+const EMOJI_NAMES: Record<string, string> = {
+  "💕": "hati ganda",
+  "❤️": "hati merah",
+  "🥰": "wajah tersenyum penuh cinta",
+  "😊": "wajah tersenyum",
+  "🎉": "pesta",
+  "🎂": "kue ulang tahun",
+  "✈️": "pesawat",
+  "🏖️": "pantai",
+  "⛰️": "gunung",
+  "🌅": "matahari terbit",
+  "🌸": "bunga sakura",
+  "🍀": "daun semanggi",
+  "🎁": "kado",
+  "💍": "cincin",
+  "🏠": "rumah",
+  "🍝": "spageti",
+  "🎬": "film",
+  "📸": "kamera",
+  "🎵": "musik",
+  "💌": "surat cinta",
+};
+
 const COLORS = [
   "#F43F5E", "#EC4899", "#F97316", "#EAB308", "#22C55E",
   "#14B8A6", "#6366F1", "#8B5CF6", "#A855F7", "#06B6D4",
@@ -132,6 +155,9 @@ export default function AddMilestoneForm({
     Array<{ id?: string; url: string; thumbnailUrl: string | null; publicId?: string; crop?: CropRect | null }>
   >(milestone?.photos?.map((p) => ({ ...p.photo, publicId: undefined, crop: parseCropRect(p.crop) })) || []);
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [titleError, setTitleError] = useState<string | null>(null);
   const [showGalleryPicker, setShowGalleryPicker] = useState(false);
   // crop rides the photo item — removing the photo drops its crop, no orphans.
   const [cropTarget, setCropTarget] = useState<{ key: string; src: string } | null>(null);
@@ -152,16 +178,20 @@ export default function AddMilestoneForm({
     if (picked.length < files.length) toast.error(`Maksimal 2 foto — ${files.length - picked.length} file dilewati`);
 
     setUploadingPhotos(true);
+    setUploadError(null);
+    setUploadProgress(0);
     for (const file of picked) {
       try {
-        const result = await uploadFileSimple(file, () => {});
+        const result = await uploadFileSimple(file, (p) => setUploadProgress(Math.round(p.progress ?? 0)));
         setSelectedPhotos((prev) =>
           prev.length >= 2
             ? prev
             : [...prev, { url: result.url, thumbnailUrl: result.thumbnailUrl ?? null, publicId: result.publicId }],
         );
       } catch {
-        toast.error(`Gagal upload ${file.name}`);
+        const msg = `Gagal upload ${file.name}`;
+        setUploadError(msg);
+        toast.error(msg);
       }
     }
     setUploadingPhotos(false);
@@ -205,9 +235,11 @@ export default function AddMilestoneForm({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) {
+      setTitleError("Judul milestone wajib diisi");
       toast.error("Judul milestone wajib diisi");
       return;
     }
+    setTitleError(null);
 
     setLoading(true);
 
@@ -260,9 +292,10 @@ export default function AddMilestoneForm({
           </h2>
           <button
             onClick={onClose}
-            className="rounded-full p-1 transition-colors hover:bg-muted"
+            aria-label="Tutup"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-full p-1 transition-colors hover:bg-muted"
           >
-            <X className="h-4 w-4" />
+            <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
 
@@ -272,11 +305,13 @@ export default function AddMilestoneForm({
             <input
               id="milestone-title"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => { setTitle(e.target.value); if (titleError) setTitleError(null); }}
               placeholder="Contoh: First Date"
+              aria-invalid={!!titleError}
               className="flex h-10 w-full rounded-xl border border-input bg-muted px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
               required
             />
+            {titleError && <p role="alert" className="text-xs text-destructive">{titleError}</p>}
           </div>
 
           <div className="space-y-2">
@@ -311,9 +346,9 @@ export default function AddMilestoneForm({
                   key={e}
                   type="button"
                   onClick={() => setIcon(e)}
-                  aria-label={`Icon ${e}`}
+                  aria-label={`Icon ${EMOJI_NAMES[e] ?? e}`}
                   aria-pressed={icon === e}
-                  className={`flex h-8 w-8 items-center justify-center rounded-lg text-base transition-colors ${
+                  className={`flex h-8 min-h-11 w-8 min-w-11 items-center justify-center rounded-lg text-base transition-colors ${
                     icon === e
                       ? "bg-primary/10 ring-2 ring-primary"
                       : "hover:bg-muted"
@@ -335,7 +370,7 @@ export default function AddMilestoneForm({
                   onClick={() => setColor(c)}
                   aria-label={`Warna ${c}`}
                   aria-pressed={color === c}
-                  className={`h-7 w-7 rounded-full transition-transform ${
+                  className={`h-7 min-h-11 w-7 min-w-11 rounded-full transition-transform ${
                     color === c ? "ring-2 ring-ring ring-offset-2 scale-110" : ""
                   }`}
                   style={{ backgroundColor: c }}
@@ -369,7 +404,7 @@ export default function AddMilestoneForm({
                       title="Hapus foto"
                       className="absolute right-1 top-1 z-10 rounded-full bg-black/70 p-1.5 text-white transition-colors hover:bg-destructive"
                     >
-                      <X className="h-3.5 w-3.5" />
+                      <X className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>
                     <button
                       type="button"
@@ -377,11 +412,11 @@ export default function AddMilestoneForm({
                       aria-label={photo.crop ? "Ubah crop" : "Atur crop"}
                       title={photo.crop ? "Ubah crop" : "Atur crop"}
                       className={cn(
-                        "absolute bottom-1 right-1 z-10 flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-medium text-white transition-colors",
+                        "absolute bottom-1 right-1 z-10 flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium text-white transition-colors",
                         photo.crop ? "bg-primary hover:bg-primary/80" : "bg-black/70 hover:bg-black/90",
                       )}
                     >
-                      <Crop className="h-3 w-3" />
+                      <Crop className="h-3 w-3" aria-hidden="true" />
                       {photo.crop ? "Crop ✓" : "Crop"}
                     </button>
                   </div>
@@ -406,12 +441,16 @@ export default function AddMilestoneForm({
                 disabled={uploadingPhotos || selectedPhotos.length >= 2}
               >
                 {uploadingPhotos ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 motion-safe:animate-spin" aria-hidden="true" />
                 ) : (
-                  <Upload className="h-4 w-4" />
+                  <Upload className="h-4 w-4" aria-hidden="true" />
                 )}
                 Upload Foto Baru
               </Button>
+              {uploadingPhotos && (
+                <span className="text-xs text-muted-foreground" aria-live="polite">Mengupload... {uploadProgress}%</span>
+              )}
+              {uploadError && <p role="alert" className="w-full text-xs text-destructive">{uploadError}</p>}
               <Button
                 type="button"
                 variant="outline"
@@ -420,10 +459,10 @@ export default function AddMilestoneForm({
                 onClick={openGalleryPicker}
                 disabled={selectedPhotos.length >= 2}
               >
-                <ImagePlus className="h-4 w-4" />
+                <ImagePlus className="h-4 w-4" aria-hidden="true" />
                 Pilih dari Galeri
               </Button>
-              <span className="w-full text-[11px] text-muted-foreground">
+              <span className="w-full text-xs text-muted-foreground">
                 Max 2 foto.
               </span>
             </div>
@@ -442,7 +481,7 @@ export default function AddMilestoneForm({
             <Button type="submit" className="flex-1" disabled={loading}>
               {loading ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 motion-safe:animate-spin" aria-hidden="true" />
                   Menyimpan...
                 </>
               ) : isEditing ? (

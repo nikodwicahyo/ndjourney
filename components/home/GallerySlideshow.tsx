@@ -138,15 +138,23 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
   }, [isPaused, reduceMotion, hasPhotos]);
 
   // Keep the active dot visible as autoplay/manual nav advances —
-  // passive scroll only, no state, so SSR/first paint stay identical.
+  // scroll the dots strip only (never the page), no state so
+  // SSR/first paint stay identical.
   useEffect(() => {
-    const active = dotsRef.current?.querySelector('[aria-current="true"]');
-    if (active instanceof HTMLElement && typeof active.scrollIntoView === "function") {
-      active.scrollIntoView({
-        inline: "center",
-        block: "nearest",
+    const container = dotsRef.current;
+    const active = container?.querySelector('[aria-current="true"]');
+    if (!(container && active instanceof HTMLElement)) return;
+    const target = Math.max(
+      0,
+      active.offsetLeft + active.offsetWidth / 2 - container.clientWidth / 2,
+    );
+    if (typeof container.scrollTo === "function") {
+      container.scrollTo({
+        left: target,
         behavior: reduceMotion ? "auto" : "smooth",
       });
+    } else {
+      container.scrollLeft = target; // ponytail: jsdom fallback
     }
   }, [currentIndex, reduceMotion]);
 

@@ -59,6 +59,7 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
   }
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const goNextRef = useRef<() => void>(() => {});
+  const dotsRef = useRef<HTMLDivElement | null>(null);
   const length = displayPhotos.length;
   const hasPhotos = length > 0;
   const photo = displayPhotos[currentIndex];
@@ -135,6 +136,19 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, [isPaused, reduceMotion, hasPhotos]);
+
+  // Keep the active dot visible as autoplay/manual nav advances —
+  // passive scroll only, no state, so SSR/first paint stay identical.
+  useEffect(() => {
+    const active = dotsRef.current?.querySelector('[aria-current="true"]');
+    if (active instanceof HTMLElement && typeof active.scrollIntoView === "function") {
+      active.scrollIntoView({
+        inline: "center",
+        block: "nearest",
+        behavior: reduceMotion ? "auto" : "smooth",
+      });
+    }
+  }, [currentIndex, reduceMotion]);
 
   // ponytail: variants stay STATIC — MotionRoot disables the slide for
   // reduced-motion users. Branching here mismatches SSR vs first paint.
@@ -273,12 +287,12 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
           <span className="shrink-0 text-xs font-medium text-muted-foreground">
             {currentIndex + 1} / {length}
           </span>
-          <div className="scrollbar-hide flex min-w-0 flex-1 snap-x snap-proximity items-center justify-start gap-1.5 overflow-x-auto scroll-px-6 px-2">
+          <div ref={dotsRef} className="scrollbar-hide flex min-w-0 flex-1 snap-x snap-proximity items-center justify-start gap-0.5 overflow-x-auto scroll-px-6 px-1">
             {displayPhotos.map((_, i) => (
               <button
                 key={i}
                 onClick={() => goTo(i)}
-                className="flex min-h-[44px] min-w-[44px] shrink-0 snap-center items-center justify-center"
+                className="flex min-h-[24px] min-w-[24px] shrink-0 snap-center items-center justify-center px-1"
                 aria-label={`Ke slide ${i + 1}`}
                 aria-current={i === currentIndex}
               >

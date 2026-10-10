@@ -139,14 +139,20 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
 
   // Keep the active dot visible as autoplay/manual nav advances —
   // scroll the dots strip only (never the page), no state so
-  // SSR/first paint stay identical.
+  // SSR/first paint stay identical. Rect math (not offsetLeft:
+  // that's relative to the positioned card, wrong on narrow screens).
   useEffect(() => {
     const container = dotsRef.current;
     const active = container?.querySelector('[aria-current="true"]');
     if (!(container && active instanceof HTMLElement)) return;
+    const containerRect = container.getBoundingClientRect();
+    const activeRect = active.getBoundingClientRect();
+    if (containerRect.width === 0) return;
     const target = Math.max(
       0,
-      active.offsetLeft + active.offsetWidth / 2 - container.clientWidth / 2,
+      container.scrollLeft +
+        (activeRect.left + activeRect.width / 2) -
+        (containerRect.left + containerRect.width / 2),
     );
     if (typeof container.scrollTo === "function") {
       container.scrollTo({
@@ -168,7 +174,7 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
 
   if (!hasPhotos) {
     return (
-      <div className="px-4">
+      <div>
         <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border py-16">
           <Camera className="h-10 w-10 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">
@@ -184,7 +190,6 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
 
   return (
     <div
-      className="px-4"
       onPointerEnter={() => setIsPaused(true)}
       onPointerLeave={() => setIsPaused(false)}
       onPointerCancel={() => setIsPaused(false)}
@@ -283,12 +288,12 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
           </button>
         </div>
 
-        <div className="flex items-center gap-3 px-4 py-3">
+        <div className="flex items-center gap-2 px-3 py-3 sm:gap-3 sm:px-4">
           <button
             onClick={() => setIsPaused((p) => !p)}
             aria-label={isPaused ? "Putar tayangan" : "Jeda tayangan"}
             aria-pressed={!isPaused}
-            className="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="flex min-h-[40px] min-w-[40px] shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:min-h-[44px] sm:min-w-[44px]"
           >
             {isPaused ? <Play className="h-4 w-4" aria-hidden="true" /> : <Pause className="h-4 w-4" aria-hidden="true" />}
           </button>

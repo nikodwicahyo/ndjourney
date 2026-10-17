@@ -455,6 +455,11 @@ export default function GalleryManager() {
 
   const hasQueue = totalCount > 0;
 
+  // The album/visibility pickers only mean something for files that have not
+  // been sent yet — a batch captures both when it starts, so showing them while
+  // bytes are moving would suggest a change that cannot reach the transfer.
+  const isTransferring = isSubmitting || uploadingCount > 0 || retryingCount > 0;
+
   return (
     <div className="space-y-6">
       {storage && (
@@ -529,7 +534,7 @@ export default function GalleryManager() {
           </div>
         )}
 
-        {albums && albums.length > 0 && (
+        {albums && albums.length > 0 && !isTransferring && (
           <div className="mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-center gap-2">
             <select
               value={selectedAlbumId}
@@ -585,7 +590,7 @@ export default function GalleryManager() {
           accept={ACCEPT_STRING}
           multiple
           onChange={handleFilesSelected}
-          disabled={isSubmitting}
+          disabled={isTransferring}
           className="sr-only"
           id="gallery-upload-input"
         />
@@ -596,20 +601,23 @@ export default function GalleryManager() {
           onDragOver={handleDragOver}
           className={cn(
             "flex w-full cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed p-4 text-center transition-colors outline-none focus-within:border-primary focus-within:ring-2 focus-within:ring-ring sm:p-6",
-            isSubmitting ? "pointer-events-none opacity-50" : "hover:border-primary/50 hover:bg-accent"
+            isTransferring ? "pointer-events-none opacity-50" : "hover:border-primary/50 hover:bg-accent"
           )}
         >
-          {isSubmitting ? (
+          {isTransferring ? (
             <Loader2 className="h-8 w-8 sm:h-10 sm:w-10 text-muted-foreground motion-safe:animate-spin" aria-hidden="true" />
           ) : (
             <Upload className="h-8 w-8 sm:h-10 sm:w-10 text-muted-foreground" aria-hidden="true" />
           )}
           <div className="flex flex-col items-center justify-center text-center">
             <p className="text-xs sm:text-sm font-medium">
-              {isSubmitting ? "Mengupload..." : "Klik atau drag file ke sini"}
+              {isTransferring ? "Mengupload..." : "Klik atau drag file ke sini"}
             </p>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Max Foto 10MB, Max Video 100MB, Max {MAX_FILES} file per-upload.
+              Max Foto 10MB, Max Video 100MB.
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Max {MAX_FILES} file per-upload.
             </p>
           </div>
         </label>

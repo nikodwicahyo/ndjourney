@@ -59,15 +59,21 @@ function PersonAvatar({
   image,
   fallback,
   isLive,
+  isSharing,
   statusText,
   deviceType,
+  ageSeconds,
+  accuracy,
 }: {
   name: string;
   image: string | null;
   fallback: string;
   isLive: boolean;
+  isSharing: boolean;
   statusText: string;
   deviceType: string | null;
+  ageSeconds: number | null;
+  accuracy: number | null;
 }) {
   return (
     <div className="flex flex-col items-center gap-1.5">
@@ -90,55 +96,13 @@ function PersonAvatar({
             {statusText}
           </span>
         </div>
+        {isSharing && (
+          <span className="text-xs text-muted-foreground">{timeAgo(ageSeconds)}</span>
+        )}
+        {accuracy !== null && (
+          <span className="text-xs text-muted-foreground">±{Math.round(accuracy)}m</span>
+        )}
       </div>
-    </div>
-  );
-}
-
-function PersonInfoBox({
-  name,
-  image,
-  fallback,
-  isSharing,
-  isStale,
-  locationAgeSeconds,
-  accuracy,
-  deviceType,
-}: {
-  name: string;
-  image: string | null;
-  fallback: string;
-  isSharing: boolean;
-  isStale: boolean;
-  locationAgeSeconds: number | null;
-  accuracy: number | null;
-  deviceType: string | null;
-}) {
-  const age = timeAgo(locationAgeSeconds);
-  const dotColor = isStale ? "bg-amber-500" : "bg-emerald-500";
-  const label = isStale ? "Offline" : "Live";
-  const labelColor = isStale ? "text-amber-500" : "text-emerald-500";
-
-  return (
-    <div className="rounded-lg bg-background/50 border border-border/50 p-2.5 space-y-1">
-      <div className="flex items-center gap-1.5">
-        <Avatar className="h-5 w-5">
-          <AvatarImage src={image ?? undefined} />
-          <AvatarFallback className="text-[8px] font-medium">{fallback}</AvatarFallback>
-        </Avatar>
-        <span className="text-xs font-medium text-foreground">{name}</span>
-        {deviceType && <DeviceBadge deviceType={deviceType} />}
-      </div>
-      {isSharing ? (
-        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <span className={`h-1.5 w-1.5 rounded-full ${dotColor} ${isStale ? "" : "animate-pulse"}`} aria-hidden="true" />
-          <span className={labelColor}>{label}</span>
-          <span>· {age}</span>
-          {accuracy !== null && <span>· ±{Math.round(accuracy)}m</span>}
-        </span>
-      ) : (
-        <span className="text-xs text-muted-foreground">Berbagi lokasi dimatikan</span>
-      )}
     </div>
   );
 }
@@ -229,8 +193,11 @@ export default function DistanceCard({
             image={self.image}
             fallback={selfInitial}
             isLive={selfLive}
+            isSharing={self.isSharing}
             statusText={selfLive ? "Live" : self.isSharing ? "Offline" : "Off"}
             deviceType={self.deviceType}
+            ageSeconds={self.locationAgeSeconds}
+            accuracy={self.location?.accuracy ?? null}
           />
           <div className="relative flex flex-col items-center px-2">
             <AnimatePresence>
@@ -284,31 +251,11 @@ export default function DistanceCard({
             image={partner.image}
             fallback={partnerInitial}
             isLive={partnerLive}
+            isSharing={partner.isSharing}
             statusText={partnerLive ? "Live" : partner.isSharing ? "Offline" : "Off"}
             deviceType={partner.deviceType}
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-2">
-          <PersonInfoBox
-            name={self.name ?? "Kamu"}
-            image={self.image}
-            fallback={selfInitial}
-            isSharing={self.isSharing}
-            isStale={self.isStale}
-            locationAgeSeconds={self.locationAgeSeconds}
-            accuracy={self.location?.accuracy ?? null}
-            deviceType={self.deviceType}
-          />
-          <PersonInfoBox
-            name={partner.name}
-            image={partner.image}
-            fallback={partnerInitial}
-            isSharing={partner.isSharing}
-            isStale={partner.isStale}
-            locationAgeSeconds={partner.locationAgeSeconds}
+            ageSeconds={partner.locationAgeSeconds}
             accuracy={partner.location?.accuracy ?? null}
-            deviceType={partner.deviceType}
           />
         </div>
 

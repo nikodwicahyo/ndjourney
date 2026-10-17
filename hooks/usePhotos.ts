@@ -7,7 +7,7 @@ import {
   useInfiniteQuery,
 } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query-keys";
-import { buildPhotoPayload } from "@/lib/utils";
+import { buildPhotoPayload, PHOTO_PAGE_SIZE } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Photo, AlbumWithCount } from "@/types";
 import { useUploadPhotos as useNewUploadPhotos } from "./useUpload";
@@ -38,7 +38,8 @@ export function usePhotos(filters?: {
       if (filters?.mediaType) params.set("mediaType", filters.mediaType);
       if (filters?.sort) params.set("sort", filters.sort);
       if (pageParam) params.set("cursor", pageParam);
-      params.set("limit", String(filters?.limit ?? 50));
+      // Same value the API falls back to — one page size for the whole stack.
+      params.set("limit", String(filters?.limit ?? PHOTO_PAGE_SIZE));
 
       // P-15: abort superseded filter toggles — stale responses must not win the race.
       const res = await fetch(`/api/photos?${params}`, { signal });

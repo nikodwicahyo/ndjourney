@@ -30,7 +30,7 @@ export async function POST(request: Request) {
 
     const body = await request.json().catch(() => null);
     if (body == null) return NextResponse.json({ error: "Body JSON tidak valid" }, { status: 400 });
-    const { fileName, fileSize, fileType, folder = UPLOAD_FOLDER } = body;
+    const { fileName, fileSize, fileType, folder = UPLOAD_FOLDER, publicId: requestedPublicId } = body;
 
     if (!fileName || !fileSize || !fileType || folder !== UPLOAD_FOLDER) {
       return NextResponse.json(
@@ -53,7 +53,25 @@ export async function POST(request: Request) {
     }
 
     const timestamp = Math.floor(Date.now() / 1000);
-    const publicId = generatePublicId(fileName, session.user.id);
+
+    // Resuming a chunked upload must reuse the original asset path, so accept a
+    // client-supplied publicId — but only inside the caller's own namespace, and
+    // only a safe path shape. Anything else could overwrite another user's media.
+    let publicId: string;
+    if (requestedPublicId !== undefined) {
+      const safeShape = /^[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+$/;
+      if (
+        typeof requestedPublicId !== "string" ||
+        !requestedPublicId.startsWith(`${session.user.id}/`) ||
+        !safeShape.test(requestedPublicId)
+      ) {
+        return NextResponse.json({ error: "publicId tidak valid" }, { status: 400 });
+      }
+      publicId = requestedPublicId;
+    } else {
+      publicId = generatePublicId(fileName, session.user.id);
+    }
+
     const resourceType = validation.policy.resourceType;
     
     // Use the same chunk size calculation as the client

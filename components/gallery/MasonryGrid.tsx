@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { usePhotos } from "@/hooks/usePhotos";
 import PhotoCard from "./PhotoCard";
 import { Button } from "@/components/ui";
+import { cn, GALLERY_GRID_CLASSES, GALLERY_TILE_CLASSES } from "@/lib/utils";
 import { ImageIcon } from "lucide-react";
 import type { Photo } from "@/types";
 
@@ -19,31 +20,9 @@ type MasonryGridProps = {
   visibility?: "public" | "private";
 };
 
-function getColCount() {
-  if (typeof window === "undefined") return 2;
-  const w = window.innerWidth;
-  if (w >= 1024) return 4;
-  if (w >= 768) return 3;
-  return 2;
-}
-
-function toReadingOrder<T>(items: T[], cols: number): T[] {
-  const rows = Math.ceil(items.length / cols);
-  const result: T[] = [];
-  for (let col = 0; col < cols; col++) {
-    for (let row = 0; row < rows; row++) {
-      const idx = row * cols + col;
-      if (idx < items.length) result.push(items[idx]);
-    }
-  }
-  return result;
-}
-
 function PhotoSkeleton() {
   return (
-    <div className="overflow-hidden rounded-2xl">
-      <div className="aspect-[3/4] w-full animate-pulse bg-muted" />
-    </div>
+    <div className={cn(GALLERY_TILE_CLASSES, "rounded-2xl bg-muted motion-safe:animate-pulse")} />
   );
 }
 
@@ -59,14 +38,6 @@ export default function MasonryGrid({ filters, onPhotoClick, visibility }: Mason
   } = usePhotos({ ...filters, visibility });
 
   const loadMoreRef = useRef<HTMLDivElement>(null);
-  const [colCount, setColCount] = useState(2);
-
-  useEffect(() => {
-    const onResize = () => setColCount(getColCount());
-    onResize();
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
 
   const handleObserver = useCallback(
     (entries: IntersectionObserverEntry[]) => {
@@ -89,6 +60,9 @@ export default function MasonryGrid({ filters, onPhotoClick, visibility }: Mason
     return () => observer.disconnect();
   }, [handleObserver]);
 
+  // The API already returns them in the requested order (createdAt, id).
+  // Rendered as-is: CSS grid reads left→right then the next row, so DOM order
+  // is the reading order with nothing to transpose.
   const allPhotos = (data?.pages.flatMap((page) => page.data ?? []) ?? []).filter(Boolean) as Photo[];
 
   // stable handler so memo(PhotoCard) actually skips re-renders.
@@ -100,18 +74,11 @@ export default function MasonryGrid({ filters, onPhotoClick, visibility }: Mason
     [allPhotos, onPhotoClick, fetchNextPage, hasNextPage],
   );
 
-  const orderedPhotos = useMemo(
-    () => toReadingOrder(allPhotos, colCount),
-    [allPhotos, colCount],
-  );
-
   if (isLoading) {
     return (
-      <div className="columns-2 gap-3 md:columns-3 lg:columns-4">
+      <div className={GALLERY_GRID_CLASSES}>
         {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className="mb-3 break-inside-avoid">
-            <PhotoSkeleton />
-          </div>
+          <PhotoSkeleton key={i} />
         ))}
       </div>
     );
@@ -144,27 +111,22 @@ export default function MasonryGrid({ filters, onPhotoClick, visibility }: Mason
 
   return (
     <>
-      <div className="columns-2 gap-3 md:columns-3 lg:columns-4">
-        {orderedPhotos.map((photo, orderIndex) => {
-          return (
-            <div key={photo.id} className="mb-3 break-inside-avoid">
-              <PhotoCard
-                photo={photo}
-                onClick={handlePhotoClick}
-                isPrioritized={orderIndex < 8}
-              />
-            </div>
-          );
-        })}
+      <div className={GALLERY_GRID_CLASSES}>
+        {allPhotos.map((photo, index) => (
+          <PhotoCard
+            key={photo.id}
+            photo={photo}
+            onClick={handlePhotoClick}
+            isPrioritized={index < 8}
+          />
+        ))}
       </div>
 
       <div ref={loadMoreRef} className="py-8">
         {isFetchingNextPage && (
-          <div className="columns-2 gap-3 md:columns-3 lg:columns-4">
+          <div className={GALLERY_GRID_CLASSES}>
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="mb-3 break-inside-avoid">
-                <PhotoSkeleton />
-              </div>
+              <PhotoSkeleton key={i} />
             ))}
           </div>
         )}

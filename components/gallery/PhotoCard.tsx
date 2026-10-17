@@ -3,7 +3,7 @@
 import { memo, useState, useMemo, useCallback, useRef } from "react";
 import Image from "next/image";
 import { File, Heart, Play, Lock, CheckCircle, Globe, EyeOff } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, GALLERY_TILE_CLASSES } from "@/lib/utils";
 import { getOptimizedImageUrl, getBlurImageUrl, getVideoPosterUrl } from "@/lib/cloudinary-urls";
 import type { Photo } from "@/types";
 
@@ -43,7 +43,6 @@ export default memo(function PhotoCard({
     }
   }, []);
 
-  const aspectRatio = photo.width && photo.height ? photo.width / photo.height : 3 / 4;
   const rawDisplayUrl = useMemo(() => {
     if (photo.isVideo) {
       return photo.thumbnailUrl || getVideoPosterUrl(photo.url, 600);
@@ -113,18 +112,23 @@ export default memo(function PhotoCard({
       )}
 
       {!canPreviewAsImage ? (
-        <div className="flex aspect-[3/4] flex-col items-center justify-center gap-2 bg-muted px-4 text-center">
+        <div
+          className={cn(
+            "flex flex-col items-center justify-center gap-2 bg-muted px-4 text-center",
+            GALLERY_TILE_CLASSES,
+          )}
+        >
           <File className="h-8 w-8 text-muted-foreground/60" />
           <span className="line-clamp-2 text-xs font-medium text-muted-foreground">
             {photo.caption || photo.publicId.split("/").pop() || "File"}
           </span>
         </div>
       ) : imgError ? (
-        <div className="flex aspect-[3/4] items-center justify-center bg-muted">
+        <div className={cn("flex items-center justify-center bg-muted", GALLERY_TILE_CLASSES)}>
           <Lock className="h-8 w-8 text-muted-foreground/50" />
         </div>
       ) : (
-        <div className="relative overflow-hidden" style={{ aspectRatio }}>
+        <div className={cn("relative overflow-hidden", GALLERY_TILE_CLASSES)}>
           <Image
             src={displayUrl}
             alt={photo.caption ?? "Photo"}

@@ -1,4 +1,4 @@
-import { UploadConfig, resolveUploadMime } from "./upload-config";
+import { UploadConfig, resolveUploadMime, SIMPLE_UPLOAD_MAX_BYTES } from "./upload-config";
 import { getUploadThumbnailUrl } from "./cloudinary-urls";
 
 export interface ChunkUploadProgress {
@@ -28,6 +28,53 @@ export interface UploadResult {
   bytes: number;
   isVideo?: boolean;
   fileSize: number;
+}
+
+/**
+ * Identifies a Cloudinary chunked-upload session so an interrupted upload can
+ * resume instead of restarting. `uniqueUploadId` is the server-side session key
+ * (`X-Unique-Upload-Id`); `publicId` is the asset path, reused when re-signing so
+ * the resumed chunks land on the same asset. `completedChunks`/`uploadedBytes`
+ * describe how far the last attempt got.
+ */
+export interface UploadSession {
+  uniqueUploadId: string;
+  publicId: string;
+  completedChunks: number;
+  uploadedBytes: number;
+}
+
+export interface UploadFileOptions {
+  /** Resume a previous attempt for this file instead of starting from chunk 0. */
+  resume?: UploadSession;
+  /**
+   * Called with the current session after signing and after each committed
+   * chunk (so the caller can persist it across retries), or `null` when the
+   * session must be discarded and the next attempt restarted from scratch.
+   */
+  onSession?: (session: UploadSession | null) => void;
+  /**
+   * Checked between chunks. When it returns true the upload stops at the last
+   * *committed* chunk boundary — the in-flight chunk is allowed to finish and
+   * commit first, so an orderly stop (pause) never loses transferred bytes.
+   */
+  shouldStop?: () => boolean;
+}
+
+/**
+ * Pure resume math: which chunk to start at and how many bytes are already
+ * committed. The final chunk is never skipped — its response carries the asset
+ * metadata and marks the upload done server-side.
+ */
+export function resolveResumeStart(
+  resume: UploadSession | undefined,
+  chunkSize: number,
+  totalChunks: number,
+  fileSize: number,
+): { startChunk: number; startBytes: number } {
+  const requested = resume?.completedChunks ?? 0;
+  const startChunk = Math.max(0, Math.min(requested, totalChunks - 1));
+  return { startChunk, startBytes: Math.min(startChunk * chunkSize, fileSize) };
 }
 
 interface CloudinaryUploadResponse {
@@ -131,6 +178,7 @@ interface SignedUploadParams {
   uploadParams: Record<string, string>;
   chunkSize: number;
   totalChunks: number;
+  publicId: string;
 }
 
 interface UploadError extends Error {
@@ -172,12 +220,13 @@ export async function getSignedUploadParams(
   fileType: string,
   fileSize: number,
   folder = "ndjourney-web",
-  chunkSize?: number
+  chunkSize?: number,
+  publicId?: string
 ): Promise<SignedUploadParams> {
   const response = await fetch("/api/upload/sign", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ fileName, fileType, fileSize, folder, chunkSize }),
+    body: JSON.stringify({ fileName, fileType, fileSize, folder, chunkSize, publicId }),
   });
 
   if (!response.ok) {
@@ -191,6 +240,7 @@ export async function getSignedUploadParams(
     uploadParams: data.uploadParams,
     chunkSize: data.chunkSize,
     totalChunks: data.totalChunks,
+    publicId: data.publicId,
   };
 }
 
@@ -234,7 +284,13 @@ function isCorsError(error: unknown): boolean {
   return error instanceof TypeError && error.message === "Failed to fetch";
 }
 
-async function uploadChunk(
+/**
+ * Uploads one chunk via XHR so `xhr.upload.onprogress` reports byte-level
+ * progress *within* the chunk. `fetch` (the previous implementation) exposes no
+ * upload-progress events, which is why the bar only jumped once per chunk.
+ * `onChunkProgress` receives bytes transferred for this chunk (0..chunk.size).
+ */
+function uploadChunk(
   uploadUrl: string,
   uploadParams: Record<string, string>,
   chunk: Blob,
@@ -242,67 +298,105 @@ async function uploadChunk(
   end: number,
   totalSize: number,
   uniqueUploadId: string,
+  onChunkProgress: (loadedInChunk: number) => void,
   signal?: AbortSignal
 ): Promise<Response> {
-  const formData = new FormData();
-  
-  // Send signed params + signature + api_key + cloud_name
-  Object.entries(uploadParams).forEach(([key, value]) => {
-    if (value !== undefined && value !== "") {
-      formData.append(key, value);
+  return new Promise((resolve, reject) => {
+    const formData = new FormData();
+
+    // Send signed params + signature + api_key + cloud_name (no manual
+    // Content-Type — the browser sets the multipart boundary).
+    Object.entries(uploadParams).forEach(([key, value]) => {
+      if (value !== undefined && value !== "") {
+        formData.append(key, value);
+      }
+    });
+
+    formData.append("file", chunk);
+
+    const xhr = new XMLHttpRequest();
+    const stall = createStallTimeout(signal);
+
+    const onAbort = () => xhr.abort();
+
+    const cleanup = () => {
+      stall.clear();
+      xhr.upload.onprogress = null;
+      xhr.onload = null;
+      xhr.onerror = null;
+      xhr.onabort = null;
+      signal?.removeEventListener("abort", onAbort);
+    };
+
+    if (signal) {
+      signal.addEventListener("abort", onAbort);
+    }
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        // multipart overhead can push e.loaded past the chunk — clamp so the
+        // caller's running total never exceeds fileSize.
+        onChunkProgress(Math.max(0, Math.min(e.loaded, chunk.size)));
+      }
+      stall.onProgress();
+    };
+
+    xhr.onload = () => {
+      const responseType = xhr.getResponseHeader("Content-Type") ?? "application/json";
+      cleanup();
+      resolve(
+        new Response(xhr.responseText, {
+          status: xhr.status,
+          statusText: xhr.statusText,
+          headers: { "Content-Type": responseType },
+        })
+      );
+    };
+
+    xhr.onerror = () => {
+      cleanup();
+      reject(
+        createUploadError("Upload failed: network error", {
+          isNetworkError: true,
+          uploadUrl,
+        })
+      );
+    };
+
+    xhr.onabort = () => {
+      cleanup();
+      if (signal?.aborted) {
+        reject(createUploadError("Upload aborted", { isAborted: true, uploadUrl }));
+      } else {
+        // Stalled (timeout) or backgrounded: treat as retryable network error.
+        reject(createUploadError("Upload timeout", { isTimeout: true, isNetworkError: true, uploadUrl }));
+      }
+    };
+
+    try {
+      xhr.open("POST", uploadUrl);
+      xhr.setRequestHeader("Content-Range", `bytes ${start}-${end}/${totalSize}`);
+      xhr.setRequestHeader("X-Unique-Upload-Id", uniqueUploadId);
+      xhr.send(formData);
+    } catch (error) {
+      cleanup();
+      reject(
+        createUploadError("Upload failed: network error", {
+          isNetworkError: true,
+          cause: error instanceof Error ? error : undefined,
+          uploadUrl,
+        })
+      );
     }
   });
-  
-  formData.append("file", chunk);
-
-  const stall = createStallTimeout(signal);
-
-  try {
-    const response = await fetch(uploadUrl, {
-      method: "POST",
-      headers: {
-        "Content-Range": `bytes ${start}-${end}/${totalSize}`,
-        "X-Unique-Upload-Id": uniqueUploadId,
-      },
-      body: formData,
-      signal: stall.signal,
-    });
-    stall.clear();
-    return response;
-  } catch (error) {
-    stall.clear();
-    
-    if (error instanceof DOMException && error.name === "AbortError") {
-      if (signal?.aborted) {
-        throw createUploadError("Upload aborted", { isAborted: true, cause: error, uploadUrl });
-      }
-      // Stalled (timeout) or backgrounded: treat as retryable network error.
-      throw createUploadError("Upload timeout", { isTimeout: true, isNetworkError: true, cause: error, uploadUrl });
-    }
-
-    if (isCorsError(error)) {
-      const corsError = error as TypeError;
-      const corsMessage = 
-        "CORS Error: Browser blocked upload to Cloudinary. " +
-        "Fix: Add your domain to Cloudinary CORS settings (Cloudinary Dashboard > Settings > Security > CORS). " +
-        `Upload URL: ${uploadUrl}`;
-      throw createUploadError(corsMessage, { isCorsError: true, isNetworkError: true, cause: corsError, uploadUrl });
-    }
-
-    throw createUploadError(
-      `Upload failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-      { isNetworkError: true, cause: error instanceof Error ? error : undefined, uploadUrl }
-    );
-  } finally {
-    stall.clear();
-  }
 }
 
 export async function uploadFileChunked(
   file: File,
   onProgress: (progress: ChunkUploadProgress) => void,
   signal?: AbortSignal,
-  config?: Partial<UploadConfig>
+  config?: Partial<UploadConfig>,
+  options?: UploadFileOptions
 ): Promise<UploadResult> {
   const cfg = { ...UploadConfig, ...config };
   const fileName = file.name;
@@ -317,34 +411,47 @@ export async function uploadFileChunked(
     fileSize <= CHUNK_THRESHOLDS.medium ? CHUNK_SIZES.medium :
     fileSize <= CHUNK_THRESHOLDS.large ? CHUNK_SIZES.large :
     CHUNK_SIZES.xlarge;
-  const totalChunks = Math.ceil(fileSize / chunkSize);
+  let totalChunks = Math.ceil(fileSize / chunkSize);
 
-  let uploadedBytes = 0;
-  let completedChunks = 0;
-  let startTime = Date.now();
+  // Resume: reuse the previous session's unique id + public id so Cloudinary
+  // continues the same upload instead of starting a new asset.
+  const resume = options?.resume;
+  const uniqueUploadId =
+    resume?.uniqueUploadId ?? `uq-${Date.now()}-${Math.random().toString(36).substring(2, 12)}`;
+
+  let uploadedBytes = resume?.uploadedBytes ?? 0;
+  let completedChunks = resume?.completedChunks ?? 0;
+  let speedBaseBytes = uploadedBytes;
+  const startTime = Date.now();
   let lastProgressTime = startTime;
-  let lastUploadedBytes = 0;
+  let startChunk = 0;
   let usedFallback = false;
 
-  const uniqueUploadId = `uq-${Date.now()}-${Math.random().toString(36).substring(2, 12)}`;
-
-  const updateProgress = (status: ChunkUploadProgress["status"], error?: string) => {
+  const updateProgress = (
+    status: ChunkUploadProgress["status"],
+    error?: string,
+    inFlightBytes = 0
+  ) => {
     const now = Date.now();
-    const timeElapsed = (now - startTime) / 1000;
-    const speed = timeElapsed > 0 ? uploadedBytes / timeElapsed : 0;
-    const remainingBytes = fileSize - uploadedBytes;
-    const eta = speed > 0 ? remainingBytes / speed : 0;
+    const committed = uploadedBytes;
+    const loaded = Math.min(committed + inFlightBytes, fileSize);
+    const timeElapsed = Math.max((now - startTime) / 1000, 0.001);
+    // speed/eta measure only bytes moved in *this* attempt, so a resumed
+    // upload doesn't report an inflated rate for chunks it never re-sent.
+    const transferred = Math.max(loaded - speedBaseBytes, 0);
+    const speed = transferred / timeElapsed;
+    const eta = speed > 0 ? (fileSize - loaded) / speed : 0;
 
     onProgress({
       fileName,
       fileSize,
-      loaded: uploadedBytes,
+      loaded,
       total: fileSize,
-      uploadedBytes,
+      uploadedBytes: committed,
       totalChunks,
       completedChunks,
       currentChunk: completedChunks + 1,
-      progress: (uploadedBytes / fileSize) * 100,
+      progress: (loaded / fileSize) * 100,
       speed,
       eta,
       status,
@@ -355,27 +462,57 @@ export async function uploadFileChunked(
   updateProgress("uploading");
 
   try {
-    const { uploadUrl, uploadParams, chunkSize: signedChunkSize, totalChunks: signedTotalChunks } = await getSignedUploadParams(
+    const {
+      uploadUrl,
+      uploadParams,
+      chunkSize: signedChunkSize,
+      totalChunks: signedTotalChunks,
+      publicId: signedPublicId,
+    } = await getSignedUploadParams(
       fileName,
       fileType,
       fileSize,
       "ndjourney-web",
-      chunkSize
+      chunkSize,
+      resume?.publicId
     );
 
     const actualChunkSize = signedChunkSize;
     const actualTotalChunks = signedTotalChunks;
+    totalChunks = actualTotalChunks;
+
+    // Skip already-committed chunks (never the final one — see helper).
+    const start = resolveResumeStart(resume, actualChunkSize, actualTotalChunks, fileSize);
+    startChunk = start.startChunk;
+    completedChunks = startChunk;
+    uploadedBytes = start.startBytes;
+    speedBaseBytes = uploadedBytes;
+
+    // Persist the session up front (public id is now known) so even a failure
+    // before the first chunk can be resumed on the next attempt.
+    options?.onSession?.({
+      uniqueUploadId,
+      publicId: signedPublicId,
+      completedChunks,
+      uploadedBytes,
+    });
 
     let lastResponse: Response | null = null;
 
-    for (let chunkIndex = 0; chunkIndex < actualTotalChunks; chunkIndex++) {
+    for (let chunkIndex = startChunk; chunkIndex < actualTotalChunks; chunkIndex++) {
       if (signal?.aborted) {
-        throw new DOMException("Aborted", "AbortError");
+        throw createUploadError("Upload aborted", { isAborted: true });
+      }
+      // Reached only after the previous chunk committed, so an orderly stop
+      // (pause) here loses nothing. Flagged as an abort so the caller skips the
+      // server fallback and the queue can tell "paused" from "failed".
+      if (options?.shouldStop?.()) {
+        throw createUploadError("Upload paused", { isAborted: true });
       }
 
-      const start = chunkIndex * actualChunkSize;
-      const end = Math.min(start + actualChunkSize, fileSize);
-      const chunk = file.slice(start, end);
+      const chunkStart = chunkIndex * actualChunkSize;
+      const chunkEnd = Math.min(chunkStart + actualChunkSize, fileSize);
+      const chunk = file.slice(chunkStart, chunkEnd);
 
       let retries = 0;
       let success = false;
@@ -392,21 +529,36 @@ export async function uploadFileChunked(
             uploadUrl,
             uploadParams,
             chunk,
-            start,
-            end - 1,
+            chunkStart,
+            chunkEnd - 1,
             fileSize,
             uniqueUploadId,
+            (inFlight) => {
+              const now = Date.now();
+              if (now - lastProgressTime >= cfg.PROGRESS_THROTTLE_MS) {
+                updateProgress("uploading", undefined, inFlight);
+                lastProgressTime = now;
+              }
+            },
             signal
           );
 
           if (!response.ok) {
             const errorText = await response.text();
-            throw new Error(`Chunk ${chunkIndex + 1} failed: ${response.status} ${errorText}`);
+            throw createUploadError(
+              `Chunk ${chunkIndex + 1} failed: ${response.status} ${errorText}`,
+              { status: response.status, uploadUrl }
+            );
           }
 
           lastResponse = response;
           success = true;
         } catch (err) {
+          // Respect a user abort/cancel immediately — don't spend the retry
+          // budget re-sending a chunk the caller asked us to stop.
+          if (signal?.aborted) {
+            throw err;
+          }
           retries++;
           if (retries > cfg.MAX_RETRIES) {
             throw err;
@@ -416,13 +568,14 @@ export async function uploadFileChunked(
 
       uploadedBytes += chunk.size;
       completedChunks++;
-
-      const now = Date.now();
-      if (now - lastProgressTime >= cfg.PROGRESS_THROTTLE_MS) {
-        updateProgress("uploading");
-        lastProgressTime = now;
-        lastUploadedBytes = uploadedBytes;
-      }
+      options?.onSession?.({
+        uniqueUploadId,
+        publicId: signedPublicId,
+        completedChunks,
+        uploadedBytes,
+      });
+      updateProgress("uploading");
+      lastProgressTime = Date.now();
     }
 
     if (!lastResponse) {
@@ -449,11 +602,41 @@ export async function uploadFileChunked(
     };
   } catch (error) {
     const uploadError = error as UploadError;
-    
-    if ((uploadError.isCorsError || uploadError.isNetworkError || uploadError.isTimeout) && !usedFallback && fileSize <= 100 * 1024 * 1024) {
+
+    // User abort (cancel/pause): never fall back to a server re-upload, never
+    // mark the item failed — propagate so the queue finalises cancel/pause.
+    if (uploadError.isAborted || signal?.aborted) {
+      throw error;
+    }
+
+    // A chunk the server definitively rejected (bad range / expired session /
+    // bad signature) means this session is unusable — drop it so the next
+    // attempt starts clean instead of resuming into the same error forever.
+    // 408/429 and 5xx are transient, so keep the session and let retries resume.
+    if (
+      startChunk > 0 &&
+      uploadError.status != null &&
+      uploadError.status >= 400 &&
+      uploadError.status < 500 &&
+      uploadError.status !== 408 &&
+      uploadError.status !== 429
+    ) {
+      options?.onSession?.(null);
+    }
+
+    if (
+      (uploadError.isCorsError || uploadError.isNetworkError || uploadError.isTimeout) &&
+      !usedFallback &&
+      // Only fall back to the server-side re-upload when nothing has been
+      // committed yet (e.g. Cloudinary blocked before chunk 0). Once chunks
+      // have landed, a network drop is better served by retrying with resume
+      // than by re-uploading the whole file through the server.
+      completedChunks === 0 &&
+      fileSize <= 100 * 1024 * 1024
+    ) {
       usedFallback = true;
       updateProgress("fallback", "Direct upload failed. Using server-side fallback...");
-      
+
       try {
         const result = await uploadToServer(file, "ndjourney-web", signal);
         updateProgress("complete");
@@ -462,7 +645,7 @@ export async function uploadFileChunked(
         throw fallbackError;
       }
     }
-    
+
     updateProgress("error", error instanceof Error ? error.message : "Upload failed");
     throw error;
   }
@@ -598,7 +781,8 @@ export async function uploadFileSimple(
   file: File,
   onProgress: (progress: ChunkUploadProgress) => void,
   signal?: AbortSignal,
-  config?: Partial<UploadConfig>
+  config?: Partial<UploadConfig>,
+  options?: UploadFileOptions
 ): Promise<UploadResult> {
   const cfg = { ...UploadConfig, ...config };
   const fileName = file.name;
@@ -606,9 +790,8 @@ export async function uploadFileSimple(
   // Same canonical-MIME fallback as uploadFileChunked above.
   const fileType = resolveUploadMime(file.name, file.type);
 
-  // Use simple direct upload for files <= 10MB
-  const THRESHOLD = 10 * 1024 * 1024; // 10MB
-  if (fileSize <= THRESHOLD) {
+  // Use simple direct upload for files <= 10MB (no chunk boundary to resume at)
+  if (fileSize <= SIMPLE_UPLOAD_MAX_BYTES) {
     onProgress({
       fileName,
       fileSize,
@@ -695,6 +878,9 @@ export async function uploadFileSimple(
         fileSize,
       };
     } catch (error) {
+      // User abort (cancel/pause) must stop the upload, not re-route the whole
+      // file through the server-side fallback.
+      if (signal?.aborted) throw error;
       if (!usedFallback && fileSize <= 100 * 1024 * 1024) {
         usedFallback = true;
         try {
@@ -722,5 +908,5 @@ export async function uploadFileSimple(
     }
   }
   
-  return uploadFileChunked(file, onProgress, signal, config);
+  return uploadFileChunked(file, onProgress, signal, config, options);
 }

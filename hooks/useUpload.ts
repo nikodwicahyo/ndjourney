@@ -8,26 +8,30 @@ import type { Photo, CloudinaryUsage } from "@/types";
 import { getUploadQueue, type QueuedUpload } from "@/lib/upload-queue";
 import { getResourceType, generatePublicId } from "@/lib/upload-config";
 import { parseResponseBody, buildPhotoPayload } from "@/lib/utils";
+import { toast } from "sonner";
 
 type UploadResult = {
   uploaded: Photo[];
   failed: { id: string; name: string; error: string }[];
+  /** Files the user paused mid-batch — still in the queue, resumable. */
+  paused: { id: string; name: string }[];
 };
 
 interface UseUploadPhotosReturn {
   uploadFiles: (files: File[], albumId?: string, fileIds?: string[], isPublic?: boolean) => Promise<UploadResult>;
   queue: QueuedUpload[];
   isUploading: boolean;
-  cancelUpload: (id: string) => void;
   cancelAllUploads: () => void;
   clearCompleted: () => void;
   clearAllItems: () => void;
   removeUpload: (id: string) => void;
   retryUpload: (id: string) => void;
+  pauseUpload: (id: string) => void;
   overallProgress: {
     total: number;
     completed: number;
     failed: number;
+    paused: number;
     percent: number;
     totalSpeed: number;
     avgEta: number;
@@ -126,7 +130,7 @@ export function useUploadPhotos(): UseUploadPhotosReturn {
 
       // addMultiple returns a Promise<QueuedUpload>[] — each resolves/rejects when that file finishes.
       const uploadPromises = files.map((file, idx) =>
-        uploadQueue.add(file, publicIds[idx], resourceTypes[idx], fileIds?.[idx], albumId)
+        uploadQueue.add(file, publicIds[idx], resourceTypes[idx], fileIds?.[idx], albumId, isPublic)
       );
       setQueue(uploadQueue.getAll());
 
@@ -138,6 +142,10 @@ export function useUploadPhotos(): UseUploadPhotosReturn {
         try {
           const u = await promise;
           itemId = u.id;
+          if (u.status === "paused") {
+            // User paused this file — not a failure; leave it in the queue.
+            return { status: "paused" as const, reason: { id: u.id, name: file.name } };
+          }
           if (u.status === "complete" && u.result) {
             const savedPhoto = await savePhotoToDb(u, albumId, qc, isPublic);
             return { status: "fulfilled" as const, value: savedPhoto };
@@ -170,20 +178,16 @@ export function useUploadPhotos(): UseUploadPhotosReturn {
         .map((r) => r.reason)
         .filter((r): r is { id: string; name: string; error: string } => !!r);
 
+      const paused = results
+        .filter((r): r is { status: "paused"; reason: { id: string; name: string } } => r.status === "paused")
+        .map((r) => r.reason);
+
       setQueue(uploadQueue.getAll());
 
-      return { uploaded, failed };
+      return { uploaded, failed, paused };
     },
     [qc, session]
   );
-
-  const cancelUpload = useCallback((id: string) => {
-    const q = queueRef.current;
-    if (q) {
-      q.cancel(id);
-      setQueue(q.getAll());
-    }
-  }, []);
 
   const cancelAllUploads = useCallback(() => {
     const q = queueRef.current;
@@ -217,20 +221,58 @@ export function useUploadPhotos(): UseUploadPhotosReturn {
     }
   }, []);
 
+  const pauseUpload = useCallback((id: string) => {
+    const q = queueRef.current;
+    if (q) {
+      q.pauseUpload(id);
+      setQueue(q.getAll());
+    }
+  }, []);
+
   const retryUpload = useCallback((id: string) => {
     const q = queueRef.current;
     if (!q) return;
     const task = q.getById(id);
-    if (!task || task.status !== "error") return;
-    q.resetToPending(id);
+    // Resumable states: paused, failed, cancelled, or interrupted mid-upload.
+    if (
+      !task ||
+      (task.status !== "error" &&
+        task.status !== "cancelled" &&
+        task.status !== "interrupted" &&
+        task.status !== "paused")
+    ) {
+      return;
+    }
+    const done = q.resetToPending(id);
     setQueue(q.getAll());
-  }, []);
+    if (!done) return;
+
+    // The original batch promise settled when the first attempt failed, so this
+    // attempt must persist its own result — otherwise the resumed upload lands
+    // in Cloudinary but never appears in the gallery.
+    done
+      .then(async (u) => {
+        if (u.status === "complete" && u.result) {
+          try {
+            await savePhotoToDb(u, u.albumId, qc, u.isPublic);
+            invalidateAfterSave(qc);
+            toast.success(`${u.file.name} berhasil diunggah`);
+          } catch (error) {
+            toast.error(error instanceof Error ? error.message : `Gagal menyimpan ${u.file.name}`);
+          }
+        }
+      })
+      .catch((error) => {
+        toast.error(error instanceof Error ? error.message : `Gagal mengunggah ${task.file.name}`);
+      });
+  }, [qc]);
 
   const uploading = queue.filter((u) => u.status === "uploading");
   const overallProgress = {
     total: queue.length,
     completed: queue.filter((u) => u.status === "complete").length,
     failed: queue.filter((u) => u.status === "error" || u.status === "interrupted").length,
+    paused: queue.filter((u) => u.status === "paused").length,
     percent:
       queue.length > 0
         ? Math.round(
@@ -248,12 +290,12 @@ export function useUploadPhotos(): UseUploadPhotosReturn {
     uploadFiles,
     queue,
     isUploading: queue.some((u) => u.status === "uploading" || u.status === "pending" || u.status === "retrying"),
-    cancelUpload,
     cancelAllUploads,
     clearCompleted,
     clearAllItems,
     removeUpload,
     retryUpload,
+    pauseUpload,
     overallProgress,
   };
 }

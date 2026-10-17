@@ -5,7 +5,7 @@ import { createPhotoSchema } from "@/lib/validations/photo";
 import { withRateLimit, withAnonymousRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { getCached, setCached, invalidateCache, cacheKey } from "@/lib/redis";
 import { jakartaYearStart } from "@/lib/date";
-import { encodeCompositeCursor, decodeCompositeCursor } from "@/lib/utils";
+import { encodeCompositeCursor, decodeCompositeCursor, PHOTO_PAGE_SIZE } from "@/lib/utils";
 import { isAllowedCloudinaryUrl } from "@/lib/upload-policy";
 import { getUserCoupleId } from "@/lib/couple";
 import { triggerCoupleEvent } from "@/lib/pusher-server";
@@ -45,8 +45,8 @@ export async function GET(request: Request) {
       : legacyPublic ? "public" : null;
     const sort = searchParams.get("sort");
     const cursor = searchParams.get("cursor");
-    const rawLimit = parseInt(searchParams.get("limit") || "30", 10);
-    const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 100) : 30;
+    const rawLimit = parseInt(searchParams.get("limit") || String(PHOTO_PAGE_SIZE), 10);
+    const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 100) : PHOTO_PAGE_SIZE;
 
     const scope = isAuthed ? "auth" : "public";
     const coupleId = session?.user ? await getUserCoupleId(session.user.id) : null;

@@ -8,7 +8,7 @@ import AlbumManager from "./AlbumManager";
 import { Button, StorageUsageBar } from "@/components/ui";
 import UploadItem from "./UploadItem";
 import { Upload, ImagePlus, Loader2, FileWarning, Image as ImageIcon, Video, ArrowUpDown, Trash2, CheckSquare, Heart, Globe, EyeOff, X, Folder, Check } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, GALLERY_GRID_CLASSES, GALLERY_TILE_CLASSES } from "@/lib/utils";
 import { showDeleteConfirm } from "@/lib/swal";
 import dynamic from "next/dynamic";
 import type { Photo } from "@/types";
@@ -41,7 +41,14 @@ export interface UploadFileItem {
   id: string;
   file: File;
   previewUrl?: string;
-  status: "pending" | "uploading" | "retrying" | "complete" | "error" | "interrupted" | "cancelled";
+  /**
+   * True once a chunked-upload session exists with committed progress, so the
+   * UI can tell the user an interrupted upload is continuing rather than starting over.
+   */
+  resumed?: boolean;
+  /** Pause requested; finishing the current chunk so the bytes commit. */
+  pausing?: boolean;
+  status: "pending" | "uploading" | "retrying" | "complete" | "error" | "interrupted" | "cancelled" | "paused";
   progress: { loaded: number; total: number; percent: number; speed: number; eta: number };
   error?: string;
   result?: { url: string; publicId: string; secureUrl: string; width: number; height: number; format: string; bytes: number; duration?: number };
@@ -56,7 +63,7 @@ export default function GalleryManager() {
   const [albumFilter, setAlbumFilter] = useState<string | undefined>();
   const [favoriteFilter, setFavoriteFilter] = useState(false);
   const [visibilityFilter, setVisibilityFilter] = useState<"public" | "private">("public");
-  const { data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = usePhotos({ limit: 30, mediaType, sort, albumId: albumFilter, isFavorite: favoriteFilter || undefined, visibility: visibilityFilter });
+  const { data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = usePhotos({ mediaType, sort, albumId: albumFilter, isFavorite: favoriteFilter || undefined, visibility: visibilityFilter });
   const { data: storage, refetch: refetchStorage, isFetching: isFetchingStorage } = useStorageUsage();
   const uploadPhotos = useUploadPhotos();
   const deletePhoto = useDeletePhoto();
@@ -72,7 +79,7 @@ export default function GalleryManager() {
   const [lightboxIndex, setLightboxIndex] = useState(-1);
   const lightboxIndexRef = useRef(-1);
 
-  const handlePhotoClick = useCallback((photosList: Photo[], index: number) => {
+  const handlePhotoClick = useCallback((index: number) => {
     lightboxIndexRef.current = index;
     setLightboxIndex(index);
   }, []);
@@ -93,7 +100,6 @@ export default function GalleryManager() {
 
   const photos = useMemo(() => data?.pages.flatMap((p) => p.data || []) ?? [], [data]);
 
-  const [colCount, setColCount] = useState(2);
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -119,43 +125,8 @@ export default function GalleryManager() {
     return () => observer.disconnect();
   }, [handleObserver]);
 
-  useEffect(() => {
-    const onResize = () => {
-      const w = window.innerWidth;
-      if (w >= 1024) setColCount(4);
-      else if (w >= 768) setColCount(3);
-      else setColCount(2);
-    };
-    onResize();
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
-
   // no scroll-to-top on filter change — browser keeps exact
   // position natively; short results just clamp to max scroll height.
-
-  const toReadingOrder = useCallback(function <T>(items: T[], cols: number) {
-    const rows = Math.ceil(items.length / cols);
-    const result: T[] = [];
-    for (let col = 0; col < cols; col++) {
-      for (let row = 0; row < rows; row++) {
-        const idx = row * cols + col;
-        if (idx < items.length) result.push(items[idx]);
-      }
-    }
-    return result;
-  }, []);
-
-  const orderedPhotos = useMemo(
-    () => toReadingOrder(photos, colCount) as Photo[],
-    [photos, colCount, toReadingOrder],
-  );
-
-  // P-12: id→index map is O(n) once — indexOf per card was O(n²) per render.
-  const photoIndexById = useMemo(
-    () => new Map(photos.map((p, i) => [p.id, i] as const)),
-    [photos],
-  );
 
   const handleSelectToggle = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -342,6 +313,13 @@ export default function GalleryManager() {
     setPendingFiles((prev) => prev.filter((u) => u.id !== id));
   }, []);
 
+  // Items live in the persistent queue once a batch starts (and pendingFiles
+  // otherwise) — remove from both so the trash button always works.
+  const handleRemove = useCallback((id: string) => {
+    uploadPhotos.removeUpload(id);
+    removeFile(id);
+  }, [uploadPhotos, removeFile]);
+
   const clearQueue = useCallback(() => {
     uploadPhotos.cancelAllUploads();
     uploadPhotos.clearAllItems();
@@ -350,12 +328,12 @@ export default function GalleryManager() {
     setIsSubmitting(false);
   }, [uploadPhotos]);
 
-  const handleCancel = useCallback((queueId: string) => {
-    uploadPhotos.cancelUpload(queueId);
-  }, [uploadPhotos]);
-
   const handleRetry = useCallback((queueId: string) => {
     uploadPhotos.retryUpload(queueId);
+  }, [uploadPhotos]);
+
+  const handlePause = useCallback((queueId: string) => {
+    uploadPhotos.pauseUpload(queueId);
   }, [uploadPhotos]);
 
   const handleUpload = useCallback(async () => {
@@ -372,27 +350,32 @@ export default function GalleryManager() {
 
       const successCount = result.uploaded.length;
       const failCount = result.failed.length;
+      const pausedCount = result.paused.length;
       const l = label(pendingFiles.map((u) => u.file));
 
-      if (successCount > 0 && failCount === 0) {
-        toast.success(`${successCount} ${l} berhasil diupload!`);
-        setPendingFiles([]);
-        setFileErrors([]);
-        if (selectedAlbumId) {
+      if (successCount > 0) {
+        toast.success(
+          `${successCount} ${l} berhasil diupload${successCount === pendingFiles.length ? "!" : ""}`,
+          // Newest-first lands the upload at the top of the grid; oldest-first
+          // appends it past the pages already loaded, so say where it went.
+          sort === "oldest"
+            ? { description: "Media baru ada di urutan paling akhir daftar." }
+            : undefined,
+        );
+        if (failCount === 0 && pausedCount === 0 && selectedAlbumId) {
           setAlbumFilter(selectedAlbumId);
         }
-      } else if (successCount > 0 && failCount > 0) {
-        toast.success(`${successCount} ${l} berhasil diupload`);
+      }
+      if (failCount > 0) {
         const firstError = result.failed[0]?.error || "";
         const detail = firstError.includes("timeout") ? " (waktu habis)" : firstError.includes("limit") || firstError.includes("exceeds") || firstError.includes("melebihi") || firstError.includes("terlalu besar") ? " (melebihi batas)" : "";
-        toast.error(`${failCount} ${l} gagal${detail}. Klik tombol retry untuk mencoba lagi.`);
-        setPendingFiles([]);
-        setFileErrors([]);
-      } else {
-        toast.error(`Semua ${l} gagal diupload`);
-        setPendingFiles([]);
-        setFileErrors([]);
+        toast.error(`${failCount} ${l} gagal${detail}. Klik tombol Coba lagi untuk mengulang.`);
       }
+      if (pausedCount > 0) {
+        toast.info(`${pausedCount} ${l} dijeda. Tekan Lanjutkan pada item untuk melanjutkan.`);
+      }
+      setPendingFiles([]);
+      setFileErrors([]);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Gagal upload";
       if (msg.includes("timeout")) {
@@ -407,7 +390,7 @@ export default function GalleryManager() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [pendingFiles, selectedAlbumId, uploadPhotos, isSubmitting, photoPublic]);
+  }, [pendingFiles, selectedAlbumId, uploadPhotos, isSubmitting, photoPublic, sort]);
 
   const handleDelete = useCallback(async (id: string) => {
     const confirmed = await showDeleteConfirm({ title: "Hapus Media", text: "Apakah Anda yakin ingin menghapus media ini?" });
@@ -437,6 +420,8 @@ export default function GalleryManager() {
       return persistent.map((q) => ({
         id: q.id,
         file: q.file,
+        resumed: (q.resumeFrom ?? 0) > 0,
+        pausing: q.pausing,
         status: q.status,
         progress: q.progress,
         error: q.error,
@@ -451,6 +436,7 @@ export default function GalleryManager() {
   const retryingCount = uploadQueue.filter((u) => u.status === "retrying").length;
   const completeCount = uploadQueue.filter((u) => u.status === "complete").length;
   const errorCount = uploadQueue.filter((u) => u.status === "error" || u.status === "interrupted").length;
+  const pausedCount = uploadQueue.filter((u) => u.status === "paused").length;
   const totalCount = uploadQueue.length;
 
   const totalBytes = uploadQueue.reduce((sum, u) => sum + u.file.size, 0);
@@ -505,23 +491,40 @@ export default function GalleryManager() {
         </div>
 
         {hasQueue && (
-          <div className="mb-3 p-3 rounded-lg border border-primary/30 bg-primary/5 text-left">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex min-w-0 flex-1 items-center gap-2">
-                <div className="h-2 min-w-12 flex-1 max-w-xs overflow-hidden rounded-full bg-muted">
-                  <div className="h-full bg-primary transition-all duration-300 motion-safe:transition-all" style={{ width: `${overallProgress}%` }} />
-                </div>
-                <span className="whitespace-nowrap text-xs font-medium text-primary">
-                  {formatBytes(uploadedBytes)}/{formatBytes(totalBytes)} {uploadingCount > 0 ? `(${uploadingCount} file diupload)` : retryingCount > 0 ? `(mencoba ulang ${retryingCount})` : pendingCount > 0 ? `(${pendingCount} antrian)` : ""}
-                </span>
-              </div>
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 sm:shrink-0">
-                {errorCount > 0 && <span className="text-xs text-destructive">{errorCount} error</span>}
-                <span className="text-xs text-muted-foreground whitespace-nowrap">
-                  {uploadingCount > 0 ? (totalSpeed > 0 ? `${formatBytes(totalSpeed)}/s` : "Mengupload...") : "Menunggu..."}
-                </span>
-                {avgEta > 0 && <span className="text-xs text-muted-foreground whitespace-nowrap">ETA: {formatTime(avgEta)}</span>}
-              </div>
+          <div className="mb-3 rounded-xl border border-primary/20 bg-primary/5 p-3 text-left">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs font-medium text-foreground">
+                {completeCount}/{totalCount} selesai
+              </span>
+              <span className="text-sm font-semibold tabular-nums text-primary">{overallProgress}%</span>
+            </div>
+            <div
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={overallProgress}
+              aria-label="Progres upload keseluruhan"
+              className="mt-2 h-2 w-full overflow-hidden rounded-full bg-muted"
+            >
+              <div
+                className="h-full rounded-full bg-primary transition-[width] duration-300 ease-out"
+                style={{ width: `${overallProgress}%` }}
+              />
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+              <span className="tabular-nums">{formatBytes(uploadedBytes)} / {formatBytes(totalBytes)}</span>
+              {uploadingCount > 0 && (
+                <span className="tabular-nums">{totalSpeed > 0 ? `${formatBytes(totalSpeed)}/s` : "Mengunggah…"}</span>
+              )}
+              {avgEta > 0 && <span className="tabular-nums">ETA {formatTime(avgEta)}</span>}
+              {pendingCount > 0 && <span>{pendingCount} menunggu</span>}
+              {retryingCount > 0 && (
+                <span className="text-amber-600 dark:text-amber-400">{retryingCount} mencoba ulang</span>
+              )}
+              {pausedCount > 0 && (
+                <span className="text-amber-600 dark:text-amber-400">{pausedCount} dijeda</span>
+              )}
+              {errorCount > 0 && <span className="text-destructive">{errorCount} gagal</span>}
             </div>
           </div>
         )}
@@ -592,7 +595,7 @@ export default function GalleryManager() {
           onDrop={handleDrop}
           onDragOver={handleDragOver}
           className={cn(
-            "flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed p-4 sm:p-6 transition-colors w-full",
+            "flex w-full cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed p-4 text-center transition-colors outline-none focus-within:border-primary focus-within:ring-2 focus-within:ring-ring sm:p-6",
             isSubmitting ? "pointer-events-none opacity-50" : "hover:border-primary/50 hover:bg-accent"
           )}
         >
@@ -613,14 +616,14 @@ export default function GalleryManager() {
 
         {hasQueue && (
           <div className="mt-3 space-y-2 text-left">
-            <div className="max-h-64 space-y-2 overflow-y-auto">
+            <div className="max-h-64 space-y-2 overflow-y-auto sm:max-h-80">
               {uploadQueue.map((item) => (
                 <UploadItem
                   key={item.id}
                   item={item}
-                  onCancel={handleCancel}
                   onRetry={handleRetry}
-                  onRemove={removeFile}
+                  onPause={handlePause}
+                  onRemove={handleRemove}
                   isUploading={isSubmitting}
                 />
               ))}
@@ -843,11 +846,15 @@ export default function GalleryManager() {
           </div>
         )}
         {isLoading ? (
-          <div className="columns-2 gap-3 md:columns-3 lg:columns-4">
+          <div className={GALLERY_GRID_CLASSES}>
             {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="mb-3 break-inside-avoid">
-                <div className="aspect-[3/4] w-full rounded-2xl bg-muted motion-safe:animate-pulse" />
-              </div>
+              <div
+                key={i}
+                className={cn(
+                  GALLERY_TILE_CLASSES,
+                  "rounded-2xl bg-muted motion-safe:animate-pulse",
+                )}
+              />
             ))}
           </div>
         ) : isError ? (
@@ -865,33 +872,33 @@ export default function GalleryManager() {
           </div>
         ) : (
           <>
-            <div className="columns-2 gap-3 md:columns-3 lg:columns-4">
-              {orderedPhotos.map((photo) => {
-                const origIndex = photoIndexById.get(photo.id) ?? 0;
-                return (
-                  <div key={photo.id} className="mb-3 break-inside-avoid">
-                    <PhotoCard
-                      photo={photo}
-                      onClick={(p) => handlePhotoClick(photos, origIndex)}
-                      onFavoriteToggle={(id, isFavorite) => updatePhoto.mutate({ id, isFavorite })}
-                      onPublicToggle={(id, isPublic) => updatePhoto.mutate({ id, isPublic })}
-                      isPrioritized={origIndex < 8}
-                      selectable={selectMode}
-                      isSelected={selectedIds.has(photo.id)}
-                      onSelectToggle={handleSelectToggle}
-                    />
-                  </div>
-                );
-              })}
+            <div className={GALLERY_GRID_CLASSES}>
+              {photos.map((photo, index) => (
+                <PhotoCard
+                  key={photo.id}
+                  photo={photo}
+                  onClick={() => handlePhotoClick(index)}
+                  onFavoriteToggle={(id, isFavorite) => updatePhoto.mutate({ id, isFavorite })}
+                  onPublicToggle={(id, isPublic) => updatePhoto.mutate({ id, isPublic })}
+                  isPrioritized={index < 8}
+                  selectable={selectMode}
+                  isSelected={selectedIds.has(photo.id)}
+                  onSelectToggle={handleSelectToggle}
+                />
+              ))}
             </div>
 
             <div ref={loadMoreRef} className="py-8">
               {isFetchingNextPage && (
-                <div className="columns-2 gap-3 md:columns-3 lg:columns-4">
+                <div className={GALLERY_GRID_CLASSES}>
                   {Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="mb-3 break-inside-avoid">
-                      <div className="aspect-[3/4] w-full rounded-2xl bg-muted motion-safe:animate-pulse" />
-                    </div>
+                    <div
+                      key={i}
+                      className={cn(
+                        GALLERY_TILE_CLASSES,
+                        "rounded-2xl bg-muted motion-safe:animate-pulse",
+                      )}
+                    />
                   ))}
                 </div>
               )}

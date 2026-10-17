@@ -6,6 +6,32 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * The gallery grid: 2 columns on phones, 3 from md, 4 from lg.
+ *
+ * Shipped as a constant because the order bug it fixes came from the layers
+ * disagreeing — the real grid, the infinite-scroll tail and the skeletons each
+ * spelled out their own columns, so they drifted (the dashboard fallback was
+ * rendering a single column on mobile). CSS grid lays items out left→right,
+ * row by row, so DOM order IS the reading order.
+ */
+export const GALLERY_GRID_CLASSES = "grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4";
+
+/**
+ * The uniform gallery tile. Every card carries the same square box and the image
+ * covers it, so rows are equal height and the order is deterministic on every
+ * device. The alternative — sizing each tile from its own photo ratio — forces
+ * either a masonry (order drifts) or per-photo cropping logic.
+ */
+export const GALLERY_TILE_CLASSES = "aspect-square w-full";
+
+/**
+ * Photos per page. One value for the whole stack: the /api/photos default and
+ * every gallery surface, so the client and the server never disagree about how
+ * far a cursor has to jump.
+ */
+export const PHOTO_PAGE_SIZE = 40;
+
 export function formatDate(date: Date | string): string {
   return formatInJakarta(date, {
     day: "numeric",

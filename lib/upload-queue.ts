@@ -1,11 +1,17 @@
 "use client";
 
+import type { UploadSession } from "./chunked-upload";
+import { SIMPLE_UPLOAD_MAX_BYTES } from "./upload-config";
+
 export interface QueuedUpload {
   id: string;
   file: File;
   publicId: string;
   resourceType: "image" | "video" | "raw" | "auto";
-  status: "pending" | "uploading" | "complete" | "error" | "cancelled" | "interrupted" | "retrying";
+  status: "pending" | "uploading" | "complete" | "error" | "cancelled" | "interrupted" | "retrying" | "paused";
+  /** Album / visibility chosen for this upload, so a later retry can persist it. */
+  albumId?: string;
+  isPublic?: boolean;
   progress: {
     loaded: number;
     total: number;
@@ -29,6 +35,23 @@ export interface QueuedUpload {
   };
   startedAt?: number;
   completedAt?: number;
+  /**
+   * Chunked-upload session state, kept across retries so an interrupted upload
+   * resumes from the last committed chunk instead of restarting at 0.
+   */
+  session?: UploadSession;
+  /**
+   * Chunk count this attempt resumed from (0 = fresh). Distinct from
+   * `session` (which exists as soon as any chunk commits) so the UI only says
+   * "resuming" when a retry actually continued previous progress.
+   */
+  resumeFrom?: number;
+  /**
+   * A pause has been requested but the upload is finishing its current chunk so
+   * the bytes commit instead of being thrown away. Flips to `status: "paused"`
+   * at the next chunk boundary.
+   */
+  pausing?: boolean;
 }
 
 export interface UploadQueueOptions {
@@ -62,8 +85,9 @@ function classifyRetryable(error: Error | undefined): RetryableReason | null {
     isNetworkError?: boolean;
     status?: number;
   };
-  // Never auto-retry a user-initiated abort.
-  if (e.isAborted) return null;
+  // Never auto-retry a user-initiated abort — either our flag or a raw
+  // AbortError that escaped without it (e.g. a checked `signal.aborted`).
+  if (e.isAborted || e.name === "AbortError") return null;
   if (e.status === 429 || /too many requests|429/i.test(error.message)) return "rate-limited";
   if (e.isTimeout || e.isNetworkError || /failed to fetch|network|timeout|terputus|habis/i.test(error.message)) {
     return "timeout";
@@ -82,6 +106,8 @@ export class UploadQueue {
   private activeCount = 0;
   private options: UploadQueueOptions;
   private abortControllers = new Map<string, AbortController>();
+  /** Ids the user explicitly paused — distinguishes a pause-abort from a cancel. */
+  private pausedIds = new Set<string>();
   private isProcessing = false;
   private isPaused = false;
   private completedCount = 0;
@@ -102,6 +128,7 @@ export class UploadQueue {
     }
     this.boundRetryTimers.forEach((t) => clearTimeout(t));
     this.boundRetryTimers.clear();
+    this.pausedIds.clear();
   }
 
   /** Replaces the UI callbacks (used by React to stay subscribed to the singleton). */
@@ -129,7 +156,8 @@ export class UploadQueue {
     publicId: string,
     resourceType: "image" | "video" | "raw" | "auto",
     existingId?: string,
-    albumId?: string
+    albumId?: string,
+    isPublic?: boolean
   ): Promise<QueuedUpload> {
     const id = existingId || `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
     const upload: QueuedUpload = {
@@ -137,6 +165,8 @@ export class UploadQueue {
       file,
       publicId,
       resourceType,
+      albumId,
+      isPublic,
       status: "pending",
       attempts: 0,
       progress: {
@@ -174,26 +204,51 @@ export class UploadQueue {
     return task?.upload;
   }
 
-  resetToPending(id: string): boolean {
+  /**
+   * Re-queues a failed/cancelled/interrupted/paused upload, keeping its resume
+   * session. Returns a promise that settles when *this* attempt finishes — the
+   * promise from the original `add()` already settled when the first attempt
+   * stopped, so a manual resume/retry needs its own to know whether to persist
+   * the result. Returns null if the item is not resumable.
+   */
+  resetToPending(id: string): Promise<QueuedUpload> | null {
     const task = this.queue.find((t) => t.upload.id === id);
-    if (!task || (task.upload.status !== "error" && task.upload.status !== "cancelled" && task.upload.status !== "interrupted")) {
-      return false;
+    const resumable =
+      task &&
+      (task.upload.status === "error" ||
+        task.upload.status === "cancelled" ||
+        task.upload.status === "interrupted" ||
+        task.upload.status === "paused");
+    if (!task || !resumable) {
+      return null;
     }
 
     this.clearRetryTimer(id);
+    this.pausedIds.delete(id);
     task.upload.status = "pending";
     task.upload.error = undefined;
     task.upload.attempts = 0;
+    task.upload.pausing = false;
+    // Keep upload.session — a manual retry resumes from the last committed
+    // chunk. Show that progress immediately instead of snapping back to 0.
+    const resumedBytes = task.upload.session?.uploadedBytes ?? 0;
+    const total = task.upload.file.size;
     task.upload.progress = {
-      loaded: 0,
-      total: task.upload.file.size,
-      percent: 0,
+      loaded: resumedBytes,
+      total,
+      percent: total > 0 ? Math.round((resumedBytes / total) * 100) : 0,
       speed: 0,
       eta: 0,
     };
+
+    const done = new Promise<QueuedUpload>((resolve, reject) => {
+      task.resolve = resolve;
+      task.reject = reject;
+    });
+
     this.options.onProgress(task.upload);
     this.process();
-    return true;
+    return done;
   }
 
   getActiveCount(): number {
@@ -213,9 +268,82 @@ export class UploadQueue {
   }
 
   isComplete(): boolean {
-    return this.queue.length > 0 && this.queue.every((t) =>
-      t.upload.status === "complete" || t.upload.status === "error" || t.upload.status === "cancelled" || t.upload.status === "interrupted"
+    return this.queue.length > 0 && this.queue.every((t) => this.isTerminal(t.upload.status));
+  }
+
+  /** Statuses where an item has settled and no further work happens without user action. */
+  private isTerminal(status: QueuedUpload["status"]): boolean {
+    return (
+      status === "complete" ||
+      status === "error" ||
+      status === "cancelled" ||
+      status === "interrupted" ||
+      status === "paused"
     );
+  }
+
+  /**
+   * Pauses an in-flight or queued upload without losing transferred bytes.
+   *
+   * Chunked uploads stop at the next *committed* chunk boundary: the current
+   * chunk is allowed to finish (status `pausing`), so everything sent so far is
+   * kept and `Lanjutkan` resumes from that boundary. Single-request uploads
+   * (≤ SIMPLE_UPLOAD_MAX_BYTES) have no boundary, so they are aborted outright.
+   *
+   * Settles the batch promise for this item so the surrounding `uploadFiles`
+   * await can't hang; a resume gets a fresh promise via `resetToPending`.
+   */
+  pauseUpload(id: string): boolean {
+    const task = this.queue.find((t) => t.upload.id === id);
+    if (!task) return false;
+    const status = task.upload.status;
+    if (status !== "uploading" && status !== "retrying" && status !== "pending") return false;
+
+    this.pausedIds.add(id);
+    this.clearRetryTimer(id);
+
+    if (status === "uploading") {
+      task.upload.pausing = true;
+      if (task.upload.file.size <= SIMPLE_UPLOAD_MAX_BYTES) {
+        // One request, no chunk boundary — the only way to stop is to abort.
+        this.abortControllers.get(id)?.abort();
+      }
+      // Chunked: the uploader checks shouldStop between chunks and finalises.
+      this.options.onProgress(task.upload);
+      return true;
+    }
+
+    // Nothing in flight — pause immediately.
+    task.upload.status = "paused";
+    task.upload.pausing = false;
+    task.upload.progress = { ...task.upload.progress, speed: 0, eta: 0 };
+    this.options.onProgress(task.upload);
+    task.resolve(task.upload);
+    this.process();
+    return true;
+  }
+
+  /**
+   * Finalises an attempt as paused: keeps the resume session (so `Lanjutkan`
+   * continues from the last committed chunk) and snaps the displayed progress
+   * back to those committed bytes.
+   */
+  private finalizePaused(task: UploadTask, wasActive: boolean): void {
+    const { upload } = task;
+    upload.status = "paused";
+    upload.pausing = false;
+    upload.error = undefined;
+    const committed = upload.session?.uploadedBytes ?? upload.progress.loaded;
+    upload.progress.loaded = Math.min(committed, upload.progress.total);
+    upload.progress.percent =
+      upload.progress.total > 0
+        ? Math.round((upload.progress.loaded / upload.progress.total) * 100)
+        : 0;
+    upload.progress = { ...upload.progress, speed: 0, eta: 0 };
+    if (wasActive) this.activeCount = Math.max(0, this.activeCount - 1);
+    this.options.onProgress(upload);
+    task.resolve(upload);
+    this.process();
   }
 
   pause(): void {
@@ -228,35 +356,22 @@ export class UploadQueue {
     this.process();
   }
 
-  cancel(id: string): boolean {
-    const task = this.queue.find((t) => t.upload.id === id);
-    if (!task) return false;
-
-    const wasUploading = task.upload.status === "uploading";
-    if (wasUploading) {
-      const controller = this.abortControllers.get(id);
-      controller?.abort();
-    }
-
-    this.clearRetryTimer(id);
-    task.upload.status = "cancelled";
-    this.options.onProgress(task.upload);
-    if (wasUploading) {
-      this.activeCount = Math.max(0, this.activeCount - 1);
-    }
-    task.resolve(task.upload);
-    this.process();
-    return true;
-  }
-
   cancelAll(): void {
     this.boundRetryTimers.forEach((t) => clearTimeout(t));
     this.boundRetryTimers.clear();
+    this.pausedIds.clear();
     this.queue.forEach((task) => {
-      if (task.upload.status === "uploading" || task.upload.status === "pending" || task.upload.status === "retrying") {
-        const controller = this.abortControllers.get(task.upload.id);
-        controller?.abort();
+      if (task.upload.status === "uploading") {
         task.upload.status = "cancelled";
+        task.upload.pausing = false;
+        this.options.onProgress(task.upload);
+        // catch finalises the abort (decrement + settle)
+        this.abortControllers.get(task.upload.id)?.abort();
+        return;
+      }
+      if (task.upload.status === "pending" || task.upload.status === "retrying" || task.upload.status === "paused") {
+        task.upload.status = "cancelled";
+        task.upload.pausing = false;
         this.options.onProgress(task.upload);
         task.resolve(task.upload);
       }
@@ -294,6 +409,7 @@ export class UploadQueue {
   clearAllItems(): void {
     this.queue = [];
     this.completedCount = 0;
+    this.pausedIds.clear();
   }
 
   remove(id: string): boolean {
@@ -302,15 +418,20 @@ export class UploadQueue {
 
     const task = this.queue[index];
     this.clearRetryTimer(id);
+    this.pausedIds.delete(id);
+    task.upload.pausing = false;
+
     if (task.upload.status === "uploading") {
-      const controller = this.abortControllers.get(id);
-      controller?.abort();
+      // Drop the row immediately; executeUpload's catch finalises the abort
+      // (decrement + settle) even though the task left the queue.
+      task.upload.status = "cancelled";
+      this.abortControllers.get(id)?.abort();
+      this.queue.splice(index, 1);
+      return true;
     }
-    if (task.upload.status === "pending" || task.upload.status === "retrying") {
+
+    if (task.upload.status === "pending" || task.upload.status === "retrying" || task.upload.status === "paused") {
       task.resolve(task.upload);
-    }
-    if (task.upload.status === "uploading") {
-      this.activeCount = Math.max(0, this.activeCount - 1);
     }
 
     this.queue.splice(index, 1);
@@ -325,13 +446,15 @@ export class UploadQueue {
         const controller = this.abortControllers.get(task.upload.id);
         controller?.abort();
       }
-      if (task.upload.status === "pending" || task.upload.status === "uploading" || task.upload.status === "retrying") {
+      if (task.upload.status === "pending" || task.upload.status === "uploading" || task.upload.status === "retrying" || task.upload.status === "paused") {
         task.upload.status = "cancelled";
+        task.upload.pausing = false;
         task.resolve(task.upload);
       }
     });
     this.queue = [];
     this.abortControllers.clear();
+    this.pausedIds.clear();
     this.activeCount = 0;
     this.completedCount = 0;
     this.isProcessing = false;
@@ -347,11 +470,21 @@ export class UploadQueue {
   }
 
   private scheduleRetry(task: UploadTask, reason: RetryableReason) {
+    // A pause was requested while this chunk was failing/stalling — honour it
+    // instead of retrying behind the user's back.
+    if (this.pausedIds.has(task.upload.id)) {
+      this.pausedIds.delete(task.upload.id);
+      this.abortControllers.delete(task.upload.id);
+      this.finalizePaused(task, true);
+      return;
+    }
+
     const attempts = (task.upload.attempts || 0) + 1;
     task.upload.attempts = attempts;
 
     if (attempts > MAX_AUTO_RETRIES) {
       task.upload.status = "error";
+      task.upload.pausing = false;
       const msg =
         reason === "rate-limited"
           ? "Terlalu banyak permintaan. Coba lagi nanti."
@@ -434,6 +567,7 @@ export class UploadQueue {
 
     upload.status = "uploading";
     upload.startedAt = Date.now();
+    upload.resumeFrom = upload.session?.completedChunks ?? 0;
     this.options.onProgress(upload);
 
     try {
@@ -478,12 +612,27 @@ export class UploadQueue {
           RETRY_DELAY_MS: 1000,
           PROGRESS_THROTTLE_MS: 200,
           DEFAULT_CONCURRENCY: this.options.maxConcurrency,
+        },
+        {
+          // Resume this file's chunked-upload session across retries; persist
+          // the latest session on the item so the next attempt continues it.
+          resume: upload.session,
+          onSession: (session) => {
+            upload.session = session ?? undefined;
+          },
+          // Orderly pause: stop at the next committed chunk boundary so no
+          // transferred bytes are discarded.
+          shouldStop: () => this.pausedIds.has(upload.id),
         }
       );
 
       upload.result = result;
       upload.status = "complete";
       upload.completedAt = Date.now();
+      // A pause requested during the *final* chunk arrives too late to stop —
+      // clear it so the row doesn't stay labelled "Menjeda…" on a done upload.
+      upload.pausing = false;
+      this.pausedIds.delete(upload.id);
       upload.progress.percent = 100;
       upload.progress.loaded = upload.progress.total;
       upload.progress.speed = 0;
@@ -503,9 +652,20 @@ export class UploadQueue {
       const reason = classifyRetryable(err);
 
       if (reason === null) {
-        upload.status = "cancelled";
-        this.activeCount = Math.max(0, this.activeCount - 1);
+        const wasPaused = this.pausedIds.has(upload.id);
+        this.pausedIds.delete(upload.id);
         this.abortControllers.delete(upload.id);
+        if (wasPaused) {
+          this.finalizePaused(task, true);
+          return;
+        }
+        this.activeCount = Math.max(0, this.activeCount - 1);
+        upload.status = "cancelled";
+        upload.pausing = false;
+        upload.progress = { ...upload.progress, speed: 0, eta: 0 };
+        this.options.onProgress(upload);
+        // Settle this attempt's promise so the surrounding batch doesn't hang;
+        // a resume gets a fresh promise via resetToPending.
         task.resolve(upload);
         this.process();
         return;
@@ -514,6 +674,8 @@ export class UploadQueue {
       if (reason === "unknown" && !controller.signal.aborted) {
         upload.status = "error";
         upload.error = err.message;
+        upload.pausing = false;
+        this.pausedIds.delete(upload.id);
         this.activeCount = Math.max(0, this.activeCount - 1);
         this.abortControllers.delete(upload.id);
         task.reject(err);
@@ -528,9 +690,7 @@ export class UploadQueue {
   }
 
   private checkAllComplete(): void {
-    const allDone = this.queue.every(
-      (t) => t.upload.status === "complete" || t.upload.status === "error" || t.upload.status === "cancelled" || t.upload.status === "interrupted"
-    );
+    const allDone = this.queue.every((t) => this.isTerminal(t.upload.status));
 
     if (allDone) {
       this.isProcessing = false;
@@ -538,7 +698,7 @@ export class UploadQueue {
     }
   }
 
-  getStats(): { total: number; pending: number; uploading: number; complete: number; error: number; cancelled: number; interrupted: number; retrying: number } {
+  getStats(): { total: number; pending: number; uploading: number; complete: number; error: number; cancelled: number; interrupted: number; retrying: number; paused: number } {
     return {
       total: this.queue.length,
       pending: this.queue.filter((t) => t.upload.status === "pending").length,
@@ -548,6 +708,7 @@ export class UploadQueue {
       cancelled: this.queue.filter((t) => t.upload.status === "cancelled").length,
       interrupted: this.queue.filter((t) => t.upload.status === "interrupted").length,
       retrying: this.queue.filter((t) => t.upload.status === "retrying").length,
+      paused: this.queue.filter((t) => t.upload.status === "paused").length,
     };
   }
 }

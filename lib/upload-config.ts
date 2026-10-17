@@ -24,13 +24,16 @@ export interface UploadConfig {
 }
 
 export const UploadConfig: UploadConfig = {
-  // 5MB floor — 2MB chunks meant 50 serial round-trips for 100MB.
-  // (Cloudinary Content-Range uploads must stay serial; fewer, bigger chunks win.)
+  // Cloudinary requires every chunk except the last to be > 5MB
+  // (docs: "Use chunk sizes greater than 5 MB for all chunks except the last").
+  // Bigger chunks mean fewer serial round-trips, but only *committed* chunks
+  // survive a pause / network drop — so we sit on the floor: a pause loses at
+  // most one ~5MB chunk instead of a 10–20MB one.
   CHUNK_SIZES: {
     small: 5 * 1024 * 1024,
-    medium: 10 * 1024 * 1024,
-    large: 20 * 1024 * 1024,
-    xlarge: 20 * 1024 * 1024,
+    medium: 5 * 1024 * 1024,
+    large: 5 * 1024 * 1024,
+    xlarge: 5 * 1024 * 1024,
   },
   CHUNK_THRESHOLDS: {
     small: 10 * 1024 * 1024,
@@ -56,6 +59,14 @@ export function getChunkSize(fileSize: number): number {
   if (fileSize <= CHUNK_THRESHOLDS.large) return CHUNK_SIZES.large;
   return CHUNK_SIZES.xlarge;
 }
+
+/**
+ * Files at or below this size use a single direct request (no chunking), so
+ * there is no chunk boundary to stop at — the queue aborts them outright on
+ * pause. Kept here (not in chunked-upload) so the queue can read it without
+ * statically pulling the uploader into the dashboard bundle.
+ */
+export const SIMPLE_UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
 
 export function calculateTotalChunks(fileSize: number): number {
   return Math.ceil(fileSize / getChunkSize(fileSize));

@@ -44,6 +44,17 @@ describe("usePhotos (F-02 gallery data)", () => {
     expect(result.current.hasNextPage).toBe(false);
   });
 
+  it("defaults the gallery page size to 40 per page", async () => {
+    const seen: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      seen.push(url);
+      return new Response(JSON.stringify(page1), { status: 200 });
+    }));
+    const { result } = renderHook(() => usePhotos(), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(seen[0]).toContain("limit=40");
+  });
+
   it("surfaces server error message", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "Gagal total" }), { status: 500 })));
     const { result } = renderHook(() => usePhotos(), { wrapper: wrapper() });

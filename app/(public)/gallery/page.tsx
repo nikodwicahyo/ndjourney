@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import PublicGallery from "@/components/gallery/PublicGallery";
 import PageTransition from "@/components/PageTransition";
 import ScrollToTopButton from "@/components/ui/ScrollToTopButton";
+import { cn, GALLERY_GRID_CLASSES, GALLERY_TILE_CLASSES } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Gallery" };
 
@@ -16,11 +17,11 @@ export default function GalleryPage() {
           <div className="space-y-6 overflow-hidden">
             <div className="h-8 w-48 animate-pulse rounded-full bg-muted" />
             <div className="h-6 w-64 animate-pulse rounded-full bg-muted" />
-            <div className="columns-2 gap-3 md:columns-3 lg:columns-4">
+            <div className={GALLERY_GRID_CLASSES}>
               {Array.from({ length: 8 }).map((_, i) => (
                 <div
                   key={i}
-                  className="mb-3 aspect-[3/4] animate-pulse rounded-2xl bg-muted"
+                  className={cn(GALLERY_TILE_CLASSES, "animate-pulse rounded-2xl bg-muted")}
                 />
               ))}
             </div>

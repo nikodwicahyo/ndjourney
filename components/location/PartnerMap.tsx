@@ -852,9 +852,11 @@ export default function PartnerMap({
         </div>
       )}
 
-      {/* Bottom info bar */}
-      <div className="absolute bottom-6 left-2 right-2 z-[1001]">
-        <div className="mx-auto flex max-w-[calc(100%-1rem)] flex-wrap items-center gap-2 rounded-full bg-background/80 px-4 py-1.5 shadow-sm backdrop-blur-sm text-xs text-muted-foreground">
+      {/* Bottom info bar. right-16 clears the 44px Leaflet control column
+          (.leaflet-bar a is forced to 44px + 10px corner margin); bottom-10
+          clears the scale control at bottom-left. */}
+      <div className="absolute bottom-10 left-2 right-16 z-[1001]">
+        <div className="mx-auto w-fit max-w-[calc(100%-1rem)] flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 rounded-full bg-background/95 px-4 py-1.5 text-center shadow-md backdrop-blur-sm text-xs text-muted-foreground">
           {self?.point && (
             <>
               <span className="flex items-center gap-1">

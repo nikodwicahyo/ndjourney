@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import GalleryManager from "@/components/dashboard/GalleryManager";
 import PageTransition from "@/components/PageTransition";
 import { Skeleton } from "@/components/ui";
+import { cn, GALLERY_GRID_CLASSES, GALLERY_TILE_CLASSES } from "@/lib/utils";
 import ScrollToTopButton from "@/components/ui/ScrollToTopButton";
 import type { Metadata } from "next";
 
@@ -22,9 +23,12 @@ export default function GalleryManagerPage() {
           fallback={
             <div className="space-y-6">
               <Skeleton className="h-10 w-32" />
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <div className={GALLERY_GRID_CLASSES}>
                 {Array.from({ length: 8 }).map((_, i) => (
-                  <div key={i} className="aspect-[3/4] animate-pulse rounded-2xl bg-muted" />
+                  <div
+                    key={i}
+                    className={cn(GALLERY_TILE_CLASSES, "animate-pulse rounded-2xl bg-muted")}
+                  />
                 ))}
               </div>
             </div>

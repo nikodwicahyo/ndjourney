@@ -6,7 +6,7 @@ import { Button, Skeleton } from "@/components/ui";
 import { Plus, Loader2, X, Trash2, Pencil, Check, Globe, EyeOff, ChevronDown, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
 import { showDeleteConfirm } from "@/lib/swal";
-import { cn } from "@/lib/utils";
+import { cn, FILTER_GROUP_CLASSES, FILTER_SEGMENT_CLASSES } from "@/lib/utils";
 import { queryKeys } from "@/lib/query-keys";
 import type { AlbumWithCount } from "@/types";
 
@@ -204,14 +204,14 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
                   Tampil di gallery publik/privat
                 </span>
               </span>
-              <div className="flex items-center gap-1 rounded-full border border-border p-0.5">
+              <div className={FILTER_GROUP_CLASSES}>
                 <button
                   type="button"
                   onClick={() => setIsPublic(true)}
                   aria-label="Album publik"
                   aria-pressed={isPublic}
                   className={cn(
-                    "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                    FILTER_SEGMENT_CLASSES,
                     isPublic
                       ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
                       : "text-muted-foreground hover:text-foreground"
@@ -226,7 +226,7 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
                   aria-label="Album privat"
                   aria-pressed={!isPublic}
                   className={cn(
-                    "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                    FILTER_SEGMENT_CLASSES,
                     !isPublic
                       ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
                       : "text-muted-foreground hover:text-foreground"
@@ -289,7 +289,7 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
                           }}
                           placeholder="Nama album"
                           autoFocus
-                          className="h-8 w-full rounded-lg border border-input bg-card px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          className="h-10 w-full rounded-xl border border-input bg-card px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         />
                         <label htmlFor={`edit-album-desc-${album.id}`} className="text-sm font-medium">Deskripsi (opsional)</label>
                         <input
@@ -297,18 +297,18 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
                           value={editDescription}
                           onChange={(e) => setEditDescription(e.target.value)}
                           placeholder="Deskripsi (opsional)"
-                          className="h-8 w-full rounded-lg border border-input bg-card px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          className="h-10 w-full rounded-xl border border-input bg-card px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         />
-                        <div className="flex items-center justify-between gap-3 rounded-lg border border-input bg-card px-3 py-1.5 text-sm">
+                        <div className="flex items-center justify-between gap-3 rounded-xl border border-input bg-card px-4 py-2 text-sm">
                           <span className="font-medium">Visibilitas</span>
-                          <div className="flex items-center gap-1 rounded-full border border-border p-0.5">
+                          <div className={FILTER_GROUP_CLASSES}>
                             <button
                               type="button"
                               onClick={() => setEditIsPublic(true)}
                               aria-label="Album publik"
                               aria-pressed={editIsPublic}
                               className={cn(
-                                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors",
+                                FILTER_SEGMENT_CLASSES,
                                 editIsPublic
                                   ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
                                   : "text-muted-foreground hover:text-foreground"
@@ -323,7 +323,7 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
                               aria-label="Album privat"
                               aria-pressed={!editIsPublic}
                               className={cn(
-                                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors",
+                                FILTER_SEGMENT_CLASSES,
                                 !editIsPublic
                                   ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
                                   : "text-muted-foreground hover:text-foreground"

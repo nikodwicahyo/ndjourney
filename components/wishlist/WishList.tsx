@@ -102,7 +102,7 @@ export default function WishList() {
                 key={cat.value}
                 onClick={() => setFilter(cat.value)}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all",
+                  "inline-flex h-10 items-center justify-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-all",
                   filter === cat.value
                     ? "border-primary bg-primary/10 text-primary shadow-sm"
                     : "border-border text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground",
@@ -122,7 +122,7 @@ export default function WishList() {
           <button
             onClick={() => setShowDone(!showDone)}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+              "inline-flex h-10 items-center justify-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
               showDone
                 ? "border-border text-muted-foreground"
                 : "border-primary bg-primary/10 text-primary",

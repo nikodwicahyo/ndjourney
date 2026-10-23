@@ -49,8 +49,10 @@ export async function GET(request: Request) {
     const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 100) : PHOTO_PAGE_SIZE;
 
     const scope = isAuthed ? "auth" : "public";
+    // Legacy null-couple rows are uploader-scoped, so the result is per-user.
+    const userId = session?.user?.id ?? "anon";
     const coupleId = session?.user ? await getUserCoupleId(session.user.id) : null;
-    const cacheK = cacheKey("photos", "list", scope, coupleId ?? "nocouple", albumId ?? "", year ?? "", isFavorite ?? "", mediaType ?? "", visibility ?? "", sort ?? "", cursor ?? "0", String(limit));
+    const cacheK = cacheKey("photos", "list", scope, coupleId ?? "nocouple", userId, albumId ?? "", year ?? "", isFavorite ?? "", mediaType ?? "", visibility ?? "", sort ?? "", cursor ?? "0", String(limit));
     const cached = await getCached<unknown>(cacheK);
     if (cached) {
       return NextResponse.json(cached, {
@@ -74,7 +76,8 @@ export async function GET(request: Request) {
 
     // one public rule for anon AND authed public filter — photo must be
     // public AND (unfiled OR in a public album). Private context skips the gate.
-    // SEC: authed non-public views are couple-scoped (legacy null rows stay visible).
+    // SEC: authed non-public views are couple-scoped; legacy null-couple rows
+    // stay visible only to their uploader (matches GET /api/photos/[id]).
     const isPublicView = !isAuthed || visibility === "public";
     if (!isAuthed || !coupleId) {
       conditions.push(`"isPublic" = true`);
@@ -83,11 +86,11 @@ export async function GET(request: Request) {
       );
     } else if (visibility === "private") {
       conditions.push(`"isPublic" = false`);
-      conditions.push(`("coupleId" = $${sqlParams.length + 1} OR "coupleId" IS NULL)`);
-      sqlParams.push(coupleId);
+      conditions.push(`("coupleId" = $${sqlParams.length + 1} OR ("coupleId" IS NULL AND "uploadedById" = $${sqlParams.length + 2}))`);
+      sqlParams.push(coupleId, session!.user.id);
     } else if (visibility !== "public") {
-      conditions.push(`("coupleId" = $${sqlParams.length + 1} OR "coupleId" IS NULL)`);
-      sqlParams.push(coupleId);
+      conditions.push(`("coupleId" = $${sqlParams.length + 1} OR ("coupleId" IS NULL AND "uploadedById" = $${sqlParams.length + 2}))`);
+      sqlParams.push(coupleId, session!.user.id);
     } else {
       conditions.push(`"isPublic" = true`);
       conditions.push(

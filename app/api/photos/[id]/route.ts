@@ -21,9 +21,10 @@ export async function GET(
 
     const { id } = await params;
 
-    const scope = isAuthed ? "auth" : "public";
     const callerCoupleId = session?.user ? await getUserCoupleId(session.user.id) : null;
-    const cacheK = cacheKey("photos", "detail", scope, callerCoupleId ?? "nocouple", id);
+    // SEC: null-couple visibility is uploader-scoped, so cache by user — a
+    // couple-scoped key would serve one member's legacy row to the other.
+    const cacheK = cacheKey("photos", "detail", session?.user?.id ?? "public", id);
     const cached = await getCached<unknown>(cacheK);
     if (cached) {
       return NextResponse.json(cached, {

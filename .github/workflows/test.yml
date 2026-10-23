@@ -17,15 +17,14 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
-        with: { node-version: 22, cache: npm }
+        with: { node-version-file: .nvmrc, cache: npm }
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
       - run: npx prisma validate
-      # C-10: visibility only — the repo currently has known advisories, so a
-      # gating audit would red-X every PR until the upgrade backlog is cleared.
+      # C-10: production dependency audit is gating. Dev-only tooling has an
+      # unfixed braces advisory (no patched release); it is not shipped.
       - run: npm run security:audit
-        continue-on-error: true
   unit-integration:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -34,7 +33,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
-        with: { node-version: 22, cache: npm }
+        with: { node-version-file: .nvmrc, cache: npm }
       - run: npm ci
       - run: npm run db:generate
       - run: npm run test:unit

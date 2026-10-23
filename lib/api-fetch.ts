@@ -1,4 +1,4 @@
-import { signOut } from "next-auth/react";
+import { signOutAndClear } from "@/lib/sign-out";
 
 const AUTH_ERROR_CODES = [401, 403];
 
@@ -19,12 +19,12 @@ async function handleAuthError(status: number) {
     duration: 5000,
     action: {
       label: "Login",
-      onClick: () => signOut({ callbackUrl: "/login?reason=expired" }),
+      onClick: () => signOutAndClear({ callbackUrl: "/login?reason=expired" }),
     },
   });
   // Full-page reload via NextAuth (not router.push): purges all authed
   // client state (queries, session) that a client-side nav would keep stale.
-  await signOut({
+  await signOutAndClear({
     callbackUrl:
       "/login?reason=expired&callbackUrl=" +
       encodeURIComponent(window.location.pathname),

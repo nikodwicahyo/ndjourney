@@ -88,6 +88,12 @@ describe("photos API contracts", () => {
       .mockResolvedValueOnce([{ total: 1, fotoTotal: 1, videoTotal: 0 }]);
     const res = await GET(new Request("http://localhost/api/photos?albumId=cmrm6skmr000004jtligbccin&limit=30"));
     expect(res?.status).toBe(200);
+    // SEC: legacy null-couple rows are uploader-scoped, and the cache is per-user.
+    const [listSql, ...listParams] = prismaMock.$queryRawUnsafe.mock.calls[0];
+    expect(listSql).toContain(`"uploadedById" = $2`);
+    expect(listParams).toContain(ME);
+    const { getCached } = await import("@/lib/redis");
+    expect(vi.mocked(getCached).mock.calls[0][0]).toContain(`:${ME}:`);
     // SEC: foreign albumIds are rejected before SQL runs (empty list, no leak).
     prismaMock.album.findUnique.mockResolvedValue({ id: "x", coupleId: "couple-other" });
     const foreign = await GET(new Request("http://localhost/api/photos?albumId=cmrm6skmr000004jtligbccin&limit=30"));
@@ -209,6 +215,25 @@ describe("photos API contracts", () => {
     });
     const foreign = await detail.GET(new Request("http://localhost/api/photos/p1"), { params: Promise.resolve({ id: "p1" }) });
     expect(foreign.status).toBe(404);
+  });
+
+  it("photo GET: detail cache is user-scoped (null-couple privacy)", async () => {
+    const { getCached } = await import("@/lib/redis");
+    const { getUserCoupleId } = await import("@/lib/couple");
+    prismaMock.photo.findUnique.mockResolvedValue({
+      id: "p1", coupleId: null, uploadedById: ME, isMilestoneOnly: false,
+      albumId: null, isPublic: false,
+    });
+    vi.mocked(getUserCoupleId).mockResolvedValueOnce(null);
+    await detail.GET(new Request("http://localhost/api/photos/p1"), { params: Promise.resolve({ id: "p1" }) });
+    const mine = vi.mocked(getCached).mock.calls[0][0];
+    expect(mine).toContain(ME);
+    expect(mine).not.toContain("nocouple");
+
+    vi.mocked(auth).mockResolvedValue({ user: { id: OTHER } } as never);
+    vi.mocked(getUserCoupleId).mockResolvedValueOnce(null);
+    await detail.GET(new Request("http://localhost/api/photos/p1"), { params: Promise.resolve({ id: "p1" }) });
+    expect(vi.mocked(getCached).mock.calls[1][0]).not.toBe(mine);
   });
 
   it("photo PUT: 200 owner, 403 foreign couple, 404 missing, 400 empty patch", async () => {

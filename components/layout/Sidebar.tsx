@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
+import { signOutAndClear } from "@/lib/sign-out";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -53,7 +54,7 @@ export function SidebarContent() {
       confirmText: "Ya, keluar",
       cancelText: "Batal",
     });
-    if (confirmed) signOut({ callbackUrl: "/" });
+    if (confirmed) signOutAndClear({ callbackUrl: "/" });
   };
 
   return (

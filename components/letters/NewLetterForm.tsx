@@ -186,7 +186,7 @@ export default function NewLetterForm({ onClose }: { onClose?: () => void }) {
               type="button"
               onClick={() => setMood(key)}
               aria-pressed={mood === key}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${
+              className={`inline-flex h-10 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-all ${
                 mood === key
                   ? "border-transparent ring-2 ring-offset-1"
                   : "border-border hover:bg-accent"
@@ -255,7 +255,7 @@ export default function NewLetterForm({ onClose }: { onClose?: () => void }) {
                   setUnlockError("");
                 }}
                 min={getJakartaToday()}
-                className="flex h-9 w-full rounded-lg border border-input bg-card px-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex h-10 w-full rounded-xl border border-input bg-card px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-invalid={!!unlockError}
                 aria-describedby={unlockError ? "letter-unlock-error" : undefined}
               />
@@ -272,7 +272,7 @@ export default function NewLetterForm({ onClose }: { onClose?: () => void }) {
                   setUnlockTime(e.target.value);
                   setUnlockError("");
                 }}
-                className="flex h-9 w-full rounded-lg border border-input bg-card px-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex h-10 w-full rounded-xl border border-input bg-card px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
             </div>
           </div>

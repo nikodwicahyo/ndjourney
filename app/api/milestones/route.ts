@@ -57,10 +57,11 @@ export async function GET(request: Request) {
       batchLoadUsers(userIds),
       milestoneIds.length > 0
         ? prisma.milestonePhoto.findMany({
-            // anon sees only public photos of public milestones (private photo in public milestone stays hidden).
+            // anon and unpaired callers see only public photos of public
+            // milestones (private photo in a public milestone stays hidden).
             where: {
               milestoneId: { in: milestoneIds },
-              ...(isAuthed ? {} : {
+              ...(isAuthed && coupleId ? {} : {
                 photo: {
                   isPublic: true,
                   OR: [{ albumId: null }, { album: { isPublic: true } }],

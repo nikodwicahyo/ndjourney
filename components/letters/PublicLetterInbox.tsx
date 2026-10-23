@@ -6,7 +6,7 @@ import { useLetters } from "@/hooks/useLetters";
 import LetterCard from "./LetterCard";
 import { Skeleton, Button } from "@/components/ui";
 import { Inbox, Send, MailQuestion } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, FILTER_GROUP_CLASSES, FILTER_SEGMENT_CLASSES } from "@/lib/utils";
 import Link from "next/link";
 
 const TABS: { key: "inbox" | "sent"; label: string; icon: typeof Inbox }[] = [
@@ -69,15 +69,15 @@ export default function PublicLetterInbox() {
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
-        <div className="flex gap-1 rounded-xl border border-border bg-muted p-1">
+        <div className={FILTER_GROUP_CLASSES}>
           {TABS.map(({ key, label, icon: Icon }) => (
             <button
               key={key}
               onClick={() => setTab(key)}
               className={cn(
-                "inline-flex min-h-[44px] items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-all",
+                FILTER_SEGMENT_CLASSES,
                 tab === key
-                  ? "bg-background text-foreground shadow-sm"
+                  ? "bg-primary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >

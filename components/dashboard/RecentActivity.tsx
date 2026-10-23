@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRecentActivity } from "@/hooks/useDashboard";
-import { Skeleton, Avatar, AvatarImage, AvatarFallback } from "@/components/ui";
+import { Button, Skeleton, Avatar, AvatarImage, AvatarFallback } from "@/components/ui";
 import { motion } from "framer-motion";
 import { Image, Mail, Flag, Heart, History } from "lucide-react";
 import { formatRelativeTime } from "@/lib/utils";
@@ -50,13 +50,9 @@ export default function RecentActivity() {
         <p className="text-sm text-muted-foreground">
           Gagal memuat aktivitas
         </p>
-        <button
-          type="button"
-          onClick={() => refetch()}
-          className="mt-3 inline-flex min-h-[44px] items-center rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-        >
+        <Button type="button" size="sm" onClick={() => refetch()} className="mt-3">
           Coba lagi
-        </button>
+        </Button>
       </div>
     );
   }

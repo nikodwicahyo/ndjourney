@@ -266,6 +266,50 @@ describe("milestones API contracts", () => {
     expect(res.status).toBe(404);
   });
 
+  it("milestones/[id] GET: unpaired caller cannot read another user's private null-couple row", async () => {
+    const { getUserCoupleId } = await import("@/lib/couple");
+    vi.mocked(getUserCoupleId).mockResolvedValueOnce(null);
+    prismaMock.milestone.findUnique.mockResolvedValue({
+      id: "m1", createdById: "someone-else", isPublic: false, coupleId: null,
+    });
+    const res = await milestoneById.GET(new Request("http://localhost/api/milestones/m1"), { params: Promise.resolve({ id: "m1" }) });
+    expect(res.status).toBe(404);
+  });
+
+  it("milestones/[id] GET: unpaired caller gets public-only photos on a public null-couple row", async () => {
+    const { getUserCoupleId } = await import("@/lib/couple");
+    vi.mocked(getUserCoupleId).mockResolvedValueOnce(null);
+    prismaMock.milestone.findUnique.mockResolvedValue({
+      id: "m1", createdById: "someone-else", isPublic: true, coupleId: null,
+    });
+    prismaMock.user.findUnique.mockResolvedValue({ id: "someone-else", name: "P", image: null });
+    prismaMock.milestonePhoto.findMany.mockResolvedValue([]);
+    const res = await milestoneById.GET(new Request("http://localhost/api/milestones/m1"), { params: Promise.resolve({ id: "m1" }) });
+    expect(res.status).toBe(200);
+    expect(prismaMock.milestonePhoto.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        photo: expect.objectContaining({ isPublic: true }),
+      }),
+    }));
+  });
+
+  it("milestones list: unpaired caller filters private photos", async () => {
+    const { getUserCoupleId } = await import("@/lib/couple");
+    vi.mocked(getUserCoupleId).mockResolvedValueOnce(null);
+    prismaMock.milestone.findMany.mockResolvedValue([{
+      id: "m1", title: "T", description: null, date: new Date(), icon: null,
+      color: null, location: null, isPublic: true, createdById: ME,
+      createdAt: new Date(), updatedAt: new Date(),
+    }]);
+    prismaMock.milestone.count.mockResolvedValue(1);
+    prismaMock.milestonePhoto.findMany.mockResolvedValue([]);
+    const res = await milestones.GET(new Request("http://localhost/api/milestones"));
+    expect(res.status).toBe(200);
+    expect(prismaMock.milestonePhoto.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ photo: expect.anything() }),
+    }));
+  });
+
   it("milestones/[id] PUT: creator-only 403, 404, 200", async () => {
     prismaMock.milestone.findUnique.mockResolvedValue({ createdById: "someone-else" });
     const forbidden = await milestoneById.PUT(new Request("http://localhost/api/milestones/m1", { method: "PUT", body: JSON.stringify({ title: "x" }) }), { params: Promise.resolve({ id: "m1" }) });
@@ -353,5 +397,26 @@ describe("milestones API contracts", () => {
 
     const empty = await bulkPost(new Request("http://localhost/api/photos/bulk-upload", { method: "POST", body: JSON.stringify({ photos: [] }) }));
     expect(empty.status).toBe(400);
+  });
+
+  it("GAL-08b: bulk-upload requires authoritative asset verification", async () => {
+    verifyMock.mockRejectedValueOnce(
+      Object.assign(new Error("Media tidak ditemukan. Unggah ulang file."), { status: 400 }),
+    );
+    const bad = await bulk.POST(new Request("http://localhost/api/photos/bulk-upload", {
+      method: "POST",
+      body: JSON.stringify({ photos: [{ url: IMG(ME), publicId: `ndjourney-web/${ME}/a` }] }),
+    }));
+    expect(bad.status).toBe(400);
+    expect(prismaMock.$queryRawUnsafe).not.toHaveBeenCalled();
+
+    verifyMock.mockRejectedValueOnce(
+      Object.assign(new Error("Gagal memverifikasi media. Coba lagi nanti."), { status: 503 }),
+    );
+    const unavailable = await bulk.POST(new Request("http://localhost/api/photos/bulk-upload", {
+      method: "POST",
+      body: JSON.stringify({ photos: [{ url: IMG(ME), publicId: `ndjourney-web/${ME}/b` }] }),
+    }));
+    expect(unavailable.status).toBe(503);
   });
 });

@@ -54,10 +54,11 @@ export async function GET(
       );
     }
 
-    // authed callers may only read own couple's milestones (legacy null = shared).
-    // P-04: coupleId selected on the first read — no second findUnique, static import.
+    // authed callers may only read own couple's milestones (legacy null = shared
+    // for paired members; unpaired callers only see their own or public rows).
+    const callerCoupleId = session?.user ? await getUserCoupleId(session.user.id) : null;
+    let canSeePrivatePhotos = false;
     if (isAuthed) {
-      const callerCoupleId = session?.user ? await getUserCoupleId(session.user.id) : null;
       const ownerCoupleId = (milestone as { coupleId?: string | null }).coupleId ?? null;
       if (ownerCoupleId !== null && ownerCoupleId !== callerCoupleId) {
         return NextResponse.json(
@@ -65,6 +66,19 @@ export async function GET(
           { status: 404 },
         );
       }
+      if (
+        ownerCoupleId === null &&
+        callerCoupleId === null &&
+        milestone.createdById !== session?.user?.id &&
+        !milestone.isPublic
+      ) {
+        return NextResponse.json(
+          { error: "Milestone tidak ditemukan" },
+          { status: 404 },
+        );
+      }
+      canSeePrivatePhotos =
+        callerCoupleId !== null || milestone.createdById === session?.user?.id;
     }
 
     const [user, photos] = await Promise.all([
@@ -73,10 +87,11 @@ export async function GET(
         select: { id: true, name: true, image: true },
       }),
       prisma.milestonePhoto.findMany({
-        // same public-photo rule as list — anon never gets private photo URLs via a public milestone.
+        // same public-photo rule as list — anon and unpaired non-owners never
+        // get private photo URLs via a public milestone.
         where: {
           milestoneId: id,
-          ...(isAuthed ? {} : {
+          ...(canSeePrivatePhotos ? {} : {
             photo: {
               isPublic: true,
               OR: [{ albumId: null }, { album: { isPublic: true } }],

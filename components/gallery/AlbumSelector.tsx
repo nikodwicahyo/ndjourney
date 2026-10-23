@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useAlbums } from "@/hooks/usePhotos";
-import { cn } from "@/lib/utils";
+import { cn, FILTER_CHIP_CLASSES, FILTER_GROUP_CLASSES, FILTER_SEGMENT_CLASSES } from "@/lib/utils";
 import { Heart, X, Image, Video, ArrowUpDown } from "lucide-react";
 import AlbumDropdown from "./AlbumDropdown";
 
@@ -55,13 +55,13 @@ export default function AlbumSelector({
   return (
     <div className="flex flex-wrap items-center gap-2">
       {/* Media type tabs */}
-      <div className="flex items-center gap-1 rounded-full border border-border p-0.5">
+      <div className={FILTER_GROUP_CLASSES}>
         {MEDIA_TABS.map(({ key, label, icon: Icon }) => (
           <button
             key={key}
             onClick={() => onFiltersChange({ ...filters, mediaType: key || undefined })}
             className={cn(
-              "inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+              FILTER_SEGMENT_CLASSES,
               (filters.mediaType || "") === key
                 ? "bg-primary text-primary-foreground"
                 : "text-muted-foreground hover:text-foreground",
@@ -84,7 +84,8 @@ export default function AlbumSelector({
       <button
         onClick={() => onFiltersChange({ ...filters, isFavorite: !filters.isFavorite })}
         className={cn(
-          "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+          FILTER_CHIP_CLASSES,
+          "border",
           filters.isFavorite
             ? "border-primary bg-primary/10 text-primary"
             : "border-border text-muted-foreground hover:bg-accent",
@@ -117,7 +118,8 @@ export default function AlbumSelector({
           })
         }
         className={cn(
-          "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+          FILTER_CHIP_CLASSES,
+          "border",
           filters.sort === "oldest"
             ? "border-primary bg-primary/10 text-primary"
             : "border-border text-muted-foreground hover:bg-accent",
@@ -130,7 +132,10 @@ export default function AlbumSelector({
       {hasActiveFilters && (
         <button
           onClick={clearFilters}
-          className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent"
+          className={cn(
+            FILTER_CHIP_CLASSES,
+            "border border-border text-muted-foreground hover:bg-accent",
+          )}
         >
           <X className="h-3 w-3" />
           Reset

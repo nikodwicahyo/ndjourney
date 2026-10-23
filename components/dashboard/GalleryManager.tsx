@@ -8,7 +8,7 @@ import AlbumManager from "./AlbumManager";
 import { Button, StorageUsageBar } from "@/components/ui";
 import UploadItem from "./UploadItem";
 import { Upload, ImagePlus, Loader2, FileWarning, Image as ImageIcon, Video, ArrowUpDown, Trash2, CheckSquare, Heart, Globe, EyeOff, X, Folder, Check } from "lucide-react";
-import { cn, GALLERY_GRID_CLASSES, GALLERY_TILE_CLASSES } from "@/lib/utils";
+import { cn, FILTER_CHIP_CLASSES, FILTER_GROUP_CLASSES, FILTER_SEGMENT_CLASSES, GALLERY_GRID_CLASSES, GALLERY_TILE_CLASSES } from "@/lib/utils";
 import { showDeleteConfirm } from "@/lib/swal";
 import dynamic from "next/dynamic";
 import type { Photo } from "@/types";
@@ -540,7 +540,7 @@ export default function GalleryManager() {
               value={selectedAlbumId}
               onChange={(e) => setSelectedAlbumId(e.target.value)}
               aria-label="Pilih album untuk upload"
-              className="h-9 w-full max-w-xs rounded-lg border border-input bg-card px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="h-10 w-full max-w-xs rounded-full border border-input bg-card px-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <option value="">Tanpa album</option>
               {albums.map((a) => (
@@ -548,14 +548,14 @@ export default function GalleryManager() {
               ))}
             </select>
             {!selectedAlbumId && (
-              <div className="flex items-center gap-1 rounded-full border border-border p-0.5">
+              <div className={FILTER_GROUP_CLASSES}>
                 <button
                   type="button"
                   onClick={() => setPhotoPublic(true)}
                   aria-pressed={photoPublic}
                   aria-label="Upload sebagai publik"
                   className={cn(
-                    "inline-flex min-h-11 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                    FILTER_SEGMENT_CLASSES,
                     photoPublic
                       ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
                       : "text-muted-foreground hover:text-foreground"
@@ -570,7 +570,7 @@ export default function GalleryManager() {
                   aria-pressed={!photoPublic}
                   aria-label="Upload sebagai privat"
                   className={cn(
-                    "inline-flex min-h-11 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                    FILTER_SEGMENT_CLASSES,
                     !photoPublic
                       ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
                       : "text-muted-foreground hover:text-foreground"
@@ -691,14 +691,14 @@ export default function GalleryManager() {
         <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="font-heading text-sm sm:text-base font-semibold">Gallery ({data?.pages[0]?.total ?? photos.length})</h2>
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-            <div className="flex items-center gap-0.5 rounded-full border border-border p-0.5">
+            <div className={FILTER_GROUP_CLASSES}>
               {MEDIA_TABS.map(({ key, label, icon: Icon }) => (
                 <button
                   key={key}
                   onClick={() => setMediaType(key || undefined)}
                   aria-pressed={(mediaType || "") === key}
                   className={cn(
-                    "inline-flex min-h-11 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                    FILTER_SEGMENT_CLASSES,
                     (mediaType || "") === key
                       ? "bg-primary text-primary-foreground"
                       : "text-muted-foreground hover:text-foreground"
@@ -714,7 +714,8 @@ export default function GalleryManager() {
               aria-pressed={favoriteFilter}
               aria-label="Filter favorit"
               className={cn(
-                "inline-flex min-h-11 items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                FILTER_CHIP_CLASSES,
+                "border",
                 favoriteFilter
                   ? "border-primary bg-primary/10 text-primary"
                   : "border-border text-muted-foreground hover:bg-accent"
@@ -729,7 +730,8 @@ export default function GalleryManager() {
               }
               aria-label="Filter visibilitas"
               className={cn(
-                "inline-flex min-h-11 items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                FILTER_CHIP_CLASSES,
+                "border",
                 visibilityFilter === "private"
                   ? "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400"
                   : "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
@@ -763,7 +765,8 @@ export default function GalleryManager() {
               aria-pressed={sort === "oldest"}
               aria-label="Urutkan media"
               className={cn(
-                "inline-flex min-h-11 items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                FILTER_CHIP_CLASSES,
+                "border",
                 sort === "oldest"
                   ? "border-violet-500/40 bg-violet-500/10 text-violet-600 dark:text-violet-400"
                   : "border-primary bg-primary/10 text-primary"
@@ -779,7 +782,8 @@ export default function GalleryManager() {
               }}
               aria-pressed={selectMode}
               className={cn(
-                "inline-flex min-h-11 items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                FILTER_CHIP_CLASSES,
+                "border",
                 selectMode ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-accent"
               )}
             >
@@ -810,12 +814,15 @@ export default function GalleryManager() {
                 </Button>
               )}
 
-              <div className="flex items-center gap-1 rounded-full border border-border p-0.5">
+              <div className={FILTER_GROUP_CLASSES}>
                 <button
                   onClick={() => handleBatchVisibility(true)}
                   title="Jadikan publik"
                   aria-label="Jadikan publik"
-                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-emerald-500/40 px-2.5 py-1.5 text-xs font-medium text-emerald-600 transition-colors hover:bg-emerald-500/10 dark:text-emerald-400"
+                  className={cn(
+                    FILTER_SEGMENT_CLASSES,
+                    "border border-emerald-500/40 text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400",
+                  )}
                 >
                   <Globe className="h-3.5 w-3.5" aria-hidden="true" />
                   <span className="hidden sm:inline">Publik</span>
@@ -824,7 +831,10 @@ export default function GalleryManager() {
                   onClick={() => handleBatchVisibility(false)}
                   title="Jadikan privat"
                   aria-label="Jadikan privat"
-                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-amber-500/40 px-2.5 py-1.5 text-xs font-medium text-amber-600 transition-colors hover:bg-amber-500/10 dark:text-amber-400"
+                  className={cn(
+                    FILTER_SEGMENT_CLASSES,
+                    "border border-amber-500/40 text-amber-600 hover:bg-amber-500/10 dark:text-amber-400",
+                  )}
                 >
                   <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
                   <span className="hidden sm:inline">Privat</span>

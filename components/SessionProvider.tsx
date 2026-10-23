@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { SessionProvider as NextAuthSessionProvider, useSession, signOut } from "next-auth/react";
+import { SessionProvider as NextAuthSessionProvider, useSession } from "next-auth/react";
 import { toast } from "sonner";
+import { clearServiceWorkerCaches, signOutAndClear } from "@/lib/sign-out";
 
 function SessionWatcher() {
   const { data: session, status, update: updateSession } = useSession();
@@ -20,11 +21,12 @@ function SessionWatcher() {
 
     if (wasAuthenticated.current && !session?.user) {
       wasAuthenticated.current = false;
+      clearServiceWorkerCaches();
       toast.error("Sesi berakhir. Silakan login kembali.", {
         duration: 5000,
         action: {
           label: "Login",
-          onClick: () => signOut({ callbackUrl: "/login?reason=expired" }),
+          onClick: () => signOutAndClear({ callbackUrl: "/login?reason=expired" }),
         },
       });
     }

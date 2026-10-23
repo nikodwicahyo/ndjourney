@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
+import { signOutAndClear } from "@/lib/sign-out";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/stores/useAppStore";
@@ -54,7 +55,7 @@ export default function Navbar() {
       confirmText: "Ya, keluar",
       cancelText: "Batal",
     });
-    if (confirmed) signOut({ callbackUrl: "/" });
+    if (confirmed) signOutAndClear({ callbackUrl: "/" });
   };
 
   const isDashboard = pathname.startsWith("/dashboard");
@@ -182,7 +183,7 @@ export default function Navbar() {
                 href="/login"
                 prefetch={true}
                 suppressHydrationWarning
-                className="inline-flex h-9 items-center justify-center rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                className="inline-flex h-10 items-center justify-center rounded-full bg-primary px-4 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
               >
                 Login
               </Link>

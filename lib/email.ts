@@ -1,4 +1,4 @@
-import nodemailer from "nodemailer";
+import nodemailer, { type Transporter } from "nodemailer";
 
 const FROM_NAME = process.env.SMTP_FROM_NAME || "NDjourney Apps";
 const FROM_EMAIL = `"${FROM_NAME}" <${process.env.SMTP_FROM_EMAIL || "noreply@couple.com"}>`;
@@ -48,9 +48,9 @@ export function safeAppUrl(path: string): string {
   return url.toString();
 }
 
-let transporter: nodemailer.Transporter | null = null;
+let transporter: Transporter | null = null;
 
-async function getTransporter(): Promise<nodemailer.Transporter | null> {
+async function getTransporter(): Promise<Transporter | null> {
   if (transporter) return transporter;
 
   const host = process.env.SMTP_HOST;
@@ -67,6 +67,10 @@ async function getTransporter(): Promise<nodemailer.Transporter | null> {
     port: Number(port) || 587,
     secure: Number(port) === 465,
     auth: { user, pass },
+    // No file/URL content is ever legitimate for our templates; close the
+    // remaining nodemailer advisories that require these features.
+    disableFileAccess: true,
+    disableUrlAccess: true,
   });
 
   try {

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { signIn, signOut, useSession } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
+import { signOutAndClear } from "@/lib/sign-out";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui";
 import { useMounted } from "@/hooks/useMounted";
@@ -122,7 +123,7 @@ export default function RegisterForm({ token }: { token: string }) {
           variant="outline"
           size="lg"
           className="w-full"
-          onClick={() => signOut({ callbackUrl: `/invite/${token}` })}
+          onClick={() => signOutAndClear({ callbackUrl: `/invite/${token}` })}
         >
           <LogOut className="mr-2 h-4 w-4" />
           Logout

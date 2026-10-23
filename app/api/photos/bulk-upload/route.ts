@@ -6,6 +6,7 @@ import type { Photo } from "@/types";
 import { invalidateCache } from "@/lib/redis";
 import { triggerCoupleEvent } from "@/lib/pusher-server";
 import { isAllowedCloudinaryUrl, publicIdBelongsToUser } from "@/lib/upload-policy";
+import { verifyUploadForSave } from "@/lib/upload-verify";
 
 export const runtime = "nodejs";
 
@@ -71,8 +72,8 @@ export async function POST(request: Request) {
     const batchAlbumById = new Map(batchAlbums.map((a) => [a.id, a]));
 
     // per-item isolation — one bad file must not fail the whole batch
-    const failed: { publicId: string; error: string }[] = [];
-    const valid: typeof parsed.data.photos = [];
+    const failed: { publicId: string; error: string; status?: number }[] = [];
+    const candidates: typeof parsed.data.photos = [];
     for (const p of parsed.data.photos) {
       if (!isAllowedCloudinaryUrl(p.url) || !publicIdBelongsToUser(p.publicId, session.user.id)) {
         failed.push({ publicId: p.publicId, error: `Invalid or unowned media: ${p.publicId}` });
@@ -96,13 +97,50 @@ export async function POST(request: Request) {
         failed.push({ publicId: p.publicId, error: "Invalid video media URL" });
         continue;
       }
-      valid.push(p);
+      candidates.push(p);
+    }
+
+    // SEC: bulk path must use the same authoritative asset check as single
+    // POST /api/photos — URL/host checks alone let phantom, raw-delivery, or
+    // format-confused assets into the gallery.
+    const valid: typeof parsed.data.photos = [];
+    const VERIFY_CONCURRENCY = 5;
+    for (let i = 0; i < candidates.length; i += VERIFY_CONCURRENCY) {
+      const batch = candidates.slice(i, i + VERIFY_CONCURRENCY);
+      const results = await Promise.all(
+        batch.map(async (p) => {
+          try {
+            await verifyUploadForSave({
+              url: p.url,
+              publicId: p.publicId,
+              userId: session.user.id,
+              isVideo: p.isVideo,
+            });
+            return { photo: p };
+          } catch (e) {
+            return {
+              photo: p,
+              error: e instanceof Error ? e.message : "Gagal memverifikasi media",
+              status: (e as { status?: number }).status,
+            };
+          }
+        }),
+      );
+
+      for (const result of results) {
+        if (result.error) {
+          failed.push({ publicId: result.photo.publicId, error: result.error, status: result.status });
+        } else {
+          valid.push(result.photo);
+        }
+      }
     }
 
     if (valid.length === 0) {
+      const allUnavailable = failed.length > 0 && failed.every((f) => f.status === 503);
       return NextResponse.json(
         { error: failed[0]?.error ?? "No valid media", failed },
-        { status: 400 },
+        { status: allUnavailable ? 503 : 400 },
       );
     }
 

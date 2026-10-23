@@ -238,7 +238,7 @@ export default function LeaderBoard() {
           <button
             key={tab.value ?? "all"}
             onClick={() => setGameType(tab.value)}
-            className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+            className={`inline-flex h-10 shrink-0 items-center justify-center rounded-full px-3 text-xs font-medium transition-colors ${
               gameType === tab.value
                 ? "bg-primary text-primary-foreground"
                 : "bg-muted text-muted-foreground hover:bg-muted/80"

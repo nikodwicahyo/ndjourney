@@ -149,7 +149,7 @@ export default function LocationManager() {
       <div role="alert" className="flex items-center gap-2 rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
         <AlertTriangle className="h-4 w-4" />
         <span className="flex-1">Gagal memuat data lokasi. Coba lagi nanti.</span>
-        <Button variant="outline" size="sm" onClick={() => refetch()} className="min-h-[44px]">
+        <Button variant="outline" size="sm" onClick={() => refetch()}>
           Coba Lagi
         </Button>
       </div>
@@ -248,7 +248,7 @@ export default function LocationManager() {
                     if (!showHistory) qc.invalidateQueries({ queryKey: [...queryKeys.location.all, "history"] });
                     setShowHistory(!showHistory);
                   }}
-                  className="min-h-[44px] text-xs"
+                  className="text-xs"
                   aria-pressed={showHistory}
                 >
                   <History className="mr-1 h-3 w-3" aria-hidden="true" />

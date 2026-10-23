@@ -86,6 +86,13 @@ describe("upload pipeline contracts", () => {
   it("direct upload: 200 happy, 401 anon, 400 no-file, 400 spoofed magic", async () => {
     const ok = await uploadDirect.POST(formReq([pngFile()]));
     expect(ok.status).toBe(200);
+    // SEC: public_id must live under the uploader's namespace for save/delete ownership checks.
+    const { uploadBufferToCloudinary } = await import("@/lib/cloudinary");
+    expect(uploadBufferToCloudinary).toHaveBeenCalledWith(
+      expect.any(Buffer),
+      `ndjourney-web/${ME}`,
+      false,
+    );
     vi.mocked(auth).mockResolvedValue(null as never);
     expect((await uploadDirect.POST(formReq([pngFile()]))).status).toBe(401);
     allow();
@@ -148,6 +155,12 @@ describe("upload pipeline contracts", () => {
     const ok = await uploadBulk.POST(formReq([pngFile()]));
     expect(ok.status).toBe(200);
     expect((await ok.json()).results).toHaveLength(1);
+    const { uploadBufferToCloudinary } = await import("@/lib/cloudinary");
+    expect(uploadBufferToCloudinary).toHaveBeenCalledWith(
+      expect.any(Buffer),
+      `ndjourney-web/${ME}`,
+      false,
+    );
     const fd = new FormData();
     for (let i = 0; i < 31; i++) fd.append("files", pngFile(`${i}.png`));
     expect((await uploadBulk.POST(new Request("http://localhost/api/upload/bulk", { method: "POST", body: fd }))).status).toBe(400);

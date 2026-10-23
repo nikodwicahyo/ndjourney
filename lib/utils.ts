@@ -26,6 +26,21 @@ export const GALLERY_GRID_CLASSES = "grid grid-cols-2 gap-3 md:grid-cols-3 lg:gr
 export const GALLERY_TILE_CLASSES = "aspect-square w-full";
 
 /**
+ * One control size for every dashboard toolbar. Filter chips and compact
+ * buttons (Button size="sm") share the same 40px pill, so a filter can never
+ * sit a few pixels shorter than the action button beside it.
+ */
+export const FILTER_CHIP_CLASSES =
+  "inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-full px-3 text-xs font-medium transition-colors";
+
+/** Segmented filter group: 40px outer box, segments stretch to fill it. */
+export const FILTER_GROUP_CLASSES =
+  "inline-flex h-10 items-center rounded-full border border-border p-0.5";
+
+export const FILTER_SEGMENT_CLASSES =
+  "inline-flex h-full items-center justify-center gap-1.5 rounded-full px-3 text-xs font-medium transition-colors";
+
+/**
  * Photos per page. One value for the whole stack: the /api/photos default and
  * every gallery surface, so the client and the server never disagree about how
  * far a cursor has to jump.

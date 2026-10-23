@@ -15,8 +15,9 @@ function normalizeEmail(email: string): string {
 // Precomputed bcrypt hash of a random string — compared (and discarded) on
 // auth misses so absent and Google-only accounts take the same time as a
 // real password check (see authorize below).
+// Cost must match register/seed (12), otherwise misses are measurably faster.
 const DUMMY_PASSWORD_HASH =
-  "$2b$10$yMDs43qYtWpB8Xj5/iui.OvHazl1SNd4e8b1QM8kNXNYndG2JcX8C";
+  "$2b$12$bYIjbiFfl9zIEtNHgK8XneQgRidU7AzyU4gAbdUcntFy6GErVsK1a";
 
 export { normalizeEmail };
 

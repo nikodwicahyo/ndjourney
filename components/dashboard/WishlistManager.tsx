@@ -7,7 +7,7 @@ import WishForm from "@/components/wishlist/WishForm";
 import { Button, Skeleton } from "@/components/ui";
 import { motion, useReducedMotion } from "framer-motion";
 import { Gift, Filter, Heart, PartyPopper } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, FILTER_CHIP_CLASSES } from "@/lib/utils";
 import type { WishItem } from "@/types";
 
 const CATEGORIES = [
@@ -95,7 +95,8 @@ export default function WishlistManager() {
               onClick={() => setFilter(cat.value)}
               aria-pressed={filter === cat.value}
               className={cn(
-                "inline-flex min-h-[44px] items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all",
+                FILTER_CHIP_CLASSES,
+                "border",
                 filter === cat.value
                   ? "border-primary bg-primary/10 text-primary shadow-sm"
                   : "border-border text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground",
@@ -113,7 +114,8 @@ export default function WishlistManager() {
             onClick={() => setShowDone(!showDone)}
             aria-pressed={showDone}
             className={cn(
-              "inline-flex min-h-[44px] items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+              FILTER_CHIP_CLASSES,
+              "border",
               showDone
                 ? "border-border text-muted-foreground"
                 : "border-primary bg-primary/10 text-primary",

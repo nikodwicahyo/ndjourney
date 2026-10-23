@@ -308,7 +308,7 @@ export default function DistanceCard({
                     type="button"
                     onClick={() => setActiveMode(mode)}
                     className={
-                      "flex min-h-[44px] items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all " +
+                      "inline-flex h-10 items-center justify-center gap-1.5 rounded-full px-3 text-xs font-medium transition-all " +
                       (activeMode === mode
                         ? "bg-primary text-primary-foreground shadow-sm ring-1 ring-primary/30"
                         : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground")
@@ -340,7 +340,7 @@ export default function DistanceCard({
                 }
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-full border border-pink-500/30 bg-pink-500/5 px-4 py-1.5 text-xs font-medium text-pink-600 hover:bg-pink-500/10 hover:border-pink-500/50 transition-all dark:text-pink-400"
+                className="inline-flex h-10 items-center gap-1.5 rounded-full border border-pink-500/30 bg-pink-500/5 px-4 text-xs font-medium text-pink-600 hover:bg-pink-500/10 hover:border-pink-500/50 transition-all dark:text-pink-400"
               >
                 <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
                 Buka di Google Maps

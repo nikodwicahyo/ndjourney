@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { uploadBufferToCloudinary } from "@/lib/cloudinary";
 import { checkRateLimit } from "@/lib/redis";
 import { checkMagicBytes } from "@/lib/upload-magic";
-import { validateUploadRequest } from "@/lib/upload-policy";
+import { UPLOAD_FOLDER, validateUploadRequest } from "@/lib/upload-policy";
 
 export const runtime = "nodejs";
 
@@ -80,7 +80,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const result = await uploadBufferToCloudinary(buffer, "ndjourney-web", file.type.startsWith("video/"));
+    // SEC: keep every asset inside the uploader's namespace so later save/delete
+    // ownership checks (publicIdBelongsToUser) accept it.
+    const folder = `${UPLOAD_FOLDER}/${session.user.id}`;
+    const result = await uploadBufferToCloudinary(buffer, folder, file.type.startsWith("video/"));
 
     return NextResponse.json({
       data: {

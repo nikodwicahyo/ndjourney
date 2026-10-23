@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { uploadBufferToCloudinary } from "@/lib/cloudinary";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
-import { validateUploadRequest } from "@/lib/upload-policy";
+import { UPLOAD_FOLDER, validateUploadRequest } from "@/lib/upload-policy";
 import { checkMagicBytes } from "@/lib/upload-magic";
 
 export const runtime = "nodejs";
@@ -74,6 +74,7 @@ export async function POST(request: Request) {
     }
 
     const session = rateCheck.session;
+    const folder = `${UPLOAD_FOLDER}/${session.user.id}`;
 
     const formData = await request.formData();
     const files = formData.getAll("files") as File[];
@@ -125,7 +126,7 @@ export async function POST(request: Request) {
       const batchResults: BulkUploadResult[] = await Promise.all(
         batch.map(async ({ file, buffer, isVideo }) => {
           try {
-            const cloudinaryResult = await uploadBufferToCloudinary(buffer, "ndjourney-web", isVideo);
+            const cloudinaryResult = await uploadBufferToCloudinary(buffer, folder, isVideo);
             return {
               fileName: file.name,
               success: true,

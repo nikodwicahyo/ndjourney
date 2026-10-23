@@ -1,6 +1,6 @@
-const CACHE_NAME = "ndjourney-v11";
-const API_CACHE_NAME = "ndjourney-api-v11";
-const IMAGE_CACHE_NAME = "ndjourney-images-v11";
+const CACHE_NAME = "ndjourney-v12";
+const API_CACHE_NAME = "ndjourney-api-v12";
+const IMAGE_CACHE_NAME = "ndjourney-images-v12";
 
 const PRECACHE_URLS = [
   "/",
@@ -30,6 +30,18 @@ const PUBLIC_API_PATHS = [
   // Pages fall back to networkFirst (memory-only) + /offline.html when offline.
   "/api/games/questions",
 ];
+
+// SEC: only unauthenticated page shells are persisted. Private routes and
+// /letters/<id> must not be readable from disk after logout/offline.
+const PUBLIC_PAGE_PATHS = new Set([
+  "/",
+  "/gallery",
+  "/timeline",
+  "/letters",
+  "/games",
+  "/notes",
+  "/wishlist",
+]);
 
 const MAX_IMAGE_CACHE = 100;
 
@@ -146,8 +158,10 @@ self.addEventListener("message", (event) => {
   const data = event.data;
 
   if (data?.type === "CLEAR_CACHES") {
-    caches.keys().then((names) =>
-      Promise.all(names.map((name) => caches.delete(name))),
+    event.waitUntil(
+      caches.keys().then((names) =>
+        Promise.all(names.map((name) => caches.delete(name))),
+      ),
     );
   }
 
@@ -282,12 +296,11 @@ async function staleWhileRevalidate(request) {
 async function networkFirst(request) {
   try {
     const response = await fetch(request);
-    // SEC: never persist authed API JSON on-device — only allowlisted public paths
-    // go through staleWhileRevalidate above; everything else under /api/ stays memory-only.
+    // SEC: never persist authed API JSON or private page HTML on-device.
+    // Only allowlisted public API/page paths are written to disk.
     const reqUrl = new URL(request.url);
-    const isPublicApi = reqUrl.origin === location.origin &&
-      PUBLIC_API_PATHS.some((p) => reqUrl.pathname === p || reqUrl.pathname.startsWith(p + "/"));
-    if (response.ok && response.type === "basic" && (isPublicApi || !reqUrl.pathname.startsWith("/api/"))) {
+    const isPublicPage = reqUrl.origin === location.origin && PUBLIC_PAGE_PATHS.has(reqUrl.pathname);
+    if (response.ok && response.type === "basic" && isPublicPage) {
       const clone = response.clone();
       const cache = await caches.open(CACHE_NAME);
       cache.put(request, clone);

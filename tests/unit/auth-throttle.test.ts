@@ -133,7 +133,11 @@ describe("authorizeCredentials wiring", () => {
     const { authorizeCredentials } = await loadAuth();
     const r = await authorizeCredentials({ email: "ghost@x.com", password: "nope" });
     expect(r).toBeNull();
-    expect(bcryptCompareMock).toHaveBeenCalled(); // dummy compare still runs
+    // same bcrypt cost as real hashes (register uses 12) — no timing oracle.
+    expect(bcryptCompareMock).toHaveBeenCalledWith(
+      "nope",
+      expect.stringMatching(/^\$2[aby]\$12\$/),
+    );
     expect(redisMock.incr).toHaveBeenCalledWith("auth:fail:ghost@x.com");
   });
 

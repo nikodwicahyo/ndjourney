@@ -340,7 +340,7 @@ function UploadItemInner({ item, onRetry, onPause, onRemove, isUploading }: Uplo
             <button
               type="button"
               onClick={() => onPause(item.id)}
-              className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-xs font-medium text-foreground transition-colors duration-150 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-full border border-border bg-card px-3 text-xs font-medium text-foreground transition-colors duration-150 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               aria-label={`Jeda upload ${item.file.name}`}
             >
               <Pause className="h-3.5 w-3.5" aria-hidden="true" />
@@ -351,7 +351,7 @@ function UploadItemInner({ item, onRetry, onPause, onRemove, isUploading }: Uplo
             <button
               type="button"
               onClick={() => onRetry(item.id)}
-              className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/5 px-2.5 text-xs font-medium text-primary transition-colors duration-150 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-full border border-primary/40 bg-primary/5 px-3 text-xs font-medium text-primary transition-colors duration-150 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               aria-label={retryAria}
             >
               {isPaused ? (

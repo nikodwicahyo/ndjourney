@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button, Skeleton } from "@/components/ui";
 import { Plus, Loader2, X, Shuffle, Brain, Cherry, Sparkles, Pencil, Trash2, ChevronDown, ChevronUp, Grid3x3, Blocks, Trophy, Gamepad2, Star } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, FILTER_CHIP_CLASSES } from "@/lib/utils";
 import { showDeleteConfirm } from "@/lib/swal";
 import { formatInJakarta } from "@/lib/date";
 import { queryKeys } from "@/lib/query-keys";
@@ -294,7 +294,8 @@ export default function GameManager() {
             key={value}
             onClick={() => setActiveTab(value)}
             className={cn(
-              "inline-flex items-center justify-center gap-1 rounded-full border px-3 py-1.5 text-xs font-medium transition-all min-h-[44px] min-w-[44px]",
+              FILTER_CHIP_CLASSES,
+              "border",
               activeTab === value
                 ? "border-primary bg-card text-primary shadow-sm"
                 : "border-border bg-card text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground",
@@ -320,7 +321,10 @@ export default function GameManager() {
           <button
             type="button"
             onClick={() => setSortOrder(sortOrder === "desc" ? "asc" : "desc")}
-            className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary bg-primary/10 px-3 py-1 text-xs font-medium text-primary shadow-sm transition-colors min-h-[44px] min-w-[44px]"
+            className={cn(
+              FILTER_CHIP_CLASSES,
+              "border border-primary bg-primary/10 text-primary shadow-sm",
+            )}
           >
             {sortOrder === "desc" ? "Terbaru ↓" : "Terlama ↑"}
           </button>
@@ -373,7 +377,8 @@ export default function GameManager() {
                       type="button"
                       onClick={() => setType(value)}
                       className={cn(
-                        "inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition-colors min-h-[44px] min-w-[44px]",
+                        FILTER_CHIP_CLASSES,
+                        "border",
                         type === value
                           ? "border-primary bg-primary/10 text-primary"
                           : "border-border text-muted-foreground hover:bg-accent",
@@ -448,7 +453,8 @@ export default function GameManager() {
                           type="button"
                           onClick={() => setAnswer(opt === "none" ? "none" : opt)}
                           className={cn(
-                            "rounded-full border px-3 py-1 text-xs font-medium transition-colors min-h-[44px] min-w-[44px]",
+                            FILTER_CHIP_CLASSES,
+                            "border",
                             (opt === "none" ? !answer : answer === opt)
                               ? "border-primary bg-primary/10 text-primary"
                               : "border-border text-muted-foreground hover:bg-accent",
@@ -485,7 +491,8 @@ export default function GameManager() {
                         type="button"
                         onClick={() => setCategory(cat)}
                         className={cn(
-                          "rounded-full border px-4 py-1.5 text-xs font-medium transition-colors min-h-[44px] min-w-[44px]",
+                          FILTER_CHIP_CLASSES,
+                          "border",
                           category === cat
                             ? "border-primary bg-primary/10 text-primary"
                             : "border-border text-muted-foreground hover:bg-accent",

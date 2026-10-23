@@ -9,7 +9,7 @@ import { formatDate, formatRelativeTime } from "@/lib/utils";
 import { getJakartaToday } from "@/lib/date";
 import { motion, useReducedMotion } from "framer-motion";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, FILTER_GROUP_CLASSES, FILTER_SEGMENT_CLASSES } from "@/lib/utils";
 import { showDeleteConfirm } from "@/lib/swal";
 
 export default function NotesManager() {
@@ -89,16 +89,16 @@ export default function NotesManager() {
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="font-heading text-lg font-semibold">Riwayat Catatan</h2>
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex overflow-hidden rounded-lg border border-input">
+            <div className={FILTER_GROUP_CLASSES}>
               <button
                 type="button"
                 onClick={() => setViewMode("all")}
                 aria-pressed={viewMode === "all"}
                 className={cn(
-                  "flex min-h-[44px] items-center gap-1.5 px-3 py-1.5 text-xs transition-colors",
+                  FILTER_SEGMENT_CLASSES,
                   viewMode === "all"
                     ? "bg-primary text-primary-foreground"
-                    : "bg-background text-muted-foreground hover:text-foreground",
+                    : "text-muted-foreground hover:text-foreground",
                 )}
               >
                 <List className="h-3.5 w-3.5" aria-hidden="true" />
@@ -109,10 +109,10 @@ export default function NotesManager() {
                 onClick={() => setViewMode("date")}
                 aria-pressed={viewMode === "date"}
                 className={cn(
-                  "flex min-h-[44px] items-center gap-1.5 px-3 py-1.5 text-xs transition-colors",
+                  FILTER_SEGMENT_CLASSES,
                   viewMode === "date"
                     ? "bg-primary text-primary-foreground"
-                    : "bg-background text-muted-foreground hover:text-foreground",
+                    : "text-muted-foreground hover:text-foreground",
                 )}
               >
                 <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
@@ -128,7 +128,7 @@ export default function NotesManager() {
                   value={selectedDate}
                   onChange={(e) => setSelectedDate(e.target.value)}
                   max={today}
-                  className="flex h-9 rounded-lg border border-input bg-card px-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="flex h-10 rounded-full border border-input bg-card px-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
               </>
             )}

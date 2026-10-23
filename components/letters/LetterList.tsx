@@ -8,7 +8,7 @@ import { PenLine, Inbox, Send, MailQuestion } from "lucide-react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, FILTER_GROUP_CLASSES, FILTER_SEGMENT_CLASSES } from "@/lib/utils";
 import { showDeleteConfirm } from "@/lib/swal";
 
 const TABS: { key: "inbox" | "sent"; label: string; icon: typeof Inbox }[] = [
@@ -72,15 +72,15 @@ export default function LetterList() {
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
-        <div className="flex gap-1 rounded-xl border border-border bg-muted p-1">
+        <div className={FILTER_GROUP_CLASSES}>
           {TABS.map(({ key, label, icon: Icon }) => (
             <button
               key={key}
               onClick={() => setTab(key)}
               className={cn(
-                "inline-flex min-h-[44px] items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-all",
+                FILTER_SEGMENT_CLASSES,
                 tab === key
-                  ? "bg-background text-foreground shadow-sm"
+                  ? "bg-primary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
@@ -97,7 +97,7 @@ export default function LetterList() {
 
         <Link
               href="/dashboard/letters/new"
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-primary px-4 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-primary px-4 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
         >
           <PenLine className="h-4 w-4" aria-hidden="true" />
           Tulis Surat

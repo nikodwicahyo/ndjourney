@@ -61,6 +61,18 @@ describe("email envelope hardening (P1 mailer)", () => {
     expect(subject).toContain("Bcc: evil@x.com");
   });
 
+  it("disables file/url content resolution on the SMTP transport", async () => {
+    const { sendEmail } = await import("@/lib/email");
+    await sendEmail({ to: "partner@x.com", subject: "hi", html: "<p>hi</p>" });
+    const nodemailer = (await import("nodemailer")).default;
+    expect(nodemailer.createTransport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        disableFileAccess: true,
+        disableUrlAccess: true,
+      }),
+    );
+  });
+
   it("passes valid recipients through (trimmed) unchanged", async () => {
     const { sendEmail } = await import("@/lib/email");
     const r = await sendEmail({

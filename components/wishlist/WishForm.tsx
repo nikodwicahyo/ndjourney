@@ -361,7 +361,7 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
                       type="button"
                       onClick={() => setCategory(cat.value)}
                       aria-pressed={category === cat.value}
-                      className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                      className={`inline-flex h-10 items-center justify-center rounded-full border px-3 text-xs font-medium transition-colors ${
                         category === cat.value
                           ? "border-primary bg-primary/10 text-primary"
                           : "border-border text-muted-foreground hover:bg-accent"

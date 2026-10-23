@@ -498,7 +498,7 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
                   ) : (
                     <>
                       <Plus className="h-4 w-4" />
-                      {isEditing ? "Simpan" : "Tambahkan"}
+                      {isEditing ? "Simpan" : "Tambah Wish"}
                     </>
                   )}
                 </Button>

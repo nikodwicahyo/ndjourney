@@ -487,7 +487,7 @@ export default function AddMilestoneForm({
               ) : isEditing ? (
                 "Simpan"
               ) : (
-                "Tambah"
+                "Tambah Milestone"
               )}
             </Button>
           </div>

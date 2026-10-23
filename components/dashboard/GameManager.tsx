@@ -330,7 +330,7 @@ export default function GameManager() {
           </button>
           <Button size="sm" onClick={startNew} className="shrink-0 gap-2">
             <Plus className="h-4 w-4" />
-            Tambah
+            Tambah Pertanyaan
           </Button>
         </div>
         )}
@@ -544,7 +544,7 @@ export default function GameManager() {
                 ) : (
                   <Plus className="h-4 w-4" />
                 )}
-                {isEditing ? "Simpan" : "Tambahkan"}
+                {isEditing ? "Simpan" : "Tambah Pertanyaan"}
               </Button>
             </form>
           </div>

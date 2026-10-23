@@ -130,6 +130,16 @@ describe("photos API contracts", () => {
     expect(prismaMock.photo.create).toHaveBeenCalledOnce();
   });
 
+  it("GAL-01a: POST rejects an album outside the caller's couple", async () => {
+    prismaMock.album.findUnique.mockResolvedValue({ id: "a1", coupleId: "couple-other" });
+    const res = await POST(new Request("http://localhost/api/photos", {
+      method: "POST",
+      body: JSON.stringify({ url: IMG_URL, publicId: PUB_ID, isVideo: false, albumId: "a1" }),
+    }));
+    expect(res.status).toBe(400);
+    expect(prismaMock.photo.create).not.toHaveBeenCalled();
+  });
+
   it("GAL-01b: POST 400 on schema fail + rejected verification", async () => {
     const { UploadVerifyError } = await import("@/lib/upload-verify");
     const bad = await POST(new Request("http://localhost/api/photos", { method: "POST", body: JSON.stringify({ url: "x" }) }));
@@ -182,7 +192,7 @@ describe("photos API contracts", () => {
     expect(res.status).toBe(401);
   });
 
-  it("photo GET: 404 missing; private hidden from anon", async () => {
+  it("photo GET: 404 missing; private hidden from anon and foreign caller", async () => {
     prismaMock.photo.findUnique.mockResolvedValue(null);
     const missing = await detail.GET(new Request("http://localhost/api/photos/x"), { params: Promise.resolve({ id: "x" }) });
     expect(missing.status).toBe(404);
@@ -191,6 +201,14 @@ describe("photos API contracts", () => {
     vi.mocked(auth).mockResolvedValue(null as never);
     const hidden = await detail.GET(new Request("http://localhost/api/photos/p1"), { params: Promise.resolve({ id: "p1" }) });
     expect(hidden.status).toBe(404);
+
+    vi.mocked(auth).mockResolvedValue({ user: { id: ME } } as never);
+    prismaMock.photo.findUnique.mockResolvedValue({
+      id: "p1", coupleId: "couple-other", uploadedById: OTHER,
+      isMilestoneOnly: false, albumId: null, isPublic: false,
+    });
+    const foreign = await detail.GET(new Request("http://localhost/api/photos/p1"), { params: Promise.resolve({ id: "p1" }) });
+    expect(foreign.status).toBe(404);
   });
 
   it("photo PUT: 200 owner, 403 foreign couple, 404 missing, 400 empty patch", async () => {

@@ -92,7 +92,15 @@ describe("games questions API", () => {
     expect(nocouple.status).toBe(403);
   });
 
-  it("questions/[id] PUT 200 + DELETE archive-vs-delete", async () => {
+  it("questions/[id] PUT 200 + DELETE archive-vs-delete, 403 without a couple", async () => {
+    const { getUserCoupleId } = await import("@/lib/couple");
+    vi.mocked(getUserCoupleId).mockResolvedValueOnce(null);
+    const noCouple = await questionById.PUT(new Request("http://localhost/api/games/questions/x", {
+      method: "PUT",
+      body: JSON.stringify({ type: "TRIVIA", question: "Q?" }),
+    }), { params: Promise.resolve({ id: QID }) });
+    expect(noCouple.status).toBe(403);
+
     prismaMock.gameQuestion.update.mockResolvedValue({ id: QID });
     const put = await questionById.PUT(new Request("http://localhost/api/games/questions/x", {
       method: "PUT",
@@ -110,6 +118,10 @@ describe("games questions API", () => {
     const deleted = await questionById.DELETE(new Request("http://localhost/api/games/questions/x", { method: "DELETE" }), { params: Promise.resolve({ id: QID }) });
     expect(deleted.status).toBe(200);
     expect(prismaMock.gameQuestion.delete).toHaveBeenCalledOnce();
+
+    vi.mocked(getUserCoupleId).mockResolvedValueOnce(null);
+    const deleteNoCouple = await questionById.DELETE(new Request("http://localhost/api/games/questions/x", { method: "DELETE" }), { params: Promise.resolve({ id: QID }) });
+    expect(deleteNoCouple.status).toBe(403);
   });
 });
 

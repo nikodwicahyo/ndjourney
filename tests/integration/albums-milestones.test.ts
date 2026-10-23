@@ -87,10 +87,15 @@ describe("albums API contracts", () => {
     expect(foreign.status).toBe(404);
   });
 
-  it("albums/[id] DELETE: 200 detaches photos via transaction", async () => {
+  it("albums/[id] DELETE: 200 own couple, 404 cross-couple", async () => {
     prismaMock.album.findUnique.mockResolvedValue({ coupleId: COUPLE });
     const res = await albumById.DELETE(new Request("http://localhost/api/albums/a1", { method: "DELETE" }), { params: Promise.resolve({ id: "a1" }) });
     expect(res.status).toBe(200);
+    expect(prismaMock.$transaction).toHaveBeenCalledOnce();
+
+    prismaMock.album.findUnique.mockResolvedValue({ coupleId: "couple-other" });
+    const foreign = await albumById.DELETE(new Request("http://localhost/api/albums/a1", { method: "DELETE" }), { params: Promise.resolve({ id: "a1" }) });
+    expect(foreign.status).toBe(404);
     expect(prismaMock.$transaction).toHaveBeenCalledOnce();
   });
 });
@@ -151,6 +156,7 @@ describe("milestones API contracts", () => {
   it("TML-04: POST persists per-link crops; invalid rect 400", async () => {
     prismaMock.milestone.create.mockResolvedValue({ id: "m1", createdById: ME });
     const pid = "cjld2cjxh0000qz8n0p3q4w5e1";
+    prismaMock.photo.findMany.mockResolvedValue([{ id: pid }]);
     const crop = { x: 0.1, y: 0.1, w: 0.8, h: 0.8 };
     const ok = await milestones.POST(new Request("http://localhost/api/milestones", {
       method: "POST",
@@ -186,6 +192,16 @@ describe("milestones API contracts", () => {
       }),
     }));
     expect(combined.status).toBe(400);
+  });
+
+  it("TML-06: POST rejects photoIds outside the caller's couple", async () => {
+    prismaMock.photo.findMany.mockResolvedValue([]);
+    const res = await milestones.POST(new Request("http://localhost/api/milestones", {
+      method: "POST",
+      body: JSON.stringify({ title: "T", date: "2024-02-14", photoIds: ["foreign-photo"] }),
+    }));
+    expect(res.status).toBe(400);
+    expect(prismaMock.milestone.create).not.toHaveBeenCalled();
   });
 
   it("TML-05b: raw delivery URL uploads land in failedPhotos, never in DB", async () => {
@@ -242,6 +258,14 @@ describe("milestones API contracts", () => {
     expect(hidden.status).toBe(404);
   });
 
+  it("milestones/[id] GET: authed caller cannot read another couple's row", async () => {
+    prismaMock.milestone.findUnique.mockResolvedValue({
+      id: "m1", createdById: "someone-else", isPublic: true, coupleId: "couple-other",
+    });
+    const res = await milestoneById.GET(new Request("http://localhost/api/milestones/m1"), { params: Promise.resolve({ id: "m1" }) });
+    expect(res.status).toBe(404);
+  });
+
   it("milestones/[id] PUT: creator-only 403, 404, 200", async () => {
     prismaMock.milestone.findUnique.mockResolvedValue({ createdById: "someone-else" });
     const forbidden = await milestoneById.PUT(new Request("http://localhost/api/milestones/m1", { method: "PUT", body: JSON.stringify({ title: "x" }) }), { params: Promise.resolve({ id: "m1" }) });
@@ -264,7 +288,9 @@ describe("milestones API contracts", () => {
     prismaMock.milestone.findUnique.mockResolvedValue({ createdById: ME });
     prismaMock.milestone.update.mockResolvedValue({ id: "m1", createdById: ME });
     prismaMock.milestonePhoto.findMany.mockResolvedValue([{ photoId: "old1" }]);
-    prismaMock.photo.findMany.mockResolvedValue([]);
+    prismaMock.photo.findMany
+      .mockResolvedValueOnce([{ id: pid }])
+      .mockResolvedValueOnce([]);
     prismaMock.user.findUnique.mockResolvedValue({ id: ME, name: "A", image: null });
     const ok = await milestoneById.PUT(new Request("http://localhost/api/milestones/m1", {
       method: "PUT",
@@ -273,6 +299,17 @@ describe("milestones API contracts", () => {
     expect(ok.status).toBe(200);
     // P-11: deleteMany + createMany submitted atomically (single $transaction call).
     expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("milestones/[id] PUT: rejects photoIds outside the caller's couple", async () => {
+    prismaMock.milestone.findUnique.mockResolvedValue({ createdById: ME });
+    prismaMock.photo.findMany.mockResolvedValue([]);
+    const res = await milestoneById.PUT(new Request("http://localhost/api/milestones/m1", {
+      method: "PUT",
+      body: JSON.stringify({ photoIds: ["foreign-photo"] }),
+    }), { params: Promise.resolve({ id: "m1" }) });
+    expect(res.status).toBe(400);
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
   });
 
   it("milestones/[id] DELETE: creator-only + 200", async () => {
@@ -306,6 +343,14 @@ describe("milestones API contracts", () => {
     }));
     expect([201, 207]).toContain(batched.status);
     expect(prismaMock.album.findMany).toHaveBeenCalledTimes(1);
+
+    prismaMock.album.findMany.mockResolvedValue([{ id: alid, coupleId: "couple-other" }] as never);
+    const foreign = await bulkPost(new Request("http://localhost/api/photos/bulk-upload", {
+      method: "POST",
+      body: JSON.stringify({ photos: [{ url: IMG(ME), publicId: `ndjourney-web/${ME}/c`, albumId: alid }] }),
+    }));
+    expect(foreign.status).toBe(400);
+
     const empty = await bulkPost(new Request("http://localhost/api/photos/bulk-upload", { method: "POST", body: JSON.stringify({ photos: [] }) }));
     expect(empty.status).toBe(400);
   });

@@ -105,6 +105,12 @@ describe("wishes API contracts", () => {
     const del = await wishById.DELETE(new Request("http://localhost/api/wishes/x", { method: "DELETE" }), { params: Promise.resolve({ id: WID }) });
     expect(del.status).toBe(200);
     expect(prismaMock.wishItem.delete).toHaveBeenCalledWith({ where: { id: WID } });
+
+    prismaMock.wishItem.delete.mockClear();
+    prismaMock.wishItem.findUnique.mockResolvedValue({ coupleId: "couple-other", imageUrl: null });
+    const foreignDel = await wishById.DELETE(new Request("http://localhost/api/wishes/x", { method: "DELETE" }), { params: Promise.resolve({ id: WID }) });
+    expect(foreignDel.status).toBe(404);
+    expect(prismaMock.wishItem.delete).not.toHaveBeenCalled();
   });
 });
 

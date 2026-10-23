@@ -137,6 +137,24 @@ export async function POST(request: Request) {
 
     const coupleId = await getUserCoupleId(session.user.id);
 
+    // SEC: photoIds come from the client. Only link media owned by this
+    // couple (legacy coupleId-null rows are shared) — never a foreign row.
+    if (photoIds?.length) {
+      const uniquePhotoIds = [...new Set(photoIds)];
+      const owned = await prisma.photo.findMany({
+        where: {
+          id: { in: uniquePhotoIds },
+          ...(coupleId
+            ? { OR: [{ coupleId }, { coupleId: null }] }
+            : { coupleId: null, uploadedById: session.user.id }),
+        },
+        select: { id: true },
+      });
+      if (owned.length !== uniquePhotoIds.length) {
+        return NextResponse.json({ error: "Foto tidak ditemukan" }, { status: 400 });
+      }
+    }
+
     // per-item isolation — one bad upload must not 500 the whole milestone
     const createdPhotos: Array<{ id: string; crop?: { x: number; y: number; w: number; h: number } | null }> = [];
     const failedPhotos: { publicId: string; error: string }[] = [];

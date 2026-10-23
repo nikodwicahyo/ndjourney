@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const ME = "cjld2cjxh0000qz8n0p3q4w5e1";
+const OTHER = "cjld2cjxh0000qz8n0p3q4w5e9";
 
 const prismaMock = vi.hoisted(() => ({
   photo: { findFirst: vi.fn(), deleteMany: vi.fn(async () => ({ count: 1 })) },
@@ -103,6 +104,13 @@ describe("upload pipeline contracts", () => {
     expect(body.publicId).toContain(ME);
     // format binding: signature pins the delivery format at signing time
     expect(body.uploadParams.allowed_formats).toBe("jpg,jpeg,png,webp,heic,heif");
+    const foreign = await uploadSign.POST(new Request("http://localhost/api/upload/sign", {
+      method: "POST", body: JSON.stringify({
+        fileName: "a.png", fileType: "image/png", fileSize: 1024,
+        publicId: `ndjourney-web/${OTHER}/a`,
+      }),
+    }));
+    expect(foreign.status).toBe(400);
     const video = await uploadSign.POST(new Request("http://localhost/api/upload/sign", {
       method: "POST", body: JSON.stringify({ fileName: "a.mp4", fileType: "video/mp4", fileSize: 1024 }),
     }));
@@ -156,6 +164,7 @@ describe("upload pipeline contracts", () => {
     expect((await uploadDel.DELETE(new Request("http://localhost/api/upload/a", { method: "DELETE" }), { params: Promise.resolve({ publicId: `ndjourney-web/${ME}/a` }) })).status).toBe(404);
     prismaMock.photo.findFirst.mockResolvedValue({ id: "p1" });
     expect((await uploadDel.DELETE(new Request("http://localhost/api/upload/a?resourceType=exe", { method: "DELETE" }), { params: Promise.resolve({ publicId: `ndjourney-web/${ME}/a` }) })).status).toBe(400);
+    expect((await uploadDel.DELETE(new Request("http://localhost/api/upload/a", { method: "DELETE" }), { params: Promise.resolve({ publicId: "ndjourney-web/other/a" }) })).status).toBe(400);
   });
 });
 

@@ -34,7 +34,10 @@ export async function GET() {
       );
     }
 
-    return NextResponse.json({ data: partner });
+    return NextResponse.json(
+      { data: partner },
+      { headers: { "Cache-Control": "private, no-cache" } },
+    );
   } catch (error) {
     console.error("Error fetching partner:", error);
     return NextResponse.json(

@@ -5,6 +5,7 @@ import { createMilestoneSchema } from "@/lib/validations/milestone";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { invalidateCache } from "@/lib/redis";
 import { batchLoadUsers } from "@/lib/batch";
+import { toPublicUser } from "@/lib/format";
 import { parseJakartaDateOnly } from "@/lib/date";
 import { getUserCoupleId } from "@/lib/couple";
 import { isAllowedCloudinaryUrl } from "@/lib/upload-policy";
@@ -89,7 +90,7 @@ export async function GET(request: Request) {
 
     const data = milestones.map((m) => ({
       ...m,
-      createdBy: userMap.get(m.createdById) ?? null,
+      createdBy: toPublicUser(userMap.get(m.createdById)),
       photos: photosByMilestone.get(m.id) ?? [],
     }));
 
@@ -216,7 +217,7 @@ export async function POST(request: Request) {
     });
 
     const userMap = await batchLoadUsers([milestone.createdById]);
-    const data = { ...milestone, createdBy: userMap.get(milestone.createdById) ?? null };
+    const data = { ...milestone, createdBy: toPublicUser(userMap.get(milestone.createdById)) };
 
     await invalidateCache("milestones:*");
     await invalidateCache("dashboard:*");

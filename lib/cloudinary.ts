@@ -1,5 +1,7 @@
 import { v2 as cloudinary } from "cloudinary";
 import { Readable } from "stream";
+import { cloudinaryAssetFromUrl } from "./cloudinary-urls";
+import { publicIdBelongsToUser } from "./upload-policy";
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -373,19 +375,31 @@ export function getImageUrl(
   });
 }
 
-export async function deleteFromCloudinaryUrl(url: string | null | undefined): Promise<void> {
-  if (!url) return;
-  const match = url.match(/^(https:\/\/res\.cloudinary\.com\/[^/]+\/(image|video)\/upload)\/(?:v\d+\/)?([^?#]+)$/);
-  if (!match) return;
-  const [, , resourceType, rest] = match;
-  
-  const pathParts = rest.split("/");
-  const cleanedParts = pathParts.filter(part => !part.includes(","));
-  const publicIdWithExt = cleanedParts.join("/");
-  const publicId = publicIdWithExt.replace(/\.[^/.]+$/, "");
-  
+/**
+ * Delete the Cloudinary asset behind a stored delivery URL.
+ *
+ * `allowedUserIds` is mandatory: the URL comes from user-controlled columns,
+ * so only assets inside an allowed user namespace in our own cloud may be
+ * destroyed. Callers pass the owner (avatars) or the couple's members
+ * (shared gallery/wish/hero media).
+ */
+export async function deleteFromCloudinaryUrl(
+  url: string | null | undefined,
+  allowedUserIds: readonly string[],
+): Promise<void> {
+  const asset = cloudinaryAssetFromUrl(url);
+  if (!asset) return;
+
+  const owned = allowedUserIds.some((id) =>
+    publicIdBelongsToUser(asset.publicId, id),
+  );
+  if (!owned) {
+    console.error("Refusing to delete unowned Cloudinary asset:", asset.publicId);
+    return;
+  }
+
   try {
-    await deleteFromCloudinary(publicId, resourceType);
+    await deleteFromCloudinary(asset.publicId, asset.resourceType);
   } catch (err) {
     console.error("Failed to delete parsed Cloudinary URL:", url, err);
   }

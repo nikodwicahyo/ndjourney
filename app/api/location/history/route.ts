@@ -25,18 +25,16 @@ export async function GET() {
     // Missing share rows = legacy sharing (visible); explicit false hides.
     const partnerId = await getPartnerId(userId, coupleId);
     let visibleIds = [userId, partnerId].filter((v): v is string => !!v);
-    try {
-      const shares = await prisma.locationShare.findMany({
-        where: { userId: { in: visibleIds } },
-        select: { userId: true, isSharing: true },
-      });
-      if (Array.isArray(shares) && shares.length > 0) {
-        const hidden = new Set(shares.filter((s) => s.isSharing === false).map((s) => s.userId));
-        hidden.delete(userId);
-        visibleIds = visibleIds.filter((v) => !hidden.has(v));
-      }
-    } catch {
-      // share table unavailable — fall back to couple-visible (legacy behavior).
+    // Fail closed: if share state cannot be read, return 500 (outer catch)
+    // instead of falling back to disclosing the opted-out partner's trail.
+    const shares = await prisma.locationShare.findMany({
+      where: { userId: { in: visibleIds } },
+      select: { userId: true, isSharing: true },
+    });
+    if (Array.isArray(shares) && shares.length > 0) {
+      const hidden = new Set(shares.filter((s) => s.isSharing === false).map((s) => s.userId));
+      hidden.delete(userId);
+      visibleIds = visibleIds.filter((v) => !hidden.has(v));
     }
 
     const history = await prisma.userLocationHistory.findMany({

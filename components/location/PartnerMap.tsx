@@ -11,6 +11,7 @@ import {
   formatBearingId,
   haversineMeters,
 } from "@/lib/geo";
+import { safeAvatarSrc } from "@/lib/format";
 
 import type { LocationPoint, LocationHistoryPoint } from "@/hooks/useLocation";
 
@@ -103,8 +104,9 @@ function createAvatarIcon(
   const shadow = "0 2px 6px rgba(0,0,0,.35)";
   const heart = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="${ring}" stroke="${ring}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>`;
 
-  const inner = image
-    ? `<img src="${image}" alt="" style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:3px solid ${ring};box-shadow:${shadow};background:${bg};transition:transform 0.3s ease;" />`
+  const safeImage = safeAvatarSrc(image);
+  const inner = safeImage
+    ? `<img src="${safeImage}" alt="" style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:3px solid ${ring};box-shadow:${shadow};background:${bg};transition:transform 0.3s ease;" />`
     : `<div style="width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:${bg};border:3px solid ${ring};box-shadow:${shadow};color:${fg};">${heart}</div>`;
 
   return L.divIcon({
@@ -663,9 +665,7 @@ export default function PartnerMap({
       // SEC: popup is innerHTML — escape every interpolated string (names, device, geocode).
       const esc = (s: string) =>
         s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
-      const safeImg = p.image && /^https:\/\/(res\.cloudinary\.com|lh3\.googleusercontent\.com|avatars\.githubusercontent\.com)\//.test(p.image)
-        ? p.image.replace(/"/g, "%22")
-        : null;
+      const safeImg = safeAvatarSrc(p.image);
 
       const deviceInfo = p.deviceType
         ? `<span style="font-size:12px;opacity:0.7;">${esc(p.deviceType)}</span>`

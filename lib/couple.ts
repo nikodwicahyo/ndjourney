@@ -14,3 +14,17 @@ export async function getUserCoupleId(
     return null;
   }
 }
+
+/** User ids whose uploads belong to the couple's shared media namespace. */
+export async function getCoupleMemberIds(coupleId: string): Promise<string[]> {
+  try {
+    const members = await prisma.coupleMember.findMany({
+      where: { coupleId },
+      select: { userId: true },
+    });
+    return members.map((member) => member.userId);
+  } catch (error) {
+    console.error('[getCoupleMemberIds]', error);
+    return [];
+  }
+}

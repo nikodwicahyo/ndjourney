@@ -114,6 +114,23 @@ describe("milestones API contracts", () => {
     expect(prismaMock.milestone.findMany).toHaveBeenLastCalledWith(expect.objectContaining({ where: { isPublic: true } }));
   });
 
+  it("TML-03b: milestone author exposes only public fields", async () => {
+    const { batchLoadUsers } = await import("@/lib/batch");
+    vi.mocked(batchLoadUsers).mockResolvedValueOnce(
+      new Map([[ME, { id: ME, name: "A", email: "leak@example.com", image: null }]]),
+    );
+    prismaMock.milestone.findMany.mockResolvedValue([{
+      id: "m1", title: "T", description: null, date: new Date(), icon: null,
+      color: null, location: null, isPublic: true, createdById: ME,
+      createdAt: new Date(), updatedAt: new Date(),
+    }]);
+    prismaMock.milestone.count.mockResolvedValue(1);
+    prismaMock.milestonePhoto.findMany.mockResolvedValue([]);
+    const res = await milestones.GET(new Request("http://localhost/api/milestones"));
+    const body = await res.json();
+    expect(body.data[0].createdBy).toEqual({ id: ME, name: "A", image: null });
+  });
+
   it("TML-01/02: POST 201 happy, 400 bad date/color/title", async () => {
     prismaMock.milestone.create.mockResolvedValue({ id: "m1", createdById: ME });
     const ok = await milestones.POST(new Request("http://localhost/api/milestones", {

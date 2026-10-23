@@ -1,8 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const ME = "cjld2cjxh0000qz8n0p3q4w5e1";
+const PARTNER = "cjld2cjxh0000qz8n0p3q4w5e2";
 const COUPLE = "couple-1";
 const WID = "cjld2cjxh0000qz8n0p3q4w5ew";
+
+process.env.CLOUDINARY_CLOUD_NAME = "test-cloud";
 
 const prismaMock = vi.hoisted(() => ({
   wishItem: { findMany: vi.fn(), count: vi.fn(), create: vi.fn(), findUnique: vi.fn(), update: vi.fn(), delete: vi.fn() },
@@ -27,7 +30,10 @@ vi.mock("@/lib/redis", () => ({
   invalidateCache: vi.fn(async () => {}),
   cacheKey: (...p: string[]) => p.join(":"),
 }));
-vi.mock("@/lib/couple", () => ({ getUserCoupleId: vi.fn(async () => COUPLE) }));
+vi.mock("@/lib/couple", () => ({
+  getUserCoupleId: vi.fn(async () => COUPLE),
+  getCoupleMemberIds: vi.fn(async () => [ME, PARTNER]),
+}));
 vi.mock("@/lib/pusher-server", () => ({ triggerCoupleEvent: vi.fn() }));
 vi.mock("@/lib/batch", () => ({
   invalidateUserCache: vi.fn(async () => {}),
@@ -155,7 +161,22 @@ describe("couple / user / partner / notes-delete contracts", () => {
     await couple.PUT(new Request("http://localhost/api/couple", {
       method: "PUT", body: JSON.stringify({ heroPhotoUrl: "https://new.example/h.jpg" }),
     }));
-    expect(deleteFromCloudinaryUrl).toHaveBeenCalledWith("https://old.example/h.jpg");
+    expect(deleteFromCloudinaryUrl).toHaveBeenCalledWith("https://old.example/h.jpg", [ME, PARTNER]);
+  });
+
+  it("DASH-04b: version-rewritten gallery URL still blocks deletion by publicId", async () => {
+    const oldUrl = `https://res.cloudinary.com/test-cloud/image/upload/v999/ndjourney-web/${PARTNER}/a.jpg`;
+    prismaMock.coupleConfig.findFirst.mockResolvedValue({ id: "cfg", heroPhotoUrl: oldUrl, backgroundMusicUrl: null });
+    prismaMock.coupleConfig.update.mockResolvedValue({ id: "cfg", heroPhotoUrl: null });
+    prismaMock.photo.findFirst.mockResolvedValue({ id: "p1" });
+    await couple.PUT(new Request("http://localhost/api/couple", {
+      method: "PUT", body: JSON.stringify({ heroPhotoUrl: null }),
+    }));
+    expect(prismaMock.photo.findFirst).toHaveBeenLastCalledWith(expect.objectContaining({
+      where: { OR: [{ url: oldUrl }, { publicId: `ndjourney-web/${PARTNER}/a` }] },
+    }));
+    const { deleteFromCloudinaryUrl } = await import("@/lib/cloudinary");
+    expect(deleteFromCloudinaryUrl).not.toHaveBeenCalled();
   });
 
   it("WISH-02: PUT imageCrop saved + cleared with image; gallery-referenced image never deleted", async () => {
@@ -196,7 +217,9 @@ describe("couple / user / partner / notes-delete contracts", () => {
 
   it("partner GET: 200 partner, 404 solo, 401 anon", async () => {
     prismaMock.coupleMember.findUnique.mockResolvedValue({ couple: { members: [{ user: { id: "p2", name: "B" } }] } });
-    expect((await partner.GET()).status).toBe(200);
+    const ok = await partner.GET();
+    expect(ok.status).toBe(200);
+    expect(ok.headers.get("cache-control")).toBe("private, no-cache");
     prismaMock.coupleMember.findUnique.mockResolvedValue(null);
     expect((await partner.GET()).status).toBe(404);
     vi.mocked(auth).mockResolvedValue(null as never);

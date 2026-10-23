@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { safeTokenEqual } from "@/lib/api-body";
 import { escapeHtml, safeAppUrl } from "@/lib/email";
-import { toPublicUser } from "@/lib/format";
+import { safeAvatarSrc, toPublicUser } from "@/lib/format";
 import { httpUrl } from "@/lib/validations/http-url";
 
 // SEC-03, LTR-08, SEC-04, SEC-02
@@ -36,5 +36,22 @@ describe("security guards", () => {
     expect(httpUrl().safeParse("https://example.com/a").success).toBe(true);
     expect(httpUrl().safeParse("javascript:alert(1)").success).toBe(false);
     expect(httpUrl().safeParse("data:text/html,<h1>x</h1>").success).toBe(false);
+    // Raw attribute-breaking characters are never valid in a URL.
+    expect(httpUrl().safeParse('https://x.test/" onerror="alert(1)').success).toBe(false);
+  });
+
+  it("SEC-05: safeAvatarSrc allowlists hosts and cannot break an HTML attribute", () => {
+    const good = "https://res.cloudinary.com/demo/image/upload/v1/ndjourney-web/u/a.jpg";
+    expect(safeAvatarSrc(good)).toBe(good);
+    expect(safeAvatarSrc("https://example.com/a.png")).toBeNull();
+    expect(safeAvatarSrc(null)).toBeNull();
+
+    const payload =
+      'https://res.cloudinary.com/demo/image/upload/v1/" onerror="alert(1)';
+    const escaped = safeAvatarSrc(payload);
+    expect(escaped).toContain("res.cloudinary.com");
+    expect(escaped).not.toContain('"');
+    expect(escaped).not.toContain("<");
+    expect(escaped).not.toContain(">");
   });
 });

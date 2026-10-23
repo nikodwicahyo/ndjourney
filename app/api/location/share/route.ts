@@ -35,19 +35,19 @@ export async function PUT(request: Request) {
 
     const isSharing = parsed.data.isSharing;
 
-    await prisma.locationShare.upsert({
-      where: { userId },
-      create: { userId, coupleId, isSharing },
-      update: { isSharing },
-    });
+    // Flag change and row deletion are one unit: a failed delete rolls back
+    // the opt-out instead of leaving a stale location behind the flag.
+    await prisma.$transaction(async (tx) => {
+      await tx.locationShare.upsert({
+        where: { userId },
+        create: { userId, coupleId, isSharing },
+        update: { isSharing },
+      });
 
-    // If the user stops sharing, clear their last known location so the
-    // partner no longer sees a stale position.
-    if (!isSharing) {
-      await prisma.userLocation
-        .delete({ where: { userId } })
-        .catch(() => null);
-    }
+      if (!isSharing) {
+        await tx.userLocation.deleteMany({ where: { userId } });
+      }
+    });
 
     triggerCoupleEvent(coupleId, "LOCATION");
 

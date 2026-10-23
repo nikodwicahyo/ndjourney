@@ -10,6 +10,8 @@ import { MEET_THRESHOLD_METERS } from "@/lib/geo";
 
 export const dynamic = "force-dynamic";
 
+class SharingDisabledError extends Error {}
+
 export type LocationPayload = {
   lat: number;
   lng: number;
@@ -122,6 +124,8 @@ export async function GET() {
     const partnerAge = partnerLocation
       ? Math.round((now - partnerLocation.updatedAt.getTime()) / 1000)
       : null;
+    // Read-side gate: a surviving row must never be disclosed after opt-out.
+    const partnerSharing = partnerShare?.isSharing === true;
 
     const data = {
       meetThresholdMeters: MEET_THRESHOLD_METERS,
@@ -140,11 +144,11 @@ export async function GET() {
         userId: partner.id,
         name: partner.name ?? "Pasangan",
         image: partner.image,
-        isSharing: partnerShare?.isSharing ?? false,
-        deviceType: partnerLocation?.deviceType ?? null,
-        location: toLocationPayload(partnerLocation),
-        locationAgeSeconds: partnerAge,
-        isStale: partnerAge !== null && partnerAge > 60,
+        isSharing: partnerSharing,
+        deviceType: partnerSharing ? (partnerLocation?.deviceType ?? null) : null,
+        location: partnerSharing ? toLocationPayload(partnerLocation) : null,
+        locationAgeSeconds: partnerSharing ? partnerAge : null,
+        isStale: partnerSharing && partnerAge !== null && partnerAge > 60,
       },
     };
 
@@ -206,6 +210,15 @@ export async function POST(request: Request) {
     // P-11: current position + history in ONE transaction — a history-trim rollback
     // used to leave the current row advanced past the trail.
     await prisma.$transaction(async (tx) => {
+      // Re-check inside the write transaction so an opt-out that committed
+      // after the fast pre-check above aborts this write. The GET read gate
+      // remains authoritative if a row survives an overlapping commit.
+      const currentShare = await tx.locationShare.findUnique({
+        where: { userId },
+        select: { isSharing: true },
+      });
+      if (!currentShare?.isSharing) throw new SharingDisabledError();
+
       // Upsert current location
       await tx.userLocation.upsert({
         where: { userId },
@@ -274,6 +287,12 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ data: { ok: true } }, { status: 200 });
   } catch (error) {
+    if (error instanceof SharingDisabledError) {
+      return NextResponse.json(
+        { error: "Kamu belum mengaktifkan berbagi lokasi" },
+        { status: 403 },
+      );
+    }
     console.error("Error updating location:", error);
     return NextResponse.json(
       { error: "Terjadi kesalahan pada server. Coba lagi nanti." },

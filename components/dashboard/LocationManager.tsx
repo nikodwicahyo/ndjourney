@@ -169,7 +169,7 @@ export default function LocationManager() {
         deviceType: self.deviceType,
       }
     : null;
-  const partnerPin = partner.location
+  const partnerPin = partner.isSharing && partner.location
     ? {
         id: partner.userId,
         label: partner.name,

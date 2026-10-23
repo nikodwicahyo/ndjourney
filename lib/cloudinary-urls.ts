@@ -1,5 +1,36 @@
 export const BREAKPOINTS = [320, 480, 640, 768, 1024, 1280, 1536] as const;
 
+export type CloudinaryAsset = {
+  publicId: string;
+  resourceType: "image" | "video";
+};
+
+/**
+ * Parse a Cloudinary delivery URL into the asset it points at.
+ *
+ * Returns null unless the URL is https, belongs to `cloudName`, and uses an
+ * image/video upload path. The version segment is ignored so a rewritten
+ * `/v999/` URL resolves to the same publicId.
+ */
+export function cloudinaryAssetFromUrl(
+  url: string | null | undefined,
+  cloudName = process.env.CLOUDINARY_CLOUD_NAME,
+): CloudinaryAsset | null {
+  if (!url || !cloudName) return null;
+  const match = url.match(
+    /^https:\/\/res\.cloudinary\.com\/([^/]+)\/(image|video)\/upload\/(?:v\d+\/)?([^?#]+)$/,
+  );
+  if (!match) return null;
+  const [, urlCloud, resourceType, rest] = match;
+  if (urlCloud !== cloudName) return null;
+
+  const cleanedParts = rest.split("/").filter((part) => !part.includes(","));
+  const publicId = cleanedParts.join("/").replace(/\.[^/.]+$/, "");
+  if (!publicId) return null;
+
+  return { publicId, resourceType: resourceType as "image" | "video" };
+}
+
 function extractUploadBaseAndId(url: string): { base: string; publicId: string } | null {
   const match = url.match(/^(https:\/\/res\.cloudinary\.com\/[^/]+\/(?:image|video)\/upload)\/(.*)$/);
   if (!match) return null;

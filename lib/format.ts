@@ -50,6 +50,33 @@ export function saveLocal(key: string, value: unknown): void {
   }
 }
 
+const TRUSTED_AVATAR_HOSTS =
+  /^https:\/\/(res\.cloudinary\.com|lh3\.googleusercontent\.com|avatars\.githubusercontent\.com)\//;
+
+/**
+ * Avatar URL safe to interpolate into an HTML attribute.
+ *
+ * Leaflet renders divIcon/marker HTML through `innerHTML`, so a caller-
+ * controlled avatar URL must be both host-allowlisted and attribute-escaped.
+ */
+export function safeAvatarSrc(url: string | null | undefined): string | null {
+  if (!url || !TRUSTED_AVATAR_HOSTS.test(url)) return null;
+  try {
+    if (new URL(url).protocol !== "https:") return null;
+  } catch {
+    return null;
+  }
+  return url.replace(/[&<>"']/g, (c) => {
+    switch (c) {
+      case "&": return "&amp;";
+      case "<": return "&lt;";
+      case ">": return "&gt;";
+      case '"': return "&quot;";
+      default: return "&#39;";
+    }
+  });
+}
+
 export type PublicUser = { id: string; name: string | null; image: string | null };
 
 // public endpoints must never leak emails — strip to display fields.

@@ -6,11 +6,12 @@ const COUPLE = "couple-1";
 
 const txMock = vi.hoisted(() => ({
   userLocationHistory: { findFirst: vi.fn(async () => null), create: vi.fn(async () => ({})), findMany: vi.fn(async () => []), deleteMany: vi.fn(async () => ({})) },
-  userLocation: { upsert: vi.fn(async () => ({})) },
+  userLocation: { upsert: vi.fn(async () => ({})), deleteMany: vi.fn(async () => ({ count: 1 })) },
+  locationShare: { findUnique: vi.fn(async () => ({ isSharing: true })), upsert: vi.fn(async () => ({})) },
 }));
 const prismaMock = vi.hoisted(() => ({
   $queryRaw: vi.fn(),
-  $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn({ userLocationHistory: txMock.userLocationHistory, userLocation: txMock.userLocation })),
+  $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn({ userLocationHistory: txMock.userLocationHistory, userLocation: txMock.userLocation, locationShare: txMock.locationShare })),
   coupleMember: { findUnique: vi.fn(), findFirst: vi.fn() },
   locationShare: { findUnique: vi.fn(), findMany: vi.fn(async () => []), upsert: vi.fn() },
   userLocation: { findUnique: vi.fn(), upsert: vi.fn(), delete: vi.fn(async () => ({})) },
@@ -83,6 +84,26 @@ describe("location API contracts", () => {
     expect((await loc.GET()).status).toBe(404);
   });
 
+  it("LOC consent: opted-out partner location is never returned", async () => {
+    prismaMock.coupleMember.findFirst.mockResolvedValue({ user: { id: PARTNER, name: "B", image: null } });
+    prismaMock.userLocation.findUnique.mockResolvedValue(point);
+    prismaMock.locationShare.findUnique.mockImplementation(async ({ where }: { where: { userId: string } }) => ({
+      isSharing: where.userId !== PARTNER,
+    }));
+    const res = await loc.GET();
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.data.partner.isSharing).toBe(false);
+    expect(body.data.partner.location).toBeNull();
+    expect(body.data.partner.locationAgeSeconds).toBeNull();
+    expect(body.data.partner.isStale).toBe(false);
+
+    // Control: sharing enabled returns the row.
+    prismaMock.locationShare.findUnique.mockResolvedValue({ isSharing: true });
+    const on = await (await loc.GET()).json();
+    expect(on.data.partner.location).toMatchObject({ lat: point.latitude, lng: point.longitude });
+  });
+
   it("LOC-01/02/03: POST 200, 403 sharing-off, 400 invalid, 404 no-couple", async () => {
     prismaMock.locationShare.findUnique.mockResolvedValue({ isSharing: true });
     prismaMock.userLocation.upsert.mockResolvedValue({});
@@ -114,7 +135,8 @@ describe("location API contracts", () => {
       method: "PUT", body: JSON.stringify({ isSharing: false }),
     }));
     expect(off.status).toBe(200);
-    expect(prismaMock.userLocation.delete).toHaveBeenCalledWith({ where: { userId: ME } });
+    expect(txMock.locationShare.upsert).toHaveBeenCalled();
+    expect(txMock.userLocation.deleteMany).toHaveBeenCalledWith({ where: { userId: ME } });
     prismaMock.locationShare.upsert.mockResolvedValue({ isSharing: true });
     expect((await share.PUT(new Request("http://localhost/api/location/share", {
       method: "PUT", body: JSON.stringify({ isSharing: true }),
@@ -122,6 +144,25 @@ describe("location API contracts", () => {
     expect((await share.PUT(new Request("http://localhost/api/location/share", {
       method: "PUT", body: JSON.stringify({ isSharing: "yes" }),
     }))).status).toBe(400);
+  });
+
+  it("LOC consent: a POST that loses the opt-out race is rejected", async () => {
+    prismaMock.locationShare.findUnique.mockResolvedValue({ isSharing: true });
+    txMock.locationShare.findUnique.mockResolvedValueOnce({ isSharing: false });
+    const res = await loc.POST(new Request("http://localhost/api/location", {
+      method: "POST",
+      body: JSON.stringify({ latitude: -6.2, longitude: 106.8, deviceType: "mobile" }),
+    }));
+    expect(res.status).toBe(403);
+    expect(txMock.userLocation.upsert).not.toHaveBeenCalled();
+  });
+
+  it("LOC history: fails closed when share state cannot be read", async () => {
+    prismaMock.coupleMember.findFirst.mockResolvedValue({ userId: PARTNER });
+    prismaMock.locationShare.findMany.mockRejectedValueOnce(new Error("db down"));
+    const res = await history.GET();
+    expect(res.status).toBe(500);
+    expect(prismaMock.userLocationHistory.findMany).not.toHaveBeenCalled();
   });
 
   it("LOC-04/05: history GET 200 ordered, heart POST 200", async () => {

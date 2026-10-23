@@ -5,7 +5,8 @@ import { updateWishSchema } from "@/lib/validations/wish";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { invalidateCache } from "@/lib/redis";
 import { deleteFromCloudinaryUrl } from "@/lib/cloudinary";
-import { getUserCoupleId } from "@/lib/couple";
+import { cloudinaryAssetFromUrl } from "@/lib/cloudinary-urls";
+import { getCoupleMemberIds, getUserCoupleId } from "@/lib/couple";
 import { triggerCoupleEvent } from "@/lib/pusher-server";
 
 export async function PUT(
@@ -79,12 +80,21 @@ export async function PUT(
     // Delete old Cloudinary image if changed — but never a gallery-referenced
     // URL (gallery-picked wish images share the original file).
     if (oldImageUrl && oldImageUrl !== wish.imageUrl) {
+      const asset = cloudinaryAssetFromUrl(oldImageUrl);
       const stillReferenced = await prisma.photo.findFirst({
-        where: { url: oldImageUrl },
+        // Compare the derived publicId too: a version-rewritten URL still
+        // points at the same gallery asset and must not be destroyed.
+        where: asset
+          ? { OR: [{ url: oldImageUrl }, { publicId: asset.publicId }] }
+          : { url: oldImageUrl },
         select: { id: true },
       });
       if (!stillReferenced) {
-        await deleteFromCloudinaryUrl(oldImageUrl).catch(console.error);
+        const ownerIds = callerCoupleId ? await getCoupleMemberIds(callerCoupleId) : [];
+        await deleteFromCloudinaryUrl(
+          oldImageUrl,
+          ownerIds.length ? ownerIds : [rateCheck.session.user.id],
+        ).catch(console.error);
       }
     }
 
@@ -138,12 +148,19 @@ export async function DELETE(
     // Delete from Cloudinary if it was stored there — never a
     // gallery-referenced URL (shared original must survive).
     if (wish?.imageUrl) {
+      const asset = cloudinaryAssetFromUrl(wish.imageUrl);
       const stillReferenced = await prisma.photo.findFirst({
-        where: { url: wish.imageUrl },
+        where: asset
+          ? { OR: [{ url: wish.imageUrl }, { publicId: asset.publicId }] }
+          : { url: wish.imageUrl },
         select: { id: true },
       });
       if (!stillReferenced) {
-        await deleteFromCloudinaryUrl(wish.imageUrl).catch(console.error);
+        const ownerIds = deleterCoupleId ? await getCoupleMemberIds(deleterCoupleId) : [];
+        await deleteFromCloudinaryUrl(
+          wish.imageUrl,
+          ownerIds.length ? ownerIds : [rateCheck.session.user.id],
+        ).catch(console.error);
       }
     }
 

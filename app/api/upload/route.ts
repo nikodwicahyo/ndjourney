@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { uploadBufferToCloudinary } from "@/lib/cloudinary";
 import { checkRateLimit } from "@/lib/redis";
 import { checkMagicBytes } from "@/lib/upload-magic";
+import { validateUploadRequest } from "@/lib/upload-policy";
 
 export const runtime = "nodejs";
 
@@ -20,9 +21,6 @@ const ALLOWED_TYPES = [
   "video/mpeg",
   "audio/mpeg",
 ];
-
-// aligned with upload-policy (10 MB image / 100 MB video).
-const MAX_SIZE = 100 * 1024 * 1024;
 
 export async function POST(request: Request) {
   try {
@@ -51,11 +49,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Tidak ada file yang dikirim" }, { status: 400 });
     }
 
-    if (file.size > MAX_SIZE) {
-      return NextResponse.json(
-        { error: "Ukuran file terlalu besar. Maksimal 100MB." },
-        { status: 400 },
-      );
+    // Same policy as /sign and /bulk (10 MB image / 100 MB video/audio).
+    const policy = validateUploadRequest({
+      fileName: file.name,
+      fileType: file.type,
+      fileSize: file.size,
+    });
+    if (!policy.valid) {
+      return NextResponse.json({ error: policy.error }, { status: 400 });
     }
 
     if (!ALLOWED_TYPES.includes(file.type)) {

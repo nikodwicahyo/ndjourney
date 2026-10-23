@@ -7,14 +7,17 @@ import { updateCoupleSchema } from "@/lib/validations/couple";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { parseJakartaDateOnly } from "@/lib/date";
 import { deleteFromCloudinaryUrl } from "@/lib/cloudinary";
-import { getUserCoupleId } from "@/lib/couple";
+import { cloudinaryAssetFromUrl } from "@/lib/cloudinary-urls";
+import { getCoupleMemberIds, getUserCoupleId } from "@/lib/couple";
 import { triggerCoupleEvent } from "@/lib/pusher-server";
 
 const CACHE_TTL = 300;
 
 export async function GET() {
   try {
-    const cached = await getCached<unknown>(cacheKey("couple", "config"));
+    // Distinct keys: this route caches the full row; getPublicCoupleConfig
+    // caches a projected shape. Sharing one key corrupts both readers.
+    const cached = await getCached<unknown>(cacheKey("couple", "config", "full"));
     if (cached) {
       return NextResponse.json({ data: cached }, {
         headers: { "Cache-Control": "private, no-cache" },
@@ -47,7 +50,7 @@ export async function GET() {
       );
     }
 
-    await setCached(cacheKey("couple", "config"), config, CACHE_TTL);
+    await setCached(cacheKey("couple", "config", "full"), config, CACHE_TTL);
 
     return NextResponse.json({ data: config }, {
       headers: { "Cache-Control": "private, no-cache" },
@@ -192,17 +195,31 @@ export async function PUT(request: Request) {
     // Clean up old Cloudinary files if URLs changed — but never delete a hero
     // URL that is still referenced by a gallery photo (gallery-picked heroes
     // share the original file; deleting it would destroy gallery data).
+    let allowedUserIds: string[] | null = null;
+    const getAllowedUserIds = async () => {
+      if (!allowedUserIds) {
+        const ownerIds = await getCoupleMemberIds(editorCoupleId);
+        allowedUserIds = ownerIds.length
+          ? ownerIds
+          : [rateCheck.session.user.id];
+      }
+      return allowedUserIds;
+    };
+
     if (config.heroPhotoUrl && config.heroPhotoUrl !== updated.heroPhotoUrl) {
+      const asset = cloudinaryAssetFromUrl(config.heroPhotoUrl);
       const stillReferenced = await prisma.photo.findFirst({
-        where: { url: config.heroPhotoUrl },
+        where: asset
+          ? { OR: [{ url: config.heroPhotoUrl }, { publicId: asset.publicId }] }
+          : { url: config.heroPhotoUrl },
         select: { id: true },
       });
       if (!stillReferenced) {
-        await deleteFromCloudinaryUrl(config.heroPhotoUrl).catch(console.error);
+        await deleteFromCloudinaryUrl(config.heroPhotoUrl, await getAllowedUserIds()).catch(console.error);
       }
     }
     if (config.backgroundMusicUrl && config.backgroundMusicUrl !== updated.backgroundMusicUrl) {
-      await deleteFromCloudinaryUrl(config.backgroundMusicUrl).catch(console.error);
+      await deleteFromCloudinaryUrl(config.backgroundMusicUrl, await getAllowedUserIds()).catch(console.error);
     }
 
     const coupleId = await getUserCoupleId(rateCheck.session.user.id);

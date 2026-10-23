@@ -17,7 +17,9 @@ const CACHE_TTL = 300;
 /** Shared server-side read of the singleton CoupleConfig. Fail-open (null). */
 export async function getPublicCoupleConfig(): Promise<PublicCoupleConfig | null> {
   try {
-    const cached = await getCached<PublicCoupleConfig>(cacheKey("couple", "config"));
+    const cached = await getCached<PublicCoupleConfig>(
+      cacheKey("couple", "config", "public"),
+    );
     if (cached) return cached;
 
     const config = await prisma.coupleConfig.findFirst({ take: 1 });
@@ -33,7 +35,11 @@ export async function getPublicCoupleConfig(): Promise<PublicCoupleConfig | null
       birthDate1: config.birthDate1 ? config.birthDate1.toISOString() : null,
       birthDate2: config.birthDate2 ? config.birthDate2.toISOString() : null,
     };
-    await setCached(cacheKey("couple", "config"), result, CACHE_TTL);
+    await setCached(
+      cacheKey("couple", "config", "public"),
+      result,
+      CACHE_TTL,
+    );
     return result;
   } catch {
     return null;

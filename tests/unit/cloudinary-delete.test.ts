@@ -16,6 +16,11 @@ async function load() {
   return (await import("@/lib/cloudinary")).deleteFromCloudinary;
 }
 
+async function loadUrlDelete() {
+  vi.resetModules();
+  return (await import("@/lib/cloudinary")).deleteFromCloudinaryUrl;
+}
+
 // Delete must be idempotent: Cloudinary reports "not found" for already-gone
 // assets, and failing hard on that orphans the DB row forever (no API path
 // could delete it again — seen live with E2E cleanup rows).
@@ -41,5 +46,34 @@ describe("deleteFromCloudinary idempotency", () => {
     await expect(fn("a/b", "image")).rejects.toThrow("did not delete media");
     destroyMock.mockRejectedValueOnce(new Error("network down"));
     await expect(fn("a/b", "image")).rejects.toThrow("network down");
+  });
+});
+
+describe("deleteFromCloudinaryUrl ownership", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    destroyMock.mockResolvedValue({ result: "ok" });
+    process.env.CLOUDINARY_CLOUD_NAME = "test-cloud";
+  });
+
+  it("refuses a foreign cloud name", async () => {
+    const fn = await loadUrlDelete();
+    await fn("https://res.cloudinary.com/other-cloud/image/upload/v1/ndjourney-web/u1/a.jpg", ["u1"]);
+    expect(destroyMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses a publicId outside the caller's namespace", async () => {
+    const fn = await loadUrlDelete();
+    await fn("https://res.cloudinary.com/test-cloud/image/upload/v1/ndjourney-web/u2/a.jpg", ["u1"]);
+    expect(destroyMock).not.toHaveBeenCalled();
+  });
+
+  it("deletes an owned asset and normalizes the version segment", async () => {
+    const fn = await loadUrlDelete();
+    await fn("https://res.cloudinary.com/test-cloud/image/upload/v999/ndjourney-web/u1/a.jpg", ["u1"]);
+    expect(destroyMock).toHaveBeenCalledWith(
+      "ndjourney-web/u1/a",
+      expect.objectContaining({ resource_type: "image" }),
+    );
   });
 });

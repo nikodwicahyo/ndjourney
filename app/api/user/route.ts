@@ -56,7 +56,7 @@ export async function PUT(request: Request) {
     });
 
     if (oldImage && oldImage !== image) {
-      await deleteFromCloudinaryUrl(oldImage).catch(console.error);
+      await deleteFromCloudinaryUrl(oldImage, [session.user.id]).catch(console.error);
     }
 
     // Invalidate session caches so next session fetch gets fresh data

@@ -1,0 +1,98 @@
+- generic [ref=f2e1]:
+  - banner [ref=f2e2]:
+    - generic [ref=f2e3]:
+      - link "NDjourney" [ref=f2e4] [cursor=pointer]:
+        - /url: /
+      - generic [ref=f2e8]:
+        - button "Ganti tema" [ref=f2e94]
+        - button "Menu akun" [ref=f2e96]:
+          - generic [ref=f2e97]: T
+        - button "Buka menu" [ref=f2e10]
+  - main [ref=f2e12]:
+    - generic [ref=f2e15]:
+      - generic [ref=f2e16]:
+        - heading "Tulis Surat" [level=1] [ref=f2e17]
+        - paragraph [ref=f2e20]: Ungkapkan isi hatimu untuk pasangan
+      - generic [ref=f2e99]:
+        - generic [ref=f2e101]:
+          - paragraph [ref=f2e102]: Untuk
+          - paragraph [ref=f2e103]: Niko
+        - generic [ref=f2e104]:
+          - generic [ref=f2e105]:
+            - generic [ref=f2e106]: Judul *
+            - generic [ref=f2e107]: 26/200
+          - textbox "Judul" [ref=f2e108]:
+            - /placeholder: "Contoh: Untuk kamu yang selalu ada"
+            - text: Untuk kamu yang selalu ada
+          - paragraph [ref=f2e109]: Judul singkat yang bikin dia penasaran.
+        - generic [ref=f2e110]:
+          - generic [ref=f2e111]:
+            - paragraph [ref=f2e112]: Suasana hati
+            - paragraph [ref=f2e113]: Pilih yang paling mendekati isi suratmu.
+          - group "Suasana hati" [ref=f2e114]:
+            - button "❤️ Cinta" [pressed] [ref=f2e115]
+            - button "🙏 Terima Kasih" [ref=f2e116]
+            - button "🥺 Kangen" [ref=f2e117]
+            - button "😊 Happy" [ref=f2e118]
+            - button "💝 Minta Maaf" [ref=f2e119]
+            - button "🎉 Kejutan" [ref=f2e120]
+        - generic [ref=f2e121]:
+          - generic [ref=f2e122]:
+            - paragraph [ref=f2e123]: Isi Surat *
+            - generic [ref=f2e124]: 9 kata · 51 karakter
+          - generic [ref=f2e125]:
+            - toolbar "Format surat" [ref=f2e126]:
+              - button "Tebal (Ctrl+B)" [pressed] [ref=f2e127]
+              - button "Miring (Ctrl+I)" [ref=f2e130]
+              - button "Judul bagian" [ref=f2e133]
+              - button "Daftar poin" [ref=f2e137]
+              - button "Daftar bernomor" [ref=f2e139]
+              - button "Kutipan" [ref=f2e143]
+              - button "Urungkan (Ctrl+Z)" [ref=f2e179]
+              - button "Ulangi (Ctrl+Shift+Z)" [disabled]
+            - textbox "Isi surat" [active] [ref=f2e150]:
+              - paragraph [ref=f2e151]:
+                - text: Hai sayang, aku kangen banget sama kamu.
+                - strong [ref=f2e184]: Ini tebal.
+          - paragraph [ref=f2e152]: Gunakan toolbar untuk menebalkan, membuat daftar, atau mengutip.
+        - generic [ref=f2e154] [cursor=pointer]:
+          - checkbox "Time Capsule Surat terkunci dan baru bisa dibuka pada tanggal yang kamu tentukan." [ref=f2e155]
+          - generic [ref=f2e156]:
+            - generic [ref=f2e157]: Time Capsule
+            - paragraph [ref=f2e161]: Surat terkunci dan baru bisa dibuka pada tanggal yang kamu tentukan.
+        - generic [ref=f2e162]:
+          - paragraph [ref=f2e163]: Draft tersimpan otomatis · 20.08 WIB
+          - generic [ref=f2e164]:
+            - button "Kembali" [ref=f2e165]
+            - button "Kirim Surat" [ref=f2e183]
+  - navigation "Navigasi utama" [ref=f2e25]:
+    - generic [ref=f2e27]:
+      - link "Home" [ref=f2e28] [cursor=pointer]:
+        - /url: /
+      - link "Gallery" [ref=f2e33] [cursor=pointer]:
+        - /url: /gallery
+      - link "Timeline" [ref=f2e39] [cursor=pointer]:
+        - /url: /timeline
+      - link "Games" [ref=f2e43] [cursor=pointer]:
+        - /url: /games
+      - link "Notes" [ref=f2e47] [cursor=pointer]:
+        - /url: /notes
+      - link "Letters" [ref=f2e52] [cursor=pointer]:
+        - /url: /letters
+      - link "Wishlist" [ref=f2e57] [cursor=pointer]:
+        - /url: /wishlist
+      - link "Location" [ref=f2e166] [cursor=pointer]:
+        - /url: /location
+      - link "Dashboard" [ref=f2e171] [cursor=pointer]:
+        - /url: /dashboard
+  - generic [ref=f2e69]:
+    - button "Tutup" [ref=f2e70]
+    - generic [ref=f2e78]:
+      - paragraph [ref=f2e79]: Install ndjourney di Chrome
+      - paragraph [ref=f2e80]: Klik ikon install di address bar, atau menu -> "Install ndjourney".
+    - generic [ref=f2e81]:
+      - button "Tutup" [ref=f2e82]
+      - button "Saya mengerti" [ref=f2e83]
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=f2e89] [cursor=pointer]
+  - alert [ref=f2e93]

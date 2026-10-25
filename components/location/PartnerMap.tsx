@@ -638,18 +638,25 @@ export default function PartnerMap({
       L.marker(latlng, {
         icon: createPulseIcon(p.isSelf),
         interactive: false,
+        // keyboard defaults to true and stamps role="button"/tabindex on a
+        // decorative ring — no name, so axe flags aria-command-name.
+        keyboard: false,
       }).addTo(markerLayer);
 
       // Main avatar marker
       const marker = L.marker(latlng, {
         icon: createAvatarIcon(p.image, p.isSelf),
       }).addTo(markerLayer);
+      // Leaflet renders markers as role="button"; without a name screen
+      // readers get "button" and axe flags aria-command-name.
+      marker.getElement()?.setAttribute("aria-label", `Lokasi ${p.label}`);
 
       // Bearing/heading arrow
       if (p.point.heading !== null && p.point.heading >= 0) {
         L.marker(latlng, {
           icon: createBearingArrow(p.point.heading, p.isSelf),
           interactive: false,
+          keyboard: false,
           zIndexOffset: 1000,
         })
           .addTo(headingLayer)
@@ -748,6 +755,7 @@ export default function PartnerMap({
           iconAnchor: [0, 0],
         }),
         interactive: false,
+        keyboard: false,
       }).addTo(markerLayer);
 
       const bearingId = bearingDeg !== null ? formatBearingId(bearingDeg) : "";

@@ -1,0 +1,34 @@
+- generic [active] [ref=f1e1]:
+  - generic [ref=f1e7]:
+    - generic [ref=f1e8]:
+      - heading "NDjourney" [level=1] [ref=f1e13]
+      - paragraph [ref=f1e14]: Tempat semua cerita kita tersimpan selamanya.
+    - generic [ref=f1e16]:
+      - button "Login dengan Google" [disabled]
+      - generic [ref=f1e17]: atau
+      - generic [ref=f1e22]:
+        - generic [ref=f1e23]:
+          - text: Email
+          - textbox "Email" [ref=f1e28]:
+            - /placeholder: nama@email.com
+        - generic [ref=f1e29]:
+          - text: Password
+          - generic [ref=f1e30]:
+            - textbox "Password" [ref=f1e34]:
+              - /placeholder: ••••••••
+            - button "Tampilkan password" [ref=f1e35]
+        - button "Login" [disabled]
+      - paragraph [ref=f1e39]: Belum punya akun? Gunakan link undangan dari pasangan untuk mendaftar.
+    - link "Kembali ke Beranda" [ref=f1e41] [cursor=pointer]:
+      - /url: /
+  - generic [ref=f1e45]:
+    - button "Tutup" [ref=f1e46]
+    - generic [ref=f1e54]:
+      - paragraph [ref=f1e55]: Install ndjourney di Chrome
+      - paragraph [ref=f1e56]: Klik ikon install di address bar, atau menu -> "Install ndjourney".
+    - generic [ref=f1e57]:
+      - button "Tutup" [ref=f1e58]
+      - button "Saya mengerti" [ref=f1e59]
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=f1e65] [cursor=pointer]
+  - alert [ref=f1e69]

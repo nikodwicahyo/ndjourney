@@ -183,7 +183,10 @@ function WishCard({ wish, readOnly = false, onEdit }: WishCardProps) {
               className="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium"
               style={{
                 backgroundColor: config.color + "1a",
-                color: config.color,
+                // Half category hue + half theme foreground: dark text on the
+                // light tint, light text on the dark tint, so the label keeps
+                // its colour coding without dropping under AA in either theme.
+                color: `color-mix(in oklab, ${config.color} 55%, var(--foreground))`,
               }}
             >
               {config.label}

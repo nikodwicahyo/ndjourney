@@ -313,9 +313,9 @@ export default function GameManager() {
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h3 className="font-medium">
+        <h2 className="font-medium">
           {isArcadeTab ? `Statistik ${arcadeLabel}` : `Pertanyaan ${activeGameType?.label}`}
-        </h3>
+        </h2>
         {!isArcadeTab && (
         <div className="flex flex-row items-center gap-2">
           <button

@@ -314,7 +314,7 @@ export default function LeaderBoard() {
                 {entry._hasQa && (
                   <div className="rounded-xl border border-border/60 bg-muted/30 px-3 py-2">
                     <div className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-                      <Brain className="h-3 w-3 text-blue-500" />
+                      <Brain className="h-3 w-3 text-blue-600 dark:text-blue-400" />
                       Quiz (Would You Rather & Love Quiz)
                     </div>
                     <div className="mt-1 text-xs text-muted-foreground">
@@ -322,7 +322,7 @@ export default function LeaderBoard() {
                         {entry.totalCorrect ?? 0}/{entry._qaPlayed ?? 0}
                       </span>{" "}
                       benar ·{" "}
-                      <span className="font-medium text-blue-500">
+                      <span className="font-medium text-blue-600 dark:text-blue-400">
                         {entry.accuracy ?? 0}%
                       </span>{" "}
                       akurasi

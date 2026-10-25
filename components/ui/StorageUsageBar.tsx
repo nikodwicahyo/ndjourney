@@ -134,6 +134,7 @@ export default function StorageUsageBar({
               type="button"
               onClick={onRefresh}
               disabled={isRefreshing}
+              aria-label={isRefreshing ? "Memuat penggunaan penyimpanan" : "Refresh penggunaan penyimpanan"}
               className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-border px-3 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
             >
               <RefreshCw className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")} />
@@ -235,7 +236,7 @@ export default function StorageUsageBar({
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); onRefresh(); }}
-              aria-label="Muat ulang penggunaan penyimpanan"
+              aria-label={isRefreshing ? "Memuat penggunaan penyimpanan" : "Refresh penggunaan penyimpanan"}
               className="inline-flex h-10 items-center gap-1.5 rounded-full border border-border px-3 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
             >
               <RefreshCw className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")} />

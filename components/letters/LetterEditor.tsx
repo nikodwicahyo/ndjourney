@@ -1,9 +1,20 @@
 "use client";
 
-import { useCallback } from "react";
-import { useEditor, EditorContent } from "@tiptap/react";
+import { useCallback, useEffect } from "react";
+import { useEditor, EditorContent, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { Bold, Italic, List, ListOrdered, Quote, Undo, Redo, Heading2 } from "lucide-react";
+import { Placeholder } from "@tiptap/extensions";
+import {
+  Bold,
+  Italic,
+  List,
+  ListOrdered,
+  Quote,
+  Redo,
+  Undo,
+  Heading2,
+  type LucideIcon,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type LetterEditorProps = {
@@ -13,6 +24,45 @@ type LetterEditorProps = {
   ariaLabel?: string;
   describedBy?: string;
 };
+
+type ToolbarButtonProps = {
+  icon: LucideIcon;
+  label: string;
+  shortcut?: string;
+  active?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+};
+
+function ToolbarButton({
+  icon: Icon,
+  label,
+  shortcut,
+  active,
+  disabled = false,
+  onClick,
+}: ToolbarButtonProps) {
+  const title = shortcut ? `${label} (${shortcut})` : label;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={title}
+      aria-pressed={active}
+      title={title}
+      className={cn(
+        "flex h-10 min-w-10 items-center justify-center rounded-lg px-2 transition-colors sm:h-9 sm:min-w-9",
+        active
+          ? "bg-primary/10 text-primary"
+          : "text-muted-foreground hover:bg-accent hover:text-foreground",
+        disabled && "pointer-events-none opacity-40",
+      )}
+    >
+      <Icon className="h-4 w-4" aria-hidden="true" />
+    </button>
+  );
+}
 
 export default function LetterEditor({
   content,
@@ -26,6 +76,9 @@ export default function LetterEditor({
       StarterKit.configure({
         heading: { levels: [2] },
       }),
+      Placeholder.configure({
+        placeholder: placeholder ?? "Tulis suratmu di sini…",
+      }),
     ],
     content,
     onUpdate: ({ editor }) => {
@@ -34,12 +87,33 @@ export default function LetterEditor({
     editorProps: {
       attributes: {
         class:
-          "prose prose-sm dark:prose-invert min-h-[280px] w-full rounded-xl border border-input bg-card px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "tiptap-content min-h-[280px] w-full rounded-xl border border-input bg-card px-4 py-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-[320px]",
         ...(ariaLabel ? { "aria-label": ariaLabel } : {}),
         ...(describedBy ? { "aria-describedby": describedBy } : {}),
       },
     },
     immediatelyRender: false,
+  });
+
+  // Keep the editor in sync when the draft is restored or the form is reset.
+  // Typing already matches, so this never touches the cursor mid-sentence.
+  useEffect(() => {
+    if (!editor || content === editor.getHTML()) return;
+    editor.commands.setContent(content, { emitUpdate: false });
+  }, [editor, content]);
+
+  const toolbar = useEditorState({
+    editor,
+    selector: ({ editor }) => ({
+      bold: editor?.isActive("bold") ?? false,
+      italic: editor?.isActive("italic") ?? false,
+      heading: editor?.isActive("heading", { level: 2 }) ?? false,
+      bulletList: editor?.isActive("bulletList") ?? false,
+      orderedList: editor?.isActive("orderedList") ?? false,
+      blockquote: editor?.isActive("blockquote") ?? false,
+      canUndo: editor?.can().undo() ?? false,
+      canRedo: editor?.can().redo() ?? false,
+    }),
   });
 
   const toggleBold = useCallback(() => editor?.chain().focus().toggleBold().run(), [editor]);
@@ -51,78 +125,40 @@ export default function LetterEditor({
   const undo = useCallback(() => editor?.chain().focus().undo().run(), [editor]);
   const redo = useCallback(() => editor?.chain().focus().redo().run(), [editor]);
 
-  if (!editor) {
+  if (!editor || !toolbar) {
     return (
-      <div className="flex min-h-[280px] items-center justify-center rounded-xl border border-input bg-muted/30">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-      </div>
+      <div
+        aria-hidden="true"
+        className="min-h-[280px] animate-pulse rounded-xl border border-input bg-muted/30 sm:min-h-[320px]"
+      />
     );
   }
 
-  const items = [
-    { icon: Bold, action: toggleBold, active: editor.isActive("bold"), label: "Bold" },
-    { icon: Italic, action: toggleItalic, active: editor.isActive("italic"), label: "Italic" },
-    { icon: Heading2, action: toggleHeading, active: editor.isActive("heading"), label: "Heading" },
-    { icon: List, action: toggleBulletList, active: editor.isActive("bulletList"), label: "Bullet List" },
-    { icon: ListOrdered, action: toggleOrderedList, active: editor.isActive("orderedList"), label: "Ordered List" },
-    { icon: Quote, action: toggleBlockquote, active: editor.isActive("blockquote"), label: "Quote" },
-  ];
-
   return (
     <div className="space-y-2">
-      <div role="toolbar" aria-label="Format surat" className="flex flex-wrap gap-1 rounded-xl border border-border bg-muted/50 p-1">
-        {items.map(({ icon: Icon, action, active, label }) => (
-          <button
-            key={label}
-            type="button"
-            onClick={action}
-            className={cn(
-              "flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg p-1.5 transition-colors",
-              active
-                ? "bg-primary/10 text-primary"
-                : "text-muted-foreground hover:bg-accent hover:text-foreground",
-            )}
-            aria-label={label}
-            aria-pressed={active}
-          >
-            <Icon className="h-4 w-4" aria-hidden="true" />
-          </button>
-        ))}
-        <div className="mx-1 w-px bg-border" />
-        <button
-          type="button"
-          onClick={undo}
-          className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          aria-label="Undo"
-        >
-          <Undo className="h-4 w-4" aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          onClick={redo}
-          className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          aria-label="Redo"
-        >
-          <Redo className="h-4 w-4" aria-hidden="true" />
-        </button>
+      <div
+        role="toolbar"
+        aria-label="Format surat"
+        className="flex flex-wrap items-center gap-0.5 rounded-xl border border-border bg-muted/40 p-1"
+      >
+        <ToolbarButton icon={Bold} label="Tebal" shortcut="Ctrl+B" active={toolbar.bold} onClick={toggleBold} />
+        <ToolbarButton icon={Italic} label="Miring" shortcut="Ctrl+I" active={toolbar.italic} onClick={toggleItalic} />
+        <ToolbarButton icon={Heading2} label="Judul bagian" active={toolbar.heading} onClick={toggleHeading} />
+
+        <span className="mx-1 h-6 w-px bg-border" aria-hidden="true" />
+
+        <ToolbarButton icon={List} label="Daftar poin" active={toolbar.bulletList} onClick={toggleBulletList} />
+        <ToolbarButton icon={ListOrdered} label="Daftar bernomor" active={toolbar.orderedList} onClick={toggleOrderedList} />
+        <ToolbarButton icon={Quote} label="Kutipan" active={toolbar.blockquote} onClick={toggleBlockquote} />
+
+        <span className="mx-1 h-6 w-px bg-border" aria-hidden="true" />
+
+        <ToolbarButton icon={Undo} label="Urungkan" shortcut="Ctrl+Z" disabled={!toolbar.canUndo} onClick={undo} />
+        <ToolbarButton icon={Redo} label="Ulangi" shortcut="Ctrl+Shift+Z" disabled={!toolbar.canRedo} onClick={redo} />
       </div>
 
-      <style>{`
-        .tiptap-editor .ProseMirror p.is-editor-empty:first-child::before {
-          content: attr(data-placeholder);
-          float: left;
-          color: hsl(var(--muted-foreground));
-          pointer-events: none;
-          height: 0;
-        }
-      `}</style>
-
       <div className="tiptap-editor">
-        <EditorContent
-          editor={editor}
-          placeholder={placeholder}
-          className="[&_.ProseMirror]:min-h-[280px] [&_.ProseMirror]:w-full [&_.ProseMirror]:rounded-xl [&_.ProseMirror]:border [&_.ProseMirror]:border-input [&_.ProseMirror]:bg-background [&_.ProseMirror]:px-4 [&_.ProseMirror]:py-3 [&_.ProseMirror]:text-sm [&_.ProseMirror]:outline-none focus-visible:[&_.ProseMirror]:ring-2 focus-visible:[&_.ProseMirror]:ring-ring"
-        />
+        <EditorContent editor={editor} />
       </div>
     </div>
   );

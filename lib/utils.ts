@@ -115,6 +115,15 @@ export function truncate(str: string, maxLength: number): string {
   return str.slice(0, maxLength - 3) + "...";
 }
 
+/** Plain text from editor HTML: used for emptiness checks and word counts. */
+export function stripHtml(html: string): string {
+  return html
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function formatNumber(n: number): string {
   if (n >= 1000000) return (n / 1000000).toFixed(1) + "j";
   if (n >= 1000) return (n / 1000).toFixed(1) + "rb";

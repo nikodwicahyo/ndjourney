@@ -1,23 +1,41 @@
 "use client";
 
-import { useState, lazy, Suspense } from "react";
+import { useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useCreateLetter, usePartner } from "@/hooks/useLetters";
+import { useLetterDraft } from "@/hooks/useLetterDraft";
+import { loadLetterDraft } from "@/lib/letter-draft";
 import { Button, Skeleton } from "@/components/ui";
 import { LETTER_MOOD_CONFIG } from "@/types";
-import { X, Loader2, Clock, Lock, Sparkles, Heart } from "lucide-react";
+import {
+  X,
+  Loader2,
+  Lock,
+  Sparkles,
+  Heart,
+  History,
+  ArrowLeft,
+} from "lucide-react";
 import { toast } from "sonner";
 import type { LetterMood } from "@/types";
-import { getJakartaToday, parseJakartaDateTime } from "@/lib/date";
+import {
+  formatInJakarta,
+  getJakartaParts,
+  getJakartaToday,
+  parseJakartaDateTime,
+} from "@/lib/date";
+import { stripHtml } from "@/lib/utils";
+import { showDeleteConfirm } from "@/lib/swal";
 
 const LetterEditor = dynamic(() => import("./LetterEditor"), {
   ssr: false,
   loading: () => (
-    <div className="flex min-h-[280px] items-center justify-center rounded-xl border border-input bg-muted/30">
-      <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-    </div>
+    <div
+      aria-hidden="true"
+      className="min-h-[280px] animate-pulse rounded-xl border border-input bg-muted/30 sm:min-h-[320px]"
+    />
   ),
 });
 
@@ -26,34 +44,91 @@ const MOODS = Object.entries(LETTER_MOOD_CONFIG) as [
   { emoji: string; label: string; color: string },
 ][];
 
-export default function NewLetterForm({ onClose }: { onClose?: () => void }) {
+const DEFAULT_UNLOCK_TIME = "00:00";
+
+function formatDraftTime(timestamp: number): string {
+  const parts = getJakartaParts(new Date(timestamp));
+  if (!parts) return "";
+  return `${String(parts.hour).padStart(2, "0")}.${String(parts.minute).padStart(2, "0")} WIB`;
+}
+
+function formatUnlockMoment(date: Date): string {
+  const day = formatInJakarta(date, { dateStyle: "long" });
+  const parts = getJakartaParts(date);
+  if (!parts) return day;
+  return `${day} pukul ${String(parts.hour).padStart(2, "0")}.${String(parts.minute).padStart(2, "0")} WIB`;
+}
+
+export default function NewLetterForm({
+  userId,
+  onClose,
+}: {
+  userId: string;
+  onClose?: () => void;
+}) {
   const router = useRouter();
   const createLetter = useCreateLetter();
   const { data: partner, isLoading: partnerLoading, isError: partnerError } = usePartner();
 
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("<p></p>");
-  const [mood, setMood] = useState<LetterMood>("LOVE");
-  const [isTimeCapsule, setIsTimeCapsule] = useState(false);
-  const [unlockDate, setUnlockDate] = useState("");
-  const [unlockTime, setUnlockTime] = useState("00:00");
-  const [unlockError, setUnlockError] = useState("");
+  // Read the draft once, before the first paint, so a restored letter never
+  // flashes an empty editor. The loader renders this form client-only.
+  const [draft] = useState(() => loadLetterDraft(userId));
+  const [title, setTitle] = useState(draft?.title ?? "");
+  const [content, setContent] = useState(draft?.content || "<p></p>");
+  const [mood, setMood] = useState<LetterMood>(draft?.mood ?? "LOVE");
+  const [isTimeCapsule, setIsTimeCapsule] = useState(draft?.isTimeCapsule ?? false);
+  const [unlockDate, setUnlockDate] = useState(draft?.unlockDate ?? "");
+  const [unlockTime, setUnlockTime] = useState(
+    draft?.unlockTime || DEFAULT_UNLOCK_TIME,
+  );
+  const [restoredAt, setRestoredAt] = useState(draft?.savedAt ?? null);
+  const [titleTouched, setTitleTouched] = useState(false);
+  const [contentEdited, setContentEdited] = useState(
+    () => !!draft && !!stripHtml(draft.content),
+  );
   const [loading, setLoading] = useState(false);
 
-  // F-12: disable until valid (same rules as handleSubmit) — toasts stay as backup.
-  const contentEmpty = !content.replace(/<[^>]*>/g, "").trim();
+  const { savedAt, saveFailed, discard, clear } = useLetterDraft(userId, {
+    title,
+    content,
+    mood,
+    isTimeCapsule,
+    unlockDate,
+    unlockTime,
+  });
+
+  const plainText = stripHtml(content);
+  const contentEmpty = !plainText;
+  const wordCount = plainText ? plainText.split(" ").length : 0;
+  const showTitleError = titleTouched && !title.trim();
+  const showContentError = contentEdited && contentEmpty;
+
+  const unlockAt =
+    isTimeCapsule && unlockDate ? parseJakartaDateTime(unlockDate, unlockTime) : null;
+  const unlockValid = !!unlockAt && unlockAt.getTime() > Date.now();
+  const showUnlockError = isTimeCapsule && !!unlockDate && !unlockValid;
+
+  // Same rules as handleSubmit: the button stays disabled until the letter can
+  // actually be sent.
   const formValid =
-    !!title.trim() && !contentEmpty && !!partner && (!isTimeCapsule || !!unlockDate);
+    !!title.trim() && !contentEmpty && !!partner && (!isTimeCapsule || unlockValid);
+
+  function handleContentChange(html: string) {
+    setContent(html);
+    if (stripHtml(html)) setContentEdited(true);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (loading) return;
 
     if (!title.trim()) {
+      setTitleTouched(true);
       toast.error("Judul surat wajib diisi");
       return;
     }
-    const plainText = content.replace(/<[^>]*>/g, "").trim();
-    if (!plainText) {
+    if (contentEmpty) {
+      setContentEdited(true);
       toast.error("Konten surat wajib diisi");
       return;
     }
@@ -62,28 +137,15 @@ export default function NewLetterForm({ onClose }: { onClose?: () => void }) {
       return;
     }
     if (isTimeCapsule && !unlockDate) {
-      setUnlockError("Pilih tanggal pembukaan time capsule");
       toast.error("Pilih tanggal pembukaan time capsule");
       return;
     }
-    if (isTimeCapsule && unlockDate) {
-      const check = parseJakartaDateTime(unlockDate, unlockTime);
-      if (!check || check.getTime() <= Date.now()) {
-        setUnlockError("Tanggal pembukaan harus di masa depan");
-        toast.error("Tanggal pembukaan harus di masa depan");
-        return;
-      }
-      setUnlockError("");
+    if (isTimeCapsule && !unlockValid) {
+      toast.error("Tanggal pembukaan harus di masa depan");
+      return;
     }
 
     setLoading(true);
-
-    let unlockAt: string | null = null;
-    if (isTimeCapsule && unlockDate) {
-      const d = parseJakartaDateTime(unlockDate, unlockTime);
-      unlockAt = d ? d.toISOString() : null;
-    }
-
     try {
       await createLetter.mutateAsync({
         title: title.trim(),
@@ -91,11 +153,12 @@ export default function NewLetterForm({ onClose }: { onClose?: () => void }) {
         recipientId: partner.id,
         mood,
         isTimeCapsule,
-        unlockAt,
+        unlockAt: isTimeCapsule && unlockAt ? unlockAt.toISOString() : null,
       });
+      clear();
       toast.success("Surat terkirim!");
       if (onClose) onClose();
-      router.push("/dashboard/letters");
+      else router.push("/dashboard/letters");
     } catch {
       toast.error("Gagal mengirim surat");
     } finally {
@@ -103,11 +166,38 @@ export default function NewLetterForm({ onClose }: { onClose?: () => void }) {
     }
   }
 
+  function handleCancel() {
+    // Autosave already kept the letter; leaving is safe.
+    if (onClose) onClose();
+    else router.push("/dashboard/letters");
+  }
+
+  async function handleDiscard() {
+    const confirmed = await showDeleteConfirm({
+      title: "Mulai surat baru?",
+      text: "Draft yang tersimpan akan dihapus dan formulir dikosongkan.",
+      confirmText: "Ya, mulai baru",
+    });
+    if (!confirmed) return;
+
+    discard();
+    setRestoredAt(null);
+    setTitle("");
+    setContent("<p></p>");
+    setMood("LOVE");
+    setIsTimeCapsule(false);
+    setUnlockDate("");
+    setUnlockTime(DEFAULT_UNLOCK_TIME);
+    setTitleTouched(false);
+    setContentEdited(false);
+  }
+
   if (partnerLoading) {
     return (
       <div className="space-y-4">
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-40 w-full" />
+        <Skeleton className="h-16 w-full rounded-xl" />
+        <Skeleton className="h-12 w-full rounded-xl" />
+        <Skeleton className="h-56 w-full rounded-xl" />
       </div>
     );
   }
@@ -132,9 +222,7 @@ export default function NewLetterForm({ onClose }: { onClose?: () => void }) {
     <form onSubmit={handleSubmit} className="space-y-6">
       {onClose && (
         <div className="flex items-center justify-between">
-          <h2 className="font-heading text-lg font-semibold">
-            Tulis Surat
-          </h2>
+          <h2 className="font-heading text-lg font-semibold">Tulis Surat</h2>
           <button
             type="button"
             onClick={onClose}
@@ -146,40 +234,85 @@ export default function NewLetterForm({ onClose }: { onClose?: () => void }) {
         </div>
       )}
 
-      <div className="space-y-2">
-        <p className="text-sm font-medium">Untuk</p>
-        <div className="flex items-center gap-2 rounded-xl border border-input bg-card px-4 py-2.5 text-sm">
-          <span className="text-lg">{partner.image ? <Image src={partner.image} alt="" className="h-5 w-5 rounded-full" width={20} height={20} /> : <Heart className="h-5 w-5 fill-primary text-primary" />}</span>
-          <span className="font-medium">{partner.name || "Pasangan"}</span>
+      {restoredAt !== null && (
+        <div className="flex flex-col gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-2.5">
+            <History className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+            <p className="text-sm">
+              <span className="font-medium">Draft dipulihkan</span>
+              <span className="text-muted-foreground">
+                {" · terakhir disimpan "}
+                {formatDraftTime(restoredAt)}
+              </span>
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleDiscard}
+            className="inline-flex h-10 shrink-0 items-center justify-center rounded-full border border-border bg-background px-4 text-xs font-medium transition-colors hover:bg-accent"
+          >
+            Mulai baru
+          </button>
+        </div>
+      )}
+
+      <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
+        {partner.image ? (
+          <Image
+            src={partner.image}
+            alt=""
+            width={32}
+            height={32}
+            className="h-8 w-8 shrink-0 rounded-full object-cover"
+          />
+        ) : (
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
+            <Heart className="h-4 w-4 fill-primary text-primary" aria-hidden="true" />
+          </span>
+        )}
+        <div className="min-w-0">
+          <p className="text-xs text-muted-foreground">Untuk</p>
+          <p className="truncate text-sm font-medium">{partner.name || "Pasangan"}</p>
         </div>
       </div>
 
       <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <label htmlFor="letter-title" className="text-sm font-medium">Judul *</label>
-          <span className="text-xs text-muted-foreground">{title.length}/200</span>
+        <div className="flex items-baseline justify-between gap-3">
+          <label htmlFor="letter-title" className="text-sm font-medium">
+            Judul <span aria-hidden="true">*</span>
+          </label>
+          <span className="text-xs tabular-nums text-muted-foreground">{title.length}/200</span>
         </div>
         <input
           id="letter-title"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="Judul surat..."
+          onBlur={() => setTitleTouched(true)}
+          placeholder="Contoh: Untuk kamu yang selalu ada"
           maxLength={200}
-          className="flex h-10 w-full rounded-xl border border-input bg-card px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          autoFocus
+          className="flex h-12 w-full rounded-xl border border-input bg-card px-4 text-base outline-none transition-shadow placeholder:text-muted-foreground/70 focus-visible:ring-2 focus-visible:ring-ring"
           required
-          aria-invalid={!title.trim()}
-          aria-describedby="letter-title-error"
+          aria-invalid={showTitleError}
+          aria-describedby={showTitleError ? "letter-title-error" : "letter-title-hint"}
         />
-        {!title.trim() && (
+        {showTitleError ? (
           <p id="letter-title-error" role="alert" className="text-xs text-destructive">
-            Judul surat wajib diisi
+            Judul surat wajib diisi.
+          </p>
+        ) : (
+          <p id="letter-title-hint" className="text-xs text-muted-foreground">
+            Judul singkat yang bikin dia penasaran.
           </p>
         )}
       </div>
 
       <div className="space-y-2">
-        <label className="text-sm font-medium">Mood</label>
-        <div className="flex flex-wrap gap-2">
+        <div>
+          <p className="text-sm font-medium">Suasana hati</p>
+          <p className="text-xs text-muted-foreground">Pilih yang paling mendekati isi suratmu.</p>
+        </div>
+        <div role="group" aria-label="Suasana hati" className="flex flex-wrap gap-2">
           {MOODS.map(([key, config]) => (
             <button
               key={key}
@@ -188,7 +321,7 @@ export default function NewLetterForm({ onClose }: { onClose?: () => void }) {
               aria-pressed={mood === key}
               className={`inline-flex h-10 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-all ${
                 mood === key
-                  ? "border-transparent ring-2 ring-offset-1"
+                  ? "border-transparent shadow-sm"
                   : "border-border hover:bg-accent"
               }`}
               style={
@@ -204,24 +337,33 @@ export default function NewLetterForm({ onClose }: { onClose?: () => void }) {
       </div>
 
       <div className="space-y-2">
-        <label className="text-sm font-medium">
-          Isi Surat <span className="text-muted-foreground">*</span>
-        </label>
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="text-sm font-medium">
+            Isi Surat <span aria-hidden="true">*</span>
+          </p>
+          <span className="text-xs tabular-nums text-muted-foreground">
+            {wordCount} kata · {plainText.length} karakter
+          </span>
+        </div>
         <LetterEditor
           content={content}
-          onChange={setContent}
-          placeholder="Tulis isi surat dari hatimu..."
+          onChange={handleContentChange}
+          placeholder="Mulai dengan “Hai sayang…” — lalu ceritakan apa yang ingin kamu sampaikan."
           ariaLabel="Isi surat"
-          describedBy="letter-content-error"
+          describedBy={showContentError ? "letter-content-error" : undefined}
         />
-        {contentEmpty && (
+        {showContentError ? (
           <p id="letter-content-error" role="alert" className="text-xs text-destructive">
-            Konten surat wajib diisi
+            Konten surat wajib diisi.
+          </p>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Gunakan toolbar untuk menebalkan, membuat daftar, atau mengutip.
           </p>
         )}
       </div>
 
-      <div className="rounded-xl border border-border bg-muted/30 p-4">
+      <section className="rounded-2xl border border-border bg-muted/30 p-4 sm:p-5">
         <label className="flex cursor-pointer items-start gap-3">
           <input
             type="checkbox"
@@ -229,91 +371,107 @@ export default function NewLetterForm({ onClose }: { onClose?: () => void }) {
             onChange={(e) => setIsTimeCapsule(e.target.checked)}
             className="mt-0.5 h-4 w-4 rounded border-input accent-primary"
           />
-          <div>
-            <div className="flex items-center gap-1.5 text-sm font-medium">
-              <Lock className="h-3.5 w-3.5" />
+          <div className="min-w-0">
+            <span className="flex items-center gap-1.5 text-sm font-medium">
+              <Lock className="h-3.5 w-3.5" aria-hidden="true" />
               Time Capsule
-            </div>
+            </span>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Surat akan terkunci dan baru bisa dibuka pada tanggal yang ditentukan
+              Surat terkunci dan baru bisa dibuka pada tanggal yang kamu tentukan.
             </p>
           </div>
         </label>
 
         {isTimeCapsule ? (
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <label htmlFor="letter-unlock-date" className="text-xs font-medium text-muted-foreground">
-                Tanggal
-              </label>
-              <input
-                id="letter-unlock-date"
-                type="date"
-                value={unlockDate}
-                onChange={(e) => {
-                  setUnlockDate(e.target.value);
-                  setUnlockError("");
-                }}
-                min={getJakartaToday()}
-                className="flex h-10 w-full rounded-xl border border-input bg-card px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                aria-invalid={!!unlockError}
-                aria-describedby={unlockError ? "letter-unlock-error" : undefined}
-              />
+          <div className="mt-4 space-y-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label htmlFor="letter-unlock-date" className="text-xs font-medium text-muted-foreground">
+                  Tanggal dibuka
+                </label>
+                <input
+                  id="letter-unlock-date"
+                  type="date"
+                  value={unlockDate}
+                  onChange={(e) => setUnlockDate(e.target.value)}
+                  min={getJakartaToday()}
+                  className="flex h-10 w-full rounded-xl border border-input bg-card px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-invalid={showUnlockError}
+                  aria-describedby="letter-unlock-hint"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label htmlFor="letter-unlock-time" className="text-xs font-medium text-muted-foreground">
+                  Jam
+                </label>
+                <input
+                  id="letter-unlock-time"
+                  type="time"
+                  value={unlockTime}
+                  onChange={(e) => setUnlockTime(e.target.value)}
+                  className="flex h-10 w-full rounded-xl border border-input bg-card px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-describedby="letter-unlock-hint"
+                />
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <label htmlFor="letter-unlock-time" className="text-xs font-medium text-muted-foreground">
-                Jam
-              </label>
-              <input
-                id="letter-unlock-time"
-                type="time"
-                value={unlockTime}
-                onChange={(e) => {
-                  setUnlockTime(e.target.value);
-                  setUnlockError("");
-                }}
-                className="flex h-10 w-full rounded-xl border border-input bg-card px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
-            </div>
+            {showUnlockError ? (
+              <p id="letter-unlock-hint" role="alert" className="text-xs text-destructive">
+                Tanggal pembukaan harus di masa depan.
+              </p>
+            ) : unlockValid && unlockAt ? (
+              <p id="letter-unlock-hint" className="text-xs text-muted-foreground">
+                Terbuka pada {formatUnlockMoment(unlockAt)}.
+              </p>
+            ) : (
+              <p id="letter-unlock-hint" className="text-xs text-muted-foreground">
+                Pilih tanggal dan jam kapan surat ini boleh dibuka.
+              </p>
+            )}
           </div>
         ) : null}
-        {isTimeCapsule && unlockError ? (
-          <p id="letter-unlock-error" role="alert" className="mt-3 text-xs text-destructive">
-            {unlockError}
-          </p>
-        ) : null}
-      </div>
+      </section>
 
-      <div className="flex gap-3">
-        <Button
-          type="button"
-          variant="outline"
-          className="flex-1"
-          onClick={() => {
-            if (onClose) onClose();
-            else router.push("/dashboard/letters");
-          }}
-          disabled={loading}
+      <div className="space-y-3 border-t border-border pt-5">
+        <p
+          className={`text-xs ${saveFailed ? "text-destructive" : "text-muted-foreground"}`}
+          role={saveFailed ? "alert" : undefined}
         >
-          Batal
-        </Button>
-        <Button
-          type="submit"
-          className="flex-1 gap-2"
-          disabled={loading || !formValid}
-        >
-          {loading ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Mengirim...
-            </>
-          ) : (
-            <>
-              <Sparkles className="h-4 w-4" />
-              Kirim Surat
-            </>
-          )}
-        </Button>
+          {saveFailed
+            ? "Draft tidak bisa disimpan di perangkat ini. Jangan tutup halaman sebelum mengirim."
+            : savedAt
+              ? `Draft tersimpan otomatis · ${formatDraftTime(savedAt)}`
+              : "Draft tersimpan otomatis di perangkat ini."}
+        </p>
+
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <Button
+            type="button"
+            variant="outline"
+            className="gap-2 sm:flex-1"
+            onClick={handleCancel}
+            disabled={loading}
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Kembali
+          </Button>
+          <Button
+            type="submit"
+            className="flex-1 gap-2"
+            disabled={loading || !formValid}
+          >
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                Mengirim...
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-4 w-4" aria-hidden="true" />
+                Kirim Surat
+              </>
+            )}
+          </Button>
+        </div>
       </div>
     </form>
   );

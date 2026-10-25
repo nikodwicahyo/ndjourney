@@ -1,0 +1,87 @@
+- generic [active] [ref=f3e1]:
+  - banner [ref=f3e2]:
+    - generic [ref=f3e3]:
+      - link "NDjourney" [ref=f3e256] [cursor=pointer]:
+        - /url: /
+      - generic [ref=f3e8]:
+        - button "Ganti tema" [ref=f3e257]
+        - button "Menu akun" [ref=f3e258]:
+          - generic [ref=f3e12]: T
+        - button "Buka menu" [ref=f3e259]
+  - main [ref=f3e16]:
+    - generic [ref=f3e19]:
+      - generic [ref=f3e20]:
+        - heading "Tulis Surat" [level=1] [ref=f3e260]
+        - paragraph [ref=f3e24]: Ungkapkan isi hatimu untuk pasangan
+      - generic [ref=f3e133]:
+        - generic [ref=f3e144]:
+          - paragraph [ref=f3e145]: Untuk
+          - paragraph [ref=f3e146]: Niko
+        - generic [ref=f3e147]:
+          - generic [ref=f3e148]:
+            - generic [ref=f3e149]: Judul *
+            - generic [ref=f3e150]: 0/200
+          - textbox "Judul" [ref=f3e261]:
+            - /placeholder: "Contoh: Untuk kamu yang selalu ada"
+          - paragraph [ref=f3e152]: Judul singkat yang bikin dia penasaran.
+        - generic [ref=f3e153]:
+          - generic [ref=f3e154]:
+            - paragraph [ref=f3e155]: Suasana hati
+            - paragraph [ref=f3e156]: Pilih yang paling mendekati isi suratmu.
+          - group "Suasana hati" [ref=f3e262]:
+            - button "❤️ Cinta" [pressed] [ref=f3e263]
+            - button "🙏 Terima Kasih" [ref=f3e264]
+            - button "🥺 Kangen" [ref=f3e265]
+            - button "😊 Happy" [ref=f3e266]
+            - button "💝 Minta Maaf" [ref=f3e267]
+            - button "🎉 Kejutan" [ref=f3e268]
+        - generic [ref=f3e164]:
+          - generic [ref=f3e165]:
+            - paragraph [ref=f3e166]: Isi Surat *
+            - generic [ref=f3e167]: 0 kata · 0 karakter
+          - generic [ref=f3e168]:
+            - toolbar "Format surat" [ref=f3e269]:
+              - button "Tebal (Ctrl+B)" [ref=f3e270]
+              - button "Miring (Ctrl+I)" [ref=f3e271]
+              - button "Judul bagian" [ref=f3e272]
+              - button "Daftar poin" [ref=f3e273]
+              - button "Daftar bernomor" [ref=f3e274]
+              - button "Kutipan" [ref=f3e275]
+              - button "Urungkan (Ctrl+Z)" [ref=f3e276]
+              - button "Ulangi (Ctrl+Shift+Z)" [disabled]
+            - textbox "Isi surat" [ref=f3e280]:
+              - paragraph [ref=f3e194]: Mulai dengan “Hai sayang…” — lalu ceritakan apa yang ingin kamu sampaikan.
+          - paragraph [ref=f3e196]: Gunakan toolbar untuk menebalkan, membuat daftar, atau mengutip.
+        - generic [ref=f3e198] [cursor=pointer]:
+          - checkbox "Time Capsule Surat terkunci dan baru bisa dibuka pada tanggal yang kamu tentukan." [ref=f3e281]
+          - generic [ref=f3e200]:
+            - generic [ref=f3e201]: Time Capsule
+            - paragraph [ref=f3e205]: Surat terkunci dan baru bisa dibuka pada tanggal yang kamu tentukan.
+        - generic [ref=f3e206]:
+          - paragraph [ref=f3e207]: Draft tersimpan otomatis di perangkat ini.
+          - generic [ref=f3e208]:
+            - button "Kembali" [ref=f3e282]
+            - button "Kirim Surat" [disabled]
+  - navigation "Navigasi utama" [ref=f3e283]:
+    - generic [ref=f3e31]:
+      - link "Home" [ref=f3e284] [cursor=pointer]:
+        - /url: /
+      - link "Gallery" [ref=f3e285] [cursor=pointer]:
+        - /url: /gallery
+      - link "Timeline" [ref=f3e286] [cursor=pointer]:
+        - /url: /timeline
+      - link "Games" [ref=f3e287] [cursor=pointer]:
+        - /url: /games
+      - link "Notes" [ref=f3e288] [cursor=pointer]:
+        - /url: /notes
+      - link "Letters" [ref=f3e289] [cursor=pointer]:
+        - /url: /letters
+      - link "Wishlist" [ref=f3e290] [cursor=pointer]:
+        - /url: /wishlist
+      - link "Location" [ref=f3e291] [cursor=pointer]:
+        - /url: /location
+      - link "Dashboard" [ref=f3e292] [cursor=pointer]:
+        - /url: /dashboard
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=f3e293] [cursor=pointer]
+  - alert [ref=f3e105]

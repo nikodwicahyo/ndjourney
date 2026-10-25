@@ -64,7 +64,7 @@ export default function GalleryManager() {
   const [favoriteFilter, setFavoriteFilter] = useState(false);
   const [visibilityFilter, setVisibilityFilter] = useState<"public" | "private">("public");
   const { data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = usePhotos({ mediaType, sort, albumId: albumFilter, isFavorite: favoriteFilter || undefined, visibility: visibilityFilter });
-  const { data: storage, refetch: refetchStorage, isFetching: isFetchingStorage } = useStorageUsage();
+  const { data: storage, refetch: refetchStorage, isFetching: isFetchingStorage, isLoading: isStorageLoading } = useStorageUsage();
   const uploadPhotos = useUploadPhotos();
   const deletePhoto = useDeletePhoto();
   const updatePhoto = useUpdatePhoto();
@@ -462,7 +462,7 @@ export default function GalleryManager() {
 
   return (
     <div className="space-y-6">
-      {storage && (
+      {storage ? (
         <StorageUsageBar
           used={storage.storageUsed}
           limit={storage.storageLimit}
@@ -479,6 +479,15 @@ export default function GalleryManager() {
           isOpen={storageOpen}
           onToggle={() => setStorageOpen(!storageOpen)}
         />
+      ) : (
+        isStorageLoading && (
+          // The collapsed card is a fixed 130px; reserving it stops the upload
+          // card below from being shoved down when the query resolves.
+          <div
+            className="h-[130px] animate-pulse rounded-2xl border border-border bg-card"
+            aria-hidden="true"
+          />
+        )
       )}
 
       <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
@@ -534,19 +543,21 @@ export default function GalleryManager() {
           </div>
         )}
 
-        {albums && albums.length > 0 && !isTransferring && (
+        {!isTransferring && (
           <div className="mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-center gap-2">
-            <select
-              value={selectedAlbumId}
-              onChange={(e) => setSelectedAlbumId(e.target.value)}
-              aria-label="Pilih album untuk upload"
-              className="h-10 w-full max-w-xs rounded-full border border-input bg-card px-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <option value="">Tanpa album</option>
-              {albums.map((a) => (
-                <option key={a.id} value={a.id}>{a.name}</option>
-              ))}
-            </select>
+            {albums && albums.length > 0 && (
+              <select
+                value={selectedAlbumId}
+                onChange={(e) => setSelectedAlbumId(e.target.value)}
+                aria-label="Pilih album untuk upload"
+                className="h-10 w-full max-w-xs rounded-full border border-input bg-card px-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="">Tanpa album</option>
+                {albums.map((a) => (
+                  <option key={a.id} value={a.id}>{a.name}</option>
+                ))}
+              </select>
+            )}
             {!selectedAlbumId && (
               <div className={FILTER_GROUP_CLASSES}>
                 <button
@@ -763,7 +774,7 @@ export default function GalleryManager() {
             <button
               onClick={() => setSort(sort === "oldest" ? undefined : "oldest")}
               aria-pressed={sort === "oldest"}
-              aria-label="Urutkan media"
+              aria-label={`Urutkan media, ${sort === "oldest" ? "Terlama" : "Terbaru"}`}
               className={cn(
                 FILTER_CHIP_CLASSES,
                 "border",

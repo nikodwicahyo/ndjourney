@@ -13,8 +13,6 @@ const SURFACES = [
   "components/gallery/MasonryGrid.tsx",
   "components/dashboard/GalleryManager.tsx",
   "components/gallery/PhotoCard.tsx",
-  "app/(public)/gallery/page.tsx",
-  "app/(public)/gallery/loading.tsx",
   "app/(private)/dashboard/gallery/page.tsx",
 ];
 

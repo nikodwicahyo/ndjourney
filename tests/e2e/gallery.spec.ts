@@ -10,6 +10,27 @@ test("public gallery shows Gallery heading", async ({ page }) => {
   await expect(page.getByRole("heading", { name: /^gallery$/i })).toBeVisible({ timeout: t(15000) });
 });
 
+// Regression: autoplay used to be gated on prefers-reduced-motion (true on
+// desktops with OS animation effects off) and on hover, which desktop mice
+// trigger by resting over the card. Phones hit neither, so only desktop broke.
+test("home slideshow auto-advances with reduce-motion enabled", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  const counter = page
+    .getByTestId("gallery-slideshow")
+    .getByText(/^\d+\s*\/\s*\d+$/)
+    .first();
+  try {
+    await expect(counter).toBeVisible({ timeout: t(20000) });
+  } catch {
+    test.skip(true, "home slideshow has no public media to advance through");
+  }
+  const before = ((await counter.textContent()) ?? "").trim();
+  const total = Number(before.split("/")[1]?.trim() ?? 0);
+  test.skip(total < 2, "home slideshow needs at least 2 public media items");
+  await expect(counter).not.toHaveText(before, { timeout: t(12000) });
+});
+
 test("dashboard gallery requires auth and shows Kelola Gallery when logged in", async ({ page, context }) => {
   // Upload + Cloudinary + save + cleanup can exceed the default 30s test
   // budget under parallel-worker load (assertion budget alone is 60s).

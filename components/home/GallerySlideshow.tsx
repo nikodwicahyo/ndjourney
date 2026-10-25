@@ -5,6 +5,7 @@ import Image from "next/image";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Camera, Video, RefreshCw, Pause, Play } from "lucide-react";
 import { cn, formatDate } from "@/lib/utils";
+import { shuffle } from "@/lib/format";
 import { getOptimizedImageUrl, getBlurImageUrl } from "@/lib/cloudinary-urls";
 
 export type GalleryPhoto = {
@@ -57,7 +58,6 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
     setMediaState("loading");
     setRetryKey(0);
   }
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const goNextRef = useRef<() => void>(() => {});
   const dotsRef = useRef<HTMLDivElement | null>(null);
   const length = displayPhotos.length;
@@ -107,9 +107,23 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
 
   const goNext = useCallback(() => {
     if (length === 0) return;
-    setCurrentIndex((prev) => (prev + 1) % length);
     setDirection(1);
-  }, [length]);
+    if (currentIndex + 1 < length) {
+      setCurrentIndex(currentIndex + 1);
+      return;
+    }
+    // One loop done — reshuffle so the next pass is a new random order of the
+    // server's random public sample (and never re-open with the slide just left).
+    const lastId = photo?.id;
+    setDisplayPhotos((list) => {
+      const next = shuffle(list);
+      if (next.length > 1 && next[0].id === lastId) {
+        [next[0], next[1]] = [next[1], next[0]];
+      }
+      return next;
+    });
+    setCurrentIndex(0);
+  }, [length, currentIndex, photo?.id]);
 
   // Keep the latest navigator for timers/observers without re-subscribing —
   // assigned inside an effect, never during render.
@@ -129,13 +143,15 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
     setCurrentIndex(index);
   }, [length, currentIndex]);
 
+  // Autoplay is gated ONLY by the explicit pause button: useReducedMotion is
+  // true on desktops with OS animation effects off, and the old hover-pause
+  // fired on desktop mice resting over the card — both silently killed the
+  // timer (phones hit neither, which is why they kept advancing).
   useEffect(() => {
-    if (isPaused || reduceMotion || !hasPhotos) return;
-    intervalRef.current = setInterval(() => goNextRef.current(), 3000);
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [isPaused, reduceMotion, hasPhotos]);
+    if (isPaused || !hasPhotos) return;
+    const id = setInterval(() => goNextRef.current(), 3000);
+    return () => clearInterval(id);
+  }, [isPaused, hasPhotos]);
 
   // Keep the active dot visible as autoplay/manual nav advances —
   // scroll the dots strip only (never the page), no state so
@@ -189,11 +205,7 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
   }
 
   return (
-    <div
-      onPointerEnter={() => setIsPaused(true)}
-      onPointerLeave={() => setIsPaused(false)}
-      onPointerCancel={() => setIsPaused(false)}
-    >
+    <div data-testid="gallery-slideshow">
         <div className="group relative overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
         <div className="relative aspect-[4/3] overflow-hidden bg-muted">
           <AnimatePresence custom={direction} mode="wait">

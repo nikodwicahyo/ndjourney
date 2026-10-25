@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import type { Metadata } from "next";
 import { NoteList } from "@/components/notes";
 import ManagePageButton from "@/components/layout/ManagePageButton";
@@ -24,17 +23,7 @@ export default async function NotesPage() {
       </div>
 
       <div className="mx-auto max-w-lg space-y-8">
-        <Suspense
-          fallback={
-            <div className="space-y-3">
-              {Array.from({ length: 2 }).map((_, i) => (
-                <div key={i} className="h-24 animate-pulse rounded-2xl bg-muted" />
-              ))}
-            </div>
-          }
-        >
-          <NoteList />
-        </Suspense>
+        <NoteList />
       </div>
     </PageTransition>
   );

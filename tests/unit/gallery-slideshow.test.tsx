@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, vi } from "vitest";
+import { render, screen, fireEvent, act, cleanup } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
@@ -21,6 +22,8 @@ vi.mock("framer-motion", async (importOriginal) => {
 });
 
 afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
   delete (globalThis as Record<string, unknown>).__testReducedMotion;
 });
 
@@ -82,5 +85,53 @@ describe("GallerySlideshow hydration", () => {
       root.unmount();
       el.remove();
     }
+  });
+});
+
+const autoplayPhotos = [
+  {
+    id: "a1",
+    url: "https://res.cloudinary.com/demo/image/upload/sample.jpg",
+    caption: null,
+    createdAt: null,
+    isVideo: false,
+  },
+  {
+    id: "a2",
+    url: "https://res.cloudinary.com/demo/image/upload/sample2.jpg",
+    caption: null,
+    createdAt: null,
+    isVideo: false,
+  },
+];
+
+describe("GallerySlideshow autoplay", () => {
+  it("advances for reduced-motion users (desktop OS setting)", () => {
+    // Regression: the timer used to be gated on useReducedMotion(), which is
+    // true on desktops with OS animation effects off — autoplay died there.
+    (globalThis as Record<string, unknown>).__testReducedMotion = true;
+    vi.useFakeTimers();
+    render(<GallerySlideshow photos={autoplayPhotos} />);
+    expect(screen.getByText("1 / 2")).toBeTruthy();
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(screen.getByText("2 / 2")).toBeTruthy();
+    // Loop wrap reshuffles and restarts from the first slide.
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(screen.getByText("1 / 2")).toBeTruthy();
+  });
+
+  it("keeps advancing while the pointer rests on the card", () => {
+    // Hover-pause was invisible and desktop-only (phones never fire it).
+    vi.useFakeTimers();
+    const { container } = render(<GallerySlideshow photos={autoplayPhotos} />);
+    fireEvent.pointerOver(container.firstElementChild as HTMLElement);
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(screen.getByText("2 / 2")).toBeTruthy();
   });
 });

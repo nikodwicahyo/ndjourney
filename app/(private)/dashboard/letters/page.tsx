@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import { Mail } from "lucide-react";
 import LetterList from "@/components/letters/LetterList";
 import PageTransition from "@/components/PageTransition";
@@ -17,26 +16,7 @@ export default function LettersPage() {
           </p>
         </div>
 
-        <Suspense
-          fallback={
-            <div className="space-y-3">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="flex animate-pulse gap-4 rounded-2xl border border-border bg-card p-4"
-                >
-                  <div className="h-10 w-10 rounded-full bg-muted" />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-5 w-48 rounded-full bg-muted" />
-                    <div className="h-4 w-32 rounded-full bg-muted" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          }
-        >
-          <LetterList />
-        </Suspense>
+        <LetterList />
       </div>
     </PageTransition>
   );

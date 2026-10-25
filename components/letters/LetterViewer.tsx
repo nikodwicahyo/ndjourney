@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useLetter, useOpenLetter } from "@/hooks/useLetters";
 import type { LetterWithUsers } from "@/hooks/useLetters";
 import { formatDateTime, formatRelativeTime } from "@/lib/utils";
+import { useSession } from "next-auth/react";
 
 import { LETTER_MOOD_CONFIG } from "@/types";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui";
@@ -17,12 +18,12 @@ import LetterDetailSkeleton from "./LetterDetailSkeleton";
 
 type LetterViewerProps = {
   id: string;
-  isRecipient: boolean;
   backHref?: string;
 };
 
-export default function LetterViewer({ id, isRecipient, backHref = "/dashboard/letters" }: LetterViewerProps) {
+export default function LetterViewer({ id, backHref = "/dashboard/letters" }: LetterViewerProps) {
   const { data: letter, isLoading, error } = useLetter(id);
+  const { data: session, status: sessionStatus } = useSession();
   const openLetter = useOpenLetter();
   const [isOpening, setIsOpening] = useState(false);
   const [opened, setOpened] = useState(false);
@@ -34,6 +35,11 @@ export default function LetterViewer({ id, isRecipient, backHref = "/dashboard/l
   // so `"content" in letter` does not discriminate the union.
   const asFull = letter as Partial<LetterWithUsers> | null;
   const fullLetter = letter && asFull?.content !== undefined ? (letter as LetterWithUsers) : null;
+
+  // Derived on the client so the route page has no server-side auth/DB wait —
+  // that wait is what made loading.tsx and LetterViewer render two skeletons.
+  const isRecipient =
+    !!fullLetter?.recipient?.id && fullLetter.recipient.id === session?.user?.id;
 
   useEffect(() => {
     if (!fullLetter?.content) {
@@ -77,7 +83,9 @@ export default function LetterViewer({ id, isRecipient, backHref = "/dashboard/l
     }
   }
 
-  if (isLoading) {
+  // Wait for the session too: isRecipient is derived from it, and showing the
+  // letter before it resolves would flash content then the envelope animation.
+  if (isLoading || sessionStatus === "loading") {
     return (
       <div className="mx-auto max-w-2xl">
         <LetterDetailSkeleton />

@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import type { Metadata } from "next";
 import PublicWishList from "@/components/wishlist/PublicWishList";
 import ManagePageButton from "@/components/layout/ManagePageButton";
@@ -6,7 +5,7 @@ import { Target } from "lucide-react";
 
 export const metadata: Metadata = { title: "Wishlist" };
 
-export default async function WishlistPage() {
+export default function WishlistPage() {
   return (
     <>
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -19,17 +18,7 @@ export default async function WishlistPage() {
         <ManagePageButton href="/dashboard/wishlist" label="Kelola Wish List" />
       </div>
 
-      <Suspense
-        fallback={
-          <div className="space-y-3">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-20 animate-pulse rounded-2xl bg-muted" />
-            ))}
-          </div>
-        }
-      >
-        <PublicWishList />
-      </Suspense>
+      <PublicWishList />
     </>
   );
 }

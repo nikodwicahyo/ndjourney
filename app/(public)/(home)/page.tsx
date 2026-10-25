@@ -41,54 +41,40 @@ async function getGallerySummary() {
     } | null>(cacheKey("home", "gallery"));
     if (cached) return cached;
 
-    const [countResult, latestPhotos, oldestPhotos] = await Promise.all([
+    const [countResult, randomPhotos] = await Promise.all([
       prisma.$queryRaw<Array<{ photoCount: bigint; videoCount: bigint }>>`
         SELECT
           (SELECT COUNT(*) FROM "Photo" WHERE "isMilestoneOnly" = false AND "isPublic" = true AND ("albumId" IS NULL OR "albumId" IN (SELECT "id" FROM "Album" WHERE "isPublic" = true)))::int AS "photoCount",
           (SELECT COUNT(*) FROM "Photo" WHERE "isVideo" = true AND "isMilestoneOnly" = false AND "isPublic" = true AND ("albumId" IS NULL OR "albumId" IN (SELECT "id" FROM "Album" WHERE "isPublic" = true)))::int AS "videoCount"
       `,
-      prisma.photo.findMany({
-        where: { isMilestoneOnly: false, isPublic: true, OR: [{ albumId: null }, { album: { isPublic: true } }] },
-        orderBy: { createdAt: "desc" },
-        take: 25,
-        select: { id: true, url: true, caption: true, createdAt: true, isVideo: true, isPublic: true },
-      }),
-      prisma.photo.findMany({
-        where: { isMilestoneOnly: false, isPublic: true, OR: [{ albumId: null }, { album: { isPublic: true } }] },
-        orderBy: { createdAt: "asc" },
-        take: 25,
-        select: { id: true, url: true, caption: true, createdAt: true, isVideo: true, isPublic: true },
-      }),
+      // Random public sample across the whole timeline (dates included) — the
+      // slideshow walks this order once, then reshuffles on every loop.
+      prisma.$queryRaw<Array<{
+        id: string;
+        url: string;
+        caption: string | null;
+        createdAt: Date | string;
+        isVideo: boolean;
+        isPublic: boolean;
+      }>>`
+        SELECT "id", "url", "caption", "createdAt", "isVideo", "isPublic"
+        FROM "Photo"
+        WHERE "isMilestoneOnly" = false AND "isPublic" = true
+          AND ("albumId" IS NULL OR "albumId" IN (SELECT "id" FROM "Album" WHERE "isPublic" = true))
+        ORDER BY RANDOM()
+        LIMIT 50
+      `,
     ]);
-
-    const seen = new Set<string>();
-    const mixed: Array<{
-      id: string;
-      url: string;
-      caption: string | null;
-      createdAt: Date;
-      isVideo: boolean;
-      isPublic: boolean;
-    }> = [];
-    const maxLen = Math.max(latestPhotos.length, oldestPhotos.length);
-    for (let i = 0; i < maxLen; i++) {
-      if (i < latestPhotos.length && !seen.has(latestPhotos[i].id)) {
-        seen.add(latestPhotos[i].id);
-        mixed.push(latestPhotos[i]);
-      }
-      if (i < oldestPhotos.length && !seen.has(oldestPhotos[i].id)) {
-        seen.add(oldestPhotos[i].id);
-        mixed.push(oldestPhotos[i]);
-      }
-    }
 
     const row = countResult[0];
     const result = {
       photoCount: Number(row?.photoCount ?? 0),
       videoCount: Number(row?.videoCount ?? 0),
-      latestPhotos: mixed.slice(0, 50).map((p) => ({
+      // Key kept as `latestPhotos` for cache-shape compatibility; the rows are
+      // a random sample now, not the newest ones.
+      latestPhotos: randomPhotos.map((p) => ({
         ...p,
-        createdAt: p.createdAt.toISOString(),
+        createdAt: new Date(p.createdAt).toISOString(),
       })),
     };
 

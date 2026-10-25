@@ -1,6 +1,5 @@
-// Single skeleton for the letter detail route AND LetterViewer's own
-// loading state — same shape in both, so navigation shows one continuous
-// skeleton instead of two different ones flashing in sequence.
+// The only skeleton for the letter detail route — LetterViewer renders it
+// while the client query is in flight, so no route-level loading.tsx duplicates it.
 export default function LetterDetailSkeleton() {
   return (
     <div className="space-y-6" role="status" aria-label="Memuat surat">

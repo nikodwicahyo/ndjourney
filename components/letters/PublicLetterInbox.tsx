@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import { useSession } from "next-auth/react";
-import { useLetters } from "@/hooks/useLetters";
+import { useLetters, useLetterTab } from "@/hooks/useLetters";
 import LetterCard from "./LetterCard";
 import { Skeleton, Button } from "@/components/ui";
 import { Inbox, Send, MailQuestion } from "lucide-react";
@@ -16,8 +15,10 @@ const TABS: { key: "inbox" | "sent"; label: string; icon: typeof Inbox }[] = [
 
 export default function PublicLetterInbox() {
   const { data: session } = useSession();
-  const [tab, setTab] = useState<"inbox" | "sent">("inbox");
-  const { data: letters, isLoading, error, refetch } = useLetters(tab);
+  const [tab, setTab] = useLetterTab();
+  const { data: letters, isLoading, error, refetch } = useLetters(tab, {
+    enabled: !!session?.user,
+  });
 
   if (!session?.user) {
     return (

@@ -28,13 +28,21 @@ function timeAgo(seconds: number | null): string {
 
 export default function LocationWidget() {
   const { status: sessionStatus } = useSession();
+
+  // Don't mount the hook tree for guests: it used to poll /api/location and
+  // open a Pusher socket before the 401 came back. Renders nothing until the
+  // session is resolved, then mounts once.
+  if (sessionStatus !== "authenticated") return null;
+
+  return <LocationWidgetContent />;
+}
+
+function LocationWidgetContent() {
   const { data, isLoading } = useLocationSettings();
   const distance = useDistance(data);
   const meeting = useIsMeeting(data);
   const { heart, clearHeart } = useFloatingHearts(data?.coupleId);
   useShareLocation(data?.self.isSharing ?? false);
-
-  if (sessionStatus !== "authenticated") return null;
 
   if (isLoading) {
     return (

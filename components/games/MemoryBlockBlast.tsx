@@ -745,7 +745,7 @@ export default function MemoryBlockBlast({ playerName, onExit }: MemoryBlockBlas
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-950/30">
           <ImageIcon className="h-8 w-8 text-rose-400" aria-hidden="true" />
         </div>
-        <h3 className="font-heading text-lg font-semibold">Belum Ada Foto</h3>
+        <h2 className="font-heading text-lg font-semibold">Belum Ada Foto</h2>
         <p className="max-w-xs text-sm text-muted-foreground">
           Upload foto bersama pasangan dulu yuk, biar bisa main Block Blast!
         </p>

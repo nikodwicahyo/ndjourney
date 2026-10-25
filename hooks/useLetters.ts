@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback, useSyncExternalStore } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
@@ -51,12 +52,46 @@ export function usePartner() {
   });
 }
 
-export function useLetters(type: LetterListType) {
+const LETTER_TAB_KEY = "letters-tab";
+const tabListeners = new Set<() => void>();
+
+function subscribeTab(listener: () => void) {
+  tabListeners.add(listener);
+  return () => {
+    tabListeners.delete(listener);
+  };
+}
+
+function getTabSnapshot(): LetterListType {
+  return sessionStorage.getItem(LETTER_TAB_KEY) === "sent" ? "sent" : "inbox";
+}
+
+// Remember the inbox/sent tab so returning from a letter lands where the reader
+// left off. sessionStorage is the source of truth; the server snapshot keeps
+// the first render at "inbox" so hydration always matches.
+export function useLetterTab() {
+  const tab = useSyncExternalStore(subscribeTab, getTabSnapshot, (): LetterListType => "inbox");
+
+  const setTab = useCallback((next: LetterListType) => {
+    sessionStorage.setItem(LETTER_TAB_KEY, next);
+    tabListeners.forEach((listener) => listener());
+  }, []);
+
+  return [tab, setTab] as const;
+}
+
+export function useLetters(
+  type: LetterListType,
+  { enabled = true }: { enabled?: boolean } = {},
+) {
   return useQuery({
     queryKey: letterKeys.list(type),
     queryFn: async () => {
       return fetchJsonList<LetterListItem>(`/api/letters?type=${type}`);
     },
+    // The public page renders this for guests too; fetching before the session
+    // resolves only produced 401s in the console.
+    enabled,
     staleTime: 30_000,
   });
 }

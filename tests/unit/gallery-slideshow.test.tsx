@@ -106,28 +106,49 @@ const autoplayPhotos = [
 ];
 
 describe("GallerySlideshow autoplay", () => {
-  it("advances for reduced-motion users (desktop OS setting)", () => {
+  // next/image resolves its onLoad after decode(), so the event lands on a
+  // microtask — await act() lets it flush before the fake clock advances.
+  const loadCurrentMedia = async () => {
+    await act(async () => {
+      for (const img of screen.getAllByRole("img")) fireEvent.load(img);
+    });
+  };
+
+  it("waits for the current media to load before advancing", async () => {
+    vi.useFakeTimers();
+    render(<GallerySlideshow photos={autoplayPhotos} />);
+    expect(screen.getByText("1 / 2")).toBeTruthy();
+    // Media never fired load: no timer may run on a blank/loading slide.
+    act(() => {
+      vi.advanceTimersByTime(9000);
+    });
+    expect(screen.getByText("1 / 2")).toBeTruthy();
+
+    await loadCurrentMedia();
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(screen.getByText("2 / 2")).toBeTruthy();
+  });
+
+  it("advances for reduced-motion users (desktop OS setting)", async () => {
     // Regression: the timer used to be gated on useReducedMotion(), which is
     // true on desktops with OS animation effects off — autoplay died there.
     (globalThis as Record<string, unknown>).__testReducedMotion = true;
     vi.useFakeTimers();
     render(<GallerySlideshow photos={autoplayPhotos} />);
-    expect(screen.getByText("1 / 2")).toBeTruthy();
+    await loadCurrentMedia();
     act(() => {
       vi.advanceTimersByTime(3000);
     });
     expect(screen.getByText("2 / 2")).toBeTruthy();
-    // Loop wrap reshuffles and restarts from the first slide.
-    act(() => {
-      vi.advanceTimersByTime(3000);
-    });
-    expect(screen.getByText("1 / 2")).toBeTruthy();
   });
 
-  it("keeps advancing while the pointer rests on the card", () => {
+  it("keeps advancing while the pointer rests on the card", async () => {
     // Hover-pause was invisible and desktop-only (phones never fire it).
     vi.useFakeTimers();
     const { container } = render(<GallerySlideshow photos={autoplayPhotos} />);
+    await loadCurrentMedia();
     fireEvent.pointerOver(container.firstElementChild as HTMLElement);
     act(() => {
       vi.advanceTimersByTime(3000);

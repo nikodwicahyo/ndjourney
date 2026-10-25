@@ -14,8 +14,11 @@ test("public gallery shows Gallery heading", async ({ page }) => {
 // desktops with OS animation effects off) and on hover, which desktop mice
 // trigger by resting over the card. Phones hit neither, so only desktop broke.
 test("home slideshow auto-advances with reduce-motion enabled", async ({ page }) => {
+  // First navigation compiles "/" on a cold dev server; the counter assertion
+  // below is the part that actually needs the budget.
+  test.setTimeout(60_000);
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   const counter = page
     .getByTestId("gallery-slideshow")
     .getByText(/^\d+\s*\/\s*\d+$/)

@@ -8,6 +8,9 @@ import { formatCoupleNames } from "@/lib/couple-display";
 
 export const metadata: Metadata = { title: "Notes" };
 
+export const revalidate = 60;
+export const dynamic = "force-static";
+
 export default async function NotesPage() {
   const config = await getPublicCoupleConfig();
   return (

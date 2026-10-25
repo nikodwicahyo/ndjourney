@@ -3,6 +3,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useCountdown } from "@/hooks/useCountdown";
 import { useClockTick } from "@/hooks/useClockTick";
+import { useLetterTab } from "@/hooks/useLetters";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -43,5 +44,23 @@ describe("useCountdown (F-01 hero countdown)", () => {
     const { result, unmount } = renderHook(() => useCountdown(null));
     expect(result.current).toEqual({ days: 0, hours: 0, minutes: 0, seconds: 0, isPast: false, totalDays: 0 });
     unmount();
+  });
+});
+
+describe("useLetterTab", () => {
+  it("remembers the selected tab across mounts", () => {
+    sessionStorage.clear();
+    const first = renderHook(() => useLetterTab());
+    expect(first.result.current[0]).toBe("inbox");
+
+    act(() => first.result.current[1]("sent"));
+    expect(first.result.current[0]).toBe("sent");
+    expect(sessionStorage.getItem("letters-tab")).toBe("sent");
+    first.unmount();
+
+    const second = renderHook(() => useLetterTab());
+    expect(second.result.current[0]).toBe("sent");
+    second.unmount();
+    sessionStorage.clear();
   });
 });

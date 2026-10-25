@@ -2,28 +2,31 @@ import { Navbar, BottomNav } from "@/components/layout";
 import LayoutTransition from "@/components/LayoutTransition";
 import PublicMusicPlayer from "@/components/layout/PublicMusicPlayer";
 import { RealtimeSyncClient } from "@/components/RealtimeSyncClient";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+// The public segment must not read cookies: auth() here forced EVERY public
+// page to render dynamically, which silently disabled the `revalidate` on
+// /gallery and /timeline and made TTFB depend on the database. Session-aware
+// UI (navbar, realtime) is resolved client-side instead.
+async function getCoupleId(): Promise<string | undefined> {
+  try {
+    const couple = await prisma.couple.findFirst({ select: { id: true } });
+    return couple?.id;
+  } catch {
+    return undefined;
+  }
+}
 
 export default async function PublicLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const session = await auth();
-  let coupleId: string | undefined;
-
-  if (session?.user) {
-    const membership = await prisma.coupleMember.findUnique({
-      where: { userId: session.user.id },
-      select: { coupleId: true },
-    });
-    coupleId = membership?.coupleId ?? undefined;
-  }
+  const coupleId = await getCoupleId();
 
   return (
     <>
-      {coupleId && <RealtimeSyncClient coupleId={coupleId} />}
+      <RealtimeSyncClient coupleId={coupleId} />
       <Navbar />
       <main className="min-h-screen pt-16 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] lg:pb-0 overflow-x-hidden">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 xl:px-10">

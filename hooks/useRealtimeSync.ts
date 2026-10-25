@@ -5,7 +5,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
 import type { SyncPayload } from '@/types';
 import { queryKeys } from '@/lib/query-keys';
-import { getPusherClient } from '@/lib/pusher-client';
 
 export function useRealtimeSync(coupleId: string | undefined) {
   const queryClient = useQueryClient();
@@ -23,11 +22,11 @@ export function useRealtimeSync(coupleId: string | undefined) {
     if (subscribedRef.current === coupleId) return;
     subscribedRef.current = coupleId;
 
-    const pusher = getPusherClient();
     const channelName = `private-couple-${coupleId}`;
-    const channel = pusher.subscribe(channelName);
+    let cancelled = false;
+    let unsubscribe: (() => void) | null = null;
 
-    channel.bind('sync-mutate', (data: SyncPayload) => {
+    const onSync = (data: SyncPayload) => {
       switch (data.scope) {
         case 'GALLERY':
           queryClient.invalidateQueries({ queryKey: queryKeys.photos.all, refetchType: 'all' });
@@ -110,11 +109,30 @@ export function useRealtimeSync(coupleId: string | undefined) {
           }
           break;
       }
-    });
+    };
+
+    // Lazy: pusher-js only matters to signed-in couples, so keep it out of the
+    // first-load bundle (the public layout mounts this for guests too, and the
+    // import used to be static).
+    void (async () => {
+      try {
+        const { getPusherClient } = await import('@/lib/pusher-client');
+        if (cancelled) return;
+        const pusher = getPusherClient();
+        const channel = pusher.subscribe(channelName);
+        channel.bind('sync-mutate', onSync);
+        unsubscribe = () => {
+          channel.unbind('sync-mutate', onSync);
+          pusher.unsubscribe(channelName);
+        };
+      } catch (error) {
+        console.warn('[useRealtimeSync] realtime unavailable:', error);
+      }
+    })();
 
     return () => {
-      channel.unbind_all();
-      pusher.unsubscribe(channelName);
+      cancelled = true;
+      unsubscribe?.();
       subscribedRef.current = false;
     };
   }, [coupleId, queryClient, updateSession]);

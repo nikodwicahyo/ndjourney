@@ -403,6 +403,34 @@
   }
 }
 
+/* Sonner's rich success text (#008a2e) is only 4.25:1 on its green bg.
+   Darken it for AA contrast; dark mode keeps Sonner's own light green.
+   Unlayered so it can override Sonner's runtime-injected stylesheet. */
+html [data-sonner-toaster][data-sonner-theme="light"] {
+  --success-text: hsl(140, 100%, 22%);
+}
+
+/* Page entrance: animate transform only. Never start at opacity:0 — content
+   must be paintable on the first frame (LCP) without waiting for hydration. */
+@keyframes page-enter {
+  from {
+    transform: translateY(8px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.page-enter {
+  animation: page-enter 0.35s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-enter {
+    animation: none;
+  }
+}
+
 .swal-popup {
   border-radius: 16px !important;
   padding: 1.5rem !important;

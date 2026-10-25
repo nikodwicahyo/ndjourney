@@ -47,14 +47,14 @@ function LetterCard({ letter, type, index = 0, baseHref = "/dashboard/letters", 
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
-            <h3
+            <h2
               className={cn(
                 "truncate font-medium",
                 !letter.isOpened && type === "inbox" && "font-semibold",
               )}
             >
               {letter.title}
-            </h3>
+            </h2>
             {!letter.isOpened && type === "inbox" && (
               <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />
             )}

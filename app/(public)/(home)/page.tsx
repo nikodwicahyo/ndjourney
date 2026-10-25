@@ -1,18 +1,53 @@
 import type { Metadata } from "next";
+import { getImageProps } from "next/image";
+import { preload } from "react-dom";
 import { prisma } from "@/lib/prisma";
 import { getCached, setCached, cacheKey } from "@/lib/redis";
 import { ensureLoveMeterTargets } from "@/lib/love-meter";
 import { parseCropRect } from "@/lib/image-crop";
+import { getOptimizedImageUrl } from "@/lib/cloudinary-urls";
+import { isVideoUrl } from "@/lib/utils";
 import { APP_NAME, resolveTagline } from "@/lib/couple-display";
 import HomeContent from "@/components/home/HomeContent";
 import PageTransition from "@/components/PageTransition";
+
+// Prerendered shell, refreshed in the background. Public content is not
+// per-user, so this keeps TTFB off the database path for real visitors.
+export const revalidate = 60;
+// Explicit: the home page is cookie-free public content. Prerendering keeps
+// TTFB off the database and puts the metadata (title/description) in <head>
+// instead of streaming it into <body>.
+export const dynamic = "force-static";
+
+// The hero photo is the LCP element. Without an explicit preload the browser
+// only discovers it after the (long) RSC payload has been parsed, which cost
+// ~1.6 s of LCP on a throttled phone. Preloading the exact srcset next/image
+// renders keeps the fetch in the critical path from the very first byte.
+function preloadHeroImage(photoUrl: string | null | undefined) {
+  if (!photoUrl || isVideoUrl(photoUrl)) return;
+
+  const { props } = getImageProps({
+    src: getOptimizedImageUrl(photoUrl, 1600),
+    alt: "",
+    fill: true,
+    sizes: "100vw",
+  });
+
+  preload(props.src, {
+    as: "image",
+    imageSrcSet: props.srcSet,
+    imageSizes: props.sizes,
+    fetchPriority: "high",
+  });
+}
 
 export async function generateMetadata(): Promise<Metadata> {
   const config = await getCoupleConfig();
   const tagline = (config as Record<string, unknown> | null)?.tagline as string | null | undefined;
   const resolved = resolveTagline(tagline);
   return {
-    title: `${APP_NAME} - ${resolved}`,
+    // absolute: the layout template already appends " - NDjourney".
+    title: { absolute: `${APP_NAME} - ${resolved}` },
     description: resolved,
   };
 }
@@ -247,6 +282,8 @@ export default async function HomePage() {
     letterCount: letters.totalCount,
     photoCount: gallery.photoCount,
   });
+
+  preloadHeroImage((config as Record<string, unknown> | null)?.heroPhotoUrl as string | null | undefined);
 
   return (
     <PageTransition>

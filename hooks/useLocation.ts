@@ -6,7 +6,6 @@ import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/query-keys";
 import { haversineMeters, isMeeting, MEET_THRESHOLD_METERS } from "@/lib/geo";
-import { getPusherClient } from "@/lib/pusher-client";
 import { initBackgroundLocation, useBackgroundLocationStatus, useBackgroundLocationCleanup } from "./useBackgroundLocation";
 
 export type LocationPoint = {
@@ -174,17 +173,35 @@ export function useFloatingHearts(coupleId: string | undefined) {
 
   useEffect(() => {
     if (!coupleId) return;
-    const pusher = getPusherClient();
-    const channel = pusher.subscribe(`private-couple-${coupleId}`);
-    const handler = (data: FloatingHeartEvent) => {
-      if (data.fromUserId && data.fromUserId !== selfId) {
-        setHeart(data);
+    let cancelled = false;
+    let unsubscribe: (() => void) | null = null;
+
+    // Lazy-load pusher so guests (and pages without realtime) don't pay for it.
+    void (async () => {
+      try {
+        const { getPusherClient } = await import("@/lib/pusher-client");
+        if (cancelled) return;
+
+        const pusher = getPusherClient();
+        const channel = pusher.subscribe(`private-couple-${coupleId}`);
+        const handler = (data: FloatingHeartEvent) => {
+          if (data.fromUserId && data.fromUserId !== selfId) {
+            setHeart(data);
+          }
+        };
+        channel.bind("location-heart", handler);
+        unsubscribe = () => {
+          channel.unbind("location-heart", handler);
+          pusher.unsubscribe(`private-couple-${coupleId}`);
+        };
+      } catch (error) {
+        console.warn("[useFloatingHearts] realtime unavailable:", error);
       }
-    };
-    channel.bind("location-heart", handler);
+    })();
+
     return () => {
-      channel.unbind("location-heart", handler);
-      pusher.unsubscribe(`private-couple-${coupleId}`);
+      cancelled = true;
+      unsubscribe?.();
     };
   }, [coupleId, selfId]);
 

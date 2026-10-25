@@ -8,9 +8,8 @@ import { formatDateTime, formatRelativeTime } from "@/lib/utils";
 import { useSession } from "next-auth/react";
 
 import { LETTER_MOOD_CONFIG } from "@/types";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui";
+import { Avatar, AvatarImage, AvatarFallback, BackLink } from "@/components/ui";
 import { Heart, ArrowLeft, Sparkles } from "lucide-react";
-import Link from "next/link";
 import { toast } from "sonner";
 import EnvelopeAnimation from "./EnvelopeAnimation";
 import TimeCapsuleLock from "./TimeCapsuleLock";
@@ -97,12 +96,12 @@ export default function LetterViewer({ id, backHref = "/dashboard/letters" }: Le
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
         <p className="text-destructive">Surat tidak ditemukan</p>
-        <Link
+        <BackLink
           href={backHref}
           className="mt-2 inline-flex items-center gap-2 rounded-full border border-border bg-transparent px-6 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
         >
           Kembali
-        </Link>
+        </BackLink>
       </div>
     );
   }
@@ -149,13 +148,13 @@ export default function LetterViewer({ id, backHref = "/dashboard/letters" }: Le
             transition={{ duration: 0.5 }}
           >
             <div className="mb-6">
-              <Link
+              <BackLink
                 href={backHref}
                 className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
               >
                 <ArrowLeft className="h-4 w-4" aria-hidden="true" />
                 Kembali
-              </Link>
+              </BackLink>
             </div>
 
             <div className="rounded-2xl border border-border bg-card p-6 shadow-sm md:p-8">

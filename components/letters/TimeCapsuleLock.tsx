@@ -2,9 +2,8 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 import { Lock, Clock, ArrowLeft } from "lucide-react";
-import Link from "next/link";
 import { formatInJakarta } from "@/lib/date";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui";
+import { Avatar, AvatarImage, AvatarFallback, BackLink } from "@/components/ui";
 
 type TimeCapsuleLockProps = {
   unlockAt: string | Date;
@@ -118,13 +117,13 @@ export default function TimeCapsuleLock({
           </motion.div>
         )}
 
-        <Link
+        <BackLink
           href={backHref}
           className="mt-8 inline-flex h-10 items-center gap-2 rounded-full border border-border bg-transparent px-6 text-sm font-medium text-foreground transition-colors hover:bg-accent"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Kembali
-        </Link>
+        </BackLink>
       </motion.div>
     </div>
   );

@@ -171,14 +171,14 @@ function WishCard({ wish, readOnly = false, onEdit }: WishCardProps) {
       <div className="relative flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h3
+            <h2
               className={cn(
                 "text-sm font-medium leading-snug",
                 wish.isDone && "text-muted-foreground line-through",
               )}
             >
               {wish.title}
-            </h3>
+            </h2>
             <span
               className="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium"
               style={{

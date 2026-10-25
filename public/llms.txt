@@ -1,0 +1,18 @@
+# NDjourney
+
+> A private digital home for a couple's story: milestones, photos, notes, letters, wishes, and a small map of where they are.
+
+## Public pages
+
+- [Beranda](https://ndjourney.vercel.app/): hero, countdowns, latest photos, love meter, and previews of the shared story.
+- [Timeline](https://ndjourney.vercel.app/timeline): milestones in chronological order.
+- [Gallery](https://ndjourney.vercel.app/gallery): public photo albums.
+- [Notes](https://ndjourney.vercel.app/notes): short daily notes.
+- [Letters](https://ndjourney.vercel.app/letters): public letters.
+- [Wishlist](https://ndjourney.vercel.app/wishlist): shared wishes and progress.
+- [Games](https://ndjourney.vercel.app/games): couple quizzes and memory games.
+
+## Notes
+
+- Dashboard, account, and API routes are private and require authentication.
+- Content is authored by the couple; public pages are read-only for visitors.

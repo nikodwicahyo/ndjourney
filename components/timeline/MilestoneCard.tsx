@@ -152,9 +152,9 @@ function MilestoneCard({
                   </time>
                 </div>
 
-                <h3 className="font-heading text-lg font-semibold">
+                <h2 className="font-heading text-lg font-semibold">
                   {milestone.title}
-                </h3>
+                </h2>
 
                 {milestone.description && (
                   <p className="mt-2 text-sm text-muted-foreground leading-relaxed">

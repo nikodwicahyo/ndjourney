@@ -44,8 +44,10 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [direction, setDirection] = useState(1);
   const [isPaused, setIsPaused] = useState(false);
-  const [mediaState, setMediaState] = useState<MediaState>("loading");
-  const [retryKey, setRetryKey] = useState(0);
+  // Readiness is keyed by photo id: a late load/error event from the outgoing
+  // slide can never mark the incoming one as ready.
+  const [loadedPhotoId, setLoadedPhotoId] = useState<string | null>(null);
+  const [failedPhotoId, setFailedPhotoId] = useState<string | null>(null);
   const reduceMotion = useReducedMotion();
   // Reset the viewer when a new photo list arrives — render-time adjustment
   // (React-endorsed) instead of post-paint sync sets.
@@ -55,8 +57,6 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
     setDisplayPhotos(initialPhotos);
     setCurrentIndex(0);
     setDirection(1);
-    setMediaState("loading");
-    setRetryKey(0);
   }
   const goNextRef = useRef<() => void>(() => {});
   const dotsRef = useRef<HTMLDivElement | null>(null);
@@ -64,46 +64,32 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
   const hasPhotos = length > 0;
   const photo = displayPhotos[currentIndex];
 
-  const handleRetry = useCallback(() => {
-    setMediaState("loading");
-    setRetryKey((k) => k + 1);
-  }, []);
+  // Derived from the elements themselves (see onLoad/onCanPlay below) — the
+  // autoplay timer may only start once the current slide is actually shown.
+  const mediaState: MediaState =
+    photo && loadedPhotoId === photo.id
+      ? "loaded"
+      : photo && failedPhotoId === photo.id
+        ? "error"
+        : "loading";
+  const mediaReady = mediaState !== "loading";
 
-  const fullUrl = useMemo(() => {
-    if (!photo?.url) return "";
-    return getOptimizedImageUrl(photo.url, 1024, { crop: "limit" });
+  const markLoaded = useCallback(() => {
+    if (photo) setLoadedPhotoId(photo.id);
   }, [photo]);
+
+  const markFailed = useCallback(() => {
+    if (photo) setFailedPhotoId(photo.id);
+  }, [photo]);
+
+  const handleRetry = useCallback(() => {
+    setFailedPhotoId(null);
+  }, []);
 
   const blurPlaceholderUrl = useMemo(() => {
     if (!photo?.url) return "";
     return getBlurImageUrl(photo.url);
   }, [photo]);
-
-  useEffect(() => {
-    if (!photo?.url || photo.isVideo) return;
-    let cancelled = false;
-    const img = new window.Image();
-    img.onload = () => {
-      if (!cancelled) setMediaState("loaded");
-    };
-    img.onerror = () => {
-      if (!cancelled) setMediaState("error");
-    };
-    img.src = fullUrl;
-    return () => {
-      cancelled = true;
-      img.onload = null;
-      img.onerror = null;
-    };
-  }, [photo?.id, photo?.url, fullUrl, photo?.isVideo, retryKey]);
-
-  // Reset the loading state when the photo changes — render-time adjustment
-  // (React-endorsed) instead of a post-paint sync set.
-  const [prevPhotoId, setPrevPhotoId] = useState(photo?.id);
-  if (prevPhotoId !== photo?.id) {
-    setPrevPhotoId(photo?.id);
-    setMediaState("loading");
-  }
 
   const goNext = useCallback(() => {
     if (length === 0) return;
@@ -143,15 +129,16 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
     setCurrentIndex(index);
   }, [length, currentIndex]);
 
-  // Autoplay is gated ONLY by the explicit pause button: useReducedMotion is
-  // true on desktops with OS animation effects off, and the old hover-pause
-  // fired on desktop mice resting over the card — both silently killed the
-  // timer (phones hit neither, which is why they kept advancing).
+  // Autoplay is gated by the explicit pause button AND the current slide being
+  // shown. useReducedMotion is true on desktops with OS animation effects off,
+  // and the old hover-pause fired on desktop mice resting over the card — both
+  // silently killed the timer (phones hit neither, which is why they advanced).
+  // mediaReady keeps the dwell time from starting on a blank/loading slide.
   useEffect(() => {
-    if (isPaused || !hasPhotos) return;
+    if (isPaused || !hasPhotos || !mediaReady) return;
     const id = setInterval(() => goNextRef.current(), 3000);
     return () => clearInterval(id);
-  }, [isPaused, hasPhotos]);
+  }, [isPaused, hasPhotos, mediaReady]);
 
   // Keep the active dot visible as autoplay/manual nav advances —
   // scroll the dots strip only (never the page), no state so
@@ -227,6 +214,8 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
                   muted
                   playsInline
                   preload="metadata"
+                  onCanPlay={markLoaded}
+                  onError={markFailed}
                   className="h-full w-full object-cover"
                 />
               ) : mediaState === "error" ? (
@@ -251,9 +240,10 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
                     alt={photo.caption ?? `Foto galeri ${currentIndex + 1} dari ${length}`}
                     fill
                     sizes="(max-width: 768px) 100vw, 1024px"
-                    priority={currentIndex === 0}
                     placeholder="blur"
                     blurDataURL={blurPlaceholderUrl}
+                    onLoad={markLoaded}
+                    onError={markFailed}
                     className={cn(
                       "object-cover transition-opacity duration-500",
                       mediaState === "loading" ? "opacity-50" : "opacity-100",

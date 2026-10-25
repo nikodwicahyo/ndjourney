@@ -58,7 +58,6 @@ export default function NotesManager() {
       <section>
         <h2 className="mb-4 font-heading text-lg font-semibold">Tulis Catatan</h2>
         <form onSubmit={handleSubmit} className="space-y-3">
-          <label htmlFor="note-content" className="text-sm font-medium">Catatan harian</label>
           <div className="relative">
             <textarea
               id="note-content"
@@ -66,7 +65,7 @@ export default function NotesManager() {
               onChange={(e) => setContent(e.target.value)}
               placeholder="Apa yang kamu rasakan hari ini?"
               maxLength={280}
-              rows={3}
+              rows={6}
               aria-describedby="note-counter"
               className="flex w-full resize-none rounded-xl border border-input bg-card px-4 py-3 pr-16 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />

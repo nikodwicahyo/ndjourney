@@ -1,19 +1,9 @@
-"use client";
-
-import { motion } from "framer-motion";
-
+// Transform-only entrance. CSS (not JS) so the page is painted immediately on
+// first load — a JS-driven opacity:0 wrapper held LCP hostage until hydration.
 export default function PageTransition({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, ease: "easeOut" }}
-    >
-      {children}
-    </motion.div>
-  );
+  return <div className="page-enter">{children}</div>;
 }

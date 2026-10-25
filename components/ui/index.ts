@@ -41,5 +41,6 @@ export {
 } from "./dropdown-menu";
 export { default as StorageUsageBar } from "./StorageUsageBar";
 export { default as ScrollToTopButton } from "./ScrollToTopButton";
+export { default as BackLink } from "./BackLink";
 export { default as GalleryPicker } from "./GalleryPicker";
 export { default as PhotoCropper } from "./PhotoCropper";

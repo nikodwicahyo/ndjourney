@@ -1,5 +1,3 @@
-import Swal from "sweetalert2";
-
 type DeleteConfirmOptions = {
   title?: string;
   text?: string;
@@ -26,6 +24,9 @@ export async function showDeleteConfirm(
   const isDark = theme === "dark";
 
   try {
+    // Lazy: sweetalert2 is only needed when a destructive action is confirmed.
+    // Keeping it out of the entry bundle saves ~76 KB (raw) on every page.
+    const { default: Swal } = await import("sweetalert2");
     const result = await Swal.fire({
       title,
       text,

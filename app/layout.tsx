@@ -7,7 +7,7 @@ import SessionProvider from "@/components/SessionProvider";
 import PwaRegister from "@/components/PwaRegister";
 import InstallPrompt from "@/components/InstallPrompt";
 import VersionCheck from "@/components/VersionCheck";
-import BackgroundEffect from "@/components/BackgroundEffect";
+import DeferredBackground from "@/components/DeferredBackground";
 import MotionRoot from "@/components/MotionRoot";
 import { APP_NAME, DEFAULT_TAGLINE } from "@/lib/couple-display";
 import "./globals.css";
@@ -96,7 +96,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <MotionRoot>
-          <BackgroundEffect />
+          <DeferredBackground />
           <QueryProvider>
             <SessionProvider>
             {children}

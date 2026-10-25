@@ -7,7 +7,7 @@ import { ChevronDown, Heart } from "lucide-react";
 import { isVideoUrl } from "@/lib/utils";
 import { cropCoverStyle, type CropRect } from "@/lib/image-crop";
 import { getOptimizedImageUrl } from "@/lib/cloudinary-urls";
-import { DEFAULT_NAME1, DEFAULT_NAME2, nickname, resolveTagline } from "@/lib/couple-display";
+import { DEFAULT_NAME1, DEFAULT_NAME2, resolveTagline } from "@/lib/couple-display";
 
 type HeroSectionProps = {
   name1?: string | null;
@@ -27,9 +27,6 @@ export default function HeroSection({
   const displayName1 = name1?.trim() || DEFAULT_NAME1;
   const displayName2 = name2?.trim() || DEFAULT_NAME2;
   const displayTagline = resolveTagline(tagline);
-  // Eyebrow uses first-word nicknames ("Niko Dwicahyo" -> "Niko"); the
-  // main title keeps the full names from settings.
-  const eyebrowName = `${nickname(displayName1, DEFAULT_NAME1)} & ${nickname(displayName2, DEFAULT_NAME2)}`;
   const heroIsVideo = useMemo(() => isVideoUrl(heroPhotoUrl), [heroPhotoUrl]);
   const reduceMotion = useReducedMotion();
   const fullName = `${displayName1} & ${displayName2}`;
@@ -145,6 +142,9 @@ export default function HeroSection({
               priority
               loading="eager"
               fetchPriority="high"
+              // The LCP image must decode before paint; async decode pushes it
+              // behind hydration work on slow devices.
+              decoding="sync"
               sizes="100vw"
             />
           ) : (
@@ -157,6 +157,7 @@ export default function HeroSection({
               priority
               loading="eager"
               fetchPriority="high"
+              decoding="sync"
               sizes="100vw"
             />
           )}
@@ -190,7 +191,7 @@ export default function HeroSection({
         >
           <Heart className="h-5 w-5 fill-primary text-primary" aria-hidden="true" />
           <span className={`text-sm font-medium uppercase tracking-widest ${heroPhotoUrl ? "text-white" : "text-primary"}`}>
-            {eyebrowName} Journey
+            Our Love Journey
           </span>
           <Heart className="h-5 w-5 fill-primary text-primary" aria-hidden="true" />
         </motion.div>

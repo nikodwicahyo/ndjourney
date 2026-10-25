@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { useLetters, useDeleteLetter } from "@/hooks/useLetters";
+import { useLetters, useDeleteLetter, useLetterTab } from "@/hooks/useLetters";
 import LetterCard from "./LetterCard";
 import { Button, Skeleton } from "@/components/ui";
 import { PenLine, Inbox, Send, MailQuestion } from "lucide-react";
@@ -18,7 +17,7 @@ const TABS: { key: "inbox" | "sent"; label: string; icon: typeof Inbox }[] = [
 
 export default function LetterList() {
   const { data: session } = useSession();
-  const [tab, setTab] = useState<"inbox" | "sent">("inbox");
+  const [tab, setTab] = useLetterTab();
   const { data: letters, isLoading, error, refetch } = useLetters(tab);
   const deleteLetter = useDeleteLetter();
 

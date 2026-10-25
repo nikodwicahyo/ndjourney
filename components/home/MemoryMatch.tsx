@@ -265,8 +265,11 @@ export default function MemoryMatch({ photos }: MemoryMatchProps) {
               style={{ perspective: "600px" }}
             >
               <button
+                type="button"
                 onClick={() => handleFlip(card.uid)}
                 disabled={card.matched}
+                aria-label={`Kartu ${idx + 1}${card.matched ? ", cocok" : isRevealed ? ", terbuka" : ", tertutup"}`}
+                aria-pressed={isRevealed}
                 className={cn(
                   "relative h-full w-full rounded-xl transition-transform duration-[400ms] active:scale-95",
                 )}

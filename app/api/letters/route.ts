@@ -168,7 +168,7 @@ export async function POST(request: Request) {
         // after() keeps the 201 fast AND guarantees delivery —
         // plain fire-and-forget can be dropped when serverless freezes.
         const to = recipient.email;
-        const subject = `💌 Surat Baru dari ${session.user.name || "Pasangan"}!`;
+        const subject = `Surat Baru dari ${session.user.name || "Pasangan"}!`;
         const html = letterNotificationHtml(
           session.user.name || "Pasangan",
           letter.title,

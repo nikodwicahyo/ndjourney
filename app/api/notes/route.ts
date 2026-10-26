@@ -156,7 +156,7 @@ export async function POST(request: Request) {
           if (partner?.email) {
             const emailResult = await sendEmail({
               to: partner.email,
-              subject: `\u{270D}\u{FE0F} Catatan Baru dari ${senderName}!`,
+              subject: `Catatan Baru dari ${senderName}!`,
               html: noteNotificationHtml(
                 senderName,
                 noteContent,

@@ -9,7 +9,7 @@ import { useSession } from "next-auth/react";
 
 import { LETTER_MOOD_CONFIG } from "@/types";
 import { Avatar, AvatarImage, AvatarFallback, BackLink } from "@/components/ui";
-import { Heart, ArrowLeft, Sparkles } from "lucide-react";
+import { ArrowLeft, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import EnvelopeAnimation from "./EnvelopeAnimation";
 import TimeCapsuleLock from "./TimeCapsuleLock";
@@ -173,7 +173,6 @@ export default function LetterViewer({ id, backHref = "/dashboard/letters" }: Le
 
               <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                 <span className="inline-flex items-center gap-1.5">
-                  <Heart className="h-3.5 w-3.5" aria-hidden="true" />
                   <Avatar className="h-6 w-6 shrink-0">
                     <AvatarImage src={fullLetter.author?.image ?? undefined} alt={fullLetter.author?.name ?? "Author"} />
                     <AvatarFallback>{fullLetter.author?.name?.charAt(0) || "P"}</AvatarFallback>

@@ -49,14 +49,14 @@ const DEFAULT_UNLOCK_TIME = "00:00";
 function formatDraftTime(timestamp: number): string {
   const parts = getJakartaParts(new Date(timestamp));
   if (!parts) return "";
-  return `${String(parts.hour).padStart(2, "0")}.${String(parts.minute).padStart(2, "0")} WIB`;
+  return `${String(parts.hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")} WIB`;
 }
 
 function formatUnlockMoment(date: Date): string {
   const day = formatInJakarta(date, { dateStyle: "long" });
   const parts = getJakartaParts(date);
   if (!parts) return day;
-  return `${day} pukul ${String(parts.hour).padStart(2, "0")}.${String(parts.minute).padStart(2, "0")} WIB`;
+  return `${day} pukul ${String(parts.hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")} WIB`;
 }
 
 export default function NewLetterForm({
@@ -440,13 +440,13 @@ export default function NewLetterForm({
             ? "Draft tidak bisa disimpan di perangkat ini. Jangan tutup halaman sebelum mengirim."
             : savedAt
               ? `Draft tersimpan otomatis · ${formatDraftTime(savedAt)}`
-              : "Draft tersimpan otomatis di perangkat ini."}
+              : "Draft akan tersimpan otomatis."}
         </p>
 
         <div className="flex flex-col gap-3 sm:flex-row">
           <Button
             type="button"
-            variant="outline"
+            variant="default"
             className="gap-2 sm:flex-1"
             onClick={handleCancel}
             disabled={loading}
@@ -456,6 +456,7 @@ export default function NewLetterForm({
           </Button>
           <Button
             type="submit"
+            variant="default"
             className="flex-1 gap-2"
             disabled={loading || !formValid}
           >

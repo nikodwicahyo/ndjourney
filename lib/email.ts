@@ -139,7 +139,7 @@ export function noteNotificationHtml(
       </p>
       <div style="text-align: center;">
         <a href="${safeUrl}" style="display: inline-block; background: #16A34A; color: white; text-decoration: none; padding: 12px 32px; border-radius: 9999px; font-size: 16px; font-weight: 600;">
-          Baca Catatan \u{1F49A}
+          Baca Catatan
         </a>
       </div>
     </div>
@@ -163,7 +163,7 @@ export function letterNotificationHtml(senderName: string, letterTitle: string, 
       </p>
       <div style="text-align: center;">
         <a href="${safeUrl}" style="display: inline-block; background: #F43F5E; color: white; text-decoration: none; padding: 12px 32px; border-radius: 9999px; font-size: 16px; font-weight: 600;">
-          Baca Surat \u{2764}\u{FE0F}
+          Baca Surat
         </a>
       </div>
     </div>

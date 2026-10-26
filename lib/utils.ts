@@ -68,7 +68,7 @@ export function formatDateTime(date: Date | string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
-  return `${timePart}, ${datePart}`;
+  return `${timePart.replace(".", ":")}, ${datePart}`;
 }
 
 export function formatRelativeTime(date: Date | string): string {

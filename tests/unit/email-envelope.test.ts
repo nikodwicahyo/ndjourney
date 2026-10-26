@@ -77,13 +77,13 @@ describe("email envelope hardening (P1 mailer)", () => {
     const { sendEmail } = await import("@/lib/email");
     const r = await sendEmail({
       to: "  partner@x.com  ",
-      subject: "💌 Surat Baru dari Pasangan!",
+      subject: "Surat Baru dari Pasangan!",
       html: "<p>hi</p>",
     });
     expect(r).toMatchObject({ data: { id: "m1" } });
     expect(sendMailMock.mock.calls[0][0]).toMatchObject({
       to: "partner@x.com",
-      subject: "💌 Surat Baru dari Pasangan!",
+      subject: "Surat Baru dari Pasangan!",
     });
   });
 

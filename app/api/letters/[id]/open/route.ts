@@ -59,7 +59,7 @@ export async function PUT(
     if (letter.author.email) {
       const emailResult = await sendEmail({
         to: letter.author.email,
-        subject: `${session.user.name} telah membaca suratmu 💕`,
+        subject: `${session.user.name} telah membaca suratmu`,
         html: letterNotificationHtml(
           session.user.name || "Pasangan",
           letter.title,

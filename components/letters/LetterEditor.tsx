@@ -139,7 +139,7 @@ export default function LetterEditor({
       <div
         role="toolbar"
         aria-label="Format surat"
-        className="flex flex-wrap items-center gap-0.5 rounded-xl border border-border bg-muted/40 p-1"
+        className="flex flex-nowrap items-center gap-0.5 overflow-x-auto rounded-xl border border-border bg-muted/40 p-1 [-webkit-overflow-scrolling:touch]"
       >
         <ToolbarButton icon={Bold} label="Tebal" shortcut="Ctrl+B" active={toolbar.bold} onClick={toggleBold} />
         <ToolbarButton icon={Italic} label="Miring" shortcut="Ctrl+I" active={toolbar.italic} onClick={toggleItalic} />

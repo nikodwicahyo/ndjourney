@@ -446,7 +446,7 @@ export default function NewLetterForm({
         <div className="flex flex-col gap-3 sm:flex-row">
           <Button
             type="button"
-            variant="default"
+            variant="outline"
             className="gap-2 sm:flex-1"
             onClick={handleCancel}
             disabled={loading}

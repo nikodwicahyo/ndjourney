@@ -60,7 +60,7 @@ export function formatDateTime(date: Date | string): string {
   const datePart = d.toLocaleDateString("en-GB", {
     timeZone: "Asia/Jakarta",
     day: "numeric",
-    month: "long",
+    month: "short",
     year: "numeric",
   });
   const timePart = d.toLocaleTimeString("id-ID", {
@@ -68,7 +68,7 @@ export function formatDateTime(date: Date | string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
-  return `${timePart.replace(".", ":")}, ${datePart}`;
+  return `${timePart} WIB, ${datePart}`;
 }
 
 export function formatRelativeTime(date: Date | string): string {

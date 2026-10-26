@@ -63,11 +63,7 @@ export function formatDateTime(date: Date | string): string {
     month: "short",
     year: "numeric",
   });
-  const timePart = d.toLocaleTimeString("id-ID", {
-    timeZone: "Asia/Jakarta",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const timePart = `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
   return `${timePart} WIB, ${datePart}`;
 }
 

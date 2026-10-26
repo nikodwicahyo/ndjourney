@@ -64,7 +64,7 @@ export function formatDateTime(date: Date | string): string {
     year: "numeric",
   });
   const timePart = `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
-  return `${timePart} WIB, ${datePart}`;
+  return `${timePart}, ${datePart}`;
 }
 
 export function formatRelativeTime(date: Date | string): string {

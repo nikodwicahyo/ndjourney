@@ -49,14 +49,14 @@ const DEFAULT_UNLOCK_TIME = "00:00";
 function formatDraftTime(timestamp: number): string {
   const parts = getJakartaParts(new Date(timestamp));
   if (!parts) return "";
-  return `${String(parts.hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")} WIB`;
+  return `${String(parts.hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")}`;
 }
 
 function formatUnlockMoment(date: Date): string {
   const day = formatInJakarta(date, { dateStyle: "long" });
   const parts = getJakartaParts(date);
   if (!parts) return day;
-  return `${day} pukul ${String(parts.hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")} WIB`;
+  return `${day} pukul ${String(parts.hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")}`;
 }
 
 export default function NewLetterForm({

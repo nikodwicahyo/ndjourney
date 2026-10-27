@@ -6,7 +6,9 @@ import { auth } from "@/lib/auth";
 import { getUserCoupleId } from "@/lib/couple";
 import { listWishes } from "@/lib/queries/wishes";
 import { prefetchServerQueries } from "@/lib/server-prefetch";
-import { wishKeys } from "@/hooks/useWishes";
+// Keys come from the shared module, never from the "use client" hook file —
+// client-module exports are reference proxies in RSC, not callable values.
+import { queryKeys } from "@/lib/query-keys";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Wishlist" };
@@ -19,7 +21,7 @@ export default async function WishlistManagerPage() {
     const coupleId = session?.user ? await getUserCoupleId(session.user.id) : null;
     if (!coupleId) return;
     await qc.prefetchQuery({
-      queryKey: wishKeys.list(),
+      queryKey: queryKeys.wishes.list(),
       queryFn: async () => (await listWishes(coupleId)).data,
     });
   }]);

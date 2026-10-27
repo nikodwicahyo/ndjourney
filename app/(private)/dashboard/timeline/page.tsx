@@ -7,7 +7,9 @@ import { auth } from "@/lib/auth";
 import { getUserCoupleId } from "@/lib/couple";
 import { listMilestones } from "@/lib/queries/milestones";
 import { prefetchServerQueries } from "@/lib/server-prefetch";
-import { milestoneKeys } from "@/hooks/useMilestones";
+// Keys from the shared module — "use client" hook exports are reference
+// proxies in RSC, not callable values.
+import { queryKeys } from "@/lib/query-keys";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Timeline" };
@@ -19,7 +21,7 @@ export default async function TimelineManagerPage() {
     const session = await auth();
     const coupleId = session?.user ? await getUserCoupleId(session.user.id) : null;
     await qc.prefetchQuery({
-      queryKey: milestoneKeys.list(),
+      queryKey: queryKeys.milestones.list(),
       queryFn: async () =>
         (await listMilestones({ isAuthed: true, coupleId, page: 1, limit: 50 })).data,
     });

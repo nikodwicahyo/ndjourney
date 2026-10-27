@@ -9,7 +9,9 @@ import { auth } from "@/lib/auth";
 import { getUserCoupleId } from "@/lib/couple";
 import { listPhotos } from "@/lib/queries/photos";
 import { prefetchServerQueries } from "@/lib/server-prefetch";
-import { photoKeys } from "@/hooks/usePhotos";
+// Keys from the shared module — "use client" hook exports are reference
+// proxies in RSC, not callable values.
+import { queryKeys } from "@/lib/query-keys";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Gallery" };
@@ -33,7 +35,7 @@ export default async function GalleryManagerPage() {
     const coupleId = session?.user ? await getUserCoupleId(session.user.id) : null;
     const { visibility } = INITIAL_FILTERS;
     await qc.prefetchInfiniteQuery({
-      queryKey: photoKeys.list({ ...INITIAL_FILTERS, isPublic: undefined, visibility }),
+      queryKey: queryKeys.photos.list({ ...INITIAL_FILTERS, isPublic: undefined, visibility }),
       initialPageParam: null as string | null,
       queryFn: async ({ pageParam }) =>
         listPhotos(

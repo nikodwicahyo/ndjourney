@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useCreateLetter, usePartner } from "@/hooks/useLetters";
 import { useLetterDraft } from "@/hooks/useLetterDraft";
 import { loadLetterDraft } from "@/lib/letter-draft";
 import { Button, Skeleton } from "@/components/ui";
+import LetterEditor from "./LetterEditor";
 import { LETTER_MOOD_CONFIG } from "@/types";
 import {
   X,
@@ -28,16 +28,6 @@ import {
 } from "@/lib/date";
 import { stripHtml } from "@/lib/utils";
 import { showDeleteConfirm } from "@/lib/swal";
-
-const LetterEditor = dynamic(() => import("./LetterEditor"), {
-  ssr: false,
-  loading: () => (
-    <div
-      aria-hidden="true"
-      className="min-h-[280px] animate-pulse rounded-xl border border-input bg-muted/30 sm:min-h-[320px]"
-    />
-  ),
-});
 
 const MOODS = Object.entries(LETTER_MOOD_CONFIG) as [
   LetterMood,

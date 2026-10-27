@@ -25,7 +25,7 @@ export default async function NotesPage() {
         <ManagePageButton href="/dashboard/notes" label="Tulis Catatan" />
       </div>
 
-      <div className="mx-auto max-w-lg space-y-8">
+      <div className="space-y-8">
         <NoteList />
       </div>
     </PageTransition>

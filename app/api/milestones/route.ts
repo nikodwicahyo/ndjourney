@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { createMilestoneSchema } from "@/lib/validations/milestone";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { invalidateCache } from "@/lib/redis";
+import { listMilestones } from "@/lib/queries/milestones";
 import { batchLoadUsers } from "@/lib/batch";
 import { toPublicUser } from "@/lib/format";
 import { parseJakartaDateOnly } from "@/lib/date";
@@ -22,80 +23,7 @@ export async function GET(request: Request) {
     const page = Math.min(Math.max(parseInt(searchParams.get("page") || "1", 10) || 1, 1), 1000);
     const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "50", 10) || 50, 1), 100);
 
-    const where = isAuthed && coupleId
-      ? { OR: [{ coupleId }, { coupleId: null }] }
-      : { isPublic: true };
-
-    // 1 round-trip (was 2 sequential).
-    const [milestones, total] = await Promise.all([
-      prisma.milestone.findMany({
-        where,
-        orderBy: { date: "desc" },
-        skip: (page - 1) * limit,
-        take: limit,
-        select: {
-          id: true,
-          title: true,
-          description: true,
-          date: true,
-          icon: true,
-          color: true,
-          location: true,
-          isPublic: true,
-          createdById: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-      }),
-      prisma.milestone.count({ where }),
-    ]);
-
-    const userIds = milestones.map((m) => m.createdById);
-    const milestoneIds = milestones.map((m) => m.id);
-
-    const [userMap, photoRecords] = await Promise.all([
-      batchLoadUsers(userIds),
-      milestoneIds.length > 0
-        ? prisma.milestonePhoto.findMany({
-            // anon and unpaired callers see only public photos of public
-            // milestones (private photo in a public milestone stays hidden).
-            where: {
-              milestoneId: { in: milestoneIds },
-              ...(isAuthed && coupleId ? {} : {
-                photo: {
-                  isPublic: true,
-                  OR: [{ albumId: null }, { album: { isPublic: true } }],
-                },
-              }),
-            },
-            select: {
-              milestoneId: true,
-              crop: true,
-              photo: {
-                select: { id: true, url: true, thumbnailUrl: true, caption: true },
-              },
-            },
-          })
-        : Promise.resolve([]),
-    ]);
-
-    const photosByMilestone = new Map<string, Array<{ milestoneId: string; crop: unknown; photo: { id: string; url: string; thumbnailUrl: string | null; caption: string | null } }>>();
-    for (const rec of photoRecords) {
-      const existing = photosByMilestone.get(rec.milestoneId);
-      if (existing) {
-        existing.push(rec);
-      } else {
-        photosByMilestone.set(rec.milestoneId, [rec]);
-      }
-    }
-
-    const data = milestones.map((m) => ({
-      ...m,
-      createdBy: toPublicUser(userMap.get(m.createdById)),
-      photos: photosByMilestone.get(m.id) ?? [],
-    }));
-
-    const response = { data, total, page, limit };
+    const response = await listMilestones({ isAuthed, coupleId, page, limit });
 
     return NextResponse.json(response, {
       headers: { "Cache-Control": "private, no-cache" },

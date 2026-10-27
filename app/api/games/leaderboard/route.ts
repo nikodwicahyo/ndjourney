@@ -1,7 +1,6 @@
-import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { getCached, setCached, cacheKey } from "@/lib/redis";
-import { batchLoadUsers, toPublicUser } from "@/lib/batch";
+import { getQaLeaderboard } from "@/lib/queries/games";
 import { withAnonymousRateLimit } from "@/lib/rate-limit";
 import { auth } from "@/lib/auth";
 import { z } from "zod";
@@ -10,8 +9,6 @@ const CACHE_TTL = 300;
 
 // guard enum before raw cast — invalid ?type= was 500
 const gameTypeParam = z.enum(["WOULD_YOU_RATHER", "TRIVIA", "SPIN_THE_WHEEL", "TRUTH_OR_DARE", "SLIDING_PUZZLE", "MEMORY_BLOCK_BLAST"]);
-
-type RawRow = { userId: string; totalPlayed: bigint; totalCorrect: bigint };
 
 export async function GET(request: NextRequest) {
   try {
@@ -37,57 +34,11 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    let rows: RawRow[];
+    const leaderboard = await getQaLeaderboard(type);
 
-    if (type) {
-      rows = await prisma.$queryRaw<RawRow[]>`
-        SELECT
-          gs."userId",
-          COUNT(*)::bigint AS "totalPlayed",
-          COALESCE(SUM(CASE WHEN gs."isCorrect" THEN 1 ELSE 0 END), 0)::bigint AS "totalCorrect"
-        FROM "GameScore" gs
-        JOIN "GameQuestion" q ON q.id = gs."questionId"
-        WHERE gs."userId" IS NOT NULL AND q."type" = ${type}::"GameType"
-        GROUP BY gs."userId"
-        ORDER BY "totalCorrect" DESC
-        LIMIT 50
-      `;
-    } else {
-      rows = await prisma.$queryRaw<RawRow[]>`
-        SELECT
-          "userId",
-          COUNT(*)::bigint AS "totalPlayed",
-          COALESCE(SUM(CASE WHEN "isCorrect" THEN 1 ELSE 0 END), 0)::bigint AS "totalCorrect"
-        FROM "GameScore"
-        WHERE "userId" IS NOT NULL
-        GROUP BY "userId"
-        ORDER BY "totalCorrect" DESC
-        LIMIT 50
-      `;
-    }
-
-    if (rows.length === 0) {
+    if (leaderboard.length === 0) {
       return NextResponse.json({ data: [] });
     }
-
-    const authedUserIds = rows.map(r => r.userId);
-    const userMap = authedUserIds.length > 0 ? await batchLoadUsers(authedUserIds) : new Map();
-
-    const leaderboard = rows.map((row) => {
-      const totalPlayed = Number(row.totalPlayed);
-      const totalCorrect = Number(row.totalCorrect);
-      return {
-        // public endpoint — no emails in response.
-        user: toPublicUser(userMap.get(row.userId)),
-        playerName: null,
-        totalPlayed,
-        totalCorrect,
-        accuracy:
-          totalPlayed > 0
-            ? Math.round((totalCorrect / totalPlayed) * 100)
-            : 0,
-      };
-    });
 
     const response = { data: leaderboard };
 

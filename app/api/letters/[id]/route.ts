@@ -1,13 +1,11 @@
-import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
-import { getCached, setCached, cacheKey, invalidateCache } from "@/lib/redis";
-import { batchLoadUsers } from "@/lib/batch";
+import { invalidateCache } from "@/lib/redis";
+import { getLetterDetail } from "@/lib/queries/letter";
 import { getUserCoupleId } from "@/lib/couple";
 import { triggerCoupleEvent } from "@/lib/pusher-server";
 
-
-const CACHE_TTL = 120;
 
 export async function GET(
   _request: Request,
@@ -21,99 +19,15 @@ export async function GET(
 
     const { id } = await params;
 
-    // row cache first — cache-hit path was 2 PG (findUnique + users).
-    // Key lives under letters:* so existing PUT/DELETE/open wipes invalidate it.
-    const rowK = cacheKey("letters", "row", id);
-    let letter = await getCached<{
-      id: string; title: string; content: string; authorId: string; recipientId: string;
-      isTimeCapsule: boolean; unlockAt: string | null; isOpened: boolean; openedAt: string | null;
-      mood: string; isPublic: boolean; createdAt: string; updatedAt: string;
-    }>(rowK);
-    if (!letter) {
-      const row = await prisma.letter.findUnique({
-        where: { id },
-        select: {
-          id: true,
-          title: true,
-          content: true,
-          authorId: true,
-          recipientId: true,
-          isTimeCapsule: true,
-          unlockAt: true,
-          isOpened: true,
-          openedAt: true,
-          mood: true,
-          isPublic: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-      });
-      if (!row) {
-        return NextResponse.json({ error: "Surat tidak ditemukan" }, { status: 404 });
-      }
-      letter = {
-        ...row,
-        unlockAt: row.unlockAt?.toISOString() ?? null,
-        openedAt: row.openedAt?.toISOString() ?? null,
-        createdAt: row.createdAt.toISOString(),
-        updatedAt: row.updatedAt.toISOString(),
-      };
-      await setCached(rowK, letter, 60);
+    const result = await getLetterDetail(session.user.id, id);
+    if (result.status === "not_found") {
+      return NextResponse.json({ error: "Surat tidak ditemukan" }, { status: 404 });
     }
-
-    if (
-      letter.recipientId !== session.user.id &&
-      letter.authorId !== session.user.id
-    ) {
+    if (result.status === "forbidden") {
       return NextResponse.json({ error: "Kamu tidak punya akses untuk melihat surat ini" }, { status: 403 });
     }
 
-    const userMap = await batchLoadUsers([letter.authorId, letter.recipientId]);
-
-    const enriched = {
-      ...letter,
-      author: userMap.get(letter.authorId) ?? null,
-      recipient: userMap.get(letter.recipientId) ?? null,
-    };
-
-    const isLocked =
-      letter.isTimeCapsule &&
-      letter.unlockAt !== null &&
-      new Date(letter.unlockAt).getTime() > Date.now() &&
-      !letter.isOpened;
-
-    const lockBucket = isLocked ? "locked" : "unlocked";
-    const cacheK = cacheKey("letters", "detail", session.user.id, lockBucket, id);
-
-    const cached = await getCached<unknown>(cacheK);
-    if (cached) {
-      return NextResponse.json(cached, {
-headers: { "Cache-Control": "private, no-cache" },
-      });
-    }
-
-    if (isLocked) {
-      const partial = {
-        data: {
-          id: enriched.id,
-          title: enriched.title,
-          isTimeCapsule: true,
-          unlockAt: enriched.unlockAt,
-          author: enriched.author,
-          mood: enriched.mood,
-          createdAt: enriched.createdAt,
-        },
-      };
-      await setCached(cacheK, partial, CACHE_TTL);
-      return NextResponse.json(partial, {
-        headers: { "Cache-Control": "private, no-cache" },
-      });
-    }
-
-    const response = { data: enriched };
-    await setCached(cacheK, response, CACHE_TTL);
-
-    return NextResponse.json(response, {
+    return NextResponse.json(result.data, {
       headers: { "Cache-Control": "private, no-cache" },
     });
   } catch (error) {

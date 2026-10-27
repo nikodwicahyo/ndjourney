@@ -3,25 +3,10 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { createWishSchema } from "@/lib/validations/wish";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
-import { getCached, setCached, invalidateCache, cacheKey } from "@/lib/redis";
+import { invalidateCache } from "@/lib/redis";
+import { listWishes } from "@/lib/queries/wishes";
 import { getUserCoupleId } from "@/lib/couple";
 import { triggerCoupleEvent } from "@/lib/pusher-server";
-
-const CACHE_TTL = 30;
-
-const wishSelect = {
-  id: true,
-  title: true,
-  description: true,
-  imageUrl: true,
-  imageCrop: true,
-  link: true,
-  category: true,
-  isDone: true,
-  doneAt: true,
-  createdAt: true,
-  updatedAt: true,
-} as const;
 
 export async function GET(request: Request) {
   try {
@@ -38,33 +23,7 @@ export async function GET(request: Request) {
     const page = Math.min(Math.max(parseInt(searchParams.get("page") || "1", 10) || 1, 1), 1000);
     const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "50", 10) || 50, 1), 100);
 
-    const cacheK = cacheKey("wishes", "list", coupleId, String(page), String(limit));
-    const cached = await getCached<unknown>(cacheK);
-    if (cached) {
-      return NextResponse.json(cached, {
-        headers: { "Cache-Control": "private, no-cache" },
-      });
-    }
-
-    const where = { OR: [{ coupleId }, { coupleId: null }] };
-
-    const [wishes, total] = await Promise.all([
-      prisma.wishItem.findMany({
-        where,
-        orderBy: [
-          { isDone: "asc" },
-          { createdAt: "desc" },
-        ],
-        skip: (page - 1) * limit,
-        take: limit,
-        select: wishSelect,
-      }),
-      prisma.wishItem.count({ where }),
-    ]);
-
-    const response = { data: wishes, total, page, limit };
-
-    await setCached(cacheK, response, CACHE_TTL);
+    const response = await listWishes(coupleId, page, limit);
 
     return NextResponse.json(response, {
       headers: { "Cache-Control": "private, no-cache" },

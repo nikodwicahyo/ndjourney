@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "leaflet/dist/leaflet.css";
+/* Leaflet is imported by the two map components instead of here: it is ~15 KB
+   of render-blocking CSS that every page paid for and only /location uses. */
 
 @custom-variant dark (&:is(.dark *));
 
@@ -442,6 +443,214 @@ html [data-sonner-toaster][data-sonner-theme="light"] {
 
 @media (prefers-reduced-motion: reduce) {
   .page-enter {
+    animation: none;
+  }
+}
+
+/* Music player (was framer-motion): fab pop-in + panel slide. */
+@keyframes music-fab-in {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.music-fab {
+  animation: music-fab-in 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) 1.5s both;
+}
+
+@keyframes music-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes music-panel-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+}
+
+.music-panel-enter {
+  animation: music-panel-in 0.2s ease-out both;
+}
+
+.music-panel-exit {
+  animation: music-panel-out 0.18s ease-in both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .music-fab {
+    animation: none;
+  }
+  .music-panel-enter,
+  .music-panel-exit {
+    animation: none;
+  }
+}
+
+/* Hero typewriter: pure CSS reveal of the real text (the names are in the
+   server HTML, so LCP/SEO/copy-paste all see the full name — only the paint is
+   progressive). `--chars` comes from the name length. */
+.typewriter {
+  --type-char: 55ms;
+  display: inline-block;
+  animation: type-reveal calc(var(--type-char) * var(--chars, 20)) steps(var(--chars, 20), end)
+    var(--type-delay, 0ms) both;
+}
+
+@keyframes type-reveal {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.type-caret {
+  display: inline-block;
+  width: 2px;
+  height: 0.9em;
+  margin-left: 0.12em;
+  vertical-align: -0.08em;
+  background: currentColor;
+  animation: caret-blink 1s step-end infinite;
+}
+
+@keyframes caret-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .typewriter {
+    animation: none;
+  }
+  .type-caret {
+    display: none;
+  }
+}
+
+/* Hero scroll hint: transform-only bob (compositor, no layout work). */
+@keyframes chevron-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(8px);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .chevron-bob {
+    animation: chevron-bob 2s ease-in-out infinite;
+  }
+}
+
+/* Decorative background for phones / low-end devices. The WebGL scene ships
+   147 KB of three.js plus a permanent render loop (12.8 s of mobile main-thread
+   work in Lighthouse); this keeps the page animated for ~0 bytes and leaves
+   the animation on the compositor. */
+@keyframes css-heart-float {
+  from {
+    transform: translate3d(0, 105vh, 0) rotate(-10deg) scale(0.8);
+  }
+  to {
+    transform: translate3d(0, -25vh, 0) rotate(10deg) scale(1.15);
+  }
+}
+
+.css-heart {
+  position: absolute;
+  bottom: 0;
+  color: var(--primary);
+  opacity: 0.2;
+  animation: css-heart-float linear infinite;
+  will-change: transform;
+  user-select: none;
+}
+
+/* PWA install banner + iOS share hints (previously framer-motion, which
+   dragged the whole 43 KB library into every page's first load). */
+@keyframes install-banner-enter {
+  from {
+    transform: translateY(100px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.install-banner-enter {
+  animation: install-banner-enter 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes nudge-x {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(4px);
+  }
+}
+
+.nudge-x {
+  animation: nudge-x 1.5s ease-in-out infinite;
+}
+
+/* Click feedback hearts (CSS instead of framer-motion). */
+@keyframes click-heart-float {
+  from {
+    transform: rotate(var(--rot)) scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: translate3d(calc(var(--dx) * 30px), calc(var(--dy) * 40px), 0)
+      rotate(calc(var(--rot) + 12deg)) scale(0.3);
+    opacity: 0;
+  }
+}
+
+.click-heart {
+  position: fixed;
+  pointer-events: none;
+  animation: click-heart-float var(--dur, 1s) ease-out forwards;
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .install-banner-enter,
+  .nudge-x,
+  .css-heart {
     animation: none;
   }
 }

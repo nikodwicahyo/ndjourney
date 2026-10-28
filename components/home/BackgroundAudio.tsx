@@ -46,10 +46,14 @@ export default function BackgroundAudio({ src, spotifyPlaying }: BackgroundAudio
     startedRef.current = false;
     pausedByVideoRef.current = false;
 
-    const audio = new Audio(src);
+    const audio = new Audio();
+    // The track is several MB. `auto` downloaded it on every page load even
+    // though autoplay is blocked until a gesture, so it landed in the LCP
+    // window. Load it only when the user actually interacts.
+    audio.preload = "none";
     audio.loop = true;
     audio.volume = 0.3;
-    audio.preload = "auto";
+    audio.src = src;
     audioRef.current = audio;
 
     function tryPlay() {
@@ -86,8 +90,6 @@ export default function BackgroundAudio({ src, spotifyPlaying }: BackgroundAudio
     document.addEventListener("wheel", tryPlay, { passive: true });
     window.addEventListener("media:pause-bg-audio", handlePauseBg);
     window.addEventListener("media:resume-bg-audio", handleResumeBg);
-
-    tryPlay();
 
     return () => {
       document.removeEventListener("pointerdown", tryPlay);

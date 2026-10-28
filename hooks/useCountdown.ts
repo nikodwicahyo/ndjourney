@@ -51,13 +51,15 @@ export function useCountdown(targetDate: Date | string | null): CountdownData {
 
   const { now } = useClockTick();
 
-  const [data, setData] = useState<CountdownData>(() =>
-    computeCountdown(new Date(), target),
-  );
+  // Deterministic first render: `new Date()` on the server and at hydration
+  // time differ by seconds, which is a hydration mismatch (React #418) on every
+  // page with a countdown. Zeros are rendered identically on both sides and the
+  // effect fills in the real value immediately after hydration.
+  const [data, setData] = useState<CountdownData | null>(null);
 
   useEffect(() => {
     setData(computeCountdown(now, target));
   }, [now, target]);
 
-  return data;
+  return data ?? { days: 0, hours: 0, minutes: 0, seconds: 0, isPast: false, totalDays: 0 };
 }

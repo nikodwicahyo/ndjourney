@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { SessionProvider as NextAuthSessionProvider, useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { clearServiceWorkerCaches, signOutAndClear } from "@/lib/sign-out";
+import { getOptimizedImageUrl } from "@/lib/cloudinary-urls";
 
 function SessionWatcher() {
   const { data: session, status, update: updateSession } = useSession();
@@ -49,7 +50,7 @@ function SessionWatcher() {
       probedImageRef.current = image;
       void updateSession({});
     };
-    probe.src = image;
+    probe.src = getOptimizedImageUrl(image, 64, { quality: "auto:eco" });
     return () => {
       cancelled = true;
       probe.onload = null;

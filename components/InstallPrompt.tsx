@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { X, Heart, Download, Share2, Smartphone, Monitor, Globe } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -293,20 +292,16 @@ export default function InstallPrompt() {
   if (!shouldShowPrompt(installMethod, dismissCount)) return null;
 
   return (
-    <AnimatePresence>
-      {showPrompt && (
-        <InstallPromptContent
-          key="install-prompt"
-          method={installMethod}
-          onInstall={handleInstall}
-          onDismiss={handleDismiss}
-          onAcknowledge={handleAcknowledge}
-          hasDeferredPrompt={!!deferredPrompt}
-          platform={detectPlatform()}
-          browser={detectBrowser()}
-        />
-      )}
-    </AnimatePresence>
+    <InstallPromptContent
+      key="install-prompt"
+      method={installMethod}
+      onInstall={handleInstall}
+      onDismiss={handleDismiss}
+      onAcknowledge={handleAcknowledge}
+      hasDeferredPrompt={!!deferredPrompt}
+      platform={detectPlatform()}
+      browser={detectBrowser()}
+    />
   );
 }
 
@@ -330,12 +325,8 @@ function InstallPromptContent({
   const content = getPromptContent(method, platform, browser, hasDeferredPrompt);
 
   return (
-    <motion.div
-      initial={{ y: 100, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      exit={{ y: 100, opacity: 0 }}
-      transition={{ type: "spring", damping: 25, stiffness: 300 }}
-      className="fixed inset-x-4 bottom-4 z-50 mx-auto max-w-sm md:bottom-6 md:left-auto md:right-6 md:inset-x-auto lg:bottom-6"
+    <div
+      className="install-banner-enter fixed inset-x-4 bottom-4 z-50 mx-auto max-w-sm md:bottom-6 md:left-auto md:right-6 md:inset-x-auto lg:bottom-6"
     >
       <div className="relative rounded-2xl border border-border bg-card p-5 shadow-xl">
         <button
@@ -386,7 +377,7 @@ function InstallPromptContent({
           )}
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }
 
@@ -543,13 +534,9 @@ function IosShareGuide({ device }: { device: "iPhone" | "iPad" }) {
         </div>
         <span className="text-[10px] text-muted-foreground">Share</span>
       </div>
-      <motion.div
-        animate={{ x: [0, 4, 0] }}
-        transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
-        className="text-muted-foreground"
-      >
+      <div className="nudge-x text-muted-foreground">
         →
-      </motion.div>
+      </div>
       <div className="flex flex-col items-center gap-1">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
           <svg
@@ -566,13 +553,9 @@ function IosShareGuide({ device }: { device: "iPhone" | "iPad" }) {
         </div>
         <span className="text-[10px] text-muted-foreground">Safari</span>
       </div>
-      <motion.div
-        animate={{ x: [0, 4, 0] }}
-        transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
-        className="text-muted-foreground"
-      >
+      <div className="nudge-x text-muted-foreground">
         →
-      </motion.div>
+      </div>
       <div className="flex flex-col items-center gap-1">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
           <svg

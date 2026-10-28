@@ -1,7 +1,15 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useSession } from 'next-auth/react';
-import { useRealtimeSync } from '@/hooks/useRealtimeSync';
+
+// pusher-js (~35 KB raw) is only needed for signed-in visitors. The dynamic
+// import keeps it out of the public first load entirely: guests download
+// nothing, members fetch it right after hydration.
+const RealtimeSyncInner = dynamic(
+  () => import('./RealtimeSyncInner').then((m) => m.RealtimeSyncInner),
+  { ssr: false },
+);
 
 // Mounted from the (cookie-free) public layout, so the auth check happens here
 // instead of on the server. Guests subscribe to nothing: the channel is private
@@ -15,9 +23,4 @@ export function RealtimeSyncClient({
   if (status !== 'authenticated') return null;
 
   return <RealtimeSyncInner coupleId={coupleId} />;
-}
-
-function RealtimeSyncInner({ coupleId }: { coupleId: string | undefined }) {
-  useRealtimeSync(coupleId);
-  return null;
 }

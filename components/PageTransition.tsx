@@ -1,9 +1,10 @@
-// Transform-only entrance. CSS (not JS) so the page is painted immediately on
-// first load — a JS-driven opacity:0 wrapper held LCP hostage until hydration.
+// Kept as a no-op seam: LayoutTransition already owns the route entrance
+// (CSS `page-enter`). Pages keep wrapping their content without nesting a
+// second animation on top of it.
 export default function PageTransition({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return <div className="page-enter">{children}</div>;
+  return <>{children}</>;
 }

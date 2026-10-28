@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { signOutAndClear } from "@/lib/sign-out";
+import { useIdlePrefetch } from "@/hooks/useIdlePrefetch";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -46,6 +47,8 @@ function useIsActive() {
 export function SidebarContent() {
   const { data: session } = useSession();
   const isActive = useIsActive();
+  const idlePrefetch = useIdlePrefetch();
+  const prefetch = idlePrefetch ? undefined : false;
 
   const handleLogout = async () => {
     const confirmed = await showDeleteConfirm({
@@ -90,7 +93,7 @@ export function SidebarContent() {
             <Link
               key={link.href}
               href={link.href}
-              prefetch={true}
+              prefetch={prefetch}
               className={cn(
                 "flex min-h-[44px] items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors",
                 isActive(link.href)

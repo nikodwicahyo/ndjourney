@@ -4,11 +4,9 @@ import { ThemeProvider } from "next-themes";
 import { Toaster } from "sonner";
 import QueryProvider from "@/components/QueryProvider";
 import SessionProvider from "@/components/SessionProvider";
-import PwaRegister from "@/components/PwaRegister";
+import DeferredRuntime from "@/components/DeferredRuntime";
 import InstallPrompt from "@/components/InstallPrompt";
-import VersionCheck from "@/components/VersionCheck";
 import DeferredBackground from "@/components/DeferredBackground";
-import MotionRoot from "@/components/MotionRoot";
 import { APP_NAME, DEFAULT_TAGLINE } from "@/lib/couple-display";
 import "./globals.css";
 const playfairDisplay = Playfair_Display({
@@ -95,13 +93,11 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <MotionRoot>
           <DeferredBackground />
           <QueryProvider>
             <SessionProvider>
             {children}
-            <VersionCheck />
-            <PwaRegister />
+            <DeferredRuntime />
             <InstallPrompt />
             </SessionProvider>
             <Toaster
@@ -113,7 +109,6 @@ export default function RootLayout({
               }}
             />
           </QueryProvider>
-          </MotionRoot>
         </ThemeProvider>
         <script
           dangerouslySetInnerHTML={{

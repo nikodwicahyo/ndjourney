@@ -2,12 +2,39 @@
 
 import { useEffect, useRef } from "react";
 import { useTheme } from "next-themes";
-import * as THREE from "three";
+// Named imports only: `import * as THREE` defeated tree-shaking and shipped
+// the whole library (~572 KB raw) to every device that renders the scene.
+import {
+  AdditiveBlending,
+  AmbientLight,
+  BoxGeometry,
+  BufferAttribute,
+  BufferGeometry,
+  DirectionalLight,
+  ExtrudeGeometry,
+  Mesh,
+  MeshPhongMaterial,
+  NormalBlending,
+  OctahedronGeometry,
+  PerspectiveCamera,
+  PointLight,
+  Points,
+  PointsMaterial,
+  Scene,
+  Shape,
+  SphereGeometry,
+  Timer,
+  TorusGeometry,
+  WebGLRenderer,
+  type Material,
+} from "three";
 
 // Per-device tier: density/pixel-budget scale down on smaller screens.
 // Motion itself is normalized to the view, so feel is identical everywhere.
 const TIERS = [
-  { max: 640, hearts: 20, rings: 5, pearls: 6, gems: 5, cubes: 4, particles: 150, dpr: 1.5, antialias: false },
+  // Phones: same motion, fewer floaters and a smaller pixel budget so the
+  // permanent render loop stays cheap on weak GPUs.
+  { max: 640, hearts: 16, rings: 4, pearls: 5, gems: 4, cubes: 3, particles: 120, dpr: 1.25, antialias: false },
   { max: 1024, hearts: 30, rings: 6, pearls: 8, gems: 6, cubes: 5, particles: 220, dpr: 1.75, antialias: true },
   { max: Infinity, hearts: 40, rings: 8, pearls: 10, gems: 8, cubes: 6, particles: 320, dpr: 2, antialias: true },
 ] as const;
@@ -34,7 +61,7 @@ type FloatUserData = {
 };
 
 function createHeartGeometry() {
-  const heartShape = new THREE.Shape();
+  const heartShape = new Shape();
   heartShape.moveTo(0.25, 0.25);
   heartShape.bezierCurveTo(0.25, 0.25, 0.2, 0, 0, 0);
   heartShape.bezierCurveTo(-0.3, 0, -0.3, 0.35, -0.3, 0.35);
@@ -43,7 +70,7 @@ function createHeartGeometry() {
   heartShape.bezierCurveTo(0.8, 0.35, 0.8, 0, 0.5, 0);
   heartShape.bezierCurveTo(0.35, 0, 0.25, 0.25, 0.25, 0.25);
 
-  const geom = new THREE.ExtrudeGeometry(heartShape, {
+  const geom = new ExtrudeGeometry(heartShape, {
     depth: 0.18,
     bevelEnabled: true,
     bevelSegments: 2,
@@ -55,10 +82,11 @@ function createHeartGeometry() {
   return geom;
 }
 
-// Dark: soft romantic palette. Light: soft cream — visible but gentle so
-// text/cards stay readable.
+// Dark: soft romantic glow. Light: the body gradient is near-white, so the
+// shapes must be mid/deep rose — cream on cream was invisible. Same shapes,
+// same motion, deeper ink.
 const DARK_HEARTS = [0xf43f5e, 0xfb7185, 0xfecdd3, 0xe11d48, 0xffa5ba];
-const LIGHT_HEARTS = [0xfffdf7, 0xfffbeb, 0xfff4e0, 0xfdf2f8, 0xfdf6e3];
+const LIGHT_HEARTS = [0xbe123c, 0xe11d48, 0xf43f5e, 0x9f1239, 0xfb7185];
 
 // Bounce happens past the visible edge so a shape never pops mid-screen.
 const MARGIN = 1.12;
@@ -81,8 +109,8 @@ export default function BackgroundEffect() {
     const width = container.clientWidth || window.innerWidth;
     const height = container.clientHeight || window.innerHeight;
 
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 1000);
+    const scene = new Scene();
+    const camera = new PerspectiveCamera(60, width / height, 0.1, 1000);
     camera.position.z = 18;
 
     // Frustum half-extents at the z=0 plane. Spawn, layout, parallax and
@@ -101,9 +129,9 @@ export default function BackgroundEffect() {
 
     // Graceful degradation: if WebGL context creation fails, bail out and
     // leave the gradient + readability veil (never crash the whole page).
-    let renderer: THREE.WebGLRenderer;
+    let renderer: WebGLRenderer;
     try {
-      renderer = new THREE.WebGLRenderer({ alpha: true, antialias: tier.antialias });
+      renderer = new WebGLRenderer({ alpha: true, antialias: tier.antialias });
     } catch {
       return;
     }
@@ -111,21 +139,21 @@ export default function BackgroundEffect() {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, tier.dpr));
     container.appendChild(renderer.domElement);
 
-    const ambient = new THREE.AmbientLight(0xffe4e6, 0.9);
+    const ambient = new AmbientLight(0xffe4e6, 0.9);
     scene.add(ambient);
 
-    const dirLight = new THREE.DirectionalLight(0xff6b81, 1.2);
+    const dirLight = new DirectionalLight(0xff6b81, 1.2);
     dirLight.position.set(5, 10, 7);
     scene.add(dirLight);
 
-    const pointLight = new THREE.PointLight(0xf43f5e, 1.5, 30);
+    const pointLight = new PointLight(0xf43f5e, 1.5, 30);
     pointLight.position.set(-6, -4, 5);
     scene.add(pointLight);
 
     const heartGeometry = createHeartGeometry();
     const heartMaterials = DARK_HEARTS.map(
       (color) =>
-        new THREE.MeshPhongMaterial({
+        new MeshPhongMaterial({
           color,
           emissive: color,
           emissiveIntensity: 0.2,
@@ -138,7 +166,7 @@ export default function BackgroundEffect() {
 
     const gemMaterials = [0xfda4af, 0xfcd34d, 0xfbcfe8].map(
       (color) =>
-        new THREE.MeshPhongMaterial({
+        new MeshPhongMaterial({
           color,
           emissive: color,
           emissiveIntensity: 0.25,
@@ -150,7 +178,7 @@ export default function BackgroundEffect() {
     );
     const tintMaterials = [...heartMaterials, ...gemMaterials];
     // Bold gold reserved for cubes — saturated in both modes so it always reads.
-    const goldMaterial = new THREE.MeshPhongMaterial({
+    const goldMaterial = new MeshPhongMaterial({
       color: 0xfcd34d,
       emissive: 0xfcd34d,
       emissiveIntensity: 0.3,
@@ -160,10 +188,10 @@ export default function BackgroundEffect() {
       opacity: 0.95,
     });
     const glowMaterials = [...tintMaterials, goldMaterial];
-    const ringGeo = new THREE.TorusGeometry(0.45, 0.12, 12, 28);
-    const pearlGeo = new THREE.SphereGeometry(0.32, 20, 20);
-    const gemGeo = new THREE.OctahedronGeometry(0.42);
-    const cubeGeo = new THREE.BoxGeometry(0.55, 0.55, 0.55);
+    const ringGeo = new TorusGeometry(0.45, 0.12, 12, 28);
+    const pearlGeo = new SphereGeometry(0.32, 20, 20);
+    const gemGeo = new OctahedronGeometry(0.42);
+    const cubeGeo = new BoxGeometry(0.55, 0.55, 0.55);
 
     // World half-bounds for a mesh at depth z: the visible frustum there,
     // plus MARGIN so bounces happen off-screen. Recomputed on resize.
@@ -183,8 +211,8 @@ export default function BackgroundEffect() {
       return n;
     };
 
-    const floaters: THREE.Mesh[] = [];
-    const addFloater = (mesh: THREE.Mesh, scale: number) => {
+    const floaters: Mesh[] = [];
+    const addFloater = (mesh: Mesh, scale: number) => {
       const z = (Math.random() - 0.5) * 16 - 2;
       const u: FloatUserData = {
         rotSpeedX: (Math.random() - 0.5) * 1.1,
@@ -217,34 +245,34 @@ export default function BackgroundEffect() {
 
     for (let i = 0; i < tier.hearts; i++) {
       addFloater(
-        new THREE.Mesh(heartGeometry, heartMaterials[i % heartMaterials.length]),
+        new Mesh(heartGeometry, heartMaterials[i % heartMaterials.length]),
         0.5 + Math.random() * 1.4,
       );
     }
     for (let i = 0; i < tier.rings; i++) {
       addFloater(
-        new THREE.Mesh(ringGeo, gemMaterials[i % gemMaterials.length]),
+        new Mesh(ringGeo, gemMaterials[i % gemMaterials.length]),
         0.6 + Math.random() * 0.9,
       );
     }
     for (let i = 0; i < tier.pearls; i++) {
       addFloater(
-        new THREE.Mesh(pearlGeo, gemMaterials[(i + 1) % gemMaterials.length]),
+        new Mesh(pearlGeo, gemMaterials[(i + 1) % gemMaterials.length]),
         0.7 + Math.random() * 1.1,
       );
     }
     for (let i = 0; i < tier.gems; i++) {
       addFloater(
-        new THREE.Mesh(gemGeo, gemMaterials[(i + 2) % gemMaterials.length]),
+        new Mesh(gemGeo, gemMaterials[(i + 2) % gemMaterials.length]),
         0.8 + Math.random() * 1.2,
       );
     }
     for (let i = 0; i < tier.cubes; i++) {
-      addFloater(new THREE.Mesh(cubeGeo, goldMaterial), 0.9 + Math.random() * 1.2);
+      addFloater(new Mesh(cubeGeo, goldMaterial), 0.9 + Math.random() * 1.2);
     }
 
     const particleCount = tier.particles;
-    const particleGeometry = new THREE.BufferGeometry();
+    const particleGeometry = new BufferGeometry();
     const positions = new Float32Array(particleCount * 3);
     const pnx = new Float32Array(particleCount);
     const pny = new Float32Array(particleCount);
@@ -254,7 +282,7 @@ export default function BackgroundEffect() {
       pny[i] = Math.random() * 2 - 1;
       pz[i] = (Math.random() - 0.5) * 20;
     }
-    const posAttr = new THREE.BufferAttribute(positions, 3);
+    const posAttr = new BufferAttribute(positions, 3);
     particleGeometry.setAttribute("position", posAttr);
     // Dust field tracks the frustum (±30% bleed past the edges); refit on
     // resize keeps it evenly spread on every aspect ratio.
@@ -267,15 +295,15 @@ export default function BackgroundEffect() {
       posAttr.needsUpdate = true;
     };
     layoutParticles();
-    const particleMaterial = new THREE.PointsMaterial({
+    const particleMaterial = new PointsMaterial({
       color: 0xffccd5,
       size: 0.25,
       transparent: true,
       opacity: 0.65,
-      blending: THREE.AdditiveBlending,
+      blending: AdditiveBlending,
       depthWrite: false,
     });
-    const particles = new THREE.Points(particleGeometry, particleMaterial);
+    const particles = new Points(particleGeometry, particleMaterial);
     scene.add(particles);
 
     // Mutable theme state read by the animation loop (twinkle/glow bases).
@@ -292,23 +320,26 @@ export default function BackgroundEffect() {
       tintMaterials.forEach((m, i) => {
         m.color.set(palette[i % palette.length]);
         m.emissive.set(palette[i % palette.length]);
-        m.opacity = dark ? 0.85 : 0.7;
+        // Lower opacity in light mode keeps the deeper rose gentle behind text.
+        m.opacity = dark ? 0.85 : 0.55;
       });
       // Gems/cubes read smaller on screen — keep them a touch more solid.
-      for (const m of gemMaterials) m.opacity = dark ? 0.9 : 0.85;
+      for (const m of gemMaterials) m.opacity = dark ? 0.9 : 0.7;
       // Gold cubes stay bold: bright gold on dark, deep amber on light cream.
       const gold = dark ? 0xfcd34d : 0xd97706;
       goldMaterial.color.set(gold);
       goldMaterial.emissive.set(gold);
       goldMaterial.opacity = dark ? 0.95 : 0.9;
-      themeState.particleBase = dark ? 0.65 : 0.35;
+      themeState.particleBase = dark ? 0.65 : 0.45;
       themeState.pointBase = dark ? 1.5 : 0.8;
       themeState.glowAmp = dark ? 0.3 : 0.15;
       themeState.emissiveBase = dark ? 0.2 : 0.12;
       themeState.emissiveAmp = dark ? 0.14 : 0.08;
       particleMaterial.opacity = themeState.particleBase;
-      particleMaterial.color.set(dark ? 0xffccd5 : 0xfde68a);
-      const nextBlending = dark ? THREE.AdditiveBlending : THREE.NormalBlending;
+      // Pale yellow dust vanished on the cream body; deep rose reads in light
+      // mode with normal blending (additive only works over dark pixels).
+      particleMaterial.color.set(dark ? 0xffccd5 : 0xbe123c);
+      const nextBlending = dark ? AdditiveBlending : NormalBlending;
       if (particleMaterial.blending !== nextBlending) {
         particleMaterial.blending = nextBlending;
         particleMaterial.needsUpdate = true;
@@ -374,8 +405,9 @@ export default function BackgroundEffect() {
     };
     window.addEventListener("resize", onResize);
 
-    const timer = new THREE.Timer();
+    const timer = new Timer();
     let raf = 0;
+    let lastFrame = 0;
 
     const renderFrame = () => {
       timer.update();
@@ -464,8 +496,13 @@ export default function BackgroundEffect() {
     };
 
     const loop = () => {
-      renderFrame();
       raf = requestAnimationFrame(loop);
+      // 30fps cap: the drift is slow, so half the frames are imperceptible and
+      // halve the sustained main-thread cost on every device.
+      const now = performance.now();
+      if (now - lastFrame < 1000 / 30) return;
+      lastFrame = now;
+      renderFrame();
     };
     raf = requestAnimationFrame(loop);
 
@@ -490,12 +527,12 @@ export default function BackgroundEffect() {
       window.removeEventListener("resize", onResize);
       applyThemeRef.current = null;
       scene.traverse((obj) => {
-        const mesh = obj as THREE.Mesh;
-        if (mesh.isMesh || (obj as THREE.Points).isPoints) {
-          const mat = (mesh as THREE.Mesh).material as THREE.Material | THREE.Material[];
+        const mesh = obj as Mesh;
+        if (mesh.isMesh || (obj as Points).isPoints) {
+          const mat = (mesh as Mesh).material as Material | Material[];
           if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
           else mat?.dispose();
-          (mesh.geometry as THREE.BufferGeometry)?.dispose();
+          (mesh.geometry as BufferGeometry)?.dispose();
         }
       });
       heartGeometry.dispose();
@@ -512,16 +549,6 @@ export default function BackgroundEffect() {
   }, [resolvedTheme]);
 
   return (
-    <div
-      aria-hidden="true"
-      className="pointer-events-none fixed inset-0 overflow-hidden"
-      style={{ zIndex: -10 }}
-    >
-      <div ref={mountRef} className="absolute inset-0" />
-      {/* Rose vignette: rich edges, calm center for text */}
-      <div className="absolute inset-0" style={{ background: "var(--bg-vignette)" }} />
-      {/* Readability veil: keeps cards/text contrast in both modes */}
-      <div className="absolute inset-0 bg-rose-50/35 dark:bg-black/50" />
-    </div>
+    <div ref={mountRef} className="absolute inset-0" />
   );
 }

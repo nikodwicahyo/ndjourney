@@ -1,8 +1,11 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { motion, MotionConfig } from "framer-motion";
 
+// Route entrance lives in CSS, never in JS. A framer `initial={{opacity:0}}`
+// wrapper is server-rendered as opacity:0, so the whole page stays invisible
+// until hydration finishes (Lighthouse measured a 2s LCP element render delay).
+// A transform-only CSS animation starts on the first painted frame instead.
 export default function LayoutTransition({
   children,
 }: {
@@ -11,15 +14,8 @@ export default function LayoutTransition({
   const pathname = usePathname();
 
   return (
-    <MotionConfig reducedMotion="user">
-      <motion.div
-        key={pathname}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.2, ease: "easeOut" }}
-      >
-        {children}
-      </motion.div>
-    </MotionConfig>
+    <div key={pathname} className="page-enter">
+      {children}
+    </div>
   );
 }

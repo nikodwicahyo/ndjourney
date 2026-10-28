@@ -4,6 +4,7 @@ import { useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { useIdlePrefetch } from "@/hooks/useIdlePrefetch";
 import { cn } from "@/lib/utils";
 import {
   primaryNav,
@@ -15,6 +16,8 @@ import {
 export default function BottomNav() {
   const pathname = usePathname();
   const { data: session } = useSession();
+  const idlePrefetch = useIdlePrefetch();
+  const prefetch = idlePrefetch ? undefined : false;
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const isActive = (href: string) => isNavActive(pathname, href);
@@ -50,7 +53,7 @@ export default function BottomNav() {
               <Link
                 key={item.href}
                 href={item.href}
-                prefetch={true}
+                prefetch={prefetch}
                 data-active={active || undefined}
                 aria-current={active ? "page" : undefined}
                 className={cn(

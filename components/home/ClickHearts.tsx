@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 
 const emojis = ["❤️", "💕", "💖", "💗", "🩷", "💝", "💘"];
 
@@ -14,6 +13,7 @@ type Heart = {
   rotation: number;
   dx: number;
   dy: number;
+  duration: number;
 };
 
 let nextId = 0;
@@ -44,6 +44,7 @@ export default function ClickHearts() {
         rotation: (Math.random() - 0.5) * 60,
         dx: (Math.random() - 0.5) * 2,
         dy: -(2 + Math.random() * 2),
+        duration: 0.9 + Math.random() * 0.3,
       });
     }
     setHearts((prev) => [...prev, ...newHearts]);
@@ -66,35 +67,27 @@ export default function ClickHearts() {
     };
   }, [addHearts]);
 
+  // CSS keyframes instead of framer-motion: this component is on every page,
+  // and the library was 43 KB gzipped for one floating emoji.
   return (
     <div className="pointer-events-none fixed inset-0" aria-hidden="true" style={{ zIndex: 9999 }}>
-      <AnimatePresence>
-        {hearts.map((heart) => (
-          <motion.span
-            key={heart.id}
-            initial={{ x: heart.x, y: heart.y, opacity: 1, scale: 1, rotate: heart.rotation }}
-            animate={{
-              y: heart.y + heart.dy * 40,
-              x: heart.x + heart.dx * 30,
-              opacity: 0,
-              scale: 0.3,
-              rotate: heart.rotation + heart.dx * 20,
-            }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.9 + Math.random() * 0.3, ease: "easeOut" }}
-            style={{
-              position: "fixed",
-              left: 0,
-              top: 0,
-              fontSize: heart.size,
-              pointerEvents: "none",
-              willChange: "transform",
-            }}
-          >
-            {heart.emoji}
-          </motion.span>
-        ))}
-      </AnimatePresence>
+      {hearts.map((heart) => (
+        <span
+          key={heart.id}
+          className="click-heart"
+          style={{
+            left: heart.x,
+            top: heart.y,
+            fontSize: heart.size,
+            ["--rot" as string]: `${heart.rotation}deg`,
+            ["--dx" as string]: heart.dx,
+            ["--dy" as string]: heart.dy,
+            ["--dur" as string]: `${heart.duration}s`,
+          }}
+        >
+          {heart.emoji}
+        </span>
+      ))}
     </div>
   );
 }

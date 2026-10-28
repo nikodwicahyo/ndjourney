@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 import { useSession } from "next-auth/react";
 import { Heart, MapPin, Ruler } from "lucide-react";
 import {
@@ -198,30 +199,12 @@ export default function PartnerMap({
     });
   }, [self?.point?.lat, self?.point?.lng, partner?.point?.lat, partner?.point?.lng]);
 
-  // triple-fallback leaflet CSS — import in globals.css + LocationManager.tsx + inline here
+  // The map's CSS ships with this component (static import above); no runtime
+  // <style> fallback needed.
   useEffect(() => {
     if (mapRef.current || !containerRef.current) return;
 
     const container = containerRef.current;
-
-    // Fallback: inject leaflet CSS if missing (production builds sometimes drop CSS imports)
-    if (!document.querySelector('[data-leaflet-css]')) {
-      if (typeof window !== "undefined") console.log("[PartnerMap] injecting fallback leaflet CSS");
-      const style = document.createElement("style");
-      style.setAttribute("data-leaflet-css", "");
-      style.textContent = `
-.leaflet-container{background:#ddd;outline:0;overflow:hidden}
-.leaflet-container .leaflet-overlay-pane,.leaflet-container .leaflet-marker-pane,.leaflet-container .leaflet-shadow-pane,.leaflet-container .leaflet-tile-pane,.leaflet-container .leaflet-popup-pane{position:absolute;left:0;top:0}
-.leaflet-container img.leaflet-tile{max-width:none!important}
-.leaflet-zoom-box{width:0;height:0}
-.leaflet-control{position:relative;z-index:800;float:left;clear:both;pointer-events:auto}
-.leaflet-top{top:0}.leaflet-bottom{bottom:0}.leaflet-left{left:0}.leaflet-right{right:0}
-.leaflet-fade-anim .leaflet-tile{will-change:opacity;transition:opacity .2s}
-.leaflet-fade-anim .leaflet-popup{opacity:0;transition:opacity .2s}
-.leaflet-fade-anim .leaflet-map-pane .leaflet-popup{opacity:1}
-`;
-      document.head.appendChild(style);
-    }
 
     const rect = container.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) {

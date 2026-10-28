@@ -11,24 +11,28 @@ const withBundleAnalyzer = bundleAnalyzer({
 const CSP_STRING = CSP_DIRECTIVES.join("; ");
 
 // ── Build-time CSP drift check ─────────────────────────────────
+// Reading vercel.json is best-effort (it may be absent in an unexpected cwd),
+// but a mismatch MUST fail the build. The previous version threw inside the
+// same try that caught it, so the guard could never fire.
+let vercelCspValue: string | undefined;
 try {
-  const vercelJsonPath = join(process.cwd(), "vercel.json");
-  const vercelRaw = readFileSync(vercelJsonPath, "utf-8");
+  const vercelRaw = readFileSync(join(process.cwd(), "vercel.json"), "utf-8");
   const vercelConfig = JSON.parse(vercelRaw);
   const vercelHeader = vercelConfig.headers?.find(
     (h: { source: string }) => h.source === "/(.*)",
   );
-  const vercelCspEntry = vercelHeader?.headers?.find(
+  vercelCspValue = vercelHeader?.headers?.find(
     (h: { key: string }) => h.key === "Content-Security-Policy",
-  );
-  if (vercelCspEntry?.value !== CSP_STRING) {
-    throw new Error(
-      "CSP drift detected: vercel.json CSP does not match lib/csp.ts. " +
-        "Run `npm run sync:csp` to sync them.",
-    );
-  }
+  )?.value;
 } catch {
-  // skip check when cwd is unexpected
+  // no vercel.json here — nothing to compare against
+}
+
+if (vercelCspValue !== undefined && vercelCspValue !== CSP_STRING) {
+  throw new Error(
+    "CSP drift detected: vercel.json CSP does not match lib/csp.ts. " +
+      "Run `npm run sync:csp` to sync them.",
+  );
 }
 
 const nextConfig: NextConfig = {
@@ -93,8 +97,6 @@ const nextConfig: NextConfig = {
         {
           key: "Link",
           value: [
-            `<https://fonts.googleapis.com>; rel=preconnect`,
-            `<https://fonts.gstatic.com>; rel=preconnect; crossorigin`,
             `<https://res.cloudinary.com>; rel=preconnect`,
           ].join(", "),
         },

@@ -2,11 +2,16 @@
 
 import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import Image from "next/image";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { motion, AnimatePresence, useInView, useReducedMotion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Camera, Video, RefreshCw, Pause, Play } from "lucide-react";
 import { cn, formatDate } from "@/lib/utils";
 import { shuffle } from "@/lib/format";
-import { getOptimizedImageUrl, getBlurImageUrl } from "@/lib/cloudinary-urls";
+import {
+  getOptimizedImageUrl,
+  getBlurImageUrl,
+  getOptimizedVideoUrl,
+  getVideoPosterUrl,
+} from "@/lib/cloudinary-urls";
 
 export type GalleryPhoto = {
   id: string;
@@ -35,7 +40,14 @@ function cloudinaryWidthLoader({ src, width }: { src: string; width: number }) {
 // single gate — home is public, private rows must never render
 // here even if a caller passes an unfiltered list (isPublic missing = public).
 export function selectSlideshowMedia(photos: GalleryPhoto[]): GalleryPhoto[] {
-  return photos.filter((p) => p.isPublic !== false).slice(0, MAX_PHOTOS);
+  const filtered = photos.filter((p) => p.isPublic !== false).slice(0, MAX_PHOTOS);
+  // Open on a still image: autoplaying a video as slide 1 pulled 6 MB inside
+  // the first seconds. Videos stay in the rotation, just not first.
+  const firstImage = filtered.findIndex((p) => !p.isVideo);
+  if (firstImage > 0) {
+    return [filtered[firstImage], ...filtered.slice(0, firstImage), ...filtered.slice(firstImage + 1)];
+  }
+  return filtered;
 }
 
 export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
@@ -60,6 +72,26 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
   }
   const goNextRef = useRef<() => void>(() => {});
   const dotsRef = useRef<HTMLDivElement | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  // Videos are only mounted/played once the slideshow approaches the viewport:
+  // autoplaying the first video downloaded ~6 MB while the page was still
+  // loading its LCP image.
+  const [inView, setInView] = useState(false);
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setInView(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "300px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
   const length = displayPhotos.length;
   const hasPhotos = length > 0;
   const photo = displayPhotos[currentIndex];
@@ -192,7 +224,7 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
   }
 
   return (
-    <div data-testid="gallery-slideshow">
+    <div ref={rootRef} data-testid="gallery-slideshow">
         <div className="group relative overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
         <div className="relative aspect-[4/3] overflow-hidden bg-muted">
           <AnimatePresence custom={direction} mode="wait">
@@ -208,12 +240,13 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
             >
               {photo.isVideo ? (
                 <video
-                  src={photo.url}
-                  autoPlay
+                  src={getOptimizedVideoUrl(photo.url, 720, { quality: "auto:eco" })}
+                  poster={getVideoPosterUrl(photo.url, 720)}
+                  autoPlay={inView}
                   loop
                   muted
                   playsInline
-                  preload="metadata"
+                  preload={inView ? "auto" : "none"}
                   onCanPlay={markLoaded}
                   onError={markFailed}
                   className="h-full w-full object-cover"

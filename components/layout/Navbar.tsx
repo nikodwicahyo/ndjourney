@@ -9,6 +9,7 @@ import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/stores/useAppStore";
 import { useMounted } from "@/hooks/useMounted";
+import { useIdlePrefetch } from "@/hooks/useIdlePrefetch";
 import { Avatar, AvatarFallback, AvatarImage, Button, Sheet, SheetContent } from "@/components/ui";
 import { SidebarContent } from "./Sidebar";
 import { showDeleteConfirm } from "@/lib/swal";
@@ -46,6 +47,8 @@ export default function Navbar() {
   const { theme, setTheme } = useTheme();
   const [scrolled, setScrolled] = useState(false);
   const mounted = useMounted();
+  const idlePrefetch = useIdlePrefetch();
+  const prefetch = idlePrefetch ? undefined : false;
   const { sidebarOpen, setSidebarOpen } = useAppStore();
 
   const handleLogout = async () => {
@@ -90,7 +93,6 @@ export default function Navbar() {
         <div suppressHydrationWarning className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <Link
             href="/"
-            prefetch={true}
             className="flex items-center gap-2 font-heading text-lg font-semibold text-foreground shrink-0"
           >
             <Heart className="h-5 w-5 fill-primary text-primary" aria-hidden="true" />
@@ -102,7 +104,7 @@ export default function Navbar() {
               <Link
                 key={link.href}
                 href={link.href}
-                prefetch={true}
+                prefetch={prefetch}
                 suppressHydrationWarning
                 aria-current={isActive(link.href) ? "page" : undefined}
                 className={cn(
@@ -181,7 +183,7 @@ export default function Navbar() {
             ) : (
               <Link
                 href="/login"
-                prefetch={true}
+                prefetch={prefetch}
                 suppressHydrationWarning
                 className="inline-flex h-10 items-center justify-center rounded-full bg-primary px-4 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
               >

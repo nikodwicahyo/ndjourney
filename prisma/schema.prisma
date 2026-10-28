@@ -29,6 +29,8 @@ model User {
   receivedLetters Letter[]      @relation("LetterRecipient")
   milestones      Milestone[]
   photos          Photo[]
+  albums          Album[]
+  wishes          WishItem[]
   sessions        Session[]
 
   @@index([role])
@@ -169,10 +171,13 @@ model Album {
   updatedAt     DateTime @updatedAt
   coupleId      String?
   couple        Couple?  @relation(fields: [coupleId], references: [id])
+  createdById   String?
+  createdBy     User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
   photos        Photo[]
 
   @@index([createdAt])
   @@index([coupleId])
+  @@index([createdById])
 }
 
 model Milestone {
@@ -222,7 +227,6 @@ model Letter {
   isOpened           Boolean    @default(false)
   openedAt           DateTime?
   mood               LetterMood @default(LOVE)
-  isPublic           Boolean    @default(false)
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
   coupleId           String?
@@ -370,8 +374,11 @@ model WishItem {
   updatedAt   DateTime  @updatedAt
   coupleId    String?
   couple      Couple?   @relation(fields: [coupleId], references: [id])
+  createdById String?
+  createdBy   User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
 
   @@index([category])
+  @@index([createdById])
   @@index([isDone])
   @@index([isDone, createdAt])
   @@index([category, isDone])

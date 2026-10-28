@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     const page = Math.min(Math.max(parseInt(searchParams.get("page") || "1", 10) || 1, 1), 1000);
     const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "50", 10) || 50, 1), 100);
 
-    const response = await listMilestones({ isAuthed, coupleId, page, limit });
+    const response = await listMilestones({ isAuthed, coupleId, userId: session?.user?.id ?? null, page, limit });
 
     return NextResponse.json(response, {
       headers: { "Cache-Control": "private, no-cache" },
@@ -74,7 +74,7 @@ export async function POST(request: Request) {
         where: {
           id: { in: uniquePhotoIds },
           ...(coupleId
-            ? { OR: [{ coupleId }, { coupleId: null }] }
+            ? { OR: [{ coupleId }, { coupleId: null, uploadedById: session.user.id }] }
             : { coupleId: null, uploadedById: session.user.id }),
         },
         select: { id: true },

@@ -5,6 +5,7 @@ import React from "react";
 import { Lock, Clock, ChevronRight, Trash2 } from "lucide-react";
 import { cn, formatDateTime } from "@/lib/utils";
 import { formatInJakarta } from "@/lib/date";
+import { isLetterLocked } from "@/lib/letter-lock";
 import { LETTER_MOOD_CONFIG } from "@/types";
 import type { LetterListItem } from "@/hooks/useLetters";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui";
@@ -19,11 +20,7 @@ type LetterCardProps = {
 
 function LetterCard({ letter, type, index = 0, baseHref = "/dashboard/letters", onDelete }: LetterCardProps) {
   const mood = LETTER_MOOD_CONFIG[letter.mood as keyof typeof LETTER_MOOD_CONFIG];
-  const isLocked =
-    letter.isTimeCapsule &&
-    letter.unlockAt &&
-    new Date(letter.unlockAt) > new Date() &&
-    !letter.isOpened;
+  const isLocked = isLetterLocked(letter);
   // Both tabs anchor on the author: inbox reads who it's from,
   // sent reads who it's for — avatar is always the sender (you).
   const shown = letter.author;

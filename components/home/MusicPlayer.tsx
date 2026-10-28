@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Music, X } from "lucide-react";
+import { ChevronDown, Music } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type MusicPlayerProps = {
@@ -13,10 +13,15 @@ type MusicPlayerProps = {
 // and back down on close) done in CSS: importing framer-motion for two
 // transitions pulled ~40 KB into the first load of every public page.
 export default function MusicPlayer({ spotifyUrl, onSpotifyPlay }: MusicPlayerProps) {
+  // Once opened, the panel stays mounted forever — collapsing only hides it.
+  // Unmounting would destroy the Spotify iframe and stop playback.
+  const [hasOpened, setHasOpened] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [closing, setClosing] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fabRef = useRef<HTMLButtonElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const wasOpen = useRef(false);
 
   useEffect(() => {
     if (!spotifyUrl) return;
@@ -39,6 +44,13 @@ export default function MusicPlayer({ spotifyUrl, onSpotifyPlay }: MusicPlayerPr
     [],
   );
 
+  // Collapsing makes the panel inert; move focus to the FAB so keyboard users
+  // are not stranded on a control that is no longer reachable.
+  useEffect(() => {
+    if (wasOpen.current && !isOpen) fabRef.current?.focus();
+    wasOpen.current = isOpen;
+  }, [isOpen]);
+
   if (!spotifyUrl) return null;
 
   let embedUrl: string;
@@ -50,9 +62,23 @@ export default function MusicPlayer({ spotifyUrl, onSpotifyPlay }: MusicPlayerPr
     embedUrl = spotifyUrl;
   }
 
-  const close = () => {
+  const open = () => {
+    if (closeTimer.current) {
+      clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+    setHasOpened(true);
+    setClosing(false);
+    setIsOpen(true);
+  };
+
+  // Collapse, never unmount: the Spotify iframe must stay alive so playback
+  // continues. Hiding with display:none or unmounting would stop the music.
+  const collapse = () => {
+    if (!isOpen || closing) return;
     setClosing(true);
     closeTimer.current = setTimeout(() => {
+      closeTimer.current = null;
       setIsOpen(false);
       setClosing(false);
     }, 180);
@@ -61,21 +87,32 @@ export default function MusicPlayer({ spotifyUrl, onSpotifyPlay }: MusicPlayerPr
   return (
     <>
       <button
-        onClick={() => setIsOpen(true)}
+        ref={fabRef}
+        onClick={open}
         className={cn(
           "music-fab fixed bottom-24 right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-shadow hover:shadow-xl lg:bottom-6",
-          isOpen && "hidden",
+          // `invisible` (not `hidden`): display:none would cancel the fab's CSS
+          // animation, so it would replay its 1.5 s intro after every collapse.
+          isOpen && "invisible pointer-events-none",
         )}
-        aria-label="Buka musik"
+        aria-label={hasOpened ? "Tampilkan pemutar musik" : "Buka musik"}
+        aria-expanded={hasOpened ? isOpen : undefined}
+        aria-controls={hasOpened ? "music-player-panel" : undefined}
       >
         <Music className="h-5 w-5" />
       </button>
 
-      {isOpen && (
+      {hasOpened && (
         <div
+          id="music-player-panel"
+          inert={!isOpen}
           className={cn(
             "fixed bottom-24 right-4 z-50 w-[calc(100vw-2rem)] max-w-80 overflow-hidden rounded-2xl border border-border bg-card shadow-xl lg:bottom-6",
-            closing ? "music-panel-exit" : "music-panel-enter",
+            closing
+              ? "music-panel-exit"
+              : isOpen
+                ? "music-panel-enter"
+                : "pointer-events-none translate-y-5 scale-95 opacity-0",
           )}
         >
           <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
@@ -84,11 +121,12 @@ export default function MusicPlayer({ spotifyUrl, onSpotifyPlay }: MusicPlayerPr
               <span className="text-xs font-medium">Our Playlist</span>
             </div>
             <button
-              onClick={close}
+              onClick={collapse}
               className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full p-1 transition-colors hover:bg-muted"
-              aria-label="Tutup musik"
+              aria-label="Sembunyikan pemutar musik"
+              title="Sembunyikan"
             >
-              <X className="h-3.5 w-3.5" />
+              <ChevronDown className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
           <div className="h-[152px]">

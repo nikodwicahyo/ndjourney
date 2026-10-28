@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
-import { submitArcadeScoreSchema } from "@/lib/validations/game";
+import { submitArcadeScoreSchema, ARCADE_MAX_SCORE } from "@/lib/validations/game";
 import { withRateLimit, withAnonymousRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { invalidateCache } from "@/lib/redis";
 import { auth } from "@/lib/auth";
@@ -43,6 +43,15 @@ export async function POST(request: Request) {
     if (JSON.stringify(rawMeta).length > 4000) {
       return NextResponse.json(
         { error: "Metadata terlalu besar (maks 4KB)" },
+        { status: 400 },
+      );
+    }
+    // SEC: arcade score is client-reported; bound it so a tampered client
+    // cannot post an unbeatable value.
+    const maxScore = ARCADE_MAX_SCORE[parsed.data.gameType];
+    if (parsed.data.score > maxScore) {
+      return NextResponse.json(
+        { error: "Skor tidak valid" },
         { status: 400 },
       );
     }

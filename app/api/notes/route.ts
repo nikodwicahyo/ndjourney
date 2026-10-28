@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { NextResponse, after } from "next/server";
 import { auth } from "@/lib/auth";
 import { createNoteSchema } from "@/lib/validations/note";
-import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
+import { withRateLimit, withAnonymousRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { getCached, setCached, invalidateCache, cacheKey } from "@/lib/redis";
 import { batchLoadUsers, toPublicUser } from "@/lib/batch";
 import { jakartaStartOfDay, toJakartaMidnight } from "@/lib/date";
@@ -18,12 +18,29 @@ export async function GET(request: Request) {
     // Privacy fix instead: author emails stripped (matches DailyNoteWithAuthor
     // type {id,name,image}), and logged-in members get a couple-scoped list.
     const session = await auth();
-    const coupleId = session?.user ? await getUserCoupleId(session.user.id) : null;
+
+    // Public feed is scrapable: throttle before any DB read.
+    if (!session?.user) {
+      const rl = await withAnonymousRateLimit(request, {
+        maxRequests: 300,
+        windowSeconds: 3600,
+        keyPrefix: "notes:list",
+      });
+      if (!rl.allowed) return rl.response;
+    }
+
+    let coupleId = session?.user ? await getUserCoupleId(session.user.id) : null;
+    if (!coupleId) {
+      // Scope to the singleton couple instead of an empty filter: a future
+      // multi-couple DB must never serve every couple's notes to visitors.
+      const couple = await prisma.couple.findFirst({ select: { id: true } });
+      coupleId = couple?.id ?? null;
+    }
 
     const { searchParams } = new URL(request.url);
     const dateParam = searchParams.get("date");
 
-    const scopeSegment = coupleId ?? "anon";
+    const scopeSegment = coupleId ?? "none";
     const cacheK = dateParam
       ? cacheKey("notes", scopeSegment, dateParam)
       : cacheKey("notes", scopeSegment, "all");
@@ -34,10 +51,10 @@ export async function GET(request: Request) {
       });
     }
 
-    // members see own couple (+ legacy null rows); visitors keep legacy all.
+    // couple-scoped only — orphan rows are adopted at couple formation.
     const where: Record<string, unknown> = coupleId
-      ? { OR: [{ coupleId }, { coupleId: null }] }
-      : {};
+      ? { coupleId }
+      : { id: "__none__" };
 
     if (dateParam) {
       const start = toJakartaMidnight(dateParam);

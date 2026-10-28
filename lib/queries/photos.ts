@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getCached, setCached, cacheKey } from "@/lib/redis";
 import { jakartaYearStart } from "@/lib/date";
 import { encodeCompositeCursor, decodeCompositeCursor } from "@/lib/utils";
+import { canManageCoupleRow } from "@/lib/couple-ownership";
 
 const CACHE_TTL = 60;
 
@@ -44,10 +45,11 @@ function buildPhotoSelect(alias = "") {
  * server-side hydration — both must stay in lockstep.
  *
  * Visibility rules (do not weaken):
- * - anon OR unpaired: public photos in public-or-no album only
- * - visibility=private: couple rows + own legacy null-couple rows
- * - default authed: couple rows + own legacy null-couple rows
+ * - anon: public photos in public-or-no album only
+ * - authed, unpaired: own rows only (public + private)
  * - visibility=public: same public rule as anon
+ * - visibility=private: couple rows + own pre-pairing rows, private only
+ * - default authed: couple rows + own pre-pairing rows
  */
 export async function listPhotos(
   params: PhotoListParams,
@@ -61,13 +63,13 @@ export async function listPhotos(
   const cached = await getCached<PhotoListResponse>(cacheK);
   if (cached) return cached;
 
-  if (albumId && coupleId && visibility !== "public") {
+  if (albumId && isAuthed && visibility !== "public") {
     // SEC: unvalidated ?albumId= must not enumerate another couple's album.
     const albumOwner = await prisma.album.findUnique({
       where: { id: albumId },
-      select: { id: true, coupleId: true },
+      select: { id: true, coupleId: true, createdById: true },
     });
-    if (!albumOwner || (albumOwner.coupleId !== null && albumOwner.coupleId !== coupleId)) {
+    if (!albumOwner || !canManageCoupleRow(albumOwner, coupleId, userId)) {
       return { data: [], nextCursor: null, hasMore: false, total: 0, fotoTotal: 0, videoTotal: 0 };
     }
   }
@@ -79,23 +81,25 @@ export async function listPhotos(
   // public AND (unfiled OR in a public album). Private context skips the gate.
   // SEC: authed non-public views are couple-scoped; legacy null-couple rows
   // stay visible only to their uploader (matches GET /api/photos/[id]).
-  if (!isAuthed || !coupleId) {
+  if (!isAuthed || visibility === "public") {
     conditions.push(`"isPublic" = true`);
     conditions.push(
       `("albumId" IS NULL OR "albumId" IN (SELECT "id" FROM "Album" WHERE "isPublic" = true))`,
     );
+  } else if (!coupleId) {
+    // Unpaired member: only their own rows, never another user's orphans.
+    conditions.push(`"uploadedById" = $${sqlParams.length + 1}`);
+    sqlParams.push(userId);
+    if (visibility === "private") {
+      conditions.push(`"isPublic" = false`);
+    }
   } else if (visibility === "private") {
     conditions.push(`"isPublic" = false`);
     conditions.push(`("coupleId" = $${sqlParams.length + 1} OR ("coupleId" IS NULL AND "uploadedById" = $${sqlParams.length + 2}))`);
     sqlParams.push(coupleId, userId);
-  } else if (visibility !== "public") {
+  } else {
     conditions.push(`("coupleId" = $${sqlParams.length + 1} OR ("coupleId" IS NULL AND "uploadedById" = $${sqlParams.length + 2}))`);
     sqlParams.push(coupleId, userId);
-  } else {
-    conditions.push(`"isPublic" = true`);
-    conditions.push(
-      `("albumId" IS NULL OR "albumId" IN (SELECT "id" FROM "Album" WHERE "isPublic" = true))`,
-    );
   }
 
   if (albumId) {

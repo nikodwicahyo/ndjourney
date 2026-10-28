@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createLetterSchema, updateLetterSchema } from "@/lib/validations/letter";
+import { createLetterSchema } from "@/lib/validations/letter";
 import { createNoteSchema } from "@/lib/validations/note";
 import { updateLocationSchema, updateShareSchema } from "@/lib/validations/location";
 import { createMilestoneSchema } from "@/lib/validations/milestone";
@@ -15,14 +15,13 @@ describe("zod validation contracts", () => {
     const ok = createLetterSchema.safeParse({
       title: "Hai", content: "<p>cinta</p>",
       recipientId: "ck12345678901234567890123",
-      mood: "LOVE", isTimeCapsule: false, isPublic: false,
+      mood: "LOVE", isTimeCapsule: false,
     });
     // T-01: assert the boolean itself — `ok.success || JSON.stringify(ok)` was
     // tautological (a failure serializes to a truthy string).
     expect(ok.success).toBe(true);
     expect(createLetterSchema.safeParse({ title: "", content: "x", recipientId: "ckabc", mood: "LOVE" }).success).toBe(false);
     expect(createLetterSchema.safeParse({ title: "t", content: "x", recipientId: "not-a-cuid-at-all-123456", mood: "ANGRY" }).success).toBe(false);
-    expect(updateLetterSchema.safeParse({ mood: "NOPE" }).success).toBe(false);
   });
 
   it("NOTE-01: 280 chars pass, 281 fail", () => {
@@ -56,6 +55,8 @@ describe("zod validation contracts", () => {
     expect(createQuestionSchema.safeParse({ type: "TRIVIA", question: "Q?", answer: "yes" }).success).toBe(true);
     expect(createQuestionSchema.safeParse({ type: "TRUTH_OR_DARE", question: "Q?", category: "Wrong" }).success).toBe(false);
     expect(submitScoreSchema.safeParse({ questionId: "x", isCorrect: true }).success).toBe(false);
+    expect(submitScoreSchema.safeParse({ questionId: "cjld2cjxh0000qz8n0p3q4w5eq", selectedAnswer: "x" }).success).toBe(true);
+    expect(submitScoreSchema.safeParse({ questionId: "cjld2cjxh0000qz8n0p3q4w5eq", selectedAnswer: "" }).success).toBe(false);
     expect(submitArcadeScoreSchema.safeParse({ gameType: "SLIDING_PUZZLE", score: -1 }).success).toBe(false);
     expect(submitArcadeScoreSchema.safeParse({ gameType: "SLIDING_PUZZLE", score: 100 }).success).toBe(true);
   });

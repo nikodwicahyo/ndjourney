@@ -65,7 +65,9 @@ export const updateQuestionSchema = z.discriminatedUnion("type", [
 
 export const submitScoreSchema = z.object({
   questionId: z.string().cuid(),
-  isCorrect: z.boolean(),
+  // The client sends what was chosen; the server grades it against the
+  // stored answer. A client-asserted `isCorrect` was forgeable.
+  selectedAnswer: z.string().min(1).max(500),
   playerName: z.string().min(1).max(100).optional(),
 });
 
@@ -75,6 +77,12 @@ export const submitArcadeScoreSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).optional(),
   playerName: z.string().min(1).max(100).optional(),
 });
+
+/** Server-side ceiling per arcade game (score is client-reported). */
+export const ARCADE_MAX_SCORE: Record<SubmitArcadeScoreInput["gameType"], number> = {
+  SLIDING_PUZZLE: 100_000,
+  MEMORY_BLOCK_BLAST: 1_000_000,
+};
 
 export type CreateQuestionInput = z.infer<typeof createQuestionSchema>;
 export type UpdateQuestionInput = z.infer<typeof updateQuestionSchema>;

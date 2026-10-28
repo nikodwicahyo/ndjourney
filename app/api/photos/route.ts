@@ -8,6 +8,7 @@ import { listPhotos, PhotoFilterError } from "@/lib/queries/photos";
 import { PHOTO_PAGE_SIZE } from "@/lib/utils";
 import { isAllowedCloudinaryUrl } from "@/lib/upload-policy";
 import { getUserCoupleId } from "@/lib/couple";
+import { canManageCoupleRow } from "@/lib/couple-ownership";
 import { triggerCoupleEvent } from "@/lib/pusher-server";
 import { UploadVerifyError, verifyUploadForSave } from "@/lib/upload-verify";
 
@@ -111,9 +112,9 @@ export async function POST(request: Request) {
     if (albumId) {
       const album = await prisma.album.findUnique({
         where: { id: albumId },
-        select: { id: true, coupleId: true },
+        select: { id: true, coupleId: true, createdById: true },
       });
-      if (!album || (album.coupleId !== null && album.coupleId !== coupleId)) {
+      if (!album || !canManageCoupleRow(album, coupleId, session.user.id)) {
         return NextResponse.json({ error: "Album tidak ditemukan" }, { status: 400 });
       }
     }

@@ -5,6 +5,7 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
 import { prisma } from "./prisma";
+import type { Prisma } from "./generated/prisma";
 import { getCached, setCached, redis, withRedisTimeout } from "./redis";
 import { safeTokenEqual } from "./api-body";
 
@@ -66,6 +67,29 @@ export async function clearAuthFailures(email: string): Promise<void> {
   }
 }
 
+/**
+ * Attribute pre-pairing rows to the couple the moment it forms.
+ * Scoped by creator so a solo user's rows are never adopted by another couple.
+ * Runs inside the formation transaction — no window where a row is both
+ * orphaned and couple-visible.
+ */
+async function adoptOrphanRows(
+  tx: Prisma.TransactionClient,
+  coupleId: string,
+  userIds: string[],
+) {
+  if (userIds.length === 0) return;
+  const scoped = { coupleId: null };
+  await Promise.all([
+    tx.album.updateMany({ where: { ...scoped, createdById: { in: userIds } }, data: { coupleId } }),
+    tx.wishItem.updateMany({ where: { ...scoped, createdById: { in: userIds } }, data: { coupleId } }),
+    tx.photo.updateMany({ where: { ...scoped, uploadedById: { in: userIds } }, data: { coupleId } }),
+    tx.milestone.updateMany({ where: { ...scoped, createdById: { in: userIds } }, data: { coupleId } }),
+    tx.dailyNote.updateMany({ where: { ...scoped, authorId: { in: userIds } }, data: { coupleId } }),
+    tx.letter.updateMany({ where: { ...scoped, authorId: { in: userIds } }, data: { coupleId } }),
+  ]);
+}
+
 export async function ensureCouple(userId: string): Promise<void> {
   // Pairing state machine — see P1 split-brain fix. Former shape was
   // check-then-act without mutual exclusion: concurrent first-logins both
@@ -122,6 +146,7 @@ export async function ensureCouple(userId: string): Promise<void> {
         } catch (e: unknown) {
           if ((e as { code?: string })?.code !== "P2002") throw e;
         }
+        await adoptOrphanRows(tx, existingCoupleMember.coupleId, [existingCoupleMember.userId, userId]);
         return;
       }
 
@@ -134,6 +159,7 @@ export async function ensureCouple(userId: string): Promise<void> {
           userId: p.id,
         })),
       });
+      await adoptOrphanRows(tx, couple.id, partnerIds);
     });
   } catch (e: unknown) {
     // Lost the race (singleton guard or member conflict): rejoin the winner.

@@ -102,6 +102,16 @@ const nextConfig: NextConfig = {
         },
       ],
     },
+    {
+      // Authenticated HTML must never sit in a shared CDN/browser cache.
+      // Later rules win over the global `public` rule above.
+      source: "/dashboard",
+      headers: [{ key: "Cache-Control", value: "private, no-store" }],
+    },
+    {
+      source: "/dashboard/:path*",
+      headers: [{ key: "Cache-Control", value: "private, no-store" }],
+    },
   ],
 
   experimental: {

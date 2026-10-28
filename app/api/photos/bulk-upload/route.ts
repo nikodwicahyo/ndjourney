@@ -7,6 +7,7 @@ import { invalidateCache } from "@/lib/redis";
 import { triggerCoupleEvent } from "@/lib/pusher-server";
 import { isAllowedCloudinaryUrl, publicIdBelongsToUser } from "@/lib/upload-policy";
 import { verifyUploadForSave } from "@/lib/upload-verify";
+import { canManageCoupleRow } from "@/lib/couple-ownership";
 
 export const runtime = "nodejs";
 
@@ -66,7 +67,7 @@ export async function POST(request: Request) {
     const batchAlbums = batchAlbumIds.length
       ? await prisma.album.findMany({
           where: { id: { in: batchAlbumIds } },
-          select: { id: true, coupleId: true },
+          select: { id: true, coupleId: true, createdById: true },
         })
       : [];
     const batchAlbumById = new Map(batchAlbums.map((a) => [a.id, a]));
@@ -82,7 +83,7 @@ export async function POST(request: Request) {
 
       if (p.albumId) {
         const albumOwner = batchAlbumById.get(p.albumId);
-        if (!albumOwner || (albumOwner.coupleId !== null && albumOwner.coupleId !== coupleId)) {
+        if (!albumOwner || !canManageCoupleRow(albumOwner, coupleId, session.user.id)) {
           failed.push({ publicId: p.publicId, error: "Album tidak ditemukan" });
           continue;
         }

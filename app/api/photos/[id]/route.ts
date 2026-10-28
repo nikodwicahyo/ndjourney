@@ -6,6 +6,7 @@ import { deleteFromCloudinary } from "@/lib/cloudinary";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { getCached, setCached, invalidateCache, cacheKey } from "@/lib/redis";
 import { getUserCoupleId } from "@/lib/couple";
+import { canManageCoupleRow } from "@/lib/couple-ownership";
 import { triggerCoupleEvent } from "@/lib/pusher-server";
 
 const CACHE_TTL_AUTH = 120;
@@ -181,9 +182,9 @@ export async function PUT(
     if (typeof updateData.albumId === "string") {
       const target = await prisma.album.findUnique({
         where: { id: updateData.albumId as string },
-        select: { id: true, coupleId: true },
+        select: { id: true, coupleId: true, createdById: true },
       });
-      if (!target || (target.coupleId !== null && target.coupleId !== callerCoupleId)) {
+      if (!target || !canManageCoupleRow(target, callerCoupleId, userId)) {
         return NextResponse.json({ error: "Album tidak ditemukan" }, { status: 400 });
       }
     }

@@ -80,10 +80,10 @@ export async function GET() {
       birthDate2: Date | null;
     }>>`
       SELECT
-        (SELECT COUNT(*)::int FROM "Photo" WHERE "isVideo" = false AND "isMilestoneOnly" = false AND ("coupleId" = ${coupleId} OR "coupleId" IS NULL)) AS "photoCount",
-        (SELECT COUNT(*)::int FROM "Photo" WHERE "isVideo" = true AND "isMilestoneOnly" = false AND ("coupleId" = ${coupleId} OR "coupleId" IS NULL)) AS "videoCount",
-        (SELECT COUNT(*)::int FROM "Letter" WHERE ("coupleId" = ${coupleId} OR "coupleId" IS NULL)) AS "letterCount",
-        (SELECT COUNT(*)::int FROM "Milestone" WHERE ("coupleId" = ${coupleId} OR "coupleId" IS NULL)) AS "milestoneCount",
+        (SELECT COUNT(*)::int FROM "Photo" WHERE "isVideo" = false AND "isMilestoneOnly" = false AND "coupleId" = ${coupleId}) AS "photoCount",
+        (SELECT COUNT(*)::int FROM "Photo" WHERE "isVideo" = true AND "isMilestoneOnly" = false AND "coupleId" = ${coupleId}) AS "videoCount",
+        (SELECT COUNT(*)::int FROM "Letter" WHERE "coupleId" = ${coupleId}) AS "letterCount",
+        (SELECT COUNT(*)::int FROM "Milestone" WHERE "coupleId" = ${coupleId}) AS "milestoneCount",
         (SELECT "anniversaryDate" FROM "CoupleConfig" LIMIT 1) AS "anniversaryDate",
         (SELECT "birthDate1" FROM "CoupleConfig" LIMIT 1) AS "birthDate1",
         (SELECT "birthDate2" FROM "CoupleConfig" LIMIT 1) AS "birthDate2"

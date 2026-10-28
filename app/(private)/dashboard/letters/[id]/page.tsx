@@ -17,8 +17,9 @@ export default async function LetterDetailPage({
   const { id } = await params;
 
   // Seed react-query server-side so the letter paints with the first HTML.
-  // getLetterDetail applies the same access + time-capsule lock rules as the
-  // API, so locked letters hydrate the same partial payload (no content leak).
+  // getLetterDetail returns the letter payload itself (NOT the API's
+  // `{ data: ... }` envelope) — useLetter reads that same shape. Locked
+  // capsules hydrate the partial payload (no content leak).
   const state = await prefetchServerQueries([async (qc) => {
     const session = await auth();
     if (!session?.user) return;

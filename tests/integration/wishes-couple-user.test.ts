@@ -112,6 +112,26 @@ describe("wishes API contracts", () => {
     expect(foreignDel.status).toBe(404);
     expect(prismaMock.wishItem.delete).not.toHaveBeenCalled();
   });
+
+  it("WISH orphan rows: creator can edit/delete, another member cannot", async () => {
+    prismaMock.wishItem.findUnique.mockResolvedValue({ coupleId: null, createdById: ME, imageUrl: null });
+    prismaMock.wishItem.update.mockResolvedValue({ id: WID, title: "y" });
+    const own = await wishById.PUT(new Request("http://localhost/api/wishes/x", {
+      method: "PUT", body: JSON.stringify({ title: "y" }),
+    }), { params: Promise.resolve({ id: WID }) });
+    expect(own.status).toBe(200);
+
+    // SEC: a null-couple row used to be writable by ANY authenticated user.
+    prismaMock.wishItem.findUnique.mockResolvedValue({ coupleId: null, createdById: "someone-else", imageUrl: null });
+    const foreign = await wishById.PUT(new Request("http://localhost/api/wishes/x", {
+      method: "PUT", body: JSON.stringify({ title: "Hijack" }),
+    }), { params: Promise.resolve({ id: WID }) });
+    expect(foreign.status).toBe(404);
+
+    const foreignDel = await wishById.DELETE(new Request("http://localhost/api/wishes/x", { method: "DELETE" }), { params: Promise.resolve({ id: WID }) });
+    expect(foreignDel.status).toBe(404);
+    expect(prismaMock.wishItem.delete).not.toHaveBeenCalled();
+  });
 });
 
 describe("couple / user / partner / notes-delete contracts", () => {

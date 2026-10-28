@@ -4,6 +4,7 @@ import { updateAlbumSchema } from "@/lib/validations/photo";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { invalidateCache } from "@/lib/redis";
 import { getUserCoupleId } from "@/lib/couple";
+import { canManageCoupleRow } from "@/lib/couple-ownership";
 import { triggerCoupleEvent } from "@/lib/pusher-server";
 
 export async function PUT(
@@ -21,13 +22,13 @@ export async function PUT(
     if (body == null) return NextResponse.json({ error: "Body JSON tidak valid" }, { status: 400 });
     const parsed = updateAlbumSchema.safeParse(body);
 
-    // ownership gate — legacy albums have null coupleId (lenient).
+    // ownership gate — couple rows: this couple only. Orphan rows: creator only.
     const albumOwner = await prisma.album.findUnique({
       where: { id },
-      select: { coupleId: true },
+      select: { coupleId: true, createdById: true },
     });
     const editorCoupleId = await getUserCoupleId(rateCheck.session.user.id);
-    if (!albumOwner || (albumOwner.coupleId !== null && albumOwner.coupleId !== editorCoupleId)) {
+    if (!albumOwner || !canManageCoupleRow(albumOwner, editorCoupleId, rateCheck.session.user.id)) {
       return NextResponse.json({ error: "Album tidak ditemukan" }, { status: 404 });
     }
 
@@ -97,10 +98,10 @@ export async function DELETE(
     // ownership gate (see PUT above).
     const doomed = await prisma.album.findUnique({
       where: { id },
-      select: { coupleId: true },
+      select: { coupleId: true, createdById: true },
     });
     const deleterCoupleId = await getUserCoupleId(rateCheck.session.user.id);
-    if (!doomed || (doomed.coupleId !== null && doomed.coupleId !== deleterCoupleId)) {
+    if (!doomed || !canManageCoupleRow(doomed, deleterCoupleId, rateCheck.session.user.id)) {
       return NextResponse.json({ error: "Album tidak ditemukan" }, { status: 404 });
     }
 

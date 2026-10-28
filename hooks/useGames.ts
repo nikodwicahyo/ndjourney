@@ -143,27 +143,33 @@ export function useQuestionDeck(type: GameType, batchSize: number) {
   };
 }
 
+export type SubmitScoreResult = {
+  data: unknown;
+  correct: boolean;
+  answer: string | null;
+};
+
 export function useSubmitScore() {
   const qc = useQueryClient();
 
   return useMutation({
     mutationFn: async ({
       questionId,
-      isCorrect,
+      selectedAnswer,
       playerName,
     }: {
       questionId: string;
-      isCorrect: boolean;
+      selectedAnswer: string;
       playerName?: string;
-    }) => {
+    }): Promise<SubmitScoreResult> => {
       const res = await fetch("/api/games/score", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ questionId, isCorrect, playerName }),
+        body: JSON.stringify({ questionId, selectedAnswer, playerName }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Gagal mengirim skor");
-      return json.data;
+      return json as SubmitScoreResult;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.games.leaderboard() });

@@ -54,31 +54,27 @@ export async function GET(
       );
     }
 
-    // authed callers may only read own couple's milestones (legacy null = shared
-    // for paired members; unpaired callers only see their own or public rows).
+    // authed callers may only read own couple's milestones. Orphan rows are
+    // creator-scoped (other callers get the public view, never private photos).
     const callerCoupleId = session?.user ? await getUserCoupleId(session.user.id) : null;
     let canSeePrivatePhotos = false;
     if (isAuthed) {
       const ownerCoupleId = (milestone as { coupleId?: string | null }).coupleId ?? null;
-      if (ownerCoupleId !== null && ownerCoupleId !== callerCoupleId) {
+      const isCreator = milestone.createdById === session?.user?.id;
+      if (ownerCoupleId !== null) {
+        if (ownerCoupleId !== callerCoupleId) {
+          return NextResponse.json(
+            { error: "Milestone tidak ditemukan" },
+            { status: 404 },
+          );
+        }
+      } else if (!isCreator && !milestone.isPublic) {
         return NextResponse.json(
           { error: "Milestone tidak ditemukan" },
           { status: 404 },
         );
       }
-      if (
-        ownerCoupleId === null &&
-        callerCoupleId === null &&
-        milestone.createdById !== session?.user?.id &&
-        !milestone.isPublic
-      ) {
-        return NextResponse.json(
-          { error: "Milestone tidak ditemukan" },
-          { status: 404 },
-        );
-      }
-      canSeePrivatePhotos =
-        callerCoupleId !== null || milestone.createdById === session?.user?.id;
+      canSeePrivatePhotos = isCreator || (ownerCoupleId !== null && ownerCoupleId === callerCoupleId);
     }
 
     const [user, photos] = await Promise.all([
@@ -182,7 +178,7 @@ export async function PUT(
         where: {
           id: { in: uniquePhotoIds },
           ...(callerCoupleId
-            ? { OR: [{ coupleId: callerCoupleId }, { coupleId: null }] }
+            ? { OR: [{ coupleId: callerCoupleId }, { coupleId: null, uploadedById: session.user.id }] }
             : { coupleId: null, uploadedById: session.user.id }),
         },
         select: { id: true },

@@ -7,6 +7,7 @@ import { invalidateCache } from "@/lib/redis";
 import { deleteFromCloudinaryUrl } from "@/lib/cloudinary";
 import { cloudinaryAssetFromUrl } from "@/lib/cloudinary-urls";
 import { getCoupleMemberIds, getUserCoupleId } from "@/lib/couple";
+import { canManageCoupleRow } from "@/lib/couple-ownership";
 import { triggerCoupleEvent } from "@/lib/pusher-server";
 
 export async function PUT(
@@ -24,16 +25,16 @@ export async function PUT(
     if (body == null) return NextResponse.json({ error: "Body JSON tidak valid" }, { status: 400 });
     const parsed = updateWishSchema.safeParse(body);
 
-    // ownership gate — legacy rows have null coupleId (lenient), new rows are scoped.
+    // ownership gate — couple rows: this couple only. Orphan rows: creator only.
     // P-04: single row read serves gate + old-image cleanup (was 2 serial findUniques).
     const [owner, callerCoupleId] = await Promise.all([
       prisma.wishItem.findUnique({
         where: { id },
-        select: { coupleId: true, imageUrl: true },
+        select: { coupleId: true, createdById: true, imageUrl: true },
       }),
       getUserCoupleId(rateCheck.session.user.id),
     ]);
-    if (!owner || (owner.coupleId !== null && owner.coupleId !== callerCoupleId)) {
+    if (!owner || !canManageCoupleRow(owner, callerCoupleId, rateCheck.session.user.id)) {
       return NextResponse.json({ error: "Wish tidak ditemukan" }, { status: 404 });
     }
 
@@ -132,11 +133,11 @@ export async function DELETE(
     const [target, deleterCoupleId] = await Promise.all([
       prisma.wishItem.findUnique({
         where: { id },
-        select: { coupleId: true, imageUrl: true },
+        select: { coupleId: true, createdById: true, imageUrl: true },
       }),
       getUserCoupleId(rateCheck.session.user.id),
     ]);
-    if (!target || (target.coupleId !== null && target.coupleId !== deleterCoupleId)) {
+    if (!target || !canManageCoupleRow(target, deleterCoupleId, rateCheck.session.user.id)) {
       return NextResponse.json({ error: "Wish tidak ditemukan" }, { status: 404 });
     }
 

@@ -22,15 +22,29 @@ export async function GET(request: Request) {
     }
 
     let randomOpts: { count: number; excludeIds: string[]; answeredBy?: string } | null = null;
+    const wantsAnswers = searchParams.get("includeAnswer") === "1";
+    const session = random || wantsAnswers ? await auth() : null;
+
     if (random) {
       const count = Math.min(Math.max(parseInt(random) || 10, 1), 50);
-      const session = await auth();
       const excludeParam = searchParams.get("exclude");
       const excludeIds = excludeParam ? excludeParam.split(",").filter(Boolean) : [];
       randomOpts = { count, excludeIds, answeredBy: session?.user?.id };
     }
 
-    const response = await listGameQuestions({ type, category, sort, limit, random: randomOpts });
+    // SEC: the answer key is for the dashboard CRUD view only. Anonymous and
+    // unscoped callers get the public shape; grading happens server-side.
+    const includeAnswer =
+      wantsAnswers && !!session?.user?.id && !!(await getUserCoupleId(session.user.id));
+
+    const response = await listGameQuestions({
+      type,
+      category,
+      sort,
+      limit,
+      includeAnswer,
+      random: randomOpts,
+    });
 
     return NextResponse.json(response, {
       headers: { "Cache-Control": "private, no-cache" },

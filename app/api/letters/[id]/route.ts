@@ -27,7 +27,8 @@ export async function GET(
       return NextResponse.json({ error: "Kamu tidak punya akses untuk melihat surat ini" }, { status: 403 });
     }
 
-    return NextResponse.json(result.data, {
+    // HTTP envelope only — getLetterDetail returns the letter payload itself.
+    return NextResponse.json({ data: result.data }, {
       headers: { "Cache-Control": "private, no-cache" },
     });
   } catch (error) {

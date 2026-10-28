@@ -39,7 +39,8 @@ type PrismaWish = {
 };
 
 /**
- * Couple-scoped wish list (shared rows with coupleId null are included).
+ * Couple-scoped wish list. Orphan rows are adopted at couple formation, so
+ * they are never treated as globally shared.
  * Single source for GET /api/wishes and the dashboard wishlist page's
  * server-side hydration — both must stay in lockstep.
  */
@@ -48,7 +49,7 @@ export async function listWishes(coupleId: string, page = 1, limit = 50): Promis
   const cached = await getCached<WishListResponse>(cacheK);
   if (cached) return cached;
 
-  const where = { OR: [{ coupleId }, { coupleId: null }] };
+  const where = { coupleId };
 
   const [wishes, total] = await Promise.all([
     prisma.wishItem.findMany({

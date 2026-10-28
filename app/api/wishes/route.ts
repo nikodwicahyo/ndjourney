@@ -61,7 +61,7 @@ export async function POST(request: Request) {
     // omit null crop on create (DB default is NULL; Json fields reject plain null).
     const { imageCrop, ...rest } = parsed.data;
     const wish = await prisma.wishItem.create({
-      data: { ...rest, ...(imageCrop ? { imageCrop } : {}), coupleId: wishCoupleId },
+      data: { ...rest, ...(imageCrop ? { imageCrop } : {}), coupleId: wishCoupleId, createdById: userId },
     });
 
     await invalidateCache("wishes:*");

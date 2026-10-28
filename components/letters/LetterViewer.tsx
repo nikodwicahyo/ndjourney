@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLetter, useOpenLetter } from "@/hooks/useLetters";
 import type { LetterWithUsers } from "@/hooks/useLetters";
 import { formatDateTime, formatRelativeTime } from "@/lib/utils";
+import { isLetterLocked } from "@/lib/letter-lock";
 import { useSession } from "next-auth/react";
 
 import { LETTER_MOOD_CONFIG } from "@/types";
@@ -20,6 +21,20 @@ type LetterViewerProps = {
   backHref?: string;
 };
 
+function LetterNotFound({ backHref }: { backHref: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 text-center">
+      <p className="text-destructive">Surat tidak ditemukan</p>
+      <BackLink
+        href={backHref}
+        className="mt-2 inline-flex items-center gap-2 rounded-full border border-border bg-transparent px-6 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+      >
+        Kembali
+      </BackLink>
+    </div>
+  );
+}
+
 export default function LetterViewer({ id, backHref = "/dashboard/letters" }: LetterViewerProps) {
   const { data: letter, isLoading, error } = useLetter(id);
   const { data: session, status: sessionStatus } = useSession();
@@ -29,11 +44,13 @@ export default function LetterViewer({ id, backHref = "/dashboard/letters" }: Le
 
   const [sanitizedContent, setSanitizedContent] = useState("");
 
-  // Locked capsules arrive as a partial payload (no content/recipient) —
-  // narrow via explicit casts: Prisma model types carry index signatures,
-  // so `"content" in letter` does not discriminate the union.
-  const asFull = letter as Partial<LetterWithUsers> | null;
-  const fullLetter = letter && asFull?.content !== undefined ? (letter as LetterWithUsers) : null;
+  // A full letter always carries content; a locked capsule never does. Lock
+  // state itself comes from the canonical rule — never from missing content.
+  const fullLetter =
+    letter && typeof (letter as Partial<LetterWithUsers>).content === "string"
+      ? (letter as LetterWithUsers)
+      : null;
+  const isLocked = !!letter && isLetterLocked(letter);
 
   // Derived on the client so the route page has no server-side auth/DB wait —
   // that wait is what made loading.tsx and LetterViewer render two skeletons.
@@ -55,19 +72,6 @@ export default function LetterViewer({ id, backHref = "/dashboard/letters" }: Le
       );
     });
   }, [fullLetter?.content]);
-
-  // A locked capsule arrives as the partial payload (no content) — that alone
-  // means locked; otherwise evaluate the time condition on the full letter.
-  const isLocked =
-    !!letter &&
-    (asFull?.content === undefined
-      ? true
-      : !!(
-          asFull.isTimeCapsule &&
-          asFull.unlockAt &&
-          new Date(asFull.unlockAt) > new Date() &&
-          !asFull.isOpened
-        ));
 
   async function handleOpen() {
     setIsOpening(true);
@@ -93,27 +97,13 @@ export default function LetterViewer({ id, backHref = "/dashboard/letters" }: Le
   }
 
   if (error || !letter) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <p className="text-destructive">Surat tidak ditemukan</p>
-        <BackLink
-          href={backHref}
-          className="mt-2 inline-flex items-center gap-2 rounded-full border border-border bg-transparent px-6 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
-        >
-          Kembali
-        </BackLink>
-      </div>
-    );
+    return <LetterNotFound backHref={backHref} />;
   }
 
-  const mood = fullLetter?.mood
-    ? LETTER_MOOD_CONFIG[fullLetter.mood as keyof typeof LETTER_MOOD_CONFIG]
-    : null;
-
-  if (isLocked) {
+  if (isLocked && letter.unlockAt) {
     return (
       <TimeCapsuleLock
-        unlockAt={letter.unlockAt ? new Date(letter.unlockAt).toISOString() : new Date().toISOString()}
+        unlockAt={letter.unlockAt}
         title={letter.title}
         senderName={letter.author?.name || "Pasangan"}
         senderImage={letter.author?.image ?? null}
@@ -122,10 +112,15 @@ export default function LetterViewer({ id, backHref = "/dashboard/letters" }: Le
     );
   }
 
-  // Locked capsules return above — below is always the full letter.
+  // Locked capsules return above. A payload that is neither locked nor full is
+  // corrupt/legacy — show "not found" instead of pretending it is a capsule.
   if (!fullLetter) {
-    return null;
+    return <LetterNotFound backHref={backHref} />;
   }
+
+  const mood = fullLetter.mood
+    ? LETTER_MOOD_CONFIG[fullLetter.mood as keyof typeof LETTER_MOOD_CONFIG]
+    : null;
 
   const showUnlockAnimation = isRecipient && !fullLetter.isOpened && !opened;
 

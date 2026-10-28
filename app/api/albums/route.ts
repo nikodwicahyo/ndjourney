@@ -21,7 +21,9 @@ export async function GET(request: Request) {
     const wantPublic = !isAuthed || visibility === "public";
     const coupleId = session?.user ? await getUserCoupleId(session.user.id) : null;
 
-    const cacheK = cacheKey("albums", "list", isAuthed ? "auth" : "public", coupleId ?? "nocouple", visibility ?? "all");
+    // Solo members get a per-user cache scope (their orphan rows are private).
+    const scopeId = coupleId ?? session?.user?.id ?? "anon";
+    const cacheK = cacheKey("albums", "list", isAuthed ? "auth" : "public", scopeId, visibility ?? "all");
     const cached = await getCached<unknown>(cacheK);
     if (cached) {
       return NextResponse.json(cached, {
@@ -40,7 +42,7 @@ export async function GET(request: Request) {
       photoCount: bigint;
     };
 
-    const rows = wantPublic || !coupleId
+    const rows = wantPublic
       ? await prisma.$queryRaw<AlbumRow[]>`
           SELECT
             a.id, a.name, a.description, a."coverPhotoUrl", a."isPublic", a."createdAt", a."updatedAt",
@@ -51,13 +53,24 @@ export async function GET(request: Request) {
           GROUP BY a.id
           ORDER BY a."createdAt" DESC
         `
-      : await prisma.$queryRaw<AlbumRow[]>`
+      : coupleId
+        ? await prisma.$queryRaw<AlbumRow[]>`
           SELECT
             a.id, a.name, a.description, a."coverPhotoUrl", a."isPublic", a."createdAt", a."updatedAt",
             COUNT(p.id)::int AS "photoCount"
           FROM "Album" a
           LEFT JOIN "Photo" p ON p."albumId" = a.id
-          WHERE (a."coupleId" = ${coupleId} OR a."coupleId" IS NULL)
+          WHERE (a."coupleId" = ${coupleId} OR (a."coupleId" IS NULL AND a."createdById" = ${session!.user.id}))
+          GROUP BY a.id
+          ORDER BY a."createdAt" DESC
+        `
+        : await prisma.$queryRaw<AlbumRow[]>`
+          SELECT
+            a.id, a.name, a.description, a."coverPhotoUrl", a."isPublic", a."createdAt", a."updatedAt",
+            COUNT(p.id)::int AS "photoCount"
+          FROM "Album" a
+          LEFT JOIN "Photo" p ON p."albumId" = a.id
+          WHERE (a."coupleId" IS NULL AND a."createdById" = ${session!.user.id})
           GROUP BY a.id
           ORDER BY a."createdAt" DESC
         `;
@@ -123,7 +136,7 @@ export async function POST(request: Request) {
     const creatorCoupleId = await getUserCoupleId(userId);
 
     const album = await prisma.album.create({
-      data: { ...parsed.data, coupleId: creatorCoupleId },
+      data: { ...parsed.data, coupleId: creatorCoupleId, createdById: userId },
       select: {
         id: true,
         name: true,

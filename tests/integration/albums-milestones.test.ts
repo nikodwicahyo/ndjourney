@@ -98,6 +98,18 @@ describe("albums API contracts", () => {
     expect(foreign.status).toBe(404);
     expect(prismaMock.$transaction).toHaveBeenCalledOnce();
   });
+
+  it("albums/[id] orphan rows: creator can edit, another member cannot", async () => {
+    prismaMock.album.findUnique.mockResolvedValue({ coupleId: null, createdById: ME });
+    prismaMock.album.update.mockResolvedValue({ id: "a1", name: "New" });
+    const own = await albumById.PUT(new Request("http://localhost/api/albums/a1", { method: "PUT", body: JSON.stringify({ name: "New" }) }), { params: Promise.resolve({ id: "a1" }) });
+    expect(own.status).toBe(200);
+
+    // SEC: a null-couple row used to be editable by ANY authenticated user.
+    prismaMock.album.findUnique.mockResolvedValue({ coupleId: null, createdById: "someone-else" });
+    const foreign = await albumById.PUT(new Request("http://localhost/api/albums/a1", { method: "PUT", body: JSON.stringify({ name: "Hijack" }) }), { params: Promise.resolve({ id: "a1" }) });
+    expect(foreign.status).toBe(404);
+  });
 });
 
 describe("milestones API contracts", () => {
@@ -276,6 +288,14 @@ describe("milestones API contracts", () => {
     expect(res.status).toBe(404);
   });
 
+  it("milestones/[id] GET: a coupled member cannot read another creator's private orphan row", async () => {
+    prismaMock.milestone.findUnique.mockResolvedValue({
+      id: "m1", createdById: "someone-else", isPublic: false, coupleId: null,
+    });
+    const res = await milestoneById.GET(new Request("http://localhost/api/milestones/m1"), { params: Promise.resolve({ id: "m1" }) });
+    expect(res.status).toBe(404);
+  });
+
   it("milestones/[id] GET: unpaired caller gets public-only photos on a public null-couple row", async () => {
     const { getUserCoupleId } = await import("@/lib/couple");
     vi.mocked(getUserCoupleId).mockResolvedValueOnce(null);
@@ -298,7 +318,7 @@ describe("milestones API contracts", () => {
     vi.mocked(getUserCoupleId).mockResolvedValueOnce(null);
     prismaMock.milestone.findMany.mockResolvedValue([{
       id: "m1", title: "T", description: null, date: new Date(), icon: null,
-      color: null, location: null, isPublic: true, createdById: ME,
+      color: null, location: null, isPublic: true, createdById: "someone-else",
       createdAt: new Date(), updatedAt: new Date(),
     }]);
     prismaMock.milestone.count.mockResolvedValue(1);
@@ -306,7 +326,9 @@ describe("milestones API contracts", () => {
     const res = await milestones.GET(new Request("http://localhost/api/milestones"));
     expect(res.status).toBe(200);
     expect(prismaMock.milestonePhoto.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ photo: expect.anything() }),
+      where: expect.objectContaining({
+        OR: expect.arrayContaining([expect.objectContaining({ photo: expect.anything() })]),
+      }),
     }));
   });
 

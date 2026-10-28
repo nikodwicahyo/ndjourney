@@ -5,6 +5,7 @@ import { sendEmail, letterNotificationHtml, safeAppUrl } from "@/lib/email";
 import { invalidateCache } from "@/lib/redis";
 import { getUserCoupleId } from "@/lib/couple";
 import { triggerCoupleEvent } from "@/lib/pusher-server";
+import { isLetterLocked } from "@/lib/letter-lock";
 
 
 export async function PUT(
@@ -38,7 +39,7 @@ export async function PUT(
       return NextResponse.json({ error: "Surat ini sudah dibuka" }, { status: 400 });
     }
 
-    if (letter.isTimeCapsule && letter.unlockAt && letter.unlockAt > new Date()) {
+    if (isLetterLocked(letter)) {
       return NextResponse.json(
         { error: "Time capsule masih terkunci sampai waktu yang ditentukan" },
         { status: 423 },

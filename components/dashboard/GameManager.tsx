@@ -49,7 +49,7 @@ export default function GameManager() {
   const { data: allQuestions, isLoading } = useQuery({
     queryKey: ["games", "questions", "all", sortOrder] as const,
     queryFn: async () => {
-      const res = await fetch(`/api/games/questions?limit=2000&sort=${sortOrder}`, {
+      const res = await fetch(`/api/games/questions?limit=2000&sort=${sortOrder}&includeAnswer=1`, {
         cache: "no-cache",
       });
       const json = await res.json();

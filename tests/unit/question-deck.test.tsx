@@ -25,6 +25,12 @@ const q = (id: string, n: number) => ({
 function mockBank() {
   const fetchMock = vi.fn(async (url: string) => {
     const u = String(url);
+    if (u.includes("/api/games/score")) {
+      return {
+        ok: true,
+        json: async () => ({ data: { id: "s1" }, correct: true, answer: "A" }),
+      };
+    }
     const second = u.includes("exclude=");
     return {
       ok: true,
@@ -38,13 +44,19 @@ function mockBank() {
   return fetchMock;
 }
 
+function questionCalls(fetchMock: ReturnType<typeof vi.fn>) {
+  return fetchMock.mock.calls
+    .map((c) => String(c[0] ?? ""))
+    .filter((u) => u.includes("/api/games/questions"));
+}
+
 function renderGame() {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   render(
     <QueryClientProvider client={qc}>
-      <WouldYouRather disableScoreSubmit />
+      <WouldYouRather />
     </QueryClientProvider>,
   );
 }
@@ -68,7 +80,7 @@ describe("WouldYouRather no-repeat deck", () => {
       await screen.findByText("Pertanyaan 4?", undefined, { timeout: 5000 });
 
       expect(fetchMock).toHaveBeenCalledTimes(2);
-      const secondUrl = String(fetchMock.mock.calls[1]?.[0] ?? "");
+      const secondUrl = questionCalls(fetchMock)[1] ?? "";
       expect(secondUrl).toContain("exclude=");
       for (const id of ["q1", "q2", "q3"]) {
         expect(secondUrl).toContain(id);
@@ -93,7 +105,7 @@ describe("WouldYouRather no-repeat deck", () => {
       fireEvent.click(screen.getByRole("button", { name: "Main Lagi" }));
       await screen.findByText("Pertanyaan 4?", undefined, { timeout: 5000 });
 
-      const secondUrl = String(fetchMock.mock.calls[1]?.[0] ?? "");
+      const secondUrl = questionCalls(fetchMock)[1] ?? "";
       for (const id of ["q1", "q2", "q3"]) {
         expect(secondUrl).toContain(id);
       }
@@ -117,9 +129,9 @@ describe("WouldYouRather no-repeat deck", () => {
       renderGame();
       await screen.findByText("Pertanyaan 4?", undefined, { timeout: 5000 });
 
-      const calls = fetchMock.mock.calls;
+      const calls = questionCalls(fetchMock);
       expect(calls.length).toBeGreaterThanOrEqual(2);
-      const restartUrl = String(calls[calls.length - 1]?.[0] ?? "");
+      const restartUrl = calls[calls.length - 1] ?? "";
       expect(restartUrl).toContain("exclude=");
       expect(restartUrl).toContain("q1");
       expect(screen.queryByText("Pertanyaan 1?")).toBeNull();

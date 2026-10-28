@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import { fetchJsonList } from "@/lib/fetch-json";
+import { isLetterLocked } from "@/lib/letter-lock";
 import type { Letter, User, LetterMood } from "@/types";
 
 export type LetterWithUsers = Letter & {
@@ -17,7 +18,7 @@ export type LetterWithUsers = Letter & {
 export type LetterListItem = Omit<LetterWithUsers, "content">;
 export type LockedLetter = Pick<
   Letter,
-  "id" | "title" | "isTimeCapsule" | "unlockAt" | "mood" | "createdAt"
+  "id" | "title" | "isTimeCapsule" | "unlockAt" | "isOpened" | "mood" | "createdAt"
 > & {
   author: Pick<User, "id" | "name" | "image">;
 };
@@ -32,7 +33,6 @@ export type CreateLetterInput = {
   mood: LetterMood;
   isTimeCapsule?: boolean;
   unlockAt?: string | null;
-  isPublic?: boolean;
 };
 
 export const letterKeys = queryKeys.letters;
@@ -108,6 +108,14 @@ export function useLetter(id: string) {
     },
     enabled: !!id,
     staleTime: 60_000,
+    // A locked capsule must open on screen the moment its time arrives. Wake at
+    // the unlock instant; the hourly cap keeps very distant capsules cheap.
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data || !data.unlockAt || !isLetterLocked(data)) return false;
+      const remaining = new Date(data.unlockAt).getTime() - Date.now();
+      return remaining <= 0 ? false : Math.min(remaining + 1_000, 60 * 60 * 1_000);
+    },
   });
 }
 

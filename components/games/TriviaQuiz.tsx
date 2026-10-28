@@ -9,30 +9,30 @@ import { Brain, RefreshCw, Check, X, ArrowRight } from "lucide-react";
 const BATCH_SIZE = 10;
 
 type TriviaQuizProps = {
-  disableScoreSubmit?: boolean;
   playerName?: string;
 };
 
-export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: TriviaQuizProps) {
+export default function TriviaQuiz({ playerName }: TriviaQuizProps) {
   const deck = useQuestionDeck("TRIVIA", BATCH_SIZE);
   const { isLoading, error, refetch } = deck;
   const submitScore = useSubmitScore();
   const [currentIdx, setCurrentIdx] = useState(0);
   const [userAnswer, setUserAnswer] = useState("");
-  const [revealed, setRevealed] = useState(false);
+  const [reveal, setReveal] = useState<{ correct: boolean; answer: string | null } | null>(null);
+  const [checking, setChecking] = useState(false);
   const [score, setScore] = useState(0);
   const [finished, setFinished] = useState(false);
   const [results, setResults] = useState<Array<{ question: string; correct: boolean }>>([]);
   const submittedRef = useRef<{ set: Set<string>, dataset: string }>({ set: new Set<string>(), dataset: '' });
-  const { set: submittedSet, dataset } = submittedRef.current;
+  const { set: submittedSet } = submittedRef.current;
 
   const batch = deck.batch;
   const totalQuestions = deck.total;
   const current = batch[currentIdx];
 
   function handleInputKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Enter" && userAnswer.trim() && !revealed) {
-      revealAnswer();
+    if (e.key === "Enter" && userAnswer.trim() && !reveal && !checking) {
+      void revealAnswer();
     }
   }
 
@@ -113,33 +113,32 @@ export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: T
   }
 
   async function revealAnswer() {
-    if (!current) return;
-    setRevealed(true);
-    const isCorrect =
-      current.answer?.toLowerCase() === "none" ||
-      userAnswer.toLowerCase().trim() === current.answer?.toLowerCase().trim();
+    if (!current || reveal || checking) return;
+    setChecking(true);
 
-    if (isCorrect) setScore((s) => s + 1);
+    // SEC: correctness is graded server-side; the answer key never ships to
+    // the public bundle. The POST also records the first attempt.
+    let result: { correct: boolean; answer: string | null } = { correct: false, answer: null };
+    deck.markAnswered(current.id);
+    submittedSet.add(current.id);
+    try {
+      const res = await submitScore.mutateAsync({
+        questionId: current.id,
+        selectedAnswer: userAnswer,
+        playerName,
+      });
+      result = { correct: res.correct, answer: res.answer };
+    } catch {
+      // Network/validation failure: show a neutral result, never a false pass.
+    }
 
+    setReveal(result);
+    if (result.correct) setScore((s) => s + 1);
     setResults((prev) => [
       ...prev,
-      { question: current.question, correct: isCorrect },
+      { question: current.question, correct: result.correct },
     ]);
-
-    // First attempts submit; repeats skip the POST (see WouldYouRather).
-    const fresh = deck.markAnswered(current.id);
-    if (fresh && !disableScoreSubmit && !submittedSet.has(current.id)) {
-      submittedSet.add(current.id);
-      try {
-        await submitScore.mutateAsync({
-          questionId: current.id,
-          isCorrect,
-          playerName,
-        });
-      } catch {
-        // silent
-      }
-    }
+    setChecking(false);
   }
 
   function next() {
@@ -147,7 +146,7 @@ export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: T
     if (currentIdx < batch.length - 1) {
       setCurrentIdx((i) => i + 1);
       setUserAnswer("");
-      setRevealed(false);
+      setReveal(null);
     } else {
       setFinished(true);
     }
@@ -163,7 +162,8 @@ export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: T
     setCurrentIdx(0);
     setResults([]);
     setUserAnswer("");
-    setRevealed(false);
+    setReveal(null);
+    setChecking(false);
     deck.restart(batch.map((q) => q.id));
   }
 
@@ -209,25 +209,7 @@ export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: T
         )}
       </motion.div>
 
-      {!revealed ? (
-        <div className="space-y-4">
-          <input
-            value={userAnswer}
-            onChange={(e) => setUserAnswer(e.target.value)}
-            onKeyDown={handleInputKeyDown}
-            placeholder="Ketik jawabanmu..."
-            className="flex h-12 w-full rounded-xl border border-input bg-card px-4 text-center text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            autoFocus
-          />
-          <Button
-            className="w-full"
-            disabled={!userAnswer.trim()}
-            onClick={revealAnswer}
-          >
-            Lihat Jawaban
-          </Button>
-        </div>
-      ) : (
+      {reveal ? (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -235,27 +217,25 @@ export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: T
         >
           <div
             role="status"
-            aria-label={current.answer?.toLowerCase() === "none" || userAnswer.toLowerCase().trim() === current.answer?.toLowerCase().trim() ? "Jawaban benar" : "Jawaban salah"}
+            aria-label={reveal.correct ? "Jawaban benar" : "Jawaban salah"}
             className={`rounded-2xl border-2 p-6 ${
-              current.answer?.toLowerCase() === "none"
+              reveal.correct
                 ? "border-green-500/30 bg-green-500/5"
-                : userAnswer.toLowerCase().trim() === current.answer?.toLowerCase().trim()
-                  ? "border-green-500/30 bg-green-500/5"
-                  : "border-red-500/30 bg-red-500/5"
+                : "border-red-500/30 bg-red-500/5"
             }`}
           >
-            <p className={`text-xs font-semibold ${current.answer?.toLowerCase() === "none" || userAnswer.toLowerCase().trim() === current.answer?.toLowerCase().trim() ? "text-green-600" : "text-red-600"}`}>
-              {current.answer?.toLowerCase() === "none" || userAnswer.toLowerCase().trim() === current.answer?.toLowerCase().trim() ? "✓ Benar" : "✗ Salah"}
+            <p className={`text-xs font-semibold ${reveal.correct ? "text-green-600" : "text-red-600"}`}>
+              {reveal.correct ? "✓ Benar" : "✗ Salah"}
             </p>
             <p className="text-sm text-muted-foreground">Jawaban kamu:</p>
             <p className="mt-1 font-medium">{userAnswer}</p>
-            {current.answer?.toLowerCase() !== "none" && (
+            {reveal.answer !== null && reveal.answer.toLowerCase() !== "none" && (
               <>
                 <p className="mt-3 text-sm text-muted-foreground">Jawaban sebenarnya:</p>
-                <p className="mt-1 font-medium text-primary">{current.answer}</p>
+                <p className="mt-1 font-medium text-primary">{reveal.answer}</p>
               </>
             )}
-            {current.answer?.toLowerCase() === "none" && (
+            {reveal.answer?.toLowerCase() === "none" && (
               <p className="mt-3 text-xs text-muted-foreground">
                 Tidak ada jawaban benar — diskusikan dengan pasanganmu!
               </p>
@@ -267,6 +247,25 @@ export default function TriviaQuiz({ disableScoreSubmit = false, playerName }: T
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Button>
         </motion.div>
+      ) : (
+        <div className="space-y-4">
+          <input
+            value={userAnswer}
+            onChange={(e) => setUserAnswer(e.target.value)}
+            onKeyDown={handleInputKeyDown}
+            placeholder="Ketik jawabanmu..."
+            className="flex h-12 w-full rounded-xl border border-input bg-card px-4 text-center text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            autoFocus
+            disabled={checking}
+          />
+          <Button
+            className="w-full"
+            disabled={!userAnswer.trim() || checking}
+            onClick={() => void revealAnswer()}
+          >
+            {checking ? "Memeriksa..." : "Lihat Jawaban"}
+          </Button>
+        </div>
       )}
     </div>
   );

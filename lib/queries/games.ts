@@ -10,20 +10,24 @@ export type GameQuestionRow = {
   question: string;
   optionA: string | null;
   optionB: string | null;
-  answer: string | null;
+  answer?: string | null;
   category: string | null;
   createdAt: string;
 };
 
-const questionSelect = {
+const baseQuestionSelect = {
   id: true,
   type: true,
   question: true,
   optionA: true,
   optionB: true,
-  answer: true,
   category: true,
   createdAt: true,
+} as const;
+
+const fullQuestionSelect = {
+  ...baseQuestionSelect,
+  answer: true,
 } as const;
 
 function shuffleArray<T>(arr: T[]): T[] {
@@ -42,15 +46,20 @@ function shuffleArray<T>(arr: T[]): T[] {
  *
  * `random` picks are per-player (server GameScore + caller-provided excludes)
  * and intentionally uncached; only the deterministic listing uses Redis.
+ *
+ * The answer key is only selected when `includeAnswer` is set (dashboard CRUD).
+ * Public payloads must never carry it — the server grades submissions.
  */
 export async function listGameQuestions(opts: {
   type?: string | null;
   category?: string | null;
   sort?: string;
   limit: number;
+  includeAnswer?: boolean;
   random?: { count: number; excludeIds: string[]; answeredBy?: string } | null;
 }): Promise<{ data: GameQuestionRow[]; total?: number }> {
-  const { type, category, sort = "desc", limit, random } = opts;
+  const { type, category, sort = "desc", limit, includeAnswer = false, random } = opts;
+  const questionSelect = includeAnswer ? fullQuestionSelect : baseQuestionSelect;
 
   const where: Record<string, unknown> = { isArchived: false };
   if (type) where.type = type;
@@ -95,7 +104,7 @@ export async function listGameQuestions(opts: {
     return { data: toJsonSafe<GameQuestionRow[]>(picked), total };
   }
 
-  const cacheK = cacheKey("games", "questions", type ?? "all", category ?? "all", sort, "0", String(limit));
+  const cacheK = cacheKey("games", "questions", type ?? "all", category ?? "all", sort, "0", String(limit), includeAnswer ? "full" : "public");
   const cached = await getCached<{ data: GameQuestionRow[] }>(cacheK);
   if (cached) return cached;
 

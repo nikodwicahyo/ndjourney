@@ -6,7 +6,7 @@ const QID = "cjld2cjxh0000qz8n0p3q4w5eq";
 
 const prismaMock = vi.hoisted(() => ({
   $queryRaw: vi.fn(),
-  gameQuestion: { findMany: vi.fn(), count: vi.fn(async () => 0), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+  gameQuestion: { findMany: vi.fn(), findUnique: vi.fn(), count: vi.fn(async () => 0), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
   gameScore: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), count: vi.fn() },
   gameArcadeScore: { create: vi.fn() },
 }));
@@ -131,30 +131,74 @@ describe("games scores + leaderboards", () => {
     allowAuthed();
   });
 
-  it("GAM-02: score 201, duplicate 409, anon needs playerName", async () => {
+  it("GAM-02: score is server-graded, duplicate returns recorded result, anon needs playerName", async () => {
+    prismaMock.gameQuestion.findUnique.mockResolvedValue({ type: "TRIVIA", answer: "Rendang", isArchived: false });
     prismaMock.gameScore.findFirst.mockResolvedValue(null);
     prismaMock.gameScore.create.mockResolvedValue({ id: "s1" });
-    const ok = await score.POST(new Request("http://localhost/api/games/score", {
+
+    // Client claims nothing: the stored answer decides.
+    const wrong = await score.POST(new Request("http://localhost/api/games/score", {
+      method: "POST", body: JSON.stringify({ questionId: QID, selectedAnswer: "Sate" }),
+    }));
+    expect(wrong?.status).toBe(201);
+    expect(prismaMock.gameScore.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ isCorrect: false }) }),
+    );
+    const wrongBody = await wrong?.json();
+    expect(wrongBody).toMatchObject({ correct: false, answer: "Rendang" });
+
+    prismaMock.gameScore.findFirst.mockResolvedValue(null);
+    const right = await score.POST(new Request("http://localhost/api/games/score", {
+      method: "POST", body: JSON.stringify({ questionId: QID, selectedAnswer: "  rendang " }),
+    }));
+    expect(right?.status).toBe(201);
+    expect(prismaMock.gameScore.create).toHaveBeenLastCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ isCorrect: true }) }),
+    );
+
+    // A forgeable `isCorrect` field is ignored entirely.
+    const forged = await score.POST(new Request("http://localhost/api/games/score", {
       method: "POST", body: JSON.stringify({ questionId: QID, isCorrect: true }),
     }));
-    expect(ok?.status).toBe(201);
+    expect(forged?.status).toBe(400);
 
-    prismaMock.gameScore.findFirst.mockResolvedValue({ id: "s1" });
+    prismaMock.gameScore.findFirst.mockResolvedValue({ id: "s1", isCorrect: false });
     const dup = await score.POST(new Request("http://localhost/api/games/score", {
-      method: "POST", body: JSON.stringify({ questionId: QID, isCorrect: false }),
+      method: "POST", body: JSON.stringify({ questionId: QID, selectedAnswer: "Rendang" }),
     }));
-    expect(dup?.status).toBe(409);
+    expect(dup?.status).toBe(200);
+    expect(await dup?.json()).toMatchObject({ correct: false, answer: "Rendang" });
 
     vi.mocked(auth).mockResolvedValue(null as never);
     const anon = await score.POST(new Request("http://localhost/api/games/score", {
-      method: "POST", body: JSON.stringify({ questionId: QID, isCorrect: true }),
+      method: "POST", body: JSON.stringify({ questionId: QID, selectedAnswer: "Rendang" }),
     }));
     expect(anon?.status).toBe(400);
     prismaMock.gameScore.findFirst.mockResolvedValue(null);
     const anonOk = await score.POST(new Request("http://localhost/api/games/score", {
-      method: "POST", body: JSON.stringify({ questionId: QID, isCorrect: true, playerName: "Tamu" }),
+      method: "POST", body: JSON.stringify({ questionId: QID, selectedAnswer: "Rendang", playerName: "Tamu" }),
     }));
     expect(anonOk?.status).toBe(201);
+  });
+
+  it("GAM-02b: answer key is only returned to a scoped dashboard caller", async () => {
+    prismaMock.gameQuestion.findMany.mockResolvedValue([{ id: QID }]);
+
+    await questions.GET(new Request("http://localhost/api/games/questions?type=TRIVIA"));
+    let select = prismaMock.gameQuestion.findMany.mock.calls.at(-1)?.[0]?.select;
+    expect(select?.answer).toBeUndefined();
+
+    vi.mocked(auth).mockResolvedValue(null as never);
+    await questions.GET(new Request("http://localhost/api/games/questions?type=TRIVIA&includeAnswer=1"));
+    select = prismaMock.gameQuestion.findMany.mock.calls.at(-1)?.[0]?.select;
+    expect(select?.answer).toBeUndefined();
+
+    vi.mocked(auth).mockResolvedValue({ user: { id: ME } } as never);
+    const { getUserCoupleId } = await import("@/lib/couple");
+    vi.mocked(getUserCoupleId).mockResolvedValue(COUPLE);
+    await questions.GET(new Request("http://localhost/api/games/questions?type=TRIVIA&includeAnswer=1"));
+    select = prismaMock.gameQuestion.findMany.mock.calls.at(-1)?.[0]?.select;
+    expect(select?.answer).toBe(true);
   });
 
   it("GAM-03: leaderboard 200 + invalid type 400", async () => {
@@ -177,6 +221,10 @@ describe("games scores + leaderboards", () => {
       method: "POST", body: JSON.stringify({ gameType: "SLIDING_PUZZLE", score: 1, metadata: { blob: "x".repeat(5000) } }),
     }));
     expect(big?.status).toBe(400);
+    const impossible = await arcadeScore.POST(new Request("http://localhost/api/games/arcade-score", {
+      method: "POST", body: JSON.stringify({ gameType: "MEMORY_BLOCK_BLAST", score: 99_999_999 }),
+    }));
+    expect(impossible?.status).toBe(400);
 
     prismaMock.$queryRaw.mockResolvedValue([]);
     const board = await arcadeBoard.GET(new Request("http://localhost/api/games/arcade-leaderboard?type=MEMORY_BLOCK_BLAST") as unknown as Parameters<typeof arcadeBoard.GET>[0]);

@@ -51,11 +51,7 @@ const gameLabels: Record<GameType, string> = {
   MEMORY_BLOCK_BLAST: "Block Blast",
 };
 
-type GameClientProps = {
-  disableScoreSubmit?: boolean;
-};
-
-export default function GameClient({ disableScoreSubmit = false }: GameClientProps) {
+export default function GameClient() {
   const [selected, setSelected] = useState<GameType | null>(null);
 
   const handleBack = useCallback(() => setSelected(null), []);
@@ -63,9 +59,9 @@ export default function GameClient({ disableScoreSubmit = false }: GameClientPro
   const renderGame = () => {
     switch (selected) {
       case "WOULD_YOU_RATHER":
-        return <WouldYouRather disableScoreSubmit={disableScoreSubmit} />;
+        return <WouldYouRather />;
       case "TRIVIA":
-        return <TriviaQuiz disableScoreSubmit={disableScoreSubmit} />;
+        return <TriviaQuiz />;
       case "SPIN_THE_WHEEL":
         return <SpinTheWheel />;
       case "TRUTH_OR_DARE":

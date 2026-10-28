@@ -6,6 +6,7 @@ import { invalidateCache } from "@/lib/redis";
 import { auth } from "@/lib/auth";
 import { getUserCoupleId } from "@/lib/couple";
 import { triggerCoupleEvent } from "@/lib/pusher-server";
+import { isAnswerCorrect } from "@/lib/game-answer";
 
 export async function POST(request: Request) {
   try {
@@ -38,21 +39,42 @@ export async function POST(request: Request) {
       if (!rateCheck.allowed) return rateCheck.response;
     }
 
+    // SEC: the answer never leaves the server for grading. The client submits
+    // what the player chose; correctness is derived here.
+    const question = await prisma.gameQuestion.findUnique({
+      where: { id: parsed.data.questionId },
+      select: { type: true, answer: true, isArchived: true },
+    });
+    if (!question || question.isArchived) {
+      return NextResponse.json({ error: "Pertanyaan tidak ditemukan" }, { status: 404 });
+    }
+
+    const correct = isAnswerCorrect(question.type, question.answer, parsed.data.selectedAnswer);
+    if (correct === null) {
+      return NextResponse.json(
+        { error: "Tipe pertanyaan ini tidak mendukung skor" },
+        { status: 400 },
+      );
+    }
+
     const existingScore = isAuthed
       ? await prisma.gameScore.findFirst({
           where: { userId: session!.user.id, questionId: parsed.data.questionId },
-          select: { id: true },
+          select: { id: true, isCorrect: true },
         })
       : await prisma.gameScore.findFirst({
           where: { playerName: parsed.data.playerName!, questionId: parsed.data.questionId },
-          select: { id: true },
+          select: { id: true, isCorrect: true },
         });
 
+    // Idempotent re-answer: return the recorded result so the client can still
+    // reveal the answer (the deck recycles questions once the bank is spent).
     if (existingScore) {
-      return NextResponse.json(
-        { error: "Kamu sudah menjawab pertanyaan ini" },
-        { status: 409 },
-      );
+      return NextResponse.json({
+        data: existingScore,
+        correct: existingScore.isCorrect,
+        answer: question.answer,
+      });
     }
 
     const score = await prisma.gameScore.create({
@@ -60,7 +82,7 @@ export async function POST(request: Request) {
         userId: isAuthed ? session!.user.id : undefined,
         playerName: isAuthed ? undefined : parsed.data.playerName!,
         questionId: parsed.data.questionId,
-        isCorrect: parsed.data.isCorrect,
+        isCorrect: correct,
       },
       select: {
         id: true,
@@ -82,9 +104,12 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ data: score }, { status: 201 });
+    return NextResponse.json(
+      { data: score, correct, answer: question.answer },
+      { status: 201 },
+    );
   } catch (error) {
-    // unique(userId,questionId) turns a double-submit race into P2002 — same 409.
+    // unique(userId,questionId) turns a double-submit race into P2002.
     if ((error as { code?: string })?.code === "P2002") {
       return NextResponse.json(
         { error: "Kamu sudah menjawab pertanyaan ini" },

@@ -23,7 +23,7 @@ export default async function TimelineManagerPage() {
     await qc.prefetchQuery({
       queryKey: queryKeys.milestones.list(),
       queryFn: async () =>
-        (await listMilestones({ isAuthed: true, coupleId, page: 1, limit: 50 })).data,
+        (await listMilestones({ isAuthed: true, coupleId, userId: session?.user?.id ?? null, page: 1, limit: 50 })).data,
     });
   }]);
 

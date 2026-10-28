@@ -8,19 +8,23 @@ import { toPublicUser } from "@/lib/format";
  * server-side hydration — both must stay in lockstep.
  *
  * Visibility rules (do not weaken):
- * - authed + couple: own couple rows plus legacy shared (coupleId null)
- * - anon/unpaired: isPublic rows only, and only public photos of them
+ * - authed + couple: own couple rows plus own pre-pairing rows
+ * - authed, no couple: own rows plus public rows
+ * - anon: isPublic rows only, and only public photos of them
  */
 export async function listMilestones(opts: {
   isAuthed: boolean;
   coupleId: string | null;
+  userId: string | null;
   page: number;
   limit: number;
 }) {
-  const { isAuthed, coupleId, page, limit } = opts;
+  const { isAuthed, coupleId, userId, page, limit } = opts;
 
-  const where = isAuthed && coupleId
-    ? { OR: [{ coupleId }, { coupleId: null }] }
+  const where = isAuthed && userId
+    ? coupleId
+      ? { OR: [{ coupleId }, { coupleId: null, createdById: userId }] }
+      : { OR: [{ isPublic: true }, { coupleId: null, createdById: userId }] }
     : { isPublic: true };
 
   // 1 round-trip (was 2 sequential).
@@ -50,20 +54,33 @@ export async function listMilestones(opts: {
   const userIds = milestones.map((m) => m.createdById);
   const milestoneIds = milestones.map((m) => m.id);
 
+  // Couple members share all photos; a solo caller may see private photos
+  // only on rows they created — public rows of others stay public-photo-only.
+  const privateMilestoneIds =
+    isAuthed && coupleId
+      ? milestoneIds
+      : isAuthed && userId
+        ? milestones.filter((m) => m.createdById === userId).map((m) => m.id)
+        : [];
+  const publicOnlyMilestoneIds = milestoneIds.filter((id) => !privateMilestoneIds.includes(id));
+  const publicPhotoRule = {
+    isPublic: true,
+    OR: [{ albumId: null }, { album: { isPublic: true } }],
+  };
+
   const [userMap, photoRecords] = await Promise.all([
     batchLoadUsers(userIds),
     milestoneIds.length > 0
       ? prisma.milestonePhoto.findMany({
-          // anon and unpaired callers see only public photos of public
-          // milestones (private photo in a public milestone stays hidden).
+          // anon and non-owners see only public photos of public milestones
+          // (a private photo in a public milestone stays hidden).
           where: {
-            milestoneId: { in: milestoneIds },
-            ...(isAuthed && coupleId ? {} : {
-              photo: {
-                isPublic: true,
-                OR: [{ albumId: null }, { album: { isPublic: true } }],
-              },
-            }),
+            OR: [
+              ...(privateMilestoneIds.length > 0 ? [{ milestoneId: { in: privateMilestoneIds } }] : []),
+              ...(publicOnlyMilestoneIds.length > 0
+                ? [{ milestoneId: { in: publicOnlyMilestoneIds }, photo: publicPhotoRule }]
+                : []),
+            ],
           },
           select: {
             milestoneId: true,

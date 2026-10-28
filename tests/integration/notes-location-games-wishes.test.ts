@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const prismaMock = vi.hoisted(() => ({
   dailyNote: { create: vi.fn(), findMany: vi.fn() },
   coupleMember: { findUnique: vi.fn() },
+  couple: { findFirst: vi.fn() },
 }));
 
 vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
@@ -15,6 +16,7 @@ vi.mock("@/lib/redis", () => ({
 }));
 vi.mock("@/lib/rate-limit", () => ({
   withRateLimit: vi.fn(async () => ({ allowed: true, remaining: 99, session: { user: { id: "user-a" } } })),
+  withAnonymousRateLimit: vi.fn(async () => ({ allowed: true, remaining: 99 })),
   rateLimitConfigs: { note: {}, write: {}, score: {}, location: {} },
 }));
 vi.mock("@/lib/batch", () => ({
@@ -25,7 +27,7 @@ vi.mock("@/lib/couple", () => ({ getUserCoupleId: vi.fn(async () => null) }));
 vi.mock("@/lib/pusher-server", () => ({ triggerCoupleEvent: vi.fn() }));
 vi.mock("@/lib/email", () => ({ sendEmail: vi.fn(), noteNotificationHtml: () => "<p>n</p>", safeAppUrl: (p: string) => `http://localhost${p}` }));
 
-const { POST: postNote } = await import("@/app/api/notes/route");
+const { POST: postNote, GET: getNotes } = await import("@/app/api/notes/route");
 const { GET: getLocation } = await import("@/app/api/location/route");
 const { auth } = await import("@/lib/auth");
 
@@ -37,6 +39,21 @@ describe("notes / location / games / wishes contracts", () => {
     const res = await postNote(new Request("http://localhost/api/notes", { method: "POST", body: JSON.stringify({ content: "a".repeat(281) }) }));
     expect(res.status).toBe(400);
     expect(prismaMock.dailyNote.create).not.toHaveBeenCalled();
+  });
+
+  it("NOTE-03: anon GET is throttled and scoped to the singleton couple", async () => {
+    vi.mocked(auth).mockResolvedValue(null as never);
+    prismaMock.couple.findFirst.mockResolvedValue({ id: "couple-1" });
+    prismaMock.dailyNote.findMany.mockResolvedValue([]);
+
+    const res = await getNotes(new Request("http://localhost/api/notes"));
+    expect(res?.status).toBe(200);
+    // SEC: never an empty filter - a second couple's notes must not leak.
+    expect(prismaMock.dailyNote.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { coupleId: "couple-1" } }),
+    );
+    const { withAnonymousRateLimit } = await import("@/lib/rate-limit");
+    expect(vi.mocked(withAnonymousRateLimit)).toHaveBeenCalled();
   });
 
   it("LOC-02: unauthenticated GET → 401 (consent enforced at route)", async () => {

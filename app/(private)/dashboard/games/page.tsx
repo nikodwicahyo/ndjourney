@@ -23,7 +23,7 @@ export default async function GamesManagerPage() {
       await qc.prefetchQuery({
         queryKey: QUESTIONS_ADMIN_KEY,
         // Same effective params the API serves: the route clamps limit to 200.
-        queryFn: async () => (await listGameQuestions({ sort: "desc", limit: 200 })).data,
+        queryFn: async () => (await listGameQuestions({ sort: "desc", limit: 200, includeAnswer: true })).data,
       });
     },
     async (qc) => {

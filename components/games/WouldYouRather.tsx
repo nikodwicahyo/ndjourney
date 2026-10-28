@@ -4,28 +4,27 @@ import { useState, useRef, useEffect } from "react";
 import { useQuestionDeck, useSubmitScore } from "@/hooks/useGames";
 import { Button, Skeleton } from "@/components/ui";
 import { motion } from "framer-motion";
-import { Shuffle, RefreshCw, Check, X, ArrowRight } from "lucide-react";
-import type { GameQuestionWithMeta } from "@/hooks/useGames";
+import { Shuffle, RefreshCw, Check, X } from "lucide-react";
 
 const BATCH_SIZE = 10;
 
 type WouldYouRatherProps = {
-  disableScoreSubmit?: boolean;
   playerName?: string;
 };
 
-export default function WouldYouRather({ disableScoreSubmit = false, playerName }: WouldYouRatherProps) {
+type PickKey = "A" | "B";
+
+export default function WouldYouRather({ playerName }: WouldYouRatherProps) {
   const deck = useQuestionDeck("WOULD_YOU_RATHER", BATCH_SIZE);
   const { isLoading, error, refetch } = deck;
   const submitScore = useSubmitScore();
   const [currentIdx, setCurrentIdx] = useState(0);
-  const [picked, setPicked] = useState<string | null>(null);
-  const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
+  const [picked, setPicked] = useState<PickKey | null>(null);
+  // Graded server-side: the answer key is not part of the public payload.
+  const [reveal, setReveal] = useState<{ correct: boolean; answer: string | null } | null>(null);
   const [score, setScore] = useState(0);
   const [finished, setFinished] = useState(false);
   const [history, setHistory] = useState<Array<{ question: string; choice: string; correct: boolean }>>([]);
-  const submittedRef = useRef<{ set: Set<string>, dataset: string }>({ set: new Set<string>(), dataset: '' });
-  const { set: submittedSet, dataset } = submittedRef.current;
   // Reveal auto-advance must not fire after unmount (back navigation).
   const pickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
@@ -113,41 +112,41 @@ export default function WouldYouRather({ disableScoreSubmit = false, playerName 
     );
   }
 
-  function pick(choice: string) {
+  async function pick(key: PickKey, label: string) {
     if (!current || picked) return;
-    setPicked(choice);
+    setPicked(key);
+    // Persist the answered id before the network trip: quitting mid-round must
+    // still exclude this question on the next mount.
+    deck.markAnswered(current.id);
 
-    const correct =
-      !current.answer ||
-      current.answer.toLowerCase() === "none" ||
-      (current.answer === "A" && choice === current.optionA) ||
-      (current.answer === "B" && choice === current.optionB);
-
-    setIsCorrect(correct);
-
-    if (correct) setScore((s) => s + 1);
-
-    // First attempts submit; repeats (true-exhaustion recycles) skip the
-    // POST so the already-answered 409 never surfaces. Answered ids join
-    // the deck either way, so quitting mid-round still excludes them.
-    const fresh = deck.markAnswered(current.id);
-    if (fresh && !disableScoreSubmit && !submittedSet.has(current.id)) {
-      submittedSet.add(current.id);
-      submitScore.mutate(
-        { questionId: current.id, isCorrect: correct, playerName },
-        { onError: () => {} },
-      );
+    // SEC: server grades the choice; never trust (or ship) `isCorrect`.
+    let result: { correct: boolean; answer: string | null } = {
+      correct: false,
+      answer: null,
+    };
+    try {
+      const res = await submitScore.mutateAsync({
+        questionId: current.id,
+        selectedAnswer: key,
+        playerName,
+      });
+      result = { correct: res.correct, answer: res.answer };
+    } catch {
+      // Network/validation failure: neutral result, never a silent pass.
     }
+
+    setReveal(result);
+    if (result.correct) setScore((s) => s + 1);
 
     setHistory((prev) => [
       ...prev,
-      { question: current.question, choice, correct },
+      { question: current.question, choice: label, correct: result.correct },
     ]);
     pickTimeoutRef.current = setTimeout(() => {
       if (currentIdx < batch.length - 1) {
         setCurrentIdx((i) => i + 1);
         setPicked(null);
-        setIsCorrect(null);
+        setReveal(null);
       } else {
         setFinished(true);
       }
@@ -159,29 +158,21 @@ export default function WouldYouRather({ disableScoreSubmit = false, playerName 
   function putaranBaru() {
     if (!batch) return;
     if (pickTimeoutRef.current) clearTimeout(pickTimeoutRef.current);
-    submittedSet.clear();
     setFinished(false);
     setScore(0);
     setCurrentIdx(0);
     setHistory([]);
     setPicked(null);
-    setIsCorrect(null);
+    setReveal(null);
     deck.restart(batch.map((q) => q.id));
   }
 
-  const hasCorrectAnswer = !!(current?.answer && (current.answer === "A" || current.answer === "B"));
+  const hasCorrectAnswer = reveal?.answer === "A" || reveal?.answer === "B";
 
-  function isCorrectOption(optValue: string) {
-    if (!current) return false;
-    return (current.answer === "A" && optValue === current.optionA) ||
-           (current.answer === "B" && optValue === current.optionB);
-  }
-
-  function optionStyle(optValue: string) {
-    if (!current) return "border-border bg-card";
+  function optionStyle(key: PickKey) {
     if (!picked) return "border-border bg-card hover:border-primary/50 hover:shadow-sm";
-    const chosen = picked === optValue;
-    const correct = isCorrectOption(optValue);
+    const chosen = picked === key;
+    const correct = reveal?.answer === key;
     if (chosen && correct) return "border-green-500 bg-green-500/10";
     if (chosen && !correct) return "border-red-500 bg-red-500/10";
     if (!chosen && correct && hasCorrectAnswer) return "border-green-500/50 bg-green-500/5";
@@ -229,43 +220,47 @@ export default function WouldYouRather({ disableScoreSubmit = false, playerName 
       </motion.div>
 
       <div className="grid grid-cols-1 gap-4 min-[420px]:grid-cols-2">
-        {[
-          { value: current.optionA || "Opsi A", label: current.optionA || "Opsi A" },
-          { value: current.optionB || "Opsi B", label: current.optionB || "Opsi B" },
-        ].map((opt) => (
-          <button
-            key={opt.value}
-            onClick={() => !picked && pick(opt.value)}
-            disabled={!!picked}
-            aria-label={picked && hasCorrectAnswer && isCorrectOption(opt.value) ? `${opt.label} — Benar` : opt.label}
-            className={`relative rounded-2xl border-2 p-6 text-center font-medium transition-all ${optionStyle(opt.value)}`}
-          >
-            {opt.label}
-            {picked && hasCorrectAnswer && isCorrectOption(opt.value) && (
-              <span className="mt-1 block text-xs font-semibold text-green-600">
-                {picked === opt.value ? "✓ Benar" : "Benar"}
-              </span>
-            )}
-            {picked && (
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className="absolute -top-2 -right-2"
-              >
-                {picked === opt.value && isCorrect !== null ? (
-                  isCorrect ? (
+        {([
+          { key: "A" as const, label: current.optionA || "Opsi A" },
+          { key: "B" as const, label: current.optionB || "Opsi B" },
+        ]).map((opt) => {
+          const isCorrect = reveal?.answer === opt.key;
+          return (
+            <button
+              key={opt.key}
+              onClick={() => void pick(opt.key, opt.label)}
+              disabled={!!picked}
+              aria-label={picked && hasCorrectAnswer && isCorrect ? `${opt.label} — Benar` : opt.label}
+              className={`relative rounded-2xl border-2 p-6 text-center font-medium transition-all ${optionStyle(opt.key)}`}
+            >
+              {opt.label}
+              {picked && hasCorrectAnswer && isCorrect && (
+                <span className="mt-1 block text-xs font-semibold text-green-600">
+                  {picked === opt.key ? "✓ Benar" : "Benar"}
+                </span>
+              )}
+              {picked && (
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  className="absolute -top-2 -right-2"
+                >
+                  {picked === opt.key ? (
+                    reveal ? (
+                      reveal.correct ? (
+                        <Check className="h-5 w-5 text-green-500" aria-hidden="true" />
+                      ) : (
+                        <X className="h-5 w-5 text-red-500" aria-hidden="true" />
+                      )
+                    ) : null
+                  ) : hasCorrectAnswer && isCorrect ? (
                     <Check className="h-5 w-5 text-green-500" aria-hidden="true" />
-                  ) : (
-                    <X className="h-5 w-5 text-red-500" aria-hidden="true" />
-                  )
-                ) : null}
-                {picked !== opt.value && hasCorrectAnswer && isCorrectOption(opt.value) && (
-                  <Check className="h-5 w-5 text-green-500" aria-hidden="true" />
-                )}
-              </motion.div>
-            )}
-          </button>
-        ))}
+                  ) : null}
+                </motion.div>
+              )}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

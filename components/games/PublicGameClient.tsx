@@ -78,9 +78,9 @@ export default function PublicGameClient() {
   function renderGame() {
     switch (selected) {
       case "WOULD_YOU_RATHER":
-        return <WouldYouRather playerName={displayName} />;
+        return <WouldYouRather playerName={displayName} onExit={handleBack} />;
       case "TRIVIA":
-        return <TriviaQuiz playerName={displayName} />;
+        return <TriviaQuiz playerName={displayName} onExit={handleBack} />;
       case "SPIN_THE_WHEEL":
         return <SpinTheWheel />;
       case "TRUTH_OR_DARE":

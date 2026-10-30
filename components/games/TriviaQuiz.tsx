@@ -10,9 +10,10 @@ const BATCH_SIZE = 10;
 
 type TriviaQuizProps = {
   playerName?: string;
+  onExit?: () => void;
 };
 
-export default function TriviaQuiz({ playerName }: TriviaQuizProps) {
+export default function TriviaQuiz({ playerName, onExit }: TriviaQuizProps) {
   const deck = useQuestionDeck("TRIVIA", BATCH_SIZE);
   const { isLoading, error, refetch } = deck;
   const submitScore = useSubmitScore();
@@ -56,6 +57,15 @@ export default function TriviaQuiz({ playerName }: TriviaQuizProps) {
   }
 
   if (!batch || batch.length === 0) {
+    if (totalQuestions > 0) {
+      return (
+        <div className="space-y-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-20 w-full rounded-2xl" />
+          ))}
+        </div>
+      );
+    }
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
         <p className="text-muted-foreground">Belum ada pertanyaan</p>
@@ -87,9 +97,12 @@ export default function TriviaQuiz({ playerName }: TriviaQuizProps) {
                 : "Yuk kenali pasanganmu lebih dalam lagi! 💪"}
           </p>
         </div>
-        <Button onClick={putaranBaru} className="gap-2">
+        <Button type="button" onClick={putaranBaru} className="gap-2">
           <RefreshCw className="h-4 w-4" aria-hidden="true" />
           Main Lagi
+        </Button>
+        <Button type="button" variant="outline" onClick={() => onExit?.()} className="gap-2">
+          Keluar
         </Button>
         {results.length > 0 && (
           <div className="mt-4 w-full max-w-md space-y-2 rounded-2xl border border-border bg-card p-4 text-left">
@@ -155,7 +168,8 @@ export default function TriviaQuiz({ playerName }: TriviaQuizProps) {
   // Fresh round from unseen questions — the deck key change auto-fetches,
   // so no manual refetch to race it. Used by both Main Lagi and Acak Ulang.
   function putaranBaru() {
-    if (!batch) return;
+    const ids = batch?.map((q) => q.id) ?? [];
+    if (ids.length === 0 && !finished) return;
     submittedSet.clear();
     setFinished(false);
     setScore(0);
@@ -164,7 +178,7 @@ export default function TriviaQuiz({ playerName }: TriviaQuizProps) {
     setUserAnswer("");
     setReveal(null);
     setChecking(false);
-    deck.restart(batch.map((q) => q.id));
+    deck.restart(ids);
   }
 
   return (
@@ -177,6 +191,7 @@ export default function TriviaQuiz({ playerName }: TriviaQuizProps) {
           </span>
         </span>
         <button
+          type="button"
           onClick={putaranBaru}
           className="inline-flex min-h-11 items-center gap-1 px-2 hover:text-foreground"
         >
@@ -184,11 +199,6 @@ export default function TriviaQuiz({ playerName }: TriviaQuizProps) {
           Acak Ulang
         </button>
       </div>
-      {deck.cycled && (
-        <p className="mb-4 rounded-xl border border-primary/30 bg-primary/5 px-4 py-2 text-center text-xs text-muted-foreground">
-          Semua pertanyaan sudah dimainkan — mulai putaran baru 🎲
-        </p>
-      )}
 
       <motion.div
         key={current.id}

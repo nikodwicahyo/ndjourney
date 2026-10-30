@@ -77,6 +77,7 @@ export default function DeferredBackground() {
       if (idleId !== undefined) window.cancelIdleCallback(idleId);
       if (timeoutId !== undefined) clearTimeout(timeoutId);
       window.removeEventListener("load", onLoad);
+      
       window.removeEventListener("scroll", enable);
       window.removeEventListener("pointerdown", enable);
       window.removeEventListener("touchstart", enable);
@@ -94,6 +95,7 @@ export default function DeferredBackground() {
     else window.addEventListener("load", onLoad, { once: true });
 
     // …but the visitor never waits for a timer: interacting upgrades at once.
+    
     window.addEventListener("scroll", enable, { passive: true });
     window.addEventListener("pointerdown", enable, { passive: true });
     window.addEventListener("touchstart", enable, { passive: true });

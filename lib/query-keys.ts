@@ -29,8 +29,8 @@ export const queryKeys = {
   },
   games: {
     all: ["games"] as const,
-    questions: (type: string, count?: number, exclude?: string[]) =>
-      ["games", "questions", type, count ?? "all", exclude?.join(",") ?? "all"] as const,
+    questions: (type: string, count?: number, exclude?: string[], cycle?: string, round?: number) =>
+      ["games", "questions", type, count ?? "all", exclude?.join(",") ?? "all", cycle ?? "normal", round ?? 0] as const,
     leaderboard: () => ["games", "leaderboard"] as const,
     // canonical key for the merged "Semua" leaderboard tab (was a string literal in 2 places).
     mergedQaLeaderboard: () => ["games", "leaderboard", "all-qa"] as const,

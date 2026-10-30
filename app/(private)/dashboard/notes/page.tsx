@@ -16,7 +16,15 @@ export default function NotesManagerPage() {
           </p>
         </div>
 
-        <Suspense fallback={null}>
+        <Suspense
+          fallback={
+            <div className="space-y-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-24 animate-pulse rounded-xl bg-muted" />
+              ))}
+            </div>
+          }
+        >
           <NotesManager />
         </Suspense>
       </div>

@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { usePhotos, useUploadPhotos, useDeletePhoto, useAlbums, useUpdatePhoto } from "@/hooks/usePhotos";
 import { useStorageUsage } from "@/hooks/useStorage";
 import AlbumManager from "./AlbumManager";
-import { Button, StorageUsageBar } from "@/components/ui";
+import { Button, Skeleton, StorageUsageBar } from "@/components/ui";
 import UploadItem from "./UploadItem";
 import { Upload, ImagePlus, Loader2, FileWarning, Image as ImageIcon, Video, ArrowUpDown, Trash2, CheckSquare, Heart, Globe, EyeOff, X, Folder, Check } from "lucide-react";
 import { cn, FILTER_CHIP_CLASSES, FILTER_GROUP_CLASSES, FILTER_SEGMENT_CLASSES, GALLERY_GRID_CLASSES, GALLERY_TILE_CLASSES } from "@/lib/utils";
@@ -483,8 +483,8 @@ export default function GalleryManager() {
         isStorageLoading && (
           // The collapsed card is a fixed 130px; reserving it stops the upload
           // card below from being shoved down when the query resolves.
-          <div
-            className="h-[130px] animate-pulse rounded-2xl border border-border bg-card"
+          <Skeleton
+            className="h-[130px] rounded-2xl border border-border bg-card"
             aria-hidden="true"
           />
         )
@@ -498,9 +498,9 @@ export default function GalleryManager() {
           >
             <ImagePlus className="h-5 w-5" style={{ color: "#10B981" }} aria-hidden="true" />
           </div>
-          <div>
-            <h2 className="font-heading text-sm sm:text-base font-semibold">Upload Foto & Video</h2>
-            <p className="text-xs text-muted-foreground">Drag & drop atau klik untuk memilih</p>
+          <div className="min-w-0">
+            <h2 className="font-heading text-sm sm:text-base font-semibold truncate">Upload Foto & Video</h2>
+            <p className="text-xs text-muted-foreground truncate">Drag & drop atau klik untuk memilih</p>
           </div>
         </div>
 
@@ -544,13 +544,13 @@ export default function GalleryManager() {
         )}
 
         {!isTransferring && (
-          <div className="mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-center gap-2">
+          <div className="mb-3 flex flex-col items-center sm:flex-row sm:items-center sm:justify-center gap-2">
             {albums && albums.length > 0 && (
               <select
                 value={selectedAlbumId}
                 onChange={(e) => setSelectedAlbumId(e.target.value)}
                 aria-label="Pilih album untuk upload"
-                className="h-10 w-full max-w-xs rounded-full border border-input bg-card px-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="h-10 w-full sm:max-w-xs rounded-full border border-input bg-card px-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <option value="">Tanpa album</option>
                 {albums.map((a) => (

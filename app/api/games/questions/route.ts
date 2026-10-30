@@ -29,7 +29,8 @@ export async function GET(request: Request) {
       const count = Math.min(Math.max(parseInt(random) || 10, 1), 50);
       const excludeParam = searchParams.get("exclude");
       const excludeIds = excludeParam ? excludeParam.split(",").filter(Boolean) : [];
-      randomOpts = { count, excludeIds, answeredBy: session?.user?.id };
+      const cycle = searchParams.get("cycle") === "1";
+      randomOpts = { count, excludeIds, answeredBy: cycle ? undefined : session?.user?.id };
     }
 
     // SEC: the answer key is for the dashboard CRUD view only. Anonymous and

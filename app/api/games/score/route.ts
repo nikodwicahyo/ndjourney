@@ -110,7 +110,36 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     // unique(userId,questionId) turns a double-submit race into P2002.
+    // Resolve it idempotently instead of surfacing a 409 to the client.
     if ((error as { code?: string })?.code === "P2002") {
+      const body = await request.json().catch(() => null);
+      const p = body ? submitScoreSchema.safeParse(body) : null;
+      const qid = p?.success ? p.data.questionId : null;
+      const pname = p?.success ? p.data.playerName : undefined;
+      const session2 = await auth();
+      const authed = !!session2?.user?.id;
+      const existing = qid
+        ? authed
+          ? await prisma.gameScore.findFirst({
+              where: { userId: session2!.user.id, questionId: qid },
+              select: { id: true, isCorrect: true },
+            })
+          : await prisma.gameScore.findFirst({
+              where: { playerName: pname!, questionId: qid },
+              select: { id: true, isCorrect: true },
+            })
+        : null;
+      if (existing && qid) {
+        const q = await prisma.gameQuestion.findUnique({
+          where: { id: qid },
+          select: { answer: true },
+        });
+        return NextResponse.json({
+          data: existing,
+          correct: existing.isCorrect,
+          answer: q?.answer ?? null,
+        });
+      }
       return NextResponse.json(
         { error: "Kamu sudah menjawab pertanyaan ini" },
         { status: 409 },

@@ -9,7 +9,7 @@ import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/stores/useAppStore";
 import { useMounted } from "@/hooks/useMounted";
-import { useIdlePrefetch } from "@/hooks/useIdlePrefetch";
+
 import { Avatar, AvatarFallback, AvatarImage, Button, Sheet, SheetContent } from "@/components/ui";
 import { SidebarContent } from "./Sidebar";
 import { showDeleteConfirm } from "@/lib/swal";
@@ -47,8 +47,7 @@ export default function Navbar() {
   const { theme, setTheme } = useTheme();
   const [scrolled, setScrolled] = useState(false);
   const mounted = useMounted();
-  const idlePrefetch = useIdlePrefetch();
-  const prefetch = idlePrefetch ? undefined : false;
+
   const { sidebarOpen, setSidebarOpen } = useAppStore();
 
   const handleLogout = async () => {
@@ -104,7 +103,7 @@ export default function Navbar() {
               <Link
                 key={link.href}
                 href={link.href}
-                prefetch={prefetch}
+                prefetch={true}
                 suppressHydrationWarning
                 aria-current={isActive(link.href) ? "page" : undefined}
                 className={cn(
@@ -183,7 +182,7 @@ export default function Navbar() {
             ) : (
               <Link
                 href="/login"
-                prefetch={prefetch}
+                prefetch={true}
                 suppressHydrationWarning
                 className="inline-flex h-10 items-center justify-center rounded-full bg-primary px-4 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
               >

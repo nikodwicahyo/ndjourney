@@ -38,7 +38,7 @@ export const FILTER_GROUP_CLASSES =
   "inline-flex h-10 items-center rounded-full border border-border p-0.5";
 
 export const FILTER_SEGMENT_CLASSES =
-  "inline-flex h-full items-center justify-center gap-1.5 rounded-full px-3 text-xs font-medium transition-colors";
+  "inline-flex h-full items-center justify-center gap-1.5 rounded-full px-2.5 text-xs font-medium whitespace-nowrap transition-colors";
 
 /**
  * Photos per page. One value for the whole stack: the /api/photos default and

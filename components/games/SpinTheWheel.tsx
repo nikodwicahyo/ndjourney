@@ -54,7 +54,7 @@ export default function SpinTheWheel() {
   const [history, setHistory] = useState<string[]>([]);
   const [seenIds, setSeenIds] = useState<Set<string>>(loadSeenIds);
   const [resetCount, setResetCount] = useState(0);
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = false;
 
   const spinTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 

@@ -82,24 +82,27 @@ export async function listGameQuestions(opts: {
     const excluded = [...answeredIds];
     // Over-fetch 3x so the JS shuffle still has entropy; answered rows are
     // only fetched as a fallback fill below.
-    const fresh = await prisma.gameQuestion.findMany({
+    let fresh = await prisma.gameQuestion.findMany({
       where: excluded.length > 0 ? { ...where, id: { notIn: excluded } } : where,
       take: count * 3,
       select: questionSelect,
     });
 
-    const picked = shuffleArray(fresh).slice(0, count);
-
-    if (picked.length < count && excluded.length > 0) {
-      // Bank exhausted for this player — recycle answered questions.
-      const recycled = await prisma.gameQuestion.findMany({
-        where: { ...where, id: { in: excluded } },
-        take: count - picked.length,
+    // Server-side cycle: when every question has been answered/excluded,
+    // fall back to the full bank instead of returning an empty batch.
+    if (fresh.length === 0 && excluded.length > 0) {
+      fresh = await prisma.gameQuestion.findMany({
+        where,
+        take: count * 3,
         select: questionSelect,
       });
-      picked.push(...shuffleArray(recycled));
     }
 
+    const picked = shuffleArray(fresh).slice(0, count);
+
+    // Do NOT recycle answered questions here: returning an empty batch is the
+    // signal the client uses to reset the no-repeat cycle. Recycling caused
+    // "play again" to serve the same questions forever.
     const total = await prisma.gameQuestion.count({ where });
     return { data: toJsonSafe<GameQuestionRow[]>(picked), total };
   }

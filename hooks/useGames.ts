@@ -22,12 +22,13 @@ type UseQuestionsResult = {
   total: number;
 };
 
-export function useQuestions(type: GameType, count: number = 10, exclude?: string[]) {
+export function useQuestions(type: GameType, count: number = 10, exclude?: string[], cycle?: boolean, round?: number) {
   return useQuery({
-    queryKey: queryKeys.games.questions(type, count, exclude),
+    queryKey: queryKeys.games.questions(type, count, exclude, cycle ? "cycle" : "normal", round),
     queryFn: async () => {
       const params = new URLSearchParams({ type, random: String(count) });
       if (exclude && exclude.length > 0) params.set("exclude", exclude.join(","));
+      if (cycle) params.set("cycle", "1");
       const res = await fetch(`/api/games/questions?${params}`);
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error ?? `Gagal memuat pertanyaan (${res.status})`);
@@ -68,9 +69,11 @@ export function useQuestionDeck(type: GameType, batchSize: number) {
   // so quit-then-start excludes even mid-round answers.
   const seenRef = useRef<string[]>(fetchSeen);
   const [cycled, setCycled] = useState(false);
+  const [cyclePending, setCyclePending] = useState(false);
   const [cycleArmed, setCycleArmed] = useState(true);
+  const [round, setRound] = useState(0);
 
-  const query = useQuestions(type, batchSize, fetchSeen);
+  const query = useQuestions(type, batchSize, fetchSeen, cyclePending, round);
   const batch = query.data?.questions ?? [];
   const total = query.data?.total ?? 0;
 
@@ -82,14 +85,15 @@ export function useQuestionDeck(type: GameType, batchSize: number) {
   if (
     !query.isLoading &&
     query.data &&
-    cycleArmed &&
+    !cyclePending &&
     batch.length === 0 &&
-    fetchSeen.length > 0 &&
     total > 0
   ) {
     setFetchSeen([]);
     setCycled(true);
+    setCyclePending(true);
     setCycleArmed(false);
+    setRound((r) => r + 1);
   }
 
   // Sync the live set + storage with the cycle reset (ref writes and
@@ -100,6 +104,12 @@ export function useQuestionDeck(type: GameType, batchSize: number) {
       saveSeenIds(storageKey, []);
     }
   }, [cycled, storageKey]);
+
+  useEffect(() => {
+    if (cyclePending && !query.isLoading && query.data) {
+      setCyclePending(false);
+    }
+  }, [cyclePending, query.isLoading, query.data]);
 
   // Record one answered question. Returns true when it is a first attempt
   // (→ submit the score); false on repeats (true-exhaustion recycles →
@@ -123,6 +133,8 @@ export function useQuestionDeck(type: GameType, batchSize: number) {
     (currentBatchIds: string[]) => {
       setCycleArmed(true);
       setCycled(false);
+      setCyclePending(false);
+      setRound((r) => r + 1);
       const next = appendSeen(seenRef.current, currentBatchIds);
       seenRef.current = next;
       saveSeenIds(storageKey, next);
@@ -172,8 +184,8 @@ export function useSubmitScore() {
       return json as SubmitScoreResult;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.games.leaderboard() });
-      qc.invalidateQueries({ queryKey: queryKeys.games.arcadeLeaderboardPrefix });
+      qc.invalidateQueries({ queryKey: queryKeys.games.leaderboard(), refetchType: "all" });
+      qc.invalidateQueries({ queryKey: queryKeys.games.arcadeLeaderboardPrefix, refetchType: "all" });
     },
   });
 }

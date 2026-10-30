@@ -237,7 +237,7 @@ describe("milestones API contracts", () => {
   it("milestones/[id] PUT: raw delivery URL uploads land in failedPhotos, never in DB", async () => {
     const RAW = `https://res.cloudinary.com/test-cloud/raw/upload/v1/ndjourney-web/${ME}/evil.html`;
     verifyMock.mockRejectedValueOnce(new Error("Media tidak valid atau tidak diizinkan"));
-    prismaMock.milestone.findUnique.mockResolvedValue({ createdById: ME });
+    prismaMock.milestone.findUnique.mockResolvedValue({ coupleId: COUPLE, createdById: ME });
     prismaMock.milestone.update.mockResolvedValue({ id: "m1", createdById: ME });
     prismaMock.user.findUnique.mockResolvedValue({ id: ME, name: "A", image: null });
     prismaMock.milestonePhoto.findMany.mockResolvedValue([]);
@@ -332,26 +332,35 @@ describe("milestones API contracts", () => {
     }));
   });
 
-  it("milestones/[id] PUT: creator-only 403, 404, 200", async () => {
-    prismaMock.milestone.findUnique.mockResolvedValue({ createdById: "someone-else" });
-    const forbidden = await milestoneById.PUT(new Request("http://localhost/api/milestones/m1", { method: "PUT", body: JSON.stringify({ title: "x" }) }), { params: Promise.resolve({ id: "m1" }) });
-    expect(forbidden.status).toBe(403);
+  it("milestones/[id] PUT: couple-shared 200, cross-couple 404, orphan creator-only", async () => {
+    // any member of the owning couple can edit (same as wishes/photos)
+    prismaMock.milestone.findUnique.mockResolvedValue({ coupleId: COUPLE, createdById: "partner" });
+    prismaMock.milestone.update.mockResolvedValue({ id: "m1", createdById: "partner" });
+    prismaMock.user.findUnique.mockResolvedValue({ id: "partner", name: "A", image: null });
+    prismaMock.milestonePhoto.findMany.mockResolvedValue([]);
+    const ok = await milestoneById.PUT(new Request("http://localhost/api/milestones/m1", { method: "PUT", body: JSON.stringify({ title: "Baru" }) }), { params: Promise.resolve({ id: "m1" }) });
+    expect(ok.status).toBe(200);
+
+    prismaMock.milestone.findUnique.mockResolvedValue({ coupleId: "couple-other", createdById: "someone-else" });
+    const foreign = await milestoneById.PUT(new Request("http://localhost/api/milestones/m1", { method: "PUT", body: JSON.stringify({ title: "x" }) }), { params: Promise.resolve({ id: "m1" }) });
+    expect(foreign.status).toBe(404);
+
+    prismaMock.milestone.findUnique.mockResolvedValue({ coupleId: null, createdById: ME });
+    const orphanOwn = await milestoneById.PUT(new Request("http://localhost/api/milestones/m1", { method: "PUT", body: JSON.stringify({ title: "Baru" }) }), { params: Promise.resolve({ id: "m1" }) });
+    expect(orphanOwn.status).toBe(200);
+
+    prismaMock.milestone.findUnique.mockResolvedValue({ coupleId: null, createdById: "someone-else" });
+    const orphanForeign = await milestoneById.PUT(new Request("http://localhost/api/milestones/m1", { method: "PUT", body: JSON.stringify({ title: "Hijack" }) }), { params: Promise.resolve({ id: "m1" }) });
+    expect(orphanForeign.status).toBe(404);
 
     prismaMock.milestone.findUnique.mockResolvedValue(null);
     const missing = await milestoneById.PUT(new Request("http://localhost/api/milestones/x", { method: "PUT", body: JSON.stringify({ title: "x" }) }), { params: Promise.resolve({ id: "x" }) });
     expect(missing.status).toBe(404);
-
-    prismaMock.milestone.findUnique.mockResolvedValue({ createdById: ME });
-    prismaMock.milestone.update.mockResolvedValue({ id: "m1", createdById: ME });
-    prismaMock.user.findUnique.mockResolvedValue({ id: ME, name: "A", image: null });
-    prismaMock.milestonePhoto.findMany.mockResolvedValue([]);
-    const ok = await milestoneById.PUT(new Request("http://localhost/api/milestones/m1", { method: "PUT", body: JSON.stringify({ title: "Baru" }) }), { params: Promise.resolve({ id: "m1" }) });
-    expect(ok.status).toBe(200);
   });
 
   it("milestones/[id] PUT: link replace runs in one transaction", async () => {
     const pid = "cjld2cjxh0000qz8n0p3q4w5e9";
-    prismaMock.milestone.findUnique.mockResolvedValue({ createdById: ME });
+    prismaMock.milestone.findUnique.mockResolvedValue({ coupleId: COUPLE, createdById: ME });
     prismaMock.milestone.update.mockResolvedValue({ id: "m1", createdById: ME });
     prismaMock.milestonePhoto.findMany.mockResolvedValue([{ photoId: "old1" }]);
     prismaMock.photo.findMany
@@ -368,7 +377,7 @@ describe("milestones API contracts", () => {
   });
 
   it("milestones/[id] PUT: rejects photoIds outside the caller's couple", async () => {
-    prismaMock.milestone.findUnique.mockResolvedValue({ createdById: ME });
+    prismaMock.milestone.findUnique.mockResolvedValue({ coupleId: COUPLE, createdById: ME });
     prismaMock.photo.findMany.mockResolvedValue([]);
     const res = await milestoneById.PUT(new Request("http://localhost/api/milestones/m1", {
       method: "PUT",
@@ -378,15 +387,20 @@ describe("milestones API contracts", () => {
     expect(prismaMock.$transaction).not.toHaveBeenCalled();
   });
 
-  it("milestones/[id] DELETE: creator-only + 200", async () => {
-    prismaMock.milestone.findUnique.mockResolvedValue({ createdById: "someone-else" });
-    const forbidden = await milestoneById.DELETE(new Request("http://localhost/api/milestones/m1", { method: "DELETE" }), { params: Promise.resolve({ id: "m1" }) });
-    expect(forbidden.status).toBe(403);
-    prismaMock.milestone.findUnique.mockResolvedValue({ createdById: ME });
+  it("milestones/[id] DELETE: couple-shared 200, cross-couple 404, orphan creator-only", async () => {
+    prismaMock.milestone.findUnique.mockResolvedValue({ coupleId: COUPLE, createdById: "partner" });
     prismaMock.photo.findMany.mockResolvedValue([]);
-    const ok = await milestoneById.DELETE(new Request("http://localhost/api/milestones/m1", { method: "DELETE" }), { params: Promise.resolve({ id: "m1" }) });
-    expect(ok.status).toBe(200);
+    const shared = await milestoneById.DELETE(new Request("http://localhost/api/milestones/m1", { method: "DELETE" }), { params: Promise.resolve({ id: "m1" }) });
+    expect(shared.status).toBe(200);
     expect(prismaMock.milestone.delete).toHaveBeenCalledWith({ where: { id: "m1" } });
+
+    prismaMock.milestone.findUnique.mockResolvedValue({ coupleId: "couple-other", createdById: "someone-else" });
+    const foreign = await milestoneById.DELETE(new Request("http://localhost/api/milestones/m1", { method: "DELETE" }), { params: Promise.resolve({ id: "m1" }) });
+    expect(foreign.status).toBe(404);
+
+    prismaMock.milestone.findUnique.mockResolvedValue({ coupleId: null, createdById: "someone-else" });
+    const orphanForeign = await milestoneById.DELETE(new Request("http://localhost/api/milestones/m1", { method: "DELETE" }), { params: Promise.resolve({ id: "m1" }) });
+    expect(orphanForeign.status).toBe(404);
   });
 
   it("GAL-08: bulk-upload 201 all-valid, 400 empty", async () => {

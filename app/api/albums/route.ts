@@ -134,6 +134,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
     }
     const creatorCoupleId = await getUserCoupleId(userId);
+    // Never persist a row with no tenant (see the wish POST guard).
+    if (!creatorCoupleId) {
+      return NextResponse.json(
+        { error: "Akun belum terhubung ke couple. Coba muat ulang.", code: "NO_COUPLE" },
+        { status: 409 },
+      );
+    }
 
     const album = await prisma.album.create({
       data: { ...parsed.data, coupleId: creatorCoupleId, createdById: userId },

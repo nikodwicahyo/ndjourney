@@ -39,17 +39,24 @@ type PrismaWish = {
 };
 
 /**
- * Couple-scoped wish list. Orphan rows are adopted at couple formation, so
- * they are never treated as globally shared.
+ * Couple-scoped wish list. Legacy rows are attributed at couple formation (see
+ * the authz migration / ensureCouple), so a coupled caller sees the whole
+ * couple. A not-yet-adopted row stays visible only to its creator - the same
+ * ownership rule wishes/photos/milestones use for writes.
  * Single source for GET /api/wishes and the dashboard wishlist page's
  * server-side hydration — both must stay in lockstep.
  */
-export async function listWishes(coupleId: string, page = 1, limit = 50): Promise<WishListResponse> {
-  const cacheK = cacheKey("wishes", "list", coupleId, String(page), String(limit));
+export async function listWishes(coupleId: string, userId: string, page = 1, limit = 50): Promise<WishListResponse> {
+  const cacheK = cacheKey("wishes", "list", coupleId, userId, String(page), String(limit));
   const cached = await getCached<WishListResponse>(cacheK);
   if (cached) return cached;
 
-  const where = { coupleId };
+  const where = {
+    OR: [
+      { coupleId },
+      { coupleId: null, createdById: userId },
+    ],
+  };
 
   const [wishes, total] = await Promise.all([
     prisma.wishItem.findMany({

@@ -7,6 +7,7 @@ import { parseJakartaDateOnly } from "@/lib/date";
 import { invalidateCache } from "@/lib/redis";
 import { deleteFromCloudinary } from "@/lib/cloudinary";
 import { getUserCoupleId } from "@/lib/couple";
+import { canManageCoupleRow } from "@/lib/couple-ownership";
 import { isAllowedCloudinaryUrl } from "@/lib/upload-policy";
 import { verifyUploadForSave } from "@/lib/upload-verify";
 import { triggerCoupleEvent } from "@/lib/pusher-server";
@@ -135,15 +136,20 @@ export async function PUT(
 
     const { id } = await params;
 
-    const existingMilestone = await prisma.milestone.findUnique({
-      where: { id },
-      select: { createdById: true },
-    });
-    if (!existingMilestone) {
+    // ownership gate — couple rows are shared by the couple (like wishes and
+    // photos); orphan rows stay creator-only.
+    const [existingMilestone, callerCoupleId] = await Promise.all([
+      prisma.milestone.findUnique({
+        where: { id },
+        select: { coupleId: true, createdById: true },
+      }),
+      getUserCoupleId(session.user.id),
+    ]);
+    if (
+      !existingMilestone ||
+      !canManageCoupleRow(existingMilestone, callerCoupleId, session.user.id)
+    ) {
       return NextResponse.json({ error: "Milestone tidak ditemukan" }, { status: 404 });
-    }
-    if (existingMilestone.createdById !== session.user.id) {
-      return NextResponse.json({ error: "Kamu tidak punya akses untuk mengubah milestone ini" }, { status: 403 });
     }
 
     const body = await request.json().catch(() => null);
@@ -167,8 +173,6 @@ export async function PUT(
       }
       date = parsed;
     }
-
-    const callerCoupleId = await getUserCoupleId(session.user.id);
 
     // SEC: same client-supplied photoIds gate as POST — never link another
     // couple's media into this milestone.
@@ -353,15 +357,19 @@ export async function DELETE(
     const { id } = await params;
     const userId = rateCheck.session.user.id;
 
-    const existingMilestone = await prisma.milestone.findUnique({
-      where: { id },
-      select: { createdById: true },
-    });
-    if (!existingMilestone) {
+    // ownership gate (see PUT above) — couple rows are couple-shared.
+    const [existingMilestone, callerCoupleId] = await Promise.all([
+      prisma.milestone.findUnique({
+        where: { id },
+        select: { coupleId: true, createdById: true },
+      }),
+      getUserCoupleId(userId),
+    ]);
+    if (
+      !existingMilestone ||
+      !canManageCoupleRow(existingMilestone, callerCoupleId, userId)
+    ) {
       return NextResponse.json({ error: "Milestone tidak ditemukan" }, { status: 404 });
-    }
-    if (existingMilestone.createdById !== userId) {
-      return NextResponse.json({ error: "Kamu tidak punya akses untuk menghapus milestone ini" }, { status: 403 });
     }
 
     // Fetch milestone-only photos to clean from Cloudinary
@@ -392,9 +400,8 @@ export async function DELETE(
     await invalidateCache("dashboard:*");
     await invalidateCache("home:*");
 
-    const coupleId = await getUserCoupleId(userId);
-    if (coupleId) {
-      triggerCoupleEvent(coupleId, 'TIMELINE');
+    if (callerCoupleId) {
+      triggerCoupleEvent(callerCoupleId, 'TIMELINE');
     }
 
     return NextResponse.json({ data: { id } });

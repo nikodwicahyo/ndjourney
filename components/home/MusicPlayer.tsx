@@ -115,7 +115,7 @@ export default function MusicPlayer({ spotifyUrl, onSpotifyPlay }: MusicPlayerPr
                 : "pointer-events-none translate-y-5 scale-95 opacity-0",
           )}
         >
-          <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+          <div className="flex h-10 items-center justify-between border-b border-border px-4">
             <div className="flex items-center gap-2">
               <Music className="h-4 w-4 text-primary" />
               <span className="text-xs font-medium">Our Playlist</span>

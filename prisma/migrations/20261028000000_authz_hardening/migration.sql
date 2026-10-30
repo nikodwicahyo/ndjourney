@@ -9,29 +9,64 @@
 --    orphaned and keep their uploader/creator-scoped visibility.
 -- 3. Letter.isPublic is dropped: it was never honored by any read path (letters
 --    are author/recipient-only) and had no UI, so it was a dead privacy control.
+--
+-- Idempotent on purpose: this DB was kept in sync with `prisma db push`, so the
+-- schema objects already exist even though none of these steps ever ran. Every
+-- statement below is safe to re-run and the backfills are what attribute legacy
+-- rows (including rows that predate the couple) to their couple.
 
-ALTER TABLE "Album" ADD COLUMN "createdById" TEXT;
-ALTER TABLE "WishItem" ADD COLUMN "createdById" TEXT;
+ALTER TABLE "Album" ADD COLUMN IF NOT EXISTS "createdById" TEXT;
+ALTER TABLE "WishItem" ADD COLUMN IF NOT EXISTS "createdById" TEXT;
 
-ALTER TABLE "Album"
-  ADD CONSTRAINT "Album_createdById_fkey"
-  FOREIGN KEY ("createdById") REFERENCES "User"("id")
-  ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Album_createdById_fkey') THEN
+    ALTER TABLE "Album"
+      ADD CONSTRAINT "Album_createdById_fkey"
+      FOREIGN KEY ("createdById") REFERENCES "User"("id")
+      ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
 
-ALTER TABLE "WishItem"
-  ADD CONSTRAINT "WishItem_createdById_fkey"
-  FOREIGN KEY ("createdById") REFERENCES "User"("id")
-  ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'WishItem_createdById_fkey') THEN
+    ALTER TABLE "WishItem"
+      ADD CONSTRAINT "WishItem_createdById_fkey"
+      FOREIGN KEY ("createdById") REFERENCES "User"("id")
+      ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
 
-CREATE INDEX "Album_createdById_idx" ON "Album"("createdById");
-CREATE INDEX "WishItem_createdById_idx" ON "WishItem"("createdById");
+CREATE INDEX IF NOT EXISTS "Album_createdById_idx" ON "Album"("createdById");
+CREATE INDEX IF NOT EXISTS "WishItem_createdById_idx" ON "WishItem"("createdById");
 
--- No creator column on these two: under the singleton-couple invariant every
--- orphan row belongs to that couple.
-UPDATE "Album" a SET "coupleId" = c."id" FROM "Couple" c WHERE a."coupleId" IS NULL;
-UPDATE "WishItem" w SET "coupleId" = c."id" FROM "Couple" c WHERE w."coupleId" IS NULL;
+-- Unattributable legacy rows (no couple, no creator) can only belong to the
+-- singleton couple - there is nobody else they could belong to. Guarded so a
+-- future multi-couple database never cross-adopts them.
+DO $$
+DECLARE
+  singleton TEXT;
+BEGIN
+  IF (SELECT COUNT(*) FROM "Couple") <> 1 THEN
+    RETURN;
+  END IF;
+  SELECT "id" INTO singleton FROM "Couple" LIMIT 1;
+  UPDATE "Album" SET "coupleId" = singleton WHERE "coupleId" IS NULL AND "createdById" IS NULL;
+  UPDATE "WishItem" SET "coupleId" = singleton WHERE "coupleId" IS NULL AND "createdById" IS NULL;
+END $$;
 
 -- Creator-scoped adoption: only rows authored by a member of the couple.
+UPDATE "Album" a SET "coupleId" = c."id"
+FROM "Couple" c
+JOIN "CoupleMember" cm ON cm."coupleId" = c."id"
+WHERE a."coupleId" IS NULL AND a."createdById" = cm."userId";
+
+UPDATE "WishItem" w SET "coupleId" = c."id"
+FROM "Couple" c
+JOIN "CoupleMember" cm ON cm."coupleId" = c."id"
+WHERE w."coupleId" IS NULL AND w."createdById" = cm."userId";
+
 UPDATE "Photo" p SET "coupleId" = c."id"
 FROM "Couple" c
 JOIN "CoupleMember" cm ON cm."coupleId" = c."id"
@@ -52,4 +87,4 @@ FROM "Couple" c
 JOIN "CoupleMember" cm ON cm."coupleId" = c."id"
 WHERE l."coupleId" IS NULL AND l."authorId" = cm."userId";
 
-ALTER TABLE "Letter" DROP COLUMN "isPublic";
+ALTER TABLE "Letter" DROP COLUMN IF EXISTS "isPublic";

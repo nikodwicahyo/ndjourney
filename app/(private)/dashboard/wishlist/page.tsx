@@ -19,10 +19,10 @@ export default async function WishlistManagerPage() {
   const state = await prefetchServerQueries([async (qc) => {
     const session = await auth();
     const coupleId = session?.user ? await getUserCoupleId(session.user.id) : null;
-    if (!coupleId) return;
+    if (!coupleId || !session?.user) return;
     await qc.prefetchQuery({
       queryKey: queryKeys.wishes.list(),
-      queryFn: async () => (await listWishes(coupleId)).data,
+      queryFn: async () => (await listWishes(coupleId, session.user.id)).data,
     });
   }]);
 

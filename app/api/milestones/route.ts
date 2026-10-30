@@ -65,6 +65,13 @@ export async function POST(request: Request) {
     }
 
     const coupleId = await getUserCoupleId(session.user.id);
+    // Never persist a row with no tenant (see the wish POST guard).
+    if (!coupleId) {
+      return NextResponse.json(
+        { error: "Akun belum terhubung ke couple. Coba muat ulang." },
+        { status: 409 },
+      );
+    }
 
     // SEC: photoIds come from the client. Only link media owned by this
     // couple (legacy coupleId-null rows are shared) — never a foreign row.

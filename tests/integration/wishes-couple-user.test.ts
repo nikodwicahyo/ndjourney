@@ -70,6 +70,20 @@ describe("wishes API contracts", () => {
     const res = await wishes.GET(new Request("http://localhost/api/wishes"));
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ total: 0, page: 1 });
+    // coupled caller: whole couple + own not-yet-adopted rows, never a stranger's
+    expect(prismaMock.wishItem.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { OR: [{ coupleId: COUPLE }, { coupleId: null, createdById: ME }] },
+    }));
+  });
+
+  it("WISH: POST refuses to persist a row with no couple", async () => {
+    const { getUserCoupleId } = await import("@/lib/couple");
+    vi.mocked(getUserCoupleId).mockResolvedValueOnce(null);
+    const res = await wishes.POST(new Request("http://localhost/api/wishes", {
+      method: "POST", body: JSON.stringify({ title: "Bali", category: "TRAVEL" }),
+    }));
+    expect(res.status).toBe(409);
+    expect(prismaMock.wishItem.create).not.toHaveBeenCalled();
   });
 
   it("WISH: POST 201 + 400 empty title + 400 bad link", async () => {

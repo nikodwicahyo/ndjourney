@@ -112,21 +112,11 @@ export default function HeroSection({
       {/* Readability scrim (photo heroes only): darkens any image so the
           stroke-free text stays legible — bright, dark, or busy photos. */}
       {heroPhotoUrl && (
-        <>
-          <div
-            aria-hidden="true"
-            data-testid="hero-scrim"
-            className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/25 to-black/60"
-          />
-          {/* Bottom fade into the page (was a CSS mask on the image): an overlay
-              paints with the first frame, a mask forces an extra raster pass
-              that measured ~300 ms of LCP on a throttled phone. */}
-          <div
-            aria-hidden="true"
-            data-testid="hero-fade"
-            className="absolute inset-x-0 bottom-0 h-[10%] bg-gradient-to-t from-background to-transparent"
-          />
-        </>
+        <div
+          aria-hidden="true"
+          data-testid="hero-scrim"
+          className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/25 to-black/60"
+        />
       )}
 
       <div className="absolute inset-0" aria-hidden="true">

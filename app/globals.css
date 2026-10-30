@@ -548,9 +548,8 @@ html [data-sonner-toaster][data-sonner-theme="light"] {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .typewriter {
-    animation: none;
-  }
+  /* The reveal is a discrete clip (no movement), so it stays; only the
+     blinking caret is motion and gets dropped. */
   .type-caret {
     display: none;
   }

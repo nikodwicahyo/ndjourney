@@ -126,6 +126,13 @@ export async function POST(request: Request) {
     const today = jakartaStartOfDay();
 
     const authorCoupleId = await getUserCoupleId(session.user.id);
+    // Never persist a row with no tenant (see the wish POST guard).
+    if (!authorCoupleId) {
+      return NextResponse.json(
+        { error: "Akun belum terhubung ke couple. Coba muat ulang." },
+        { status: 409 },
+      );
+    }
 
     const note = await prisma.dailyNote.create({
       data: {

@@ -8,6 +8,7 @@ import { batchLoadUsers, mapUsersToRecords } from "@/lib/batch";
 import { sendEmail, letterNotificationHtml, safeAppUrl } from "@/lib/email";
 import { sanitizeStoredHtml } from "@/lib/sanitize-html";
 import { triggerCoupleEvent } from "@/lib/pusher-server";
+import { getUserCoupleId } from "@/lib/couple";
 
 const CACHE_TTL = 30;
 
@@ -104,6 +105,16 @@ export async function POST(request: Request) {
 
     let membership: { couple: { id: string; members: Array<{ userId: string }> } } | null = null;
 
+    // Every letter belongs to a couple: never persist an unscoped row (it would
+    // be invisible to couple-scoped counters/feeds).
+    const coupleId = await getUserCoupleId(session.user.id);
+    if (!coupleId) {
+      return NextResponse.json(
+        { error: "Akun belum terhubung ke couple. Coba muat ulang." },
+        { status: 409 },
+      );
+    }
+
     if (parsed.data.recipientId) {
       membership = await prisma.coupleMember.findUnique({
         where: { userId: session.user.id },
@@ -137,7 +148,7 @@ export async function POST(request: Request) {
         // SEC: strip active content before storing — client DOMPurify alone is not enough.
         content: sanitizeStoredHtml(parsed.data.content),
         authorId: session.user.id,
-        coupleId: membership?.couple?.id ?? null,
+        coupleId,
         unlockAt: parsed.data.unlockAt
           ? new Date(parsed.data.unlockAt)
           : null,
@@ -188,10 +199,7 @@ export async function POST(request: Request) {
     await invalidateCache("dashboard:*");
     await invalidateCache("home:*");
 
-    const coupleId = membership?.couple?.id;
-    if (coupleId) {
-      triggerCoupleEvent(coupleId, 'LETTERS');
-    }
+    triggerCoupleEvent(coupleId, 'LETTERS');
 
     return NextResponse.json({ data: enriched }, { status: 201 });
   } catch (error) {

@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     const page = Math.min(Math.max(parseInt(searchParams.get("page") || "1", 10) || 1, 1), 1000);
     const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "50", 10) || 50, 1), 100);
 
-    const response = await listWishes(coupleId, page, limit);
+    const response = await listWishes(coupleId, session.user.id, page, limit);
 
     return NextResponse.json(response, {
       headers: { "Cache-Control": "private, no-cache" },
@@ -57,6 +57,15 @@ export async function POST(request: Request) {
 
     const userId = rateCheck.session.user.id;
     const wishCoupleId = await getUserCoupleId(userId);
+
+    // Never persist a row with no tenant: a missing couple is an internal
+    // failure, and an orphan row would silently disappear from the list.
+    if (!wishCoupleId) {
+      return NextResponse.json(
+        { error: "Akun belum terhubung ke couple. Coba muat ulang." },
+        { status: 409 },
+      );
+    }
 
     // omit null crop on create (DB default is NULL; Json fields reject plain null).
     const { imageCrop, ...rest } = parsed.data;

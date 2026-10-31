@@ -18,6 +18,11 @@ type ProfileContentProps = {
     image: string | null;
     role: string;
   };
+  partner: {
+    name: string;
+    email: string;
+    image: string | null;
+  } | null;
   couple: {
     name1: string;
     name2: string;
@@ -28,7 +33,7 @@ type ProfileContentProps = {
   } | null;
 };
 
-export default function ProfileContent({ user, couple }: ProfileContentProps) {
+export default function ProfileContent({ user, partner, couple }: ProfileContentProps) {
   const { update } = useSession();
 
   const [displayName, setDisplayName] = useState(user.name);
@@ -263,14 +268,22 @@ export default function ProfileContent({ user, couple }: ProfileContentProps) {
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <h1 className="font-heading text-2xl truncate">{displayName}</h1>
+          <h1 className="font-heading text-2xl break-words">{displayName}</h1>
           <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
             <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            <span className="truncate">{user.email}</span>
+            <span className="break-words">{user.email}</span>
           </div>
           <span className="mt-1 inline-block rounded-full bg-primary/10 px-3 py-0.5 text-xs font-medium text-primary">
             {user.role === "ADMIN" ? "Admin" : "Partner"}
           </span>
+          {partner ? (
+            <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
+              <Heart className="h-3.5 w-3.5 shrink-0 fill-primary text-primary" aria-hidden="true" />
+              <span className="break-words">Partner: {partner.name || partner.email}</span>
+            </div>
+          ) : (
+            <p className="mt-1 text-sm text-muted-foreground">Partner belum disetup</p>
+          )}
         </div>
       </div>
 
@@ -278,28 +291,28 @@ export default function ProfileContent({ user, couple }: ProfileContentProps) {
         <div className="rounded-2xl border border-border bg-card p-6 overflow-hidden">
           <h2 className="flex items-center gap-2 font-heading text-lg font-semibold">
             <Heart className="h-5 w-5 shrink-0 fill-primary text-primary" aria-hidden="true" />
-            <span className="truncate">{couple.name1} & {couple.name2}</span>
+            <span className="break-words">{couple.name1} & {couple.name2}</span>
           </h2>
           {couple.tagline && (
             <p className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground">
               <Quote className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              <span className="truncate">{couple.tagline}</span>
+              <span className="break-words">{couple.tagline}</span>
             </p>
           )}
           <p className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground">
             <CalendarDays className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            <span className="truncate">Anniversary: {formatDate(couple.anniversaryDate)}</span>
+            <span className="break-words">Anniversary: {formatDate(couple.anniversaryDate)}</span>
           </p>
           {couple.birthDate1 && (
             <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
               <Cake className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              <span className="truncate">Ultah {couple.name1}: {formatDate(couple.birthDate1)}</span>
+              <span className="break-words">Ultah {couple.name1}: {formatDate(couple.birthDate1)}</span>
             </p>
           )}
           {couple.birthDate2 && (
             <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
               <Cake className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              <span className="truncate">Ultah {couple.name2}: {formatDate(couple.birthDate2)}</span>
+              <span className="break-words">Ultah {couple.name2}: {formatDate(couple.birthDate2)}</span>
             </p>
           )}
         </div>

@@ -98,6 +98,12 @@ export default function HomeBelowFold({
         <QuoteOfTheDay />
       </Reveal>
 
+      <Reveal minHeight={HEIGHTS.gallery}>
+        <Suspense fallback={<div className="h-64 animate-pulse rounded-2xl bg-muted" />}>
+          <GallerySlideshow photos={galleryPhotos} />
+        </Suspense>
+      </Reveal>
+
       <Reveal minHeight={HEIGHTS["love-meter"]}>
         <Suspense fallback={<div className="h-48 animate-pulse rounded-2xl bg-muted" />}>
           <LoveMeter
@@ -116,12 +122,6 @@ export default function HomeBelowFold({
             targetSetAt={loveMeterTargets.targetSetAt?.toISOString() ?? null}
             targetMetAt={loveMeterTargets.targetMetAt?.toISOString() ?? null}
           />
-        </Suspense>
-      </Reveal>
-
-      <Reveal minHeight={HEIGHTS.gallery}>
-        <Suspense fallback={<div className="h-64 animate-pulse rounded-2xl bg-muted" />}>
-          <GallerySlideshow photos={galleryPhotos} />
         </Suspense>
       </Reveal>
 

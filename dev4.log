@@ -1,0 +1,16 @@
+﻿
+> couple-web@0.1.1 dev
+> next dev
+
+Γû▓ Next.js 16.4.2 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.4.31:3000
+- Environments: .env
+Γ£ô Ready in 971ms
+Γ£ô Running next.config.ts took 148ms
+- Experiments (use with caution):
+  ┬╖ optimizePackageImports
+  Γ£ô webpackBuildWorker
+  Γ£ô workerThreads
+
+Γùï Compiling / ...

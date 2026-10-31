@@ -12,6 +12,21 @@ export default async function ProfilePage() {
 
   const coupleConfig = await prisma.coupleConfig.findFirst({ take: 1 });
 
+  const membership = await prisma.coupleMember.findUnique({
+    where: { userId: session.user.id },
+    select: {
+      couple: {
+        select: {
+          members: {
+            where: { userId: { not: session.user.id } },
+            select: { user: { select: { name: true, email: true, image: true } } },
+          },
+        },
+      },
+    },
+  });
+  const partnerUser = membership?.couple?.members?.[0]?.user ?? null;
+
   return (
     <ProfileContent
       user={{
@@ -20,6 +35,15 @@ export default async function ProfilePage() {
         image: session.user.image ?? null,
         role: (session.user as { role?: string }).role ?? "PARTNER",
       }}
+      partner={
+        partnerUser
+          ? {
+              name: partnerUser.name ?? "",
+              email: partnerUser.email,
+              image: partnerUser.image ?? null,
+            }
+          : null
+      }
       couple={
         coupleConfig
           ? {

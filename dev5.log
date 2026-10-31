@@ -1,0 +1,23 @@
+﻿
+> couple-web@0.1.1 dev
+> next dev
+
+node.exe : ΓÜá Port 3000 is in use by process 3700, using available port 3001 instead.
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (ΓÜá Port 3000 i...t 3001 instead.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Γû▓ Next.js 16.4.2 (Turbopack)
+- Local:         http://localhost:3001
+- Network:       http://192.168.4.31:3001
+- Environments: .env
+Γ£ô Ready in 800ms
+Γ£ô Running next.config.ts took 148ms
+- Experiments (use with caution):
+  ┬╖ optimizePackageImports
+  Γ£ô webpackBuildWorker
+  Γ£ô workerThreads
+
+Γ£ô Finished filesystem cache database compaction in 16.6s

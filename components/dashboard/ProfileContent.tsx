@@ -273,17 +273,13 @@ export default function ProfileContent({ user, partner, couple }: ProfileContent
             <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <span className="break-words">{user.email}</span>
           </div>
-          <span className="mt-1 inline-block rounded-full bg-primary/10 px-3 py-0.5 text-xs font-medium text-primary">
-            {user.role === "ADMIN" ? "Admin" : "Partner"}
+          <span className="mt-1 inline-block rounded-full bg-primary/10 px-3 py-0.5 text-xs font-medium text-primary break-words">
+            {user.role === "ADMIN"
+              ? "Admin"
+              : partner
+                ? `Partner · ${partner.name || partner.email}`
+                : "Partner · belum disetup"}
           </span>
-          {partner ? (
-            <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-              <Heart className="h-3.5 w-3.5 shrink-0 fill-primary text-primary" aria-hidden="true" />
-              <span className="break-words">Partner: {partner.name || partner.email}</span>
-            </div>
-          ) : (
-            <p className="mt-1 text-sm text-muted-foreground">Partner belum disetup</p>
-          )}
         </div>
       </div>
 

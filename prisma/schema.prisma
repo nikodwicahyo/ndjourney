@@ -25,6 +25,7 @@ model User {
   dailyNotes        DailyNote[]
   gameScores      GameScore[]
   gameArcadeScores GameArcadeScore[]
+  gameRounds      GameRound[]
   letters         Letter[]      @relation("LetterAuthor")
   receivedLetters Letter[]      @relation("LetterRecipient")
   milestones      Milestone[]
@@ -308,6 +309,28 @@ model GameArcadeScore {
   @@index([userId])
   @@index([gameType])
   @@index([gameType, score])
+}
+
+// Append-only ledger of COMPLETED quiz rounds (Would You Rather / Love Quiz).
+// One row per finished batch — GameScore is the per-question answer ledger and
+// can never answer "how many times did this user play". `correct` is derived
+// server-side from GameScore at submit time; `totalQuestions` is the batch size
+// actually served (not always 10 near bank exhaustion).
+model GameRound {
+  id             String   @id @default(cuid())
+  gameType       GameType
+  userId         String?
+  playerName     String?
+  correct        Int
+  totalQuestions Int
+  // `<userId|guest:name>:<client roundId>` — makes a retried submit idempotent.
+  dedupeKey      String   @unique
+  playedAt       DateTime @default(now())
+  user           User?    @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([gameType])
+  @@index([gameType, playedAt])
 }
 
 model LocationShare {

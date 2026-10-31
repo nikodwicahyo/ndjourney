@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
-import { motion, AnimatePresence, useInView, useReducedMotion } from "framer-motion";
+import { motion, AnimatePresence, useInView } from "framer-motion";
 import { X, Heart, Sparkles, Mail } from "lucide-react";
 
 const messages = [
@@ -325,7 +325,6 @@ function saveToLocal(key: string, value: unknown) {
 export default function BottleLetter() {
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-40px" });
-  const reduced = useReducedMotion();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const modalCloseRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
@@ -435,14 +434,14 @@ export default function BottleLetter() {
 
   const swayVariants = {
     idle: {
-      y: reduced ? 0 : [0, -4, 0],
-      rotate: reduced ? 0 : [0, 2, -2, 0],
-      transition: { duration: 6, repeat: reduced ? 0 : Infinity, ease: "easeInOut" as const },
+      y: [0, -4, 0],
+      rotate: [0, 2, -2, 0],
+      transition: { duration: 6, repeat: Infinity, ease: "easeInOut" as const },
     },
     hover: {
-      y: reduced ? 0 : [0, -6, 0],
-      rotate: reduced ? 0 : [0, 3, -3, 0],
-      transition: { duration: 4, repeat: reduced ? 0 : Infinity, ease: "easeInOut" as const },
+      y: [0, -6, 0],
+      rotate: [0, 3, -3, 0],
+      transition: { duration: 4, repeat: Infinity, ease: "easeInOut" as const },
     },
   };
 
@@ -462,9 +461,9 @@ export default function BottleLetter() {
         left: 5 + i * 9,
         delay: i * 0.15 + 0.3,
         variant: i % 2,
-        drift: reduced ? 0 : (Math.random() - 0.5) * 30,
+        drift: (Math.random() - 0.5) * 30,
       })),
-    [reduced],
+    [],
   );
 
   return (
@@ -505,10 +504,10 @@ export default function BottleLetter() {
               viewBox="0 0 400 60"
               preserveAspectRatio="none"
               className="h-full w-full"
-              animate={reduced ? {} : { x: [0, -100, 0] }}
+              animate={{ x: [0, -100, 0] }}
               transition={{
                 duration: 12,
-                repeat: reduced ? 0 : Infinity,
+                repeat: Infinity,
                 ease: "easeInOut",
               }}
             >
@@ -533,10 +532,10 @@ export default function BottleLetter() {
               viewBox="0 0 400 60"
               preserveAspectRatio="none"
               className="absolute inset-0 h-full w-full"
-              animate={reduced ? {} : { x: [0, 100, 0] }}
+              animate={{ x: [0, 100, 0] }}
               transition={{
                 duration: 18,
-                repeat: reduced ? 0 : Infinity,
+                repeat: Infinity,
                 ease: "easeInOut",
               }}
             >
@@ -558,23 +557,19 @@ export default function BottleLetter() {
                   left: `${12 + ((i * 11) % 76)}%`,
                   bottom: `${15 + ((i * 10) % 70)}%`,
                 }}
-                animate={
-                  reduced
-                    ? {}
-                    : {
-                        y: [-40 - (i % 3) * 20, -90 - (i % 3) * 30],
-                        x: [
-                          0,
-                          (i % 2 === 0 ? 10 : -10) * (1 + (i % 3)),
-                          0,
-                        ],
-                        opacity: [0, 0.6, 0],
-                        scale: [0.3, 1, 0.3],
-                      }
-                }
+                animate={{
+                  y: [-40 - (i % 3) * 20, -90 - (i % 3) * 30],
+                  x: [
+                    0,
+                    (i % 2 === 0 ? 10 : -10) * (1 + (i % 3)),
+                    0,
+                  ],
+                  opacity: [0, 0.6, 0],
+                  scale: [0.3, 1, 0.3],
+                }}
                 transition={{
                   duration: 5 + (i % 4),
-                  repeat: reduced ? 0 : Infinity,
+                  repeat: Infinity,
                   delay: i * 0.45,
                   ease: "easeInOut",
                 }}
@@ -598,7 +593,7 @@ export default function BottleLetter() {
                 }}
                 transition={{
                   duration: 3.5,
-                  repeat: reduced ? 0 : Infinity,
+                  repeat: Infinity,
                   delay: i * 0.3,
                   ease: "easeOut",
                 }}
@@ -629,10 +624,10 @@ export default function BottleLetter() {
                 background:
                   "radial-gradient(circle at 50% 40%, rgba(251,191,36,0.15), transparent 70%)",
               }}
-              animate={reduced ? { opacity: 0.5 } : { opacity: [0.3, 0.7, 0.3] }}
+              animate={{ opacity: [0.3, 0.7, 0.3] }}
               transition={{
                 duration: 2.5,
-                repeat: reduced ? 0 : Infinity,
+                repeat: Infinity,
                 ease: "easeInOut",
               }}
             />
@@ -737,19 +732,15 @@ export default function BottleLetter() {
                     left: "calc(50% - 9px)",
                     top: "calc(50% - 9px)",
                   }}
-                  animate={
-                    reduced
-                      ? {}
-                      : {
-                          x: orbit.x,
-                          y: orbit.y,
-                          opacity: [0.3, 0.8, 0.3],
-                          scale: [0.6, 1.1, 0.6],
-                        }
-                  }
+                  animate={{
+                    x: orbit.x,
+                    y: orbit.y,
+                    opacity: [0.3, 0.8, 0.3],
+                    scale: [0.6, 1.1, 0.6],
+                  }}
                   transition={{
                     duration: 7,
-                    repeat: reduced ? 0 : Infinity,
+                    repeat: Infinity,
                     ease: "linear",
                   }}
                 >
@@ -774,7 +765,7 @@ export default function BottleLetter() {
                   }}
                   transition={{
                     duration: 2,
-                    repeat: reduced ? 0 : Infinity,
+                    repeat: Infinity,
                     delay: i * 0.35,
                     ease: "easeOut",
                   }}
@@ -883,13 +874,13 @@ export default function BottleLetter() {
           <motion.span
             className="mt-4 text-xs font-medium text-amber-700 dark:text-amber-300"
             animate={
-              phase === "idle" && !reduced
+              phase === "idle"
                 ? { opacity: [0.6, 1, 0.6] }
                 : { opacity: 1 }
             }
               transition={{
                 duration: 3,
-                repeat: phase === "idle" && !reduced ? Infinity : 0,
+                repeat: phase === "idle" ? Infinity : 0,
               }}
           >
             {hintLabels[phase]}
@@ -956,18 +947,14 @@ export default function BottleLetter() {
                   key={`mh-${i}`}
                   className="pointer-events-none absolute z-0 text-lg"
                   initial={{ y: "110%", opacity: 0 }}
-                  animate={
-                    reduced
-                      ? { y: "40%", opacity: 0.4 }
-                      : {
-                          y: "-10%",
-                          opacity: [0, 0.4, 0],
-                          x: [0, (i % 2 === 0 ? 8 : -8), 0],
-                        }
-                  }
+                  animate={{
+                    y: "-10%",
+                    opacity: [0, 0.4, 0],
+                    x: [0, (i % 2 === 0 ? 8 : -8), 0],
+                  }}
                   transition={{
                     duration: 8 + i,
-                    repeat: reduced ? 0 : Infinity,
+                    repeat: Infinity,
                     delay: i * 1.2,
                     ease: "easeInOut",
                   }}
@@ -981,18 +968,14 @@ export default function BottleLetter() {
                   key={`ms-${i}`}
                   className="pointer-events-none absolute z-0 text-sm"
                   initial={{ y: "110%", opacity: 0 }}
-                  animate={
-                    reduced
-                      ? { y: "40%", opacity: 0.3 }
-                      : {
-                          y: "-5%",
-                          opacity: [0, 0.3, 0],
-                          x: [0, (i % 2 === 0 ? -6 : 6), 0],
-                        }
-                  }
+                  animate={{
+                    y: "-5%",
+                    opacity: [0, 0.3, 0],
+                    x: [0, (i % 2 === 0 ? -6 : 6), 0],
+                  }}
                   transition={{
                     duration: 10 + i,
-                    repeat: reduced ? 0 : Infinity,
+                    repeat: Infinity,
                     delay: i * 1.8,
                     ease: "easeInOut",
                   }}
@@ -1026,11 +1009,11 @@ export default function BottleLetter() {
               >
                 <motion.span
                   className="inline-block"
-                  animate={reduced ? {} : { y: [0, -3, 0] }}
+                  animate={{ y: [0, -3, 0] }}
                   transition={{
                     delay: 1,
                     duration: 2,
-                    repeat: reduced ? 0 : Infinity,
+                    repeat: Infinity,
                     ease: "easeInOut",
                   }}
                 >
@@ -1050,10 +1033,10 @@ export default function BottleLetter() {
                   {displayText}
                   {displayText.length < message.length && (
                     <motion.span
-                      animate={reduced ? { opacity: 1 } : { opacity: [1, 0] }}
+                      animate={{ opacity: [1, 0] }}
                       transition={{
                         duration: 0.8,
-                        repeat: reduced ? 0 : Infinity,
+                        repeat: Infinity,
                       }}
                       className="inline-block"
                     >

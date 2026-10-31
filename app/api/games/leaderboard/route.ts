@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCached, setCached, cacheKey } from "@/lib/redis";
-import { getQaLeaderboard } from "@/lib/queries/games";
+import { getGameLeaderboard } from "@/lib/queries/games";
 import { withAnonymousRateLimit } from "@/lib/rate-limit";
 import { auth } from "@/lib/auth";
 import { z } from "zod";
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const leaderboard = await getQaLeaderboard(type);
+    const leaderboard = await getGameLeaderboard(type);
 
     if (leaderboard.length === 0) {
       return NextResponse.json({ data: [] });

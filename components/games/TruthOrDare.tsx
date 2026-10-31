@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useAllQuestions } from "@/hooks/useGames";
 import { Button, Skeleton } from "@/components/ui";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { RefreshCw, Shuffle } from "lucide-react";
 import { pruneSeen } from "@/lib/game-deck";
 
@@ -41,7 +41,6 @@ export default function TruthOrDare() {
   const [history, setHistory] = useState<HistoryItem[]>(loadHistory);
   const [lastCategory, setLastCategory] = useState<"Truth" | "Dare" | null>(null);
   const [reshuffled, setReshuffled] = useState<"Truth" | "Dare" | null>(null);
-  const reduceMotion = useReducedMotion();
 
   // Drop history entries whose cards left the bank (deleted/archived) so
   // stale ids can neither inflate the remaining count nor fake exhaustion.
@@ -226,7 +225,7 @@ export default function TruthOrDare() {
             initial={{ opacity: 0, scale: 0.9, rotateY: 180 }}
             animate={{ opacity: 1, scale: 1, rotateY: 0 }}
             exit={{ opacity: 0, scale: 0.9 }}
-            transition={{ duration: reduceMotion ? 0 : 0.4 }}
+            transition={{ duration: 0.4 }}
             className="flex flex-col items-center gap-6 py-8"
           >
             <div

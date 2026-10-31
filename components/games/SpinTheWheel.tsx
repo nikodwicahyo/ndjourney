@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useAllQuestions } from "@/hooks/useGames";
 import { Button, Skeleton } from "@/components/ui";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion } from "framer-motion";
 import { Heart, RotateCcw, RefreshCw } from "lucide-react";
 
 const MAX_WHEEL_SEGMENTS = 15;
@@ -54,8 +54,6 @@ export default function SpinTheWheel() {
   const [history, setHistory] = useState<string[]>([]);
   const [seenIds, setSeenIds] = useState<Set<string>>(loadSeenIds);
   const [resetCount, setResetCount] = useState(0);
-  const reduceMotion = false;
-
   const spinTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Drop seen ids whose ideas left the bank (deleted/archived) — otherwise
@@ -111,8 +109,8 @@ export default function SpinTheWheel() {
       setHistory(prev => [idea.question, ...prev].slice(0, 10));
       setSeenIds(prev => new Set(prev).add(idea.id));
       setSpinning(false);
-    }, reduceMotion ? 0 : SPIN_DURATION_MS);
-  }, [spinning, segments, segmentAngle, rotation, reduceMotion]);
+    }, SPIN_DURATION_MS);
+  }, [spinning, segments, segmentAngle, rotation]);
 
   const resetAll = useCallback(() => {
     setSeenIds(new Set());
@@ -172,8 +170,8 @@ export default function SpinTheWheel() {
               .join(", ")})`,
           }}
           initial={{ rotate: 0 }}
-          animate={reduceMotion ? {} : { rotate: rotation }}
-          transition={{ duration: reduceMotion ? 0 : 3.8, ease: [0.17, 0.67, 0.12, 0.99] }}
+          animate={{ rotate: rotation }}
+          transition={{ duration: 3.8, ease: [0.17, 0.67, 0.12, 0.99] }}
         >
           {segments.map((idea, i) => {
             const midAngle = i * segmentAngle + segmentAngle / 2;

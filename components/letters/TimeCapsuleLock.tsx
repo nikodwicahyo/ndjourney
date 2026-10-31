@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useReducedMotion } from "framer-motion";
+import { motion } from "framer-motion";
 import { Lock, Clock, ArrowLeft } from "lucide-react";
 import { formatInJakarta } from "@/lib/date";
 import { Avatar, AvatarImage, AvatarFallback, BackLink } from "@/components/ui";
@@ -20,7 +20,6 @@ export default function TimeCapsuleLock({
   senderImage,
   backHref = "/dashboard/letters",
 }: TimeCapsuleLockProps) {
-  const reduceMotion = useReducedMotion();
   const unlockDate = new Date(unlockAt);
   const now = new Date();
   const diffMs = unlockDate.getTime() - now.getTime();
@@ -34,17 +33,13 @@ export default function TimeCapsuleLock({
         transition={{ duration: 0.5, ease: "easeOut" }}
       >
         <motion.div
-          animate={
-            reduceMotion
-              ? {}
-              : {
-                  boxShadow: [
-                    "0 0 0 0 rgba(249,115,22,0.4)",
-                    "0 0 0 20px rgba(249,115,22,0)",
-                  ],
-                }
-          }
-          transition={{ repeat: reduceMotion ? 0 : Infinity, duration: 2 }}
+          animate={{
+            boxShadow: [
+              "0 0 0 0 rgba(249,115,22,0.4)",
+              "0 0 0 20px rgba(249,115,22,0)",
+            ],
+          }}
+          transition={{ repeat: Infinity, duration: 2 }}
           className="mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-orange-500/20 to-amber-500/20"
         >
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-amber-500 shadow-lg">

@@ -7,7 +7,7 @@ import { Button, Skeleton, Avatar, AvatarImage, AvatarFallback } from "@/compone
 import { Send, Heart, MessageCircle, Calendar, List, Loader2, Trash2 } from "lucide-react";
 import { formatDate, formatRelativeTime } from "@/lib/utils";
 import { getJakartaToday } from "@/lib/date";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { cn, FILTER_GROUP_CLASSES, FILTER_SEGMENT_CLASSES } from "@/lib/utils";
 import { showDeleteConfirm } from "@/lib/swal";
@@ -20,7 +20,6 @@ export default function NotesManager() {
   const [content, setContent] = useState("");
   const [selectedDate, setSelectedDate] = useState(today);
   const [viewMode, setViewMode] = useState<"all" | "date">("date");
-  const reduceMotion = useReducedMotion();
   const { data: selectedNotes, isLoading, error } = useDailyNotes(
     viewMode === "all" ? undefined : selectedDate,
   );
@@ -171,7 +170,7 @@ export default function NotesManager() {
                   key={note.id}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: reduceMotion ? 0 : i * 0.05 }}
+                  transition={{ delay: i * 0.05 }}
                   className="rounded-2xl border border-border bg-card p-4"
                 >
                   <div className="flex items-start justify-between gap-3">

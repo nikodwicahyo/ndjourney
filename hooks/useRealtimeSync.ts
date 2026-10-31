@@ -53,12 +53,11 @@ export function useRealtimeSync(coupleId: string | undefined) {
           queryClient.invalidateQueries({ queryKey: queryKeys.wishes.all, refetchType: 'all' });
           break;
         case 'GAMES_LEADERBOARD':
-          // QA leaderboard (per-type keys are prefixed by ["games","leaderboard"]).
-          queryClient.invalidateQueries({ queryKey: queryKeys.games.leaderboard(), refetchType: 'all' });
-          // Arcade leaderboards (per-type keys are prefixed by the arcade prefix).
+          // Every leaderboard tab (per-game and merged "Semua") is prefixed by
+          // ["games","leaderboard"]; one invalidation covers all of them.
+          queryClient.invalidateQueries({ queryKey: queryKeys.games.leaderboardPrefix, refetchType: 'all' });
+          // Arcade endpoint still backs the admin stats panel.
           queryClient.invalidateQueries({ queryKey: queryKeys.games.arcadeLeaderboardPrefix, refetchType: 'all' });
-          // Merged "Semua" tab (canonical key in queryKeys).
-          queryClient.invalidateQueries({ queryKey: queryKeys.games.mergedQaLeaderboard(), refetchType: 'all' });
           break;
         case 'GAMES_QUESTIONS':
           // Literal prefix (not queryKeys.games.questions()) — the factory
@@ -87,7 +86,7 @@ export function useRealtimeSync(coupleId: string | undefined) {
           queryClient.invalidateQueries({ queryKey: queryKeys.notes.all, refetchType: 'all' });
           queryClient.invalidateQueries({ queryKey: queryKeys.letters.all, refetchType: 'all' });
           queryClient.invalidateQueries({ queryKey: queryKeys.milestones.all, refetchType: 'all' });
-          queryClient.invalidateQueries({ queryKey: queryKeys.games.leaderboard(), refetchType: 'all' });
+          queryClient.invalidateQueries({ queryKey: queryKeys.games.leaderboardPrefix, refetchType: 'all' });
           queryClient.invalidateQueries({ queryKey: queryKeys.partner.all(), refetchType: 'all' });
           queryClient.invalidateQueries({ queryKey: queryKeys.couple.all, refetchType: 'all' });
           queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.stats(), refetchType: 'all' });

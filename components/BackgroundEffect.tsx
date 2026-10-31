@@ -372,12 +372,6 @@ export default function BackgroundEffect() {
     window.addEventListener("mousemove", onMouseMove, { passive: true });
     window.addEventListener("touchmove", onTouchMove, { passive: true });
 
-    const onScroll = () => {
-      const s = window.scrollY * 0.0015;
-      scrollTarget = Math.max(-2.5, Math.min(2.5, s));
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-
     // Refit on resize/rotation/URL-bar changes — skip no-op events so mobile
     // scrolling doesn't reallocate the GL buffers.
     let lastW = width;
@@ -504,9 +498,17 @@ export default function BackgroundEffect() {
       lastFrame = now;
       renderFrame();
     };
-    raf = requestAnimationFrame(loop);
-
-    // Don't burn CPU/GPU on an off-screen tab.
+    // Scroll only steers the camera, and never while the compositor owns the
+    // gesture: a 30 fps WebGL draw behind a long page competes with scrolling
+    // on low-end GPUs. Park the loop and resume once the scroll settles.
+    // Scroll only steers the camera target — it must never cancel or pause
+    // the render loop, otherwise scrolling visibly interrupts the scene.
+    // The compositor handles the fixed canvas; the loop keeps running at its
+    // 30 fps cap regardless of scroll.
+    const onScroll = () => {
+      const s = window.scrollY * 0.0015;
+      scrollTarget = Math.max(-2.5, Math.min(2.5, s));
+    };
     const onVisibilityChange = () => {
       if (document.hidden) {
         cancelAnimationFrame(raf);
@@ -516,6 +518,9 @@ export default function BackgroundEffect() {
         raf = requestAnimationFrame(loop);
       }
     };
+
+    raf = requestAnimationFrame(loop);
+    window.addEventListener("scroll", onScroll, { passive: true });
     document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import Image from "next/image";
-import { motion, AnimatePresence, useInView, useReducedMotion } from "framer-motion";
+import { motion, AnimatePresence, useInView } from "framer-motion";
 import {
   Heart,
   RotateCcw,
@@ -69,7 +69,6 @@ function initCards(selected: GalleryPhoto[]): Card[] {
 export default function MemoryMatch({ photos }: MemoryMatchProps) {
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-40px" });
-  const reduceMotion = useReducedMotion();
   const photoPool = useMemo(() => selectMemoryMatchImages(photos), [photos]);
   const [cards, setCards] = useState<Card[]>([]);
 
@@ -249,12 +248,12 @@ export default function MemoryMatch({ photos }: MemoryMatchProps) {
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{
                 opacity: 1,
-                scale: reduceMotion ? 1 : isMatchedNow ? 1.12 : 1,
+                scale: isMatchedNow ? 1.12 : 1,
               }}
               transition={{
-                delay: reduceMotion ? 0 : idx * 0.02,
-                duration: reduceMotion ? 0 : 0.35,
-                scale: isMatchedNow && !reduceMotion
+                delay: idx * 0.02,
+                duration: 0.35,
+                scale: isMatchedNow
                   ? { duration: 0.4, ease: "easeInOut", repeat: 1, repeatType: "mirror" }
                   : undefined,
               }}
@@ -312,15 +311,11 @@ export default function MemoryMatch({ photos }: MemoryMatchProps) {
                     <div className="absolute inset-0 flex items-center justify-center bg-primary/10 backdrop-brightness-110">
                       <motion.div
                         initial={{ scale: 0 }}
-                        animate={reduceMotion ? { scale: 1 } : { scale: 1, rotate: [0, -15, 15, 0] }}
-                        transition={
-                          reduceMotion
-                            ? { duration: 0 }
-                            : {
+                        animate={{ scale: 1, rotate: [0, -15, 15, 0] }}
+                        transition={{
                           scale: { type: "spring", damping: 12, stiffness: 200 },
                           rotate: { duration: 0.4, ease: "easeInOut" },
-                        }
-                        }
+                        }}
                       >
                         <Check className="h-8 w-8 text-primary drop-shadow-md" aria-hidden="true" />
                       </motion.div>
@@ -360,8 +355,8 @@ export default function MemoryMatch({ photos }: MemoryMatchProps) {
             className="mt-4 overflow-hidden rounded-xl bg-gradient-to-r from-primary/10 via-primary/5 to-primary/10 p-5 text-center"
           >
             <motion.div
-              animate={reduceMotion ? {} : { rotate: [0, -10, 10, -10, 0] }}
-              transition={{ duration: reduceMotion ? 0 : 0.6, type: "tween", ease: "easeInOut" }}
+              animate={{ rotate: [0, -10, 10, -10, 0] }}
+              transition={{ duration: 0.6, type: "tween", ease: "easeInOut" }}
               className="mb-2"
             >
               <PartyPopper className="mx-auto h-6 w-6 text-primary" aria-hidden="true" />

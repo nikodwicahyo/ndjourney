@@ -293,7 +293,10 @@ export default function PartnerMap({
 @keyframes leaflet-line-dash{to{stroke-dashoffset:-24}}
 .leaflet-connecting-line{animation:leaflet-line-dash 1.5s linear infinite}
 @keyframes leaflet-pulse{0%{transform:scale(1);opacity:.2}50%{transform:scale(2);opacity:0}100%{transform:scale(1);opacity:.2}}
-@media (prefers-reduced-motion: reduce){.leaflet-connecting-line{animation:none!important}div[style*="leaflet-pulse"]{animation:none!important}}
+@keyframes leaflet-pulse-calm{0%,100%{opacity:.15}50%{opacity:.45}}
+/* Reduced motion keeps the pulse (it marks a live partner) but drops the
+   scale travel, and stops the marching dashed connector. */
+@media (prefers-reduced-motion: reduce){.leaflet-connecting-line{animation:none!important}div[style*="leaflet-pulse"]{animation:leaflet-pulse-calm 2.5s ease-in-out infinite!important}}
 `;
     containerRef.current?.appendChild(scaleStyle);
 

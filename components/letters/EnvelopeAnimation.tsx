@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useReducedMotion } from "framer-motion";
+import { motion } from "framer-motion";
 import { Sparkles, Heart, Mail } from "lucide-react";
 import type { ButtonHTMLAttributes } from "react";
 
@@ -18,7 +18,6 @@ export default function EnvelopeAnimation({
   isOpening = false,
   onOpen,
 }: EnvelopeAnimationProps) {
-  const reduceMotion = useReducedMotion();
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.9 }}
@@ -28,9 +27,9 @@ export default function EnvelopeAnimation({
       className="flex flex-col items-center justify-center py-16 text-center"
     >
       <motion.div
-        animate={reduceMotion ? {} : { y: [0, -10, 0] }}
+        animate={{ y: [0, -10, 0] }}
         transition={{
-          repeat: reduceMotion ? 0 : Infinity,
+          repeat: Infinity,
           duration: 2.5,
           ease: "easeInOut",
         }}
@@ -47,9 +46,9 @@ export default function EnvelopeAnimation({
             </div>
             <motion.span
               className="text-5xl"
-              animate={reduceMotion ? {} : { rotate: [-5, 5, -5] }}
+              animate={{ rotate: [-5, 5, -5] }}
               transition={{
-                repeat: reduceMotion ? 0 : Infinity,
+                repeat: Infinity,
                 duration: 3,
                 ease: "easeInOut",
               }}
@@ -73,16 +72,14 @@ export default function EnvelopeAnimation({
             className="absolute -top-2 -right-2 text-sm"
             initial={{ opacity: 0, scale: 0 }}
             animate={
-              reduceMotion
-                ? { opacity: 1, scale: 1, y: 0 }
-                : {
-                    opacity: [0, 1, 0],
-                    scale: [0, 1, 0],
-                    y: [0, -20 - i * 10],
-                  }
+                {
+                  opacity: [0, 1, 0],
+                  scale: [0, 1, 0],
+                  y: [0, -20 - i * 10],
+                }
             }
             transition={{
-              repeat: reduceMotion ? 0 : Infinity,
+              repeat: Infinity,
               duration: 2,
               delay: i * 0.3,
               ease: "easeOut",

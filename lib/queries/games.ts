@@ -123,72 +123,251 @@ export async function listGameQuestions(opts: {
   return response;
 }
 
-export type QaLeaderboardEntry = {
-  user: ReturnType<typeof toPublicUser>;
-  playerName: null;
-  totalPlayed: number;
-  totalCorrect: number;
-  accuracy: number;
+/** Types that record completed quiz rounds in `GameRound`. */
+export const QA_GAME_TYPES = ["WOULD_YOU_RATHER", "TRIVIA"] as const;
+/** Types that record one row per finished run in `GameArcadeScore`. */
+export const ARCADE_GAME_TYPES = ["SLIDING_PUZZLE", "MEMORY_BLOCK_BLAST"] as const;
+
+const QA_POINTS_PER_CORRECT = 1000;
+
+export type GameBreakdownEntry = {
+  type: string;
+  plays: number;
+  score: number;
+  correct?: number;
+  answered?: number;
+  accuracy?: number;
 };
 
-type RawRow = { userId: string; totalPlayed: bigint; totalCorrect: bigint };
+export type GameLeaderboardEntry = {
+  user: ReturnType<typeof toPublicUser>;
+  playerName: string | null;
+  /** Completed rounds (quiz) or finished runs (arcade) — never answer count. */
+  totalPlayed: number;
+  /** Ranking score: arcade points + quiz points (correct × 1000). */
+  totalScore: number;
+  totalCorrect?: number;
+  totalAnswered?: number;
+  accuracy?: number;
+  bestScore?: number;
+  avgScore?: number;
+  /** Per-game split, only populated on the merged "Semua" tab. */
+  games?: GameBreakdownEntry[];
+};
 
-/**
- * Q&A leaderboard (Would You Rather / Love Quiz / …).
- * Single source for GET /api/games/leaderboard and the dashboard games page's
- * server-side hydration. Public shape — no emails.
- */
-export async function getQaLeaderboard(type: string | null): Promise<QaLeaderboardEntry[]> {
-  let rows: RawRow[];
+type QaAggRow = {
+  userId: string | null;
+  playerName: string | null;
+  gameType: string;
+  plays: bigint;
+  correct: bigint;
+  answered: bigint;
+};
 
+type ArcadeAggRow = {
+  userId: string | null;
+  playerName: string | null;
+  gameType: string;
+  plays: bigint;
+  totalScore: bigint;
+  bestScore: bigint;
+  avgScore: bigint;
+};
+
+function qaAggregates(type: (typeof QA_GAME_TYPES)[number] | null) {
   if (type) {
-    rows = await prisma.$queryRaw<RawRow[]>`
-      SELECT
-        gs."userId",
-        COUNT(*)::bigint AS "totalPlayed",
-        COALESCE(SUM(CASE WHEN gs."isCorrect" THEN 1 ELSE 0 END), 0)::bigint AS "totalCorrect"
-      FROM "GameScore" gs
-      JOIN "GameQuestion" q ON q.id = gs."questionId"
-      WHERE gs."userId" IS NOT NULL AND q."type" = ${type}::"GameType"
-      GROUP BY gs."userId"
-      ORDER BY "totalCorrect" DESC
-      LIMIT 50
-    `;
-  } else {
-    rows = await prisma.$queryRaw<RawRow[]>`
+    return prisma.$queryRaw<QaAggRow[]>`
       SELECT
         "userId",
-        COUNT(*)::bigint AS "totalPlayed",
-        COALESCE(SUM(CASE WHEN "isCorrect" THEN 1 ELSE 0 END), 0)::bigint AS "totalCorrect"
-      FROM "GameScore"
-      WHERE "userId" IS NOT NULL
-      GROUP BY "userId"
-      ORDER BY "totalCorrect" DESC
+        "playerName",
+        ${type}::text AS "gameType",
+        COUNT(*)::bigint AS "plays",
+        COALESCE(SUM("correct"), 0)::bigint AS "correct",
+        COALESCE(SUM("totalQuestions"), 0)::bigint AS "answered"
+      FROM "GameRound"
+      WHERE "gameType" = ${type}::"GameType"
+      GROUP BY COALESCE("userId", '__guest__:' || "playerName"), "userId", "playerName"
+      ORDER BY "correct" DESC
       LIMIT 50
     `;
   }
-
-  if (rows.length === 0) return [];
-
-  const authedUserIds = rows.map((r) => r.userId);
-  const userMap = authedUserIds.length > 0 ? await batchLoadUsers(authedUserIds) : new Map();
-
-  return rows.map((row) => {
-    const totalPlayed = Number(row.totalPlayed);
-    const totalCorrect = Number(row.totalCorrect);
-    return {
-      // public endpoint — no emails in response.
-      user: toPublicUser(userMap.get(row.userId)),
-      playerName: null,
-      totalPlayed,
-      totalCorrect,
-      accuracy:
-        totalPlayed > 0
-          ? Math.round((totalCorrect / totalPlayed) * 100)
-          : 0,
-    };
-  });
+  return prisma.$queryRaw<QaAggRow[]>`
+    SELECT
+      "userId",
+      "playerName",
+      "gameType"::text AS "gameType",
+      COUNT(*)::bigint AS "plays",
+      COALESCE(SUM("correct"), 0)::bigint AS "correct",
+      COALESCE(SUM("totalQuestions"), 0)::bigint AS "answered"
+    FROM "GameRound"
+    GROUP BY COALESCE("userId", '__guest__:' || "playerName"), "userId", "playerName", "gameType"
+  `;
 }
+
+function arcadeAggregates(type: (typeof ARCADE_GAME_TYPES)[number] | null) {
+  if (type) {
+    return prisma.$queryRaw<ArcadeAggRow[]>`
+      SELECT
+        "userId",
+        "playerName",
+        ${type}::text AS "gameType",
+        COUNT(*)::bigint AS "plays",
+        COALESCE(SUM("score"), 0)::bigint AS "totalScore",
+        COALESCE(MAX("score"), 0)::bigint AS "bestScore",
+        COALESCE(AVG("score"), 0)::bigint AS "avgScore"
+      FROM "GameArcadeScore"
+      WHERE "gameType" = ${type}::"GameType"
+      GROUP BY COALESCE("userId", '__guest__:' || "playerName"), "userId", "playerName"
+      ORDER BY "totalScore" DESC
+      LIMIT 50
+    `;
+  }
+  return prisma.$queryRaw<ArcadeAggRow[]>`
+    SELECT
+      "userId",
+      "playerName",
+      "gameType"::text AS "gameType",
+      COUNT(*)::bigint AS "plays",
+      COALESCE(SUM("score"), 0)::bigint AS "totalScore",
+      COALESCE(MAX("score"), 0)::bigint AS "bestScore",
+      COALESCE(AVG("score"), 0)::bigint AS "avgScore"
+    FROM "GameArcadeScore"
+    GROUP BY COALESCE("userId", '__guest__:' || "playerName"), "userId", "playerName", "gameType"
+  `;
+}
+
+function accuracyOf(correct: number, answered: number): number {
+  return answered > 0 ? Math.round((correct / answered) * 100) : 0;
+}
+
+/**
+ * Single source for every leaderboard tab (per game AND the merged "Semua"
+ * tab) — GET /api/games/leaderboard and the dashboard hydration both call it.
+ *
+ * Plays come from the round ledgers (`GameRound` / `GameArcadeScore`), never
+ * from `GameScore` (one row per answered question, `unique(userId, questionId)`).
+ * Merged ranking keeps the historical composite: correct × 1000 + arcade score.
+ */
+export async function getGameLeaderboard(type: string | null): Promise<GameLeaderboardEntry[]> {
+  const isArcadeType = type != null && (ARCADE_GAME_TYPES as readonly string[]).includes(type);
+  const isQaType = type != null && (QA_GAME_TYPES as readonly string[]).includes(type);
+  if (type != null && !isArcadeType && !isQaType) return [];
+
+  const [qaRows, arcadeRows] = await Promise.all([
+    type == null || isQaType ? qaAggregates(isQaType ? (type as (typeof QA_GAME_TYPES)[number]) : null) : Promise.resolve([]),
+    type == null || isArcadeType ? arcadeAggregates(isArcadeType ? (type as (typeof ARCADE_GAME_TYPES)[number]) : null) : Promise.resolve([]),
+  ]);
+
+  if (type != null && qaRows.length === 0 && arcadeRows.length === 0) return [];
+
+  const userIds = [...new Set([...qaRows, ...arcadeRows].map((r) => r.userId).filter((id): id is string => !!id))];
+  const userMap = userIds.length > 0 ? await batchLoadUsers(userIds) : new Map();
+
+  // Per-type tabs use one ledger only.
+  if (isQaType) {
+    return qaRows.map((row) => {
+      const correct = Number(row.correct);
+      const answered = Number(row.answered);
+      return {
+        user: row.userId ? toPublicUser(userMap.get(row.userId)) : null,
+        playerName: row.userId ? null : (row.playerName ?? null),
+        totalPlayed: Number(row.plays),
+        totalScore: correct * QA_POINTS_PER_CORRECT,
+        totalCorrect: correct,
+        totalAnswered: answered,
+        accuracy: accuracyOf(correct, answered),
+      };
+    });
+  }
+
+  if (isArcadeType) {
+    return arcadeRows.map((row) => ({
+      user: row.userId ? toPublicUser(userMap.get(row.userId)) : null,
+      playerName: row.userId ? null : (row.playerName ?? null),
+      totalPlayed: Number(row.plays),
+      totalScore: Number(row.totalScore),
+      bestScore: Number(row.bestScore),
+      avgScore: Number(row.avgScore),
+    }));
+  }
+
+  // Merged "Semua": every game contributes its own plays and score.
+  // ponytail: per-user aggregates are merged in JS (at most one row per game
+  // per user). Move the composite into a single SQL UNION + ORDER BY ... LIMIT
+  // if the user base grows beyond a few hundred.
+  const merged = new Map<string, GameLeaderboardEntry & { _qaCorrect: number; _qaAnswered: number; _arcadeScore: number }>();
+
+  const get = (playerKey: string, userId: string | null, playerName: string | null) => {
+    let entry = merged.get(playerKey);
+    if (!entry) {
+      entry = {
+        user: userId ? toPublicUser(userMap.get(userId!)) : null,
+        playerName: userId ? null : (playerName ?? null),
+        totalPlayed: 0,
+        totalScore: 0,
+        bestScore: 0,
+        totalCorrect: 0,
+        totalAnswered: 0,
+        games: [],
+        _qaCorrect: 0,
+        _qaAnswered: 0,
+        _arcadeScore: 0,
+      };
+      merged.set(playerKey, entry);
+    }
+    return entry;
+  };
+
+  for (const row of qaRows) {
+    const entry = get(row.userId ? row.userId : `__guest__:${row.playerName}`, row.userId, row.playerName);
+    const plays = Number(row.plays);
+    const correct = Number(row.correct);
+    const answered = Number(row.answered);
+    entry.totalPlayed += plays;
+    entry._qaCorrect += correct;
+    entry._qaAnswered += answered;
+    entry.games!.push({
+      type: row.gameType,
+      plays,
+      score: correct * QA_POINTS_PER_CORRECT,
+      correct,
+      answered,
+      accuracy: accuracyOf(correct, answered),
+    });
+  }
+
+  for (const row of arcadeRows) {
+    const entry = get(row.userId ? row.userId : `__guest__:${row.playerName}`, row.userId, row.playerName);
+    const plays = Number(row.plays);
+    const totalScore = Number(row.totalScore);
+    entry.totalPlayed += plays;
+    entry._arcadeScore += totalScore;
+    entry.bestScore = Math.max(entry.bestScore ?? 0, Number(row.bestScore));
+    entry.games!.push({ type: row.gameType, plays, score: totalScore });
+  }
+
+  return [...merged.values()]
+    .map(({ _qaCorrect, _qaAnswered, _arcadeScore, ...entry }) => ({
+      ...entry,
+      totalCorrect: _qaCorrect,
+      totalAnswered: _qaAnswered,
+      accuracy: accuracyOf(_qaCorrect, _qaAnswered),
+      totalScore: _qaCorrect * QA_POINTS_PER_CORRECT + _arcadeScore,
+    }))
+    .sort((a, b) => b.totalScore - a.totalScore)
+    .slice(0, 50);
+}
+
+/**
+ * Arcade-only board, shared by the legacy /api/games/arcade-leaderboard route
+ * (GameManager stats panel) so both endpoints aggregate identically.
+ */
+export async function getArcadeLeaderboard(
+  type: (typeof ARCADE_GAME_TYPES)[number],
+): Promise<GameLeaderboardEntry[]> {
+  return getGameLeaderboard(type);
+}
+
 
 /**
  * Cache-hit responses arrive JSON-deserialized while fresh Prisma rows carry

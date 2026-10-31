@@ -1,24 +1,14 @@
-import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { getCached, setCached, cacheKey } from "@/lib/redis";
-import { batchLoadUsers, toPublicUser } from "@/lib/batch";
+import { getArcadeLeaderboard, ARCADE_GAME_TYPES } from "@/lib/queries/games";
 import { withAnonymousRateLimit } from "@/lib/rate-limit";
 import { auth } from "@/lib/auth";
 
 const CACHE_TTL = 300;
-const ARCADE_TYPES = ["SLIDING_PUZZLE", "MEMORY_BLOCK_BLAST"] as const;
-
-type RawRow = {
-  userId: string;
-  totalScore: bigint;
-  totalPlayed: bigint;
-  bestScore: bigint;
-  avgScore: bigint;
-};
 
 export async function GET(request: NextRequest) {
   try {
-    // MR-07: same full-table aggregation cost as the quiz board — see games/leaderboard.
+    // MR-07: full-table aggregation on a cache miss — throttle anon scraping.
     const session = await auth();
     if (!session?.user) {
       const rl = await withAnonymousRateLimit(request, { maxRequests: 300, windowSeconds: 3600, keyPrefix: "games:arcade-leaderboard" });
@@ -27,7 +17,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get("type");
 
-    if (!type || !ARCADE_TYPES.includes(type as typeof ARCADE_TYPES[number])) {
+    if (!type || !(ARCADE_GAME_TYPES as readonly string[]).includes(type)) {
       return NextResponse.json(
         { error: "Parameter type wajib diisi (SLIDING_PUZZLE atau MEMORY_BLOCK_BLAST)" },
         { status: 400 },
@@ -42,37 +32,13 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const rows = await prisma.$queryRaw<RawRow[]>`
-      SELECT
-        "userId",
-        COALESCE(SUM(score), 0)::bigint AS "totalScore",
-        COUNT(*)::bigint AS "totalPlayed",
-        COALESCE(MAX(score), 0)::bigint AS "bestScore",
-        COALESCE(AVG(score), 0)::bigint AS "avgScore"
-      FROM "GameArcadeScore"
-      WHERE "gameType" = ${type}::"GameType"
-        AND "userId" IS NOT NULL
-      GROUP BY "userId"
-      ORDER BY "totalScore" DESC
-      LIMIT 50
-    `;
+    const leaderboard = await getArcadeLeaderboard(
+      type as (typeof ARCADE_GAME_TYPES)[number],
+    );
 
-    if (rows.length === 0) {
+    if (leaderboard.length === 0) {
       return NextResponse.json({ data: [] });
     }
-
-    const authedUserIds = rows.map(r => r.userId);
-    const userMap = authedUserIds.length > 0 ? await batchLoadUsers(authedUserIds) : new Map();
-
-    const leaderboard = rows.map((row) => ({
-      // public endpoint — no emails in response.
-      user: toPublicUser(userMap.get(row.userId)),
-      playerName: null,
-      totalScore: Number(row.totalScore),
-      totalPlayed: Number(row.totalPlayed),
-      bestScore: Number(row.bestScore),
-      avgScore: Number(row.avgScore),
-    }));
 
     const response = { data: leaderboard };
 

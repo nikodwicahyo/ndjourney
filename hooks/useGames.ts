@@ -69,11 +69,15 @@ export function useQuestionDeck(type: GameType, batchSize: number) {
   // so quit-then-start excludes even mid-round answers.
   const seenRef = useRef<string[]>(fetchSeen);
   const [cycled, setCycled] = useState(false);
-  const [cyclePending, setCyclePending] = useState(false);
-  const [cycleArmed, setCycleArmed] = useState(true);
+  // Once the player has exhausted the bank, stay in cycle mode: the client's
+  // own seen-list drives no-repeat from here on, so the server must stop
+  // excluding this user's historical answers. Flipping this back to `false`
+  // after the cycle fetch resolved used to change the query key and trigger a
+  // second, contradictory fetch.
+  const [cycleMode, setCycleMode] = useState(false);
   const [round, setRound] = useState(0);
 
-  const query = useQuestions(type, batchSize, fetchSeen, cyclePending, round);
+  const query = useQuestions(type, batchSize, fetchSeen, cycleMode, round);
   const batch = query.data?.questions ?? [];
   const total = query.data?.total ?? 0;
 
@@ -82,17 +86,12 @@ export function useQuestionDeck(type: GameType, batchSize: number) {
   // state only — at empty-batch evaluation points (mount / post-restart
   // fetch) the live set always equals the frozen snapshot, so no ref reads
   // are needed. An empty bank (total 0) shows the empty state instead.
-  if (
-    !query.isLoading &&
-    query.data &&
-    !cyclePending &&
-    batch.length === 0 &&
-    total > 0
-  ) {
+  // The key change (seen + round) makes React Query drop the old data, so this
+  // cannot re-fire before the replacement fetch resolves.
+  if (!query.isLoading && query.data && batch.length === 0 && total > 0) {
     setFetchSeen([]);
     setCycled(true);
-    setCyclePending(true);
-    setCycleArmed(false);
+    setCycleMode(true);
     setRound((r) => r + 1);
   }
 
@@ -104,12 +103,6 @@ export function useQuestionDeck(type: GameType, batchSize: number) {
       saveSeenIds(storageKey, []);
     }
   }, [cycled, storageKey]);
-
-  useEffect(() => {
-    if (cyclePending && !query.isLoading && query.data) {
-      setCyclePending(false);
-    }
-  }, [cyclePending, query.isLoading, query.data]);
 
   // Record one answered question. Returns true when it is a first attempt
   // (→ submit the score); false on repeats (true-exhaustion recycles →
@@ -131,9 +124,7 @@ export function useQuestionDeck(type: GameType, batchSize: number) {
   // auto-fetch excludes it all, with no manual refetch to race it.
   const restart = useCallback(
     (currentBatchIds: string[]) => {
-      setCycleArmed(true);
       setCycled(false);
-      setCyclePending(false);
       setRound((r) => r + 1);
       const next = appendSeen(seenRef.current, currentBatchIds);
       seenRef.current = next;
@@ -162,8 +153,6 @@ export type SubmitScoreResult = {
 };
 
 export function useSubmitScore() {
-  const qc = useQueryClient();
-
   return useMutation({
     mutationFn: async ({
       questionId,
@@ -183,9 +172,47 @@ export function useSubmitScore() {
       if (!res.ok) throw new Error(json.error || "Gagal mengirim skor");
       return json as SubmitScoreResult;
     },
+    // No leaderboard invalidation: the board aggregates completed rounds
+    // (/api/games/round), not individual answers.
+  });
+}
+
+export type SubmitGameRoundResult = {
+  id: string;
+  gameType: string;
+  correct: number;
+  totalQuestions: number;
+  playedAt: string;
+};
+
+/** Record one completed quiz round — the event the leaderboard counts. */
+export function useSubmitGameRound() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      gameType,
+      roundId,
+      questionIds,
+      playerName,
+    }: {
+      gameType: "WOULD_YOU_RATHER" | "TRIVIA";
+      roundId: string;
+      questionIds: string[];
+      playerName?: string;
+    }): Promise<SubmitGameRoundResult> => {
+      const res = await fetch("/api/games/round", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gameType, roundId, questionIds, playerName }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Gagal menyimpan babak");
+      return json.data as SubmitGameRoundResult;
+    },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.games.leaderboard(), refetchType: "all" });
-      qc.invalidateQueries({ queryKey: queryKeys.games.arcadeLeaderboardPrefix, refetchType: "all" });
+      // Every tab key is prefixed by ["games","leaderboard"].
+      qc.invalidateQueries({ queryKey: queryKeys.games.leaderboardPrefix, refetchType: "all" });
     },
   });
 }
@@ -205,8 +232,10 @@ export function useSubmitArcadeScore() {
       return json.data;
     },
     onSuccess: () => {
-      // Invalidate by prefix so every per-type arcade leaderboard refreshes.
+      // Invalidate by prefix so every per-type arcade leaderboard refreshes,
+      // and the merged "Semua" tab (served by /api/games/leaderboard) too.
       qc.invalidateQueries({ queryKey: queryKeys.games.arcadeLeaderboardPrefix });
+      qc.invalidateQueries({ queryKey: queryKeys.games.leaderboardPrefix, refetchType: "all" });
     },
   });
 }

@@ -31,9 +31,9 @@ export const queryKeys = {
     all: ["games"] as const,
     questions: (type: string, count?: number, exclude?: string[], cycle?: string, round?: number) =>
       ["games", "questions", type, count ?? "all", exclude?.join(",") ?? "all", cycle ?? "normal", round ?? 0] as const,
-    leaderboard: () => ["games", "leaderboard"] as const,
-    // canonical key for the merged "Semua" leaderboard tab (was a string literal in 2 places).
-    mergedQaLeaderboard: () => ["games", "leaderboard", "all-qa"] as const,
+    leaderboard: (type?: string | null) => ["games", "leaderboard", type ?? "all"] as const,
+    // Prefix for invalidations; every tab key starts with these two elements.
+    leaderboardPrefix: ["games", "leaderboard"] as const,
     arcadeLeaderboard: (type?: string) => ["games", "arcade-leaderboard", type] as const,
     // Prefix used for invalidations. NOTE: do NOT use arcadeLeaderboard()
     // here — when called without an argument it returns a key ending in

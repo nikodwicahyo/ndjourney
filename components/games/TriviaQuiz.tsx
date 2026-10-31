@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { useQuestionDeck, useSubmitScore } from "@/hooks/useGames";
+import { useState, useRef, useEffect } from "react";
+import { useQuestionDeck, useSubmitScore, useSubmitGameRound } from "@/hooks/useGames";
 import { Button, Skeleton } from "@/components/ui";
 import { motion } from "framer-motion";
 import { Brain, RefreshCw, Check, X, ArrowRight } from "lucide-react";
@@ -17,6 +17,10 @@ export default function TriviaQuiz({ playerName, onExit }: TriviaQuizProps) {
   const deck = useQuestionDeck("TRIVIA", BATCH_SIZE);
   const { isLoading, error, refetch } = deck;
   const submitScore = useSubmitScore();
+  const submitRound = useSubmitGameRound();
+  // One id per completed round — makes a retried submit idempotent.
+  const [roundId, setRoundId] = useState(() => crypto.randomUUID());
+  const submittedRoundRef = useRef<string | null>(null);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [userAnswer, setUserAnswer] = useState("");
   const [reveal, setReveal] = useState<{ correct: boolean; answer: string | null } | null>(null);
@@ -30,6 +34,22 @@ export default function TriviaQuiz({ playerName, onExit }: TriviaQuizProps) {
   const batch = deck.batch;
   const totalQuestions = deck.total;
   const current = batch[currentIdx];
+
+  // Record the completed round exactly once — the event the leaderboard counts.
+  useEffect(() => {
+    if (!finished || submittedRoundRef.current === roundId) return;
+    submittedRoundRef.current = roundId;
+    void submitRound
+      .mutateAsync({
+        gameType: "TRIVIA",
+        roundId,
+        questionIds: batch.map((q) => q.id),
+        playerName,
+      })
+      .catch(() => {
+        // Silent: answers are already recorded; the next round refreshes the board.
+      });
+  }, [finished, roundId, batch, playerName, submitRound]);
 
   function handleInputKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Enter" && userAnswer.trim() && !reveal && !checking) {
@@ -178,6 +198,7 @@ export default function TriviaQuiz({ playerName, onExit }: TriviaQuizProps) {
     setUserAnswer("");
     setReveal(null);
     setChecking(false);
+    setRoundId(crypto.randomUUID());
     deck.restart(ids);
   }
 

@@ -3,12 +3,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const ME = "cjld2cjxh0000qz8n0p3q4w5e1";
 const COUPLE = "couple-1";
 const QID = "cjld2cjxh0000qz8n0p3q4w5eq";
+const QID2 = "cjld2cjxh0000qz8n0p3q4w5er";
+const ROUND_ID = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
 
 const prismaMock = vi.hoisted(() => ({
   $queryRaw: vi.fn(),
   gameQuestion: { findMany: vi.fn(), findUnique: vi.fn(), count: vi.fn(async () => 0), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
   gameScore: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), count: vi.fn() },
   gameArcadeScore: { create: vi.fn() },
+  gameRound: { create: vi.fn(), findUnique: vi.fn() },
 }));
 
 vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
@@ -37,6 +40,7 @@ const score = await import("@/app/api/games/score/route");
 const leaderboard = await import("@/app/api/games/leaderboard/route");
 const arcadeScore = await import("@/app/api/games/arcade-score/route");
 const arcadeBoard = await import("@/app/api/games/arcade-leaderboard/route");
+const round = await import("@/app/api/games/round/route");
 const { auth } = await import("@/lib/auth");
 const { withRateLimit, withAnonymousRateLimit } = await import("@/lib/rate-limit");
 
@@ -201,14 +205,100 @@ describe("games scores + leaderboards", () => {
     expect(select?.answer).toBe(true);
   });
 
-  it("GAM-03: leaderboard 200 + invalid type 400", async () => {
-    prismaMock.$queryRaw.mockResolvedValue([{ userId: ME, totalPlayed: BigInt(2), totalCorrect: BigInt(1) }]);
+  it("GAM-03: 2x main means 2 completed rounds, not 2 answered questions", async () => {
+    // Merged "Semua" tab: QA aggregate first, arcade aggregate second.
+    prismaMock.$queryRaw
+      .mockResolvedValueOnce([
+        { userId: ME, gameType: "WOULD_YOU_RATHER", plays: BigInt(2), correct: BigInt(1), answered: BigInt(20) },
+      ])
+      .mockResolvedValueOnce([
+        { userId: ME, gameType: "SLIDING_PUZZLE", plays: BigInt(3), totalScore: BigInt(500), bestScore: BigInt(300), avgScore: BigInt(166) },
+      ]);
     const ok = await leaderboard.GET(new Request("http://localhost/api/games/leaderboard") as unknown as Parameters<typeof leaderboard.GET>[0]);
     expect(ok?.status).toBe(200);
     const body = await ok?.json();
-    expect(body.data[0]).toMatchObject({ totalPlayed: 2, totalCorrect: 1, accuracy: 50 });
+    expect(body.data[0]).toMatchObject({
+      totalPlayed: 5, // 2 quiz rounds + 3 arcade runs
+      totalCorrect: 1,
+      totalAnswered: 20,
+      accuracy: 5,
+      totalScore: 1500, // 1 correct × 1000 + 500 arcade
+      bestScore: 300,
+    });
+    expect(body.data[0].games).toHaveLength(2);
     const bad = await leaderboard.GET(new Request("http://localhost/api/games/leaderboard?type=NOPE") as unknown as Parameters<typeof leaderboard.GET>[0]);
     expect(bad?.status).toBe(400);
+  });
+
+  it("GAM-03b: per-game tab reports that game's plays and score", async () => {
+    prismaMock.$queryRaw.mockResolvedValueOnce([
+      { userId: ME, gameType: "TRIVIA", plays: BigInt(4), correct: BigInt(30), answered: BigInt(40) },
+    ]);
+    const res = await leaderboard.GET(new Request("http://localhost/api/games/leaderboard?type=TRIVIA") as unknown as Parameters<typeof leaderboard.GET>[0]);
+    const body = await res?.json();
+    expect(body.data[0]).toMatchObject({
+      totalPlayed: 4,
+      totalCorrect: 30,
+      totalAnswered: 40,
+      accuracy: 75,
+      totalScore: 30000,
+    });
+    // Only the round ledger is queried for a quiz tab — never GameScore.
+    expect(prismaMock.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it("GAM-05: completed round derives its score server-side and is idempotent", async () => {
+    prismaMock.gameQuestion.findMany.mockResolvedValue([
+      { id: QID, type: "TRIVIA" },
+      { id: QID2, type: "TRIVIA" },
+    ]);
+    prismaMock.gameScore.findMany.mockResolvedValue([{ isCorrect: true }, { isCorrect: false }]);
+    prismaMock.gameRound.create.mockResolvedValue({
+      id: "r1", gameType: "TRIVIA", correct: 1, totalQuestions: 2, playedAt: new Date(),
+    });
+
+    const ok = await round.POST(new Request("http://localhost/api/games/round", {
+      method: "POST",
+      body: JSON.stringify({ gameType: "TRIVIA", roundId: ROUND_ID, questionIds: [QID, QID2] }),
+    }));
+    expect(ok?.status).toBe(201);
+    expect(prismaMock.gameRound.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          correct: 1,
+          totalQuestions: 2,
+          dedupeKey: `user:${ME}:${ROUND_ID}`,
+        }),
+      }),
+    );
+
+    // A retried submit returns the recorded round instead of double counting.
+    prismaMock.gameRound.create.mockRejectedValueOnce({ code: "P2002" });
+    prismaMock.gameRound.findUnique.mockResolvedValue({
+      id: "r1", gameType: "TRIVIA", correct: 1, totalQuestions: 2, playedAt: new Date(),
+    });
+    const dup = await round.POST(new Request("http://localhost/api/games/round", {
+      method: "POST",
+      body: JSON.stringify({ gameType: "TRIVIA", roundId: ROUND_ID, questionIds: [QID, QID2] }),
+    }));
+    expect(dup?.status).toBe(200);
+
+    // Question from another game type is rejected.
+    prismaMock.gameQuestion.findMany.mockResolvedValue([{ id: QID, type: "WOULD_YOU_RATHER" }]);
+    const wrongType = await round.POST(new Request("http://localhost/api/games/round", {
+      method: "POST",
+      body: JSON.stringify({ gameType: "TRIVIA", roundId: ROUND_ID, questionIds: [QID] }),
+    }));
+    expect(wrongType?.status).toBe(400);
+
+    // No recorded answers for the batch → nothing to count.
+    prismaMock.gameQuestion.findMany.mockResolvedValue([{ id: QID, type: "TRIVIA" }]);
+    prismaMock.gameScore.findMany.mockResolvedValue([]);
+    const noAnswers = await round.POST(new Request("http://localhost/api/games/round", {
+      method: "POST",
+      body: JSON.stringify({ gameType: "TRIVIA", roundId: ROUND_ID, questionIds: [QID] }),
+    }));
+    expect(noAnswers?.status).toBe(409);
   });
 
   it("GAM-04: arcade-score 201 + metadata cap 400 + board requires type", async () => {

@@ -9,6 +9,9 @@ import LoveMeter from "./LoveMeter";
 import DailyLoveTask from "./DailyLoveTask";
 import BottleLetter from "./BottleLetter";
 import MemoryMatch from "./MemoryMatch";
+import Reveal from "./Reveal";
+import MotionRoot from "@/components/MotionRoot";
+import { SECTION_SLOTS } from "./section-slots";
 import LocationWidget from "@/components/location/LocationWidget";
 import type { GalleryPhoto } from "./GallerySlideshow";
 import type { HomeSummaries } from "./HomeStats";
@@ -30,9 +33,14 @@ type HomeBelowFoldProps = {
   loveMeterTargets: LoveMeterState;
 };
 
-// Everything below the hero. Loaded on demand (see HomeContent) so the first
-// screen doesn't pay for nine interactive widgets, their effects, and the
-// framer-motion runtime — measured as ~3 s of render delay on a throttled phone.
+const HEIGHTS = Object.fromEntries(
+  SECTION_SLOTS.map((slot) => [slot.key, slot.minHeight]),
+) as Record<(typeof SECTION_SLOTS)[number]["key"], number>;
+
+// Everything below the hero. The chunk is loaded on demand (see HomeContent)
+// and each section inside mounts only as it approaches the viewport — mounting
+// all nine widgets at once measured as a multi-hundred-ms long task, which is
+// exactly the stall a visitor felt when they started scrolling.
 export default function HomeBelowFold({
   coupleConfig,
   galleryPhotos,
@@ -54,41 +62,43 @@ export default function HomeBelowFold({
   }, [summaries.wishlist]);
 
   return (
-    <div className="space-y-16 md:space-y-24">
-      <section>
+    <MotionRoot>
+      <div className="space-y-16 md:space-y-24">
+      <Reveal minHeight={HEIGHTS.location}>
         <Suspense fallback={<div className="h-24 animate-pulse rounded-2xl bg-muted" />}>
           <LocationWidget />
         </Suspense>
-      </section>
-      <section>
-        {coupleConfig?.anniversaryDate ? (
+      </Reveal>
+
+      {coupleConfig?.anniversaryDate ? (
+        <Reveal minHeight={HEIGHTS.countdown}>
           <CountdownTimer
             anniversaryDate={coupleConfig.anniversaryDate}
-            name1={coupleConfig?.name1}
-            name2={coupleConfig?.name2}
+            name1={coupleConfig.name1}
+            name2={coupleConfig.name2}
           />
-        ) : null}
-      </section>
+        </Reveal>
+      ) : null}
 
-      <section>
+      <Reveal minHeight={HEIGHTS.birthday1}>
         <BirthdayCountdown
           birthDate={coupleConfig?.birthDate1 ?? null}
           name={coupleConfig?.name1 ?? ""}
         />
-      </section>
+      </Reveal>
 
-      <section>
+      <Reveal minHeight={HEIGHTS.birthday2}>
         <BirthdayCountdown
           birthDate={coupleConfig?.birthDate2 ?? null}
           name={coupleConfig?.name2 ?? ""}
         />
-      </section>
+      </Reveal>
 
-      <section>
+      <Reveal minHeight={HEIGHTS.quote}>
         <QuoteOfTheDay />
-      </section>
+      </Reveal>
 
-      <section>
+      <Reveal minHeight={HEIGHTS["love-meter"]}>
         <Suspense fallback={<div className="h-48 animate-pulse rounded-2xl bg-muted" />}>
           <LoveMeter
             daysTogether={daysTogether}
@@ -107,31 +117,32 @@ export default function HomeBelowFold({
             targetMetAt={loveMeterTargets.targetMetAt?.toISOString() ?? null}
           />
         </Suspense>
-      </section>
+      </Reveal>
 
-      <section>
+      <Reveal minHeight={HEIGHTS.gallery}>
         <Suspense fallback={<div className="h-64 animate-pulse rounded-2xl bg-muted" />}>
           <GallerySlideshow photos={galleryPhotos} />
         </Suspense>
-      </section>
+      </Reveal>
 
-      <section>
+      <Reveal minHeight={HEIGHTS["bottle-letter"]}>
         <Suspense fallback={<div className="h-48 animate-pulse rounded-2xl bg-muted" />}>
           <BottleLetter />
         </Suspense>
-      </section>
+      </Reveal>
 
-      <section>
+      <Reveal minHeight={HEIGHTS["memory-match"]}>
         <Suspense fallback={<div className="h-64 animate-pulse rounded-2xl bg-muted" />}>
           <MemoryMatch photos={galleryPhotos} />
         </Suspense>
-      </section>
+      </Reveal>
 
-      <section>
+      <Reveal minHeight={HEIGHTS["daily-task"]}>
         <Suspense fallback={<div className="h-32 animate-pulse rounded-2xl bg-muted" />}>
           <DailyLoveTask />
         </Suspense>
-      </section>
+      </Reveal>
     </div>
+    </MotionRoot>
   );
 }

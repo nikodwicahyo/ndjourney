@@ -59,9 +59,9 @@ export default function GameClient() {
   const renderGame = () => {
     switch (selected) {
       case "WOULD_YOU_RATHER":
-        return <WouldYouRather />;
+        return <WouldYouRather onExit={handleBack} />;
       case "TRIVIA":
-        return <TriviaQuiz />;
+        return <TriviaQuiz onExit={handleBack} />;
       case "SPIN_THE_WHEEL":
         return <SpinTheWheel />;
       case "TRUTH_OR_DARE":

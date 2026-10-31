@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { motion, useInView, useReducedMotion } from "framer-motion";
+import { motion, useInView } from "framer-motion";
 import { MapPin, Edit3, Trash2, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/utils";
@@ -105,7 +105,6 @@ function MilestoneCard({
 }: MilestoneCardProps) {
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-60px" });
-  const reduceMotion = useReducedMotion();
 
   const isLeft = index % 2 === 0;
   const cardColor = milestone.color || "var(--primary)";
@@ -119,7 +118,7 @@ function MilestoneCard({
       ref={ref}
       initial={{ opacity: 0, y: 40 }}
       animate={isInView ? { opacity: 1, y: 0 } : {}}
-      transition={{ duration: reduceMotion ? 0 : 0.5, delay: reduceMotion ? 0 : index * 0.08, ease: "easeOut" }}
+      transition={{ duration: 0.5, delay: index * 0.08, ease: "easeOut" }}
       className="relative"
     >
       <div

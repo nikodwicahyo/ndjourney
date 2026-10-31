@@ -697,8 +697,11 @@ GET    /api/games/questions      # List pertanyaan (query: type)
 POST   /api/games/questions      # Tambah pertanyaan custom
 PUT    /api/games/questions/:id  # Edit pertanyaan
 DELETE /api/games/questions/:id  # Hapus pertanyaan
-POST   /api/games/score          # Simpan skor
-GET    /api/games/leaderboard    # Leaderboard dua orang
+POST   /api/games/score          # Simpan jawaban (dinilai server)
+POST   /api/games/round          # Catat 1 babak kuis selesai (yang dihitung leaderboard)
+POST   /api/games/arcade-score   # Simpan skor arcade (1 baris per permainan selesai)
+GET    /api/games/leaderboard    # Leaderboard semua/per-game (query: type)
+GET    /api/games/arcade-leaderboard # Statistik arcade (query: type)
 ```
 
 ### 8.7 Daily Notes

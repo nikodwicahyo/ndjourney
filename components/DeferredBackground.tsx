@@ -13,7 +13,9 @@ const BackgroundEffect = dynamic(() => import("./BackgroundEffect"), {
 
 // Data-saver users get the CSS field only: the fanciest background is not worth
 // a metered download. Every other device — phone or desktop — renders the 3D
-// scene (product requirement: the background animates everywhere).
+// scene (product requirement: the background animates everywhere) — except
+// reduced-motion users, for whom the whole point of the scene (ambient travel)
+// is the thing they asked not to see.
 function shouldUseWebGL(): boolean {
   if (typeof window === "undefined") return false;
   const connection = (
@@ -64,46 +66,73 @@ export default function DeferredBackground() {
   useEffect(() => {
     if (!shouldUseWebGL()) return;
 
-    let idleId: number | undefined;
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     let killed = false;
+    let started = false;
+    let scrolling = false;
+    let idleId: number | undefined;
+    let scrollIdle: ReturnType<typeof setTimeout> | undefined;
+
+    const schedule = () => {
+      if (killed || started) return;
+      if (typeof window.requestIdleCallback === "function") {
+        idleId = window.requestIdleCallback(enable, { timeout: 6000 });
+      } else {
+        idleId = window.setTimeout(enable, 4000);
+      }
+    };
 
     const enable = () => {
-      if (killed) return;
-      cleanup();
+      if (killed || started) return;
+      // A scroll frame is the worst possible moment for a 150 KB parse plus
+      // WebGL setup — it lands as a long task exactly where the visitor
+      // notices jank. Wait for the gesture to settle and try again.
+      if (scrolling) {
+        schedule();
+        return;
+      }
+      started = true;
       setWebgl(true);
     };
-    const cleanup = () => {
-      if (idleId !== undefined) window.cancelIdleCallback(idleId);
-      if (timeoutId !== undefined) clearTimeout(timeoutId);
-      window.removeEventListener("load", onLoad);
-      
-      window.removeEventListener("scroll", enable);
-      window.removeEventListener("pointerdown", enable);
-      window.removeEventListener("touchstart", enable);
-      window.removeEventListener("keydown", enable);
+
+    const onScroll = () => {
+      scrolling = true;
+      clearTimeout(scrollIdle);
+      scrollIdle = setTimeout(() => {
+        scrolling = false;
+      }, 180);
     };
 
-    const onLoad = () => {
-      // Decorative upgrade, deliberately late: the 3D chunk is ~150 KB gzipped
-      // and building the scene is a long task. Doing it during the first paint
-      // window measured as +1.2 s LCP and +1 s TBT on a throttled phone.
-      timeoutId = setTimeout(enable, 6000);
-    };
+    // Decorative upgrade, deliberately late: the 3D chunk is ~150 KB gzipped
+    // and building the scene is a long task. Doing it during the first paint
+    // window measured as +1.2 s LCP and +1 s TBT on a throttled phone.
+    const onLoad = () => schedule();
 
     if (document.readyState === "complete") onLoad();
     else window.addEventListener("load", onLoad, { once: true });
 
-    // …but the visitor never waits for a timer: interacting upgrades at once.
-    
-    window.addEventListener("scroll", enable, { passive: true });
-    window.addEventListener("pointerdown", enable, { passive: true });
-    window.addEventListener("touchstart", enable, { passive: true });
-    window.addEventListener("keydown", enable);
+    // Real interactions upgrade at once (the visitor is engaged, not mid-scroll).
+    // Scrolling is deliberately NOT a trigger: it is the gesture that must stay
+    // smooth, and it was the cause of the original jank.
+    window.addEventListener("pointerdown", schedule, { passive: true });
+    window.addEventListener("keydown", schedule);
+
+    // Listen only to know when NOT to start.
+    window.addEventListener("scroll", onScroll, { passive: true });
 
     return () => {
       killed = true;
-      cleanup();
+      window.removeEventListener("load", onLoad);
+      window.removeEventListener("pointerdown", schedule);
+      window.removeEventListener("keydown", schedule);
+      window.removeEventListener("scroll", onScroll);
+      clearTimeout(scrollIdle);
+      if (idleId !== undefined) {
+        if (typeof window.cancelIdleCallback === "function") {
+          window.cancelIdleCallback(idleId);
+        } else {
+          clearTimeout(idleId);
+        }
+      }
     };
   }, []);
 

@@ -6,7 +6,6 @@ import { ChevronDown, Heart } from "lucide-react";
 import { isVideoUrl } from "@/lib/utils";
 import { cropCoverStyle, type CropRect } from "@/lib/image-crop";
 import { getOptimizedImageUrl } from "@/lib/cloudinary-urls";
-import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { DEFAULT_NAME1, DEFAULT_NAME2, resolveTagline } from "@/lib/couple-display";
 
 type HeroSectionProps = {
@@ -28,7 +27,6 @@ export default function HeroSection({
   const displayName2 = name2?.trim() || DEFAULT_NAME2;
   const displayTagline = resolveTagline(tagline);
   const heroIsVideo = useMemo(() => isVideoUrl(heroPhotoUrl), [heroPhotoUrl]);
-  const reduceMotion = usePrefersReducedMotion();
   const fullName = `${displayName1} & ${displayName2}`;
   // crop renders with the SAME math as the cropper preview (lib/image-crop),
   // measured against the real viewport — preview IS the output.
@@ -50,7 +48,10 @@ export default function HeroSection({
     ? cropCoverStyle(natural.w, natural.h, viewport.w, viewport.h, heroCrop)
     : null;
   const scrollToContent = () => {
-    document.getElementById("home-content")?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth" });
+    // No explicit `behavior`: `html { scroll-behavior: smooth }` owns it and the
+    // reduced-motion block flips that to `auto`. One source of truth, no JS
+    // branch, no hydration risk.
+    document.getElementById("home-content")?.scrollIntoView({ block: "start" });
   };
 
   const heroAlt = `${displayName1} dan ${displayName2}`;
@@ -176,7 +177,7 @@ export default function HeroSection({
       </div>
 
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2">
-        <div className={reduceMotion ? undefined : "chevron-bob"}>
+        <div className="chevron-bob">
           <button
             type="button"
             onClick={scrollToContent}

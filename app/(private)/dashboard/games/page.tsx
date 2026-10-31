@@ -4,7 +4,7 @@ import GameManager from "@/components/dashboard/GameManager";
 import LeaderBoard from "@/components/dashboard/LeaderBoard";
 import PageTransition from "@/components/PageTransition";
 import { Skeleton } from "@/components/ui";
-import { listGameQuestions, getQaLeaderboard } from "@/lib/queries/games";
+import { listGameQuestions, getGameLeaderboard } from "@/lib/queries/games";
 import { prefetchServerQueries } from "@/lib/server-prefetch";
 import { queryKeys } from "@/lib/query-keys";
 import type { Metadata } from "next";
@@ -27,15 +27,11 @@ export default async function GamesManagerPage() {
       });
     },
     async (qc) => {
-      // LeaderBoard's initial "Semua" tab runs both of these (arcade query is
-      // disabled until its tab is selected).
+      // LeaderBoard's initial tab is the merged "Semua" board — one key, one
+      // server-aggregated source for every game.
       await qc.prefetchQuery({
-        queryKey: [...queryKeys.games.leaderboard(), null],
-        queryFn: () => getQaLeaderboard(null),
-      });
-      await qc.prefetchQuery({
-        queryKey: queryKeys.games.mergedQaLeaderboard(),
-        queryFn: () => getQaLeaderboard(null),
+        queryKey: queryKeys.games.leaderboard(null),
+        queryFn: () => getGameLeaderboard(null),
       });
     },
   ]);

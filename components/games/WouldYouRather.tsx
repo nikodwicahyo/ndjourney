@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useQuestionDeck, useSubmitScore } from "@/hooks/useGames";
+import { useQuestionDeck, useSubmitScore, useSubmitGameRound } from "@/hooks/useGames";
 import { Button, Skeleton } from "@/components/ui";
 import { motion } from "framer-motion";
 import { Shuffle, RefreshCw, Check, X } from "lucide-react";
@@ -19,6 +19,10 @@ export default function WouldYouRather({ playerName, onExit }: WouldYouRatherPro
   const deck = useQuestionDeck("WOULD_YOU_RATHER", BATCH_SIZE);
   const { isLoading, error, refetch } = deck;
   const submitScore = useSubmitScore();
+  const submitRound = useSubmitGameRound();
+  // One id per completed round — the server uses it to make retries idempotent.
+  const [roundId, setRoundId] = useState(() => crypto.randomUUID());
+  const submittedRoundRef = useRef<string | null>(null);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [picked, setPicked] = useState<PickKey | null>(null);
   // Graded server-side: the answer key is not part of the public payload.
@@ -33,6 +37,24 @@ export default function WouldYouRather({ playerName, onExit }: WouldYouRatherPro
       if (pickTimeoutRef.current) clearTimeout(pickTimeoutRef.current);
     };
   }, []);
+
+  // Record the completed round exactly once. This is the event the leaderboard
+  // counts — quitting mid-round deliberately does not count.
+  useEffect(() => {
+    if (!finished || submittedRoundRef.current === roundId) return;
+    submittedRoundRef.current = roundId;
+    void submitRound
+      .mutateAsync({
+        gameType: "WOULD_YOU_RATHER",
+        roundId,
+        questionIds: deck.batch.map((q) => q.id),
+        playerName,
+      })
+      .catch(() => {
+        // Silent: the round result stays on screen; the score POST already
+        // recorded every answer and a later round will refresh the board.
+      });
+  }, [finished, roundId, deck.batch, playerName, submitRound]);
 
   const batch = deck.batch;
   const totalQuestions = deck.total;
@@ -178,6 +200,7 @@ export default function WouldYouRather({ playerName, onExit }: WouldYouRatherPro
     setHistory([]);
     setPicked(null);
     setReveal(null);
+    setRoundId(crypto.randomUUID());
     deck.restart(ids);
   }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { Heart, Share2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -8,7 +8,6 @@ import { toast } from "sonner";
 const CONFETTI = ["❤️", "✨", "💫", "🌟", "💖", "⭐", "🎉", "💕"];
 
 export default function MeetBanner({ show, distance }: { show: boolean; distance?: number | null }) {
-  const reduceMotion = useReducedMotion();
   const [burst, setBurst] = useState(false);
   const [prevShow, setPrevShow] = useState(show);
   // Sync the burst trigger during render (React-endorsed adjustment); the
@@ -71,13 +70,13 @@ export default function MeetBanner({ show, distance }: { show: boolean; distance
               background:
                 "radial-gradient(circle at 50% 0%, rgba(244,63,94,0.18), transparent 70%)",
             }}
-            animate={reduceMotion ? undefined : { opacity: [0.4, 0.8, 0.4] }}
+            animate={{ opacity: [0.4, 0.8, 0.4] }}
             transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
           />
 
           <div className="relative flex items-center justify-center gap-2">
             <motion.span
-              animate={reduceMotion ? undefined : { scale: [1, 1.15, 1] }}
+              animate={{ scale: [1, 1.15, 1] }}
               transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
             >
               <Heart className="h-5 w-5 fill-primary text-primary" />
@@ -107,8 +106,7 @@ export default function MeetBanner({ show, distance }: { show: boolean; distance
             </p>
           )}
 
-          {!reduceMotion &&
-            (burst || show) &&
+          {burst &&
             pieces.map((p, i) => (
               <motion.span
                 key={`confetti-${i}`}

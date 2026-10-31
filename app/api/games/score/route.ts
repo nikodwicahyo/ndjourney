@@ -2,10 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { submitScoreSchema } from "@/lib/validations/game";
 import { withRateLimit, withAnonymousRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
-import { invalidateCache } from "@/lib/redis";
 import { auth } from "@/lib/auth";
-import { getUserCoupleId } from "@/lib/couple";
-import { triggerCoupleEvent } from "@/lib/pusher-server";
 import { isAnswerCorrect } from "@/lib/game-answer";
 
 export async function POST(request: Request) {
@@ -94,16 +91,9 @@ export async function POST(request: Request) {
       },
     });
 
-    await invalidateCache("games:*");
-    await invalidateCache("home:*");
-
-    if (isAuthed) {
-      const coupleId = await getUserCoupleId(session!.user.id);
-      if (coupleId) {
-        await triggerCoupleEvent(coupleId, 'GAMES_LEADERBOARD');
-      }
-    }
-
+    // The leaderboard aggregates COMPLETED rounds (/api/games/round), not
+    // individual answers — invalidating caches or pinging the partner for every
+    // one of the ~10 answers in a round was pure churn.
     return NextResponse.json(
       { data: score, correct, answer: question.answer },
       { status: 201 },

@@ -78,6 +78,18 @@ export const submitArcadeScoreSchema = z.object({
   playerName: z.string().min(1).max(100).optional(),
 });
 
+/**
+ * One COMPLETED quiz round. The client sends the batch it finished; `correct`
+ * and `totalQuestions` are derived server-side from the answer ledger, so a
+ * tampered client cannot inflate its accuracy.
+ */
+export const submitGameRoundSchema = z.object({
+  gameType: z.enum(["WOULD_YOU_RATHER", "TRIVIA"]),
+  roundId: z.string().uuid(),
+  questionIds: z.array(z.string().cuid()).min(1).max(20),
+  playerName: z.string().min(1).max(100).optional(),
+});
+
 /** Server-side ceiling per arcade game (score is client-reported). */
 export const ARCADE_MAX_SCORE: Record<SubmitArcadeScoreInput["gameType"], number> = {
   SLIDING_PUZZLE: 100_000,
@@ -88,3 +100,4 @@ export type CreateQuestionInput = z.infer<typeof createQuestionSchema>;
 export type UpdateQuestionInput = z.infer<typeof updateQuestionSchema>;
 export type SubmitScoreInput = z.infer<typeof submitScoreSchema>;
 export type SubmitArcadeScoreInput = z.infer<typeof submitArcadeScoreSchema>;
+export type SubmitGameRoundInput = z.infer<typeof submitGameRoundSchema>;

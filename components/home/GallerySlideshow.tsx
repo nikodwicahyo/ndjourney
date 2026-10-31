@@ -2,7 +2,7 @@
 
 import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import Image from "next/image";
-import { motion, AnimatePresence, useInView, useReducedMotion } from "framer-motion";
+import { motion, AnimatePresence, useInView } from "framer-motion";
 import { ChevronLeft, ChevronRight, Camera, Video, RefreshCw, Pause, Play } from "lucide-react";
 import { cn, formatDate } from "@/lib/utils";
 import { shuffle } from "@/lib/format";
@@ -60,7 +60,6 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
   // slide can never mark the incoming one as ready.
   const [loadedPhotoId, setLoadedPhotoId] = useState<string | null>(null);
   const [failedPhotoId, setFailedPhotoId] = useState<string | null>(null);
-  const reduceMotion = useReducedMotion();
   // Reset the viewer when a new photo list arrives — render-time adjustment
   // (React-endorsed) instead of post-paint sync sets.
   const [prevInitialPhotos, setPrevInitialPhotos] = useState(initialPhotos);
@@ -192,12 +191,12 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
     if (typeof container.scrollTo === "function") {
       container.scrollTo({
         left: target,
-        behavior: reduceMotion ? "auto" : "smooth",
+        behavior: "smooth",
       });
     } else {
       container.scrollLeft = target; // ponytail: jsdom fallback
     }
-  }, [currentIndex, reduceMotion]);
+  }, [currentIndex]);
 
   // ponytail: variants stay STATIC — MotionRoot disables the slide for
   // reduced-motion users. Branching here mismatches SSR vs first paint.
@@ -235,7 +234,7 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
               initial="enter"
               animate="center"
               exit="exit"
-              transition={{ duration: reduceMotion ? 0 : 0.35, ease: "easeInOut" }}
+              transition={{ duration: 0.35, ease: "easeInOut" }}
               className="absolute inset-0"
             >
               {photo.isVideo ? (

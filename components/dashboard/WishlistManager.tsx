@@ -5,7 +5,7 @@ import { useWishes } from "@/hooks/useWishes";
 import WishCard from "@/components/wishlist/WishCard";
 import WishForm from "@/components/wishlist/WishForm";
 import { Button, Skeleton } from "@/components/ui";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion } from "framer-motion";
 import { Gift, Filter, Heart, PartyPopper } from "lucide-react";
 import { cn, FILTER_CHIP_CLASSES } from "@/lib/utils";
 import type { WishItem } from "@/types";
@@ -23,7 +23,6 @@ export default function WishlistManager() {
   const [filter, setFilter] = useState("");
   const [showDone, setShowDone] = useState(true);
   const [editingWish, setEditingWish] = useState<WishItem | null>(null);
-  const reduceMotion = useReducedMotion();
 
   const filtered = (wishes || [])
     .filter((w) => !filter || w.category === filter)
@@ -60,7 +59,7 @@ export default function WishlistManager() {
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: reduceMotion ? 0 : 0.3 }}
+          transition={{ duration: 0.3 }}
           className="rounded-2xl border border-border bg-card p-5 shadow-sm"
         >
           <div className="flex items-center justify-between">
@@ -79,7 +78,7 @@ export default function WishlistManager() {
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: `${progress}%` }}
-              transition={{ duration: reduceMotion ? 0 : 0.8, ease: "easeOut" }}
+              transition={{ duration: 0.8, ease: "easeOut" }}
               className="h-full rounded-full bg-primary"
             />
           </div>

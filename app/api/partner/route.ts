@@ -12,6 +12,7 @@ export async function GET() {
     const membership = await prisma.coupleMember.findUnique({
       where: { userId: session.user.id },
       select: {
+        coupleId: true,
         couple: {
           select: {
             members: {
@@ -35,7 +36,7 @@ export async function GET() {
     }
 
     return NextResponse.json(
-      { data: partner },
+      { data: partner, coupleId: membership?.coupleId ?? null },
       { headers: { "Cache-Control": "private, no-cache" } },
     );
   } catch (error) {

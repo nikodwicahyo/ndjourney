@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element -- custom Cloudinary srcset plus transform anchored zoom; next/image wrappers break zoom math and hosts vary */
 
 import { memo, useEffect, useCallback, useState, useMemo, useRef } from "react";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
   ChevronLeft,
@@ -112,7 +112,6 @@ function Lightbox({
   const restoreFocusRef = useRef<Element | null>(null);
   const isFetchingRef = useRef(false);
   const currentIndexRef = useRef(currentIndex);
-  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     currentIndexRef.current = currentIndex;
@@ -208,13 +207,13 @@ function Lightbox({
 
   const slideVariants = useMemo(() => ({
     enter: (dir: number) => ({
-      x: reduceMotion ? 0 : dir > 0 ? 350 : -350,
+      x: dir > 0 ? 350 : -350,
     }),
     center: { x: 0 },
     exit: (dir: number) => ({
-      x: reduceMotion ? 0 : dir > 0 ? -350 : 350,
+      x: dir > 0 ? -350 : 350,
     }),
-  }), [reduceMotion]);
+  }), []);
 
   // Gesture refs + resetView live above the nav handlers: the handlers list
   // resetView in their dep arrays (evaluated during render), so it must be
@@ -583,7 +582,7 @@ function Lightbox({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        transition={{ duration: reduceMotion ? 0 : 0.15 }}
+        transition={{ duration: 0.15 }}
         className="fixed inset-0 z-50 bg-black/95 outline-none"
       >
         <div className="absolute inset-x-0 top-0 z-30 flex items-center justify-between bg-gradient-to-b from-black/80 via-black/40 to-transparent px-4 pt-[max(env(safe-area-inset-top),0.75rem)] pb-8">
@@ -675,7 +674,7 @@ function Lightbox({
                 initial="enter"
                 animate={{ x: dragX }}
                 exit="exit"
-                transition={{ x: { duration: reduceMotion || swiping ? 0 : 0.35, ease: [0.4, 0, 0.2, 1] } }}
+                transition={{ x: { duration: swiping ? 0 : 0.35, ease: [0.4, 0, 0.2, 1] } }}
                 className="absolute inset-0 flex items-center justify-center"
                 style={{ willChange: "transform" }}
               >

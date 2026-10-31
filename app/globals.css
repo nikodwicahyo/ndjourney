@@ -316,6 +316,15 @@
     display: none;
   }
 
+  /* Below-the-fold section shell: reserve the slot height before the widget
+     mounts, and let the browser skip layout/paint while it is off-screen.
+     `auto` remembers the measured height after the first render, so the
+     estimate only ever applies to sections that have never been shown. */
+  .reveal-slot {
+    content-visibility: auto;
+    contain-intrinsic-size: auto var(--reveal-h, 320px);
+  }
+
   .bg-shimmer {
     background: linear-gradient(
       90deg,
@@ -426,6 +435,21 @@ html [data-sonner-toaster][data-sonner-theme="light"] {
   --success-text: hsl(140, 100%, 22%);
 }
 
+/* ── Motion vocabulary ────────────────────────────────────────────────
+   One rhythm for the whole app: durations and easings live here, and every
+   animation below reuses them. Reduced motion has exactly one home — the
+   block at the bottom of this section — and it never deletes an animation:
+   it re-points it to a variant without travel, so the UI still feels alive
+   instead of snapping.
+   ──────────────────────────────────────────────────────────────────── */
+
+:root {
+  --motion-enter: 0.35s;
+  --motion-exit: 0.18s;
+  --motion-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
 /* Page entrance: animate transform only. Never start at opacity:0 — content
    must be paintable on the first frame (LCP) without waiting for hydration. */
 @keyframes page-enter {
@@ -438,12 +462,27 @@ html [data-sonner-toaster][data-sonner-theme="light"] {
 }
 
 .page-enter {
-  animation: page-enter 0.35s ease-out;
+  animation: page-enter var(--motion-enter) var(--motion-ease-out);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .page-enter {
-    animation: none;
+/* Calm variants used by the reduced-motion block. */
+@keyframes soft-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-in-out {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.85;
   }
 }
 
@@ -490,21 +529,11 @@ html [data-sonner-toaster][data-sonner-theme="light"] {
 }
 
 .music-panel-enter {
-  animation: music-panel-in 0.2s ease-out both;
+  animation: music-panel-in 0.2s var(--motion-ease-out) both;
 }
 
 .music-panel-exit {
-  animation: music-panel-out 0.18s ease-in both;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .music-fab {
-    animation: none;
-  }
-  .music-panel-enter,
-  .music-panel-exit {
-    animation: none;
-  }
+  animation: music-panel-out var(--motion-exit) ease-in both;
 }
 
 /* Hero typewriter: pure CSS reveal of the real text (the names are in the
@@ -547,14 +576,6 @@ html [data-sonner-toaster][data-sonner-theme="light"] {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  /* The reveal is a discrete clip (no movement), so it stays; only the
-     blinking caret is motion and gets dropped. */
-  .type-caret {
-    display: none;
-  }
-}
-
 /* Hero scroll hint: transform-only bob (compositor, no layout work). */
 @keyframes chevron-bob {
   0%,
@@ -566,10 +587,8 @@ html [data-sonner-toaster][data-sonner-theme="light"] {
   }
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .chevron-bob {
-    animation: chevron-bob 2s ease-in-out infinite;
-  }
+.chevron-bob {
+  animation: chevron-bob 2s var(--motion-ease-in-out) infinite;
 }
 
 /* Decorative background for phones / low-end devices. The WebGL scene ships
@@ -609,7 +628,7 @@ html [data-sonner-toaster][data-sonner-theme="light"] {
 }
 
 .install-banner-enter {
-  animation: install-banner-enter 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: install-banner-enter 0.4s var(--motion-ease-out);
 }
 
 @keyframes nudge-x {
@@ -623,7 +642,7 @@ html [data-sonner-toaster][data-sonner-theme="light"] {
 }
 
 .nudge-x {
-  animation: nudge-x 1.5s ease-in-out infinite;
+  animation: nudge-x 1.5s var(--motion-ease-in-out) infinite;
 }
 
 /* Click feedback hearts (CSS instead of framer-motion). */
@@ -639,6 +658,17 @@ html [data-sonner-toaster][data-sonner-theme="light"] {
   }
 }
 
+@keyframes click-heart-fade {
+  from {
+    transform: translate3d(0, -12px, 0) rotate(var(--rot));
+    opacity: 1;
+  }
+  to {
+    transform: translate3d(0, -20px, 0) rotate(var(--rot));
+    opacity: 0;
+  }
+}
+
 .click-heart {
   position: fixed;
   pointer-events: none;
@@ -646,10 +676,53 @@ html [data-sonner-toaster][data-sonner-theme="light"] {
   will-change: transform, opacity;
 }
 
+/* ── Reduced motion: same animations, no travel ───────────────────────
+   `prefers-reduced-motion` asks for less *displacement*, not a dead UI.
+   Each rule re-points the animation to a calm variant (fade / soft pulse /
+   static) instead of `animation: none`, so nothing ever snaps into place.
+   The only things fully stopped are ones that would otherwise sit frozen
+   in a visibly wrong position (the full-viewport heart field).
+   ──────────────────────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
-  .install-banner-enter,
-  .nudge-x,
+  html {
+    /* A 4 000 px smooth scroll is the single worst offender for
+       vestibular sensitivity; every other animation still plays. */
+    scroll-behavior: auto;
+  }
+
+  /* Entrances keep their timing, lose their displacement. */
+  .page-enter,
+  .animate-slide-up,
+  .animate-scale-in,
+  .music-fab,
+  .music-panel-enter,
+  .music-panel-exit,
+  .install-banner-enter {
+    animation-name: fade-in;
+  }
+
+  /* Continuous decorative hints become a slow pulse in place. */
+  .chevron-bob,
+  .nudge-x {
+    animation-name: soft-pulse;
+    animation-duration: 3s;
+  }
+
+  /* Click feedback still confirms the tap, it just doesn't fly. */
+  .click-heart {
+    animation-name: click-heart-fade;
+  }
+
+  /* Full-viewport travel. Under reduced motion the scene is dropped; keep the
+     field but frozen so the background is never empty. */
   .css-heart {
+    animation: none;
+    opacity: 0.12;
+  }
+
+  /* Paint-driven decoration: no visible motion worth the repaints. */
+  .bg-shimmer,
+  .leaflet-connecting-line {
     animation: none;
   }
 }

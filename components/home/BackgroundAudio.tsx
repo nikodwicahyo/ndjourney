@@ -21,6 +21,8 @@ export default function BackgroundAudio({ src, spotifyPlaying }: BackgroundAudio
     if (spotifyPlaying) {
       audio.pause();
     } else if (!pausedByVideoRef.current && audio.paused) {
+      // This toggle is a real click, so unmute while resuming.
+      audio.muted = false;
       audio.play().catch(() => {});
     }
   }, [spotifyPlaying]);
@@ -49,7 +51,11 @@ export default function BackgroundAudio({ src, spotifyPlaying }: BackgroundAudio
     const audio = new Audio();
     // The track is several MB. `auto` downloaded it on every page load even
     // though autoplay is blocked until a gesture, so it landed in the LCP
-    // window. Load it only when the user actually interacts.
+    // window. We now start playback at mount (~1.5 s + idle, after LCP):
+    // unmuted attempt first (works if the visitor already engaged or the
+    // browser allows it), muted fallback otherwise (muted autoplay is always
+    // allowed) so the track is "playing" straight away like a 3D background —
+    // just silent until the first tap/click/key.
     audio.preload = "none";
     audio.loop = true;
     audio.volume = 0.3;
@@ -60,7 +66,23 @@ export default function BackgroundAudio({ src, spotifyPlaying }: BackgroundAudio
       if (startedRef.current) return;
       audio.play().then(() => {
         startedRef.current = true;
-      }).catch(() => {});
+      }).catch(() => {
+        // Unmuted autoplay denied (no user activation yet). Start muted.
+        audio.muted = true;
+        audio.play().then(() => {
+          startedRef.current = true;
+        }).catch(() => {});
+      });
+    }
+
+    function handleGesture() {
+      if (startedRef.current) {
+        // First tap/click/key unmutes the muted fallback. Scroll can demo
+        // this too, but browsers silently re-mute it — that's their policy.
+        if (audio.muted) audio.muted = false;
+        return;
+      }
+      tryPlay();
     }
 
     function handlePauseBg() {
@@ -85,29 +107,25 @@ export default function BackgroundAudio({ src, spotifyPlaying }: BackgroundAudio
       }
     }
 
-    document.addEventListener("pointerdown", tryPlay);
-    document.addEventListener("pointerup", tryPlay);
-    document.addEventListener("touchstart", tryPlay, { passive: true });
-    document.addEventListener("touchend", tryPlay);
-    document.addEventListener("keydown", tryPlay);
-    document.addEventListener("wheel", tryPlay, { passive: true });
+    document.addEventListener("pointerdown", handleGesture);
+    document.addEventListener("pointerup", handleGesture);
+    document.addEventListener("touchstart", handleGesture, { passive: true });
+    document.addEventListener("touchend", handleGesture);
+    document.addEventListener("keydown", handleGesture);
+    document.addEventListener("wheel", handleGesture, { passive: true });
     window.addEventListener("media:pause-bg-audio", handlePauseBg);
     window.addEventListener("media:resume-bg-audio", handleResumeBg);
 
-    // First visit: the visitor usually clicked/scrolled while the page was
-    // still loading, before these listeners existed (the player mounts after
-    // 1.5 s + idle + config fetch). Browsers remember that as sticky
-    // activation — if it's already there, unlock now. Scroll (wheel) alone
-    // never grants it, only click/tap/key — that's a browser policy.
-    if (navigator.userActivation?.hasBeenActive) tryPlay();
+    // Autoplay right away — muted if sound isn't unlocked yet.
+    tryPlay();
 
     return () => {
-      document.removeEventListener("pointerdown", tryPlay);
-      document.removeEventListener("pointerup", tryPlay);
-      document.removeEventListener("touchstart", tryPlay);
-      document.removeEventListener("touchend", tryPlay);
-      document.removeEventListener("keydown", tryPlay);
-      document.removeEventListener("wheel", tryPlay);
+      document.removeEventListener("pointerdown", handleGesture);
+      document.removeEventListener("pointerup", handleGesture);
+      document.removeEventListener("touchstart", handleGesture);
+      document.removeEventListener("touchend", handleGesture);
+      document.removeEventListener("keydown", handleGesture);
+      document.removeEventListener("wheel", handleGesture);
       window.removeEventListener("media:pause-bg-audio", handlePauseBg);
       window.removeEventListener("media:resume-bg-audio", handleResumeBg);
       audio.pause();

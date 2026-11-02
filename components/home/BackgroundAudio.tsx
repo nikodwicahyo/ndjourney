@@ -86,14 +86,27 @@ export default function BackgroundAudio({ src, spotifyPlaying }: BackgroundAudio
     }
 
     document.addEventListener("pointerdown", tryPlay);
+    document.addEventListener("pointerup", tryPlay);
     document.addEventListener("touchstart", tryPlay, { passive: true });
+    document.addEventListener("touchend", tryPlay);
+    document.addEventListener("keydown", tryPlay);
     document.addEventListener("wheel", tryPlay, { passive: true });
     window.addEventListener("media:pause-bg-audio", handlePauseBg);
     window.addEventListener("media:resume-bg-audio", handleResumeBg);
 
+    // First visit: the visitor usually clicked/scrolled while the page was
+    // still loading, before these listeners existed (the player mounts after
+    // 1.5 s + idle + config fetch). Browsers remember that as sticky
+    // activation — if it's already there, unlock now. Scroll (wheel) alone
+    // never grants it, only click/tap/key — that's a browser policy.
+    if (navigator.userActivation?.hasBeenActive) tryPlay();
+
     return () => {
       document.removeEventListener("pointerdown", tryPlay);
+      document.removeEventListener("pointerup", tryPlay);
       document.removeEventListener("touchstart", tryPlay);
+      document.removeEventListener("touchend", tryPlay);
+      document.removeEventListener("keydown", tryPlay);
       document.removeEventListener("wheel", tryPlay);
       window.removeEventListener("media:pause-bg-audio", handlePauseBg);
       window.removeEventListener("media:resume-bg-audio", handleResumeBg);

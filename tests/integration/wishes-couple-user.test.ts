@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { Prisma } from "@/lib/generated/prisma";
 
 const ME = "cjld2cjxh0000qz8n0p3q4w5e1";
 const PARTNER = "cjld2cjxh0000qz8n0p3q4w5e2";
@@ -180,16 +181,16 @@ describe("couple / user / partner / notes-delete contracts", () => {
   it("DASH-04: PUT heroCrop saved; invalid rect 400; gallery-referenced hero URL never deleted", async () => {
     const { deleteFromCloudinaryUrl } = await import("@/lib/cloudinary");
     prismaMock.coupleConfig.findFirst.mockResolvedValue({ id: "cfg", heroPhotoUrl: "https://old.example/h.jpg", backgroundMusicUrl: null });
-    prismaMock.coupleConfig.update.mockImplementation(async (args: unknown) => ({ id: "cfg", heroPhotoUrl: "https://new.example/h.jpg" }));
+    prismaMock.coupleConfig.update.mockImplementation(async (args: unknown) => ({ id: "cfg", heroPhotoUrl: "https://res.cloudinary.com/test-cloud/image/upload/v1/new.jpg" }));
 
     const badRect = await couple.PUT(new Request("http://localhost/api/couple", {
-      method: "PUT", body: JSON.stringify({ heroPhotoUrl: "https://new.example/h.jpg", heroCrop: { x: 0, y: 0, w: 2, h: 1 } }),
+      method: "PUT", body: JSON.stringify({ heroPhotoUrl: "https://res.cloudinary.com/test-cloud/image/upload/v1/new.jpg", heroCrop: { x: 0, y: 0, w: 2, h: 1 } }),
     }));
     expect(badRect.status).toBe(400);
 
     prismaMock.photo.findFirst.mockResolvedValue({ id: "p1" });
     const ok = await couple.PUT(new Request("http://localhost/api/couple", {
-      method: "PUT", body: JSON.stringify({ heroPhotoUrl: "https://new.example/h.jpg", heroCrop: { x: 0.1, y: 0.1, w: 0.8, h: 0.8 } }),
+      method: "PUT", body: JSON.stringify({ heroPhotoUrl: "https://res.cloudinary.com/test-cloud/image/upload/v1/new.jpg", heroCrop: { x: 0.1, y: 0.1, w: 0.8, h: 0.8 } }),
     }));
     expect(ok.status).toBe(200);
     expect(prismaMock.coupleConfig.update).toHaveBeenCalledWith(expect.objectContaining({
@@ -199,9 +200,31 @@ describe("couple / user / partner / notes-delete contracts", () => {
 
     prismaMock.photo.findFirst.mockResolvedValue(null);
     await couple.PUT(new Request("http://localhost/api/couple", {
-      method: "PUT", body: JSON.stringify({ heroPhotoUrl: "https://new.example/h.jpg" }),
+      method: "PUT", body: JSON.stringify({ heroPhotoUrl: "https://res.cloudinary.com/test-cloud/image/upload/v1/new.jpg" }),
     }));
     expect(deleteFromCloudinaryUrl).toHaveBeenCalledWith("https://old.example/h.jpg", [ME, PARTNER]);
+  });
+
+  it("DASH-04c: video hero URL saves fine; non-Cloudinary hero URL is rejected (allowlist)", async () => {
+    prismaMock.coupleConfig.findFirst.mockResolvedValue({ id: "cfg", heroPhotoUrl: null, backgroundMusicUrl: null });
+    prismaMock.coupleConfig.update.mockResolvedValue({ id: "cfg" });
+
+    const videoOk = await couple.PUT(new Request("http://localhost/api/couple", {
+      method: "PUT", body: JSON.stringify({ heroPhotoUrl: "https://res.cloudinary.com/test-cloud/video/upload/v1/ndjourney-web/u1/hero.mp4", heroCrop: null }),
+    }));
+    expect(videoOk.status).toBe(200);
+    // explicit null crop clears the JSON column via SQL NULL (Prisma.DbNull)
+    expect(prismaMock.coupleConfig.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ heroCrop: Prisma.DbNull }),
+    }));
+    vi.clearAllMocks();
+    allow();
+
+    const foreign = await couple.PUT(new Request("http://localhost/api/couple", {
+      method: "PUT", body: JSON.stringify({ heroPhotoUrl: "https://cdn.example.com/video.mp4" }),
+    }));
+    expect(foreign.status).toBe(400);
+    expect(prismaMock.coupleConfig.update).not.toHaveBeenCalled();
   });
 
   it("DASH-04b: version-rewritten gallery URL still blocks deletion by publicId", async () => {

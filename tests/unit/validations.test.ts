@@ -9,6 +9,9 @@ import { createPhotoSchema, createAlbumSchema } from "@/lib/validations/photo";
 import { updateUserSchema } from "@/lib/validations/user";
 import { updateCoupleSchema, cropRectSchema } from "@/lib/validations/couple";
 
+// heroPhotoUrl refine reads the cloud name from env at parse time (zod).
+process.env.CLOUDINARY_CLOUD_NAME ??= "test-cloud";
+
 // LTR-02, NOTE-01, LOC-03 + GAM/WISH/TML/PHOTO validation matrix
 describe("zod validation contracts", () => {
   it("LTR-02: letter requires title/content/cuid recipient/mood", () => {
@@ -83,5 +86,20 @@ describe("zod validation contracts", () => {
     expect(cropRectSchema.safeParse({ x: 0, y: 0, w: 1, h: 1 }).success).toBe(true);
     expect(cropRectSchema.safeParse({ x: 0.9, y: 0, w: 0.2, h: 0.2 }).success).toBe(false);
     expect(updateCoupleSchema.safeParse({ heroPhotoUrl: "notaurl" }).success).toBe(false);
+  });
+
+  it("COUPLE hero URL allowlist: Cloudinary image/video delivery passes, other hosts and raw don't", () => {
+    expect(
+      updateCoupleSchema.safeParse({ heroPhotoUrl: "https://res.cloudinary.com/test-cloud/video/upload/v1/ndjourney-web/u1/hero.mp4" }).success,
+    ).toBe(true);
+    expect(
+      updateCoupleSchema.safeParse({ heroPhotoUrl: "https://res.cloudinary.com/test-cloud/image/upload/v1/u1/hero.webp" }).success,
+    ).toBe(true);
+    expect(updateCoupleSchema.safeParse({ heroPhotoUrl: "https://evil.com/video.mp4" }).success).toBe(false);
+    expect(
+      updateCoupleSchema.safeParse({ heroPhotoUrl: "https://res.cloudinary.com/test-cloud/raw/upload/v1/u1/file.html" }).success,
+    ).toBe(false);
+    // clearing the hero must keep working
+    expect(updateCoupleSchema.safeParse({ heroPhotoUrl: null }).success).toBe(true);
   });
 });

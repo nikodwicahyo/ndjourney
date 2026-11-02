@@ -10,13 +10,19 @@ import { api } from "@/lib/api-client";
 import { Loader2, Save, Upload, X, Cake, ImagePlus, Crop } from "lucide-react";
 import { toast } from "sonner";
 import { uploadFileSimple } from "@/lib/chunked-upload";
+import { validateFileSize } from "@/lib/upload-config";
 import { getJakartaDateOnly } from "@/lib/date";
 import { isVideoUrl } from "@/lib/utils";
 import { parseCropRect, cropCoverStyle, type CropRect } from "@/lib/image-crop";
-import { getOptimizedImageUrl } from "@/lib/cloudinary-urls";
+import { getOptimizedImageUrl, getOptimizedVideoUrl, getVideoPosterUrl } from "@/lib/cloudinary-urls";
 import { showDeleteConfirm } from "@/lib/swal";
 import GalleryPicker from "@/components/ui/GalleryPicker";
 import PhotoCropper from "@/components/ui/PhotoCropper";
+
+/** Video hero picks skip the cropper. File.type is empty for some formats — fall back to the extension. */
+function isVideoFile(file: File): boolean {
+  return file.type.startsWith("video/") || isVideoUrl(file.name);
+}
 
 export default function SettingsForm() {
   const { data: config, isLoading } = useCoupleConfig();
@@ -63,6 +69,7 @@ export default function SettingsForm() {
   const previewStyle = heroCrop && previewNat && previewFrame
     ? cropCoverStyle(previewNat.w, previewNat.h, previewFrame.w, previewFrame.h, heroCrop)
     : null;
+  const heroIsVideo = isVideoUrl(heroPhotoUrl);
 
   useEffect(() => {
     if (config) {
@@ -110,11 +117,38 @@ export default function SettingsForm() {
     setCropTarget({ src: URL.createObjectURL(file), file });
   }
 
+  /** Videos have no crop canvas — validate, upload, done. */
+  async function uploadHeroVideo(file: File) {
+    const sizeCheck = validateFileSize(file);
+    if (!sizeCheck.valid) {
+      toast.error(sizeCheck.error || "Ukuran video melebihi batas");
+      return;
+    }
+    setUploadingHero(true);
+    try {
+      // uploadFileSimple auto-switches to chunked upload for >10 MB.
+      const result = await uploadFileSimple(file, () => {});
+      setHeroPhotoUrl(result.url);
+      setHeroCrop(null);
+      toast.success("Video beranda berhasil diupload!");
+    } catch {
+      toast.error("Gagal upload video");
+    } finally {
+      setUploadingHero(false);
+    }
+  }
+
   function selectGalleryHero(photo: { id: string; url: string; thumbnailUrl: string | null }) {
     if (cropTarget?.file) URL.revokeObjectURL(cropTarget.src);
+    setShowGalleryPicker(false);
+    if (isVideoUrl(photo.url)) {
+      // Video heroes crop nothing — reference the gallery original directly.
+      setHeroPhotoUrl(photo.url);
+      setHeroCrop(null);
+      return;
+    }
     // Gallery original is referenced, never copied or re-uploaded.
     setCropTarget({ src: photo.url });
-    setShowGalleryPicker(false);
   }
 
   function closeCropper() {
@@ -169,8 +203,10 @@ export default function SettingsForm() {
         birthDate2: dateOrNull(birthDate2),
         // explicit null clears (undefined would silently keep the old value).
         tagline: tagline.trim() ? tagline.trim() : null,
+        // Never persist a crop for video heroes (videos render uncropped —
+        // also guards a legacy row that carries a crop under a video URL).
         heroPhotoUrl: heroPhotoUrl.trim() || null,
-        heroCrop: heroPhotoUrl.trim() ? (heroCrop ?? null) : null,
+        heroCrop: heroPhotoUrl.trim() && !heroIsVideo ? (heroCrop ?? null) : null,
         spotifyPlaylistUrl: spotifyPlaylistUrl.trim() ? spotifyPlaylistUrl.trim() : null,
         backgroundMusicUrl: backgroundMusicUrl.trim() ? backgroundMusicUrl.trim() : null,
       });
@@ -275,11 +311,23 @@ export default function SettingsForm() {
       </div>
 
       <div className="space-y-2">
-        <label htmlFor="settings-hero" className="text-sm font-medium">Foto Beranda</label>
+        <label htmlFor="settings-hero" className="text-sm font-medium">Foto/Video Beranda</label>
         {heroPhotoUrl ? (
           <div className="relative w-full">
             <div ref={previewRef} className="relative w-full overflow-hidden rounded-xl" style={{ aspectRatio: "16 / 9" }}>
-              {previewStyle ? (
+              {heroIsVideo ? (
+                <video
+                  src={getOptimizedVideoUrl(heroPhotoUrl, 960)}
+                  poster={getVideoPosterUrl(heroPhotoUrl)}
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  preload="metadata"
+                  aria-label="Preview video beranda"
+                  className="h-full w-full object-cover"
+                />
+              ) : previewStyle ? (
                 <Image
                   src={getOptimizedImageUrl(heroPhotoUrl, 1600)}
                   alt="Hero"
@@ -314,10 +362,10 @@ export default function SettingsForm() {
             <button
               type="button"
               onClick={async () => {
-                const ok = await showDeleteConfirm({ title: "Hapus Foto Beranda", text: "Apakah Anda yakin ingin menghapus foto beranda?" });
+                const ok = await showDeleteConfirm({ title: "Hapus Media Beranda", text: "Apakah Anda yakin ingin menghapus foto/video beranda?" });
                 if (ok) { setHeroPhotoUrl(""); setHeroCrop(null); }
               }}
-              aria-label="Hapus foto beranda"
+              aria-label="Hapus media beranda"
               className="absolute right-2 top-2 rounded-full bg-background/80 p-2.5 transition-colors hover:bg-background"
             >
               <X className="h-4 w-4" aria-hidden="true" />
@@ -327,7 +375,7 @@ export default function SettingsForm() {
           <div className="flex h-40 w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-input bg-muted/50 px-4">
             <Upload className="h-6 w-6 shrink-0 text-muted-foreground" aria-hidden="true" />
             <span className="text-sm text-muted-foreground text-center">
-              Foto pada beranda yang tampil di halaman utama. <br />
+              Foto atau video pada beranda yang tampil di halaman utama. <br />
             </span>
           </div>
         )}
@@ -345,7 +393,7 @@ export default function SettingsForm() {
             ) : (
               <Upload className="h-4 w-4" aria-hidden="true" />
             )}
-            Upload Foto Baru
+            Upload Baru
           </Button>
           <Button
             type="button"
@@ -357,7 +405,7 @@ export default function SettingsForm() {
             <ImagePlus className="h-4 w-4" aria-hidden="true" />
             Pilih dari Galeri
           </Button>
-          {heroPhotoUrl && !isVideoUrl(heroPhotoUrl) && (
+          {heroPhotoUrl && !heroIsVideo && (
             <Button
               type="button"
               variant="outline"
@@ -374,11 +422,16 @@ export default function SettingsForm() {
           ref={heroInputRef}
           id="settings-hero"
           type="file"
-          accept="image/jpeg,image/png,image/webp"
+          // mp4/webm cover every modern browser; mov keeps iOS-shot clips
+          // uploadable even though some desktop browsers can't play it.
+          accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime"
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0];
-            if (file) stageHeroFile(file);
+            if (file) {
+              if (isVideoFile(file)) uploadHeroVideo(file);
+              else stageHeroFile(file);
+            }
             e.target.value = "";
           }}
         />
@@ -387,6 +440,8 @@ export default function SettingsForm() {
             open={showGalleryPicker}
             onClose={() => setShowGalleryPicker(false)}
             onSelect={selectGalleryHero}
+            showVideos
+            title="Pilih Foto/Video dari Galeri"
           />
         )}
         {cropTarget && (

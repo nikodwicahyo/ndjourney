@@ -86,3 +86,37 @@ describe("HeroSection readability", () => {
     }
   });
 });
+
+describe("HeroSection video hero", () => {
+  const VIDEO_URL = "https://res.cloudinary.com/x/video/upload/v1/ndjourney-web/u1/hero.mp4";
+
+  it("renders a muted autoplay looping video with poster + metadata preload", () => {
+    const { container } = render(
+      <HeroSection name1="Niko" name2="Dzikria" heroPhotoUrl={VIDEO_URL} />,
+    );
+    const video = container.querySelector("video");
+    expect(video).toBeTruthy();
+    expect(video?.hasAttribute("autoplay")).toBe(true); // plays on every home visit
+    expect(video?.hasAttribute("loop")).toBe(true);
+    // React sets `muted` as a DOM property, not an attribute — assert the property.
+    expect(video?.muted).toBe(true);
+    expect(video?.hasAttribute("playsinline")).toBe(true);
+    expect(video?.getAttribute("preload")).toBe("metadata");
+    // instant first-frame paint while the video buffers
+    expect(video?.getAttribute("poster")).toContain("/image/upload/");
+    // crossOrigin not needed; no Image element for video heroes
+    expect(container.querySelector("img")).toBeNull();
+
+    // Responsive delivery: viewport-based source picking + optimized URLs.
+    const sources = Array.from(container.querySelectorAll("source"));
+    expect(sources.length).toBe(3);
+    expect(sources[0].getAttribute("media")).toBe("(max-width: 639px)");
+    expect(sources[0].getAttribute("src")).toContain("w_640");
+    expect(sources[1].getAttribute("media")).toBe("(max-width: 1023px)");
+    expect(sources[1].getAttribute("src")).toContain("w_960");
+    expect(sources[2].getAttribute("media")).toBeNull();
+    expect(sources[2].getAttribute("src")).toContain("w_1600");
+    // no raw <video src> alongside <source> children (src would win)
+    expect(video?.getAttribute("src")).toBeNull();
+  });
+});

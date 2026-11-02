@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { X, Loader2, ImageOff, Check } from "lucide-react";
+import { X, Loader2, ImageOff, Check, Play } from "lucide-react";
 import { Button } from "@/components/ui";
-import { cn } from "@/lib/utils";
+import { cn, isVideoUrl } from "@/lib/utils";
+import { getVideoPosterUrl } from "@/lib/cloudinary-urls";
 
 export type GalleryPickerPhoto = {
   id: string;
@@ -21,22 +22,29 @@ type Props = {
   /** IDs currently selected (for multi mode highlight). */
   selectedIds?: string[];
   title?: string;
+  /** When true, gallery videos are listed next to photos (hero picker only). */
+  showVideos?: boolean;
 };
 
 const PAGE_SIZE = 60;
 
-async function fetchPhotos(cursor: string | null): Promise<{
+async function fetchPhotos(
+  cursor: string | null,
+  showVideos: boolean,
+): Promise<{
   data: GalleryPickerPhoto[];
   nextCursor: string | null;
   hasMore: boolean;
 }> {
   const params = new URLSearchParams({
     limit: String(PAGE_SIZE),
-    mediaType: "foto",
     sort: "newest",
     // picker is for public-facing picks (hero, milestone, wish) — private media must never be listed or selectable.
     visibility: "public",
   });
+  // No mediaType param → the API lists photos AND videos (hero picker);
+  // "foto" keeps photo-only callers unchanged.
+  if (!showVideos) params.set("mediaType", "foto");
   if (cursor) params.set("cursor", cursor);
   const res = await fetch(`/api/photos?${params.toString()}`);
   if (!res.ok) throw new Error("Gagal memuat galeri");
@@ -56,6 +64,7 @@ export default function GalleryPicker({
   multi = false,
   selectedIds = [],
   title = "Pilih Foto dari Galeri",
+  showVideos = false,
 }: Props) {
   const [photos, setPhotos] = useState<GalleryPickerPhoto[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -70,7 +79,7 @@ export default function GalleryPicker({
     setLoading(true);
     setError(null);
     try {
-      const { data, nextCursor, hasMore: more } = await fetchPhotos(null);
+      const { data, nextCursor, hasMore: more } = await fetchPhotos(null, showVideos);
       if (id !== reqId.current) return;
       setPhotos(data);
       setCursor(nextCursor);
@@ -80,14 +89,14 @@ export default function GalleryPicker({
     } finally {
       if (id === reqId.current) setLoading(false);
     }
-  }, []);
+  }, [showVideos]);
 
   const loadMore = useCallback(async () => {
     if (!cursor || loadingMore || loading) return;
     const id = ++reqId.current;
     setLoadingMore(true);
     try {
-      const { data, nextCursor, hasMore: more } = await fetchPhotos(cursor);
+      const { data, nextCursor, hasMore: more } = await fetchPhotos(cursor, showVideos);
       if (id !== reqId.current) return;
       setPhotos((prev) => {
         const seen = new Set(prev.map((p) => p.id));
@@ -100,7 +109,7 @@ export default function GalleryPicker({
     } finally {
       if (id === reqId.current) setLoadingMore(false);
     }
-  }, [cursor, loadingMore, loading]);
+  }, [cursor, loadingMore, loading, showVideos]);
 
   // Load the gallery whenever the picker opens.
   useEffect(() => {
@@ -138,19 +147,20 @@ export default function GalleryPicker({
         ) : photos.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
             <ImageOff className="h-6 w-6" aria-hidden="true" />
-            <p className="text-sm">Belum ada foto di galeri</p>
+            <p className="text-sm">{showVideos ? "Belum ada media di galeri" : "Belum ada foto di galeri"}</p>
           </div>
         ) : (
           <>
             <div className="grid w-full grid-cols-2 gap-1.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
               {photos.map((photo, i) => {
                 const selected = selectedIds.includes(photo.id);
+                const isVideo = isVideoUrl(photo.url);
                 return (
                   <button
                     key={photo.id}
                     type="button"
                     onClick={() => onSelect(photo)}
-                    aria-label={`Pilih foto ${i + 1}`}
+                    aria-label={isVideo ? `Pilih video ${i + 1}` : `Pilih foto ${i + 1}`}
                     aria-pressed={selected}
                     className={cn(
                       "relative w-full overflow-hidden rounded-lg transition-all",
@@ -162,13 +172,18 @@ export default function GalleryPicker({
                   >
                     <div className="absolute inset-0">
                       <Image
-                        src={photo.thumbnailUrl || photo.url}
+                        src={photo.thumbnailUrl || (isVideo ? getVideoPosterUrl(photo.url) : photo.url)}
                         alt=""
                         fill
                         sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
                         className="object-cover"
                       />
                     </div>
+                    {isVideo && (
+                      <div className="absolute bottom-1.5 left-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white" aria-hidden="true">
+                        <Play className="h-3 w-3" />
+                      </div>
+                    )}
                     {selected && (
                       <div className="absolute inset-0 flex items-center justify-center bg-primary/20">
                         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm text-white shadow-lg">

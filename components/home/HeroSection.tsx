@@ -5,7 +5,7 @@ import Image from "next/image";
 import { ChevronDown, Heart } from "lucide-react";
 import { isVideoUrl } from "@/lib/utils";
 import { cropCoverStyle, type CropRect } from "@/lib/image-crop";
-import { getOptimizedImageUrl } from "@/lib/cloudinary-urls";
+import { getOptimizedImageUrl, getOptimizedVideoUrl, getVideoPosterUrl } from "@/lib/cloudinary-urls";
 import { DEFAULT_NAME1, DEFAULT_NAME2, resolveTagline } from "@/lib/couple-display";
 
 type HeroSectionProps = {
@@ -66,14 +66,26 @@ export default function HeroSection({
         <div className="absolute inset-0">
           {heroIsVideo ? (
             <video
-              src={heroPhotoUrl}
+              // First frame paints instantly while the video buffers, and
+              // stays visible on clients that block autoplay (saved data).
+              poster={getVideoPosterUrl(heroPhotoUrl)}
               autoPlay
               loop
               muted
               playsInline
+              preload="metadata"
               aria-label={heroAlt}
               className="h-full w-full object-cover"
-            />
+            >
+              {/* Responsive delivery: the browser picks the first source whose
+                  media matches the viewport — phones fetch a re-encoded 640px
+                  clip instead of the full-size file. q_auto/vc_auto shorten and
+                  pick a codec the device plays. Non-Cloudinary URLs fall back
+                  to the raw src from getOptimizedVideoUrl. */}
+              <source media="(max-width: 639px)" src={getOptimizedVideoUrl(heroPhotoUrl, 640)} />
+              <source media="(max-width: 1023px)" src={getOptimizedVideoUrl(heroPhotoUrl, 960)} />
+              <source src={getOptimizedVideoUrl(heroPhotoUrl, 1600)} />
+            </video>
           ) : cropStyle ? (
             <Image
               src={getOptimizedImageUrl(heroPhotoUrl, 1600)}

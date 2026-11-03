@@ -202,6 +202,8 @@ types/                # Shared TypeScript types
 | `SMTP_FROM_EMAIL` | ❌ | — | Sender email address |
 | `CRON_SECRET` | ✅ | — | Secret for Vercel Cron auth |
 | `INVITE_TOKEN` | ✅ | — | Invite-only registration token |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | ❌ | — | VAPID public key for web push; run `npx web-push generate-vapid-keys`, real value in `.env` (not committed) / Vercel env vars |
+| `VAPID_PRIVATE_KEY` | ❌ | — | VAPID private key for web push; run `npx web-push generate-vapid-keys`, real value in `.env` (not committed) / Vercel env vars |
 
 > ✅ Required — app will not start without these.  
 > ❌ Optional — falls back gracefully.

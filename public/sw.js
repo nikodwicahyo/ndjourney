@@ -1,6 +1,6 @@
-const CACHE_NAME = "ndjourney-v12";
-const API_CACHE_NAME = "ndjourney-api-v12";
-const IMAGE_CACHE_NAME = "ndjourney-images-v12";
+const CACHE_NAME = "ndjourney-v13";
+const API_CACHE_NAME = "ndjourney-api-v13";
+const IMAGE_CACHE_NAME = "ndjourney-images-v13";
 
 const PRECACHE_URLS = [
   "/",
@@ -293,7 +293,28 @@ async function staleWhileRevalidate(request) {
   return cached || fetchPromise;
 }
 
-async function networkFirst(request) {
+self.addEventListener("push", (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch { /* plaintext fallback ignored */ }
+  const url = typeof data.url === "string" && data.url.startsWith("/") && !data.url.startsWith("//") ? data.url : "/";
+  event.waitUntil(self.registration.showNotification(data.title ?? "Pasangan update", {
+    body: data.body ?? "",
+    icon: "/icons/icon-192x192.png",
+    badge: "/icons/icon-48x48.png",
+    data: { url },
+    tag: "couple-web",
+  }));
+});
+self.addEventListener("notificationclick", (event) => {
+  const url = (event.notification.data && /^\/(?!\/)/.test(event.notification.data.url)) ? event.notification.data.url : "/";
+  event.notification.close();
+  event.waitUntil((async () => {
+    const clientsList = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    const hit = clientsList.find((c) => c.url.includes(self.location.origin));
+    if (hit) { await hit.focus(); if (hit.navigate) await hit.navigate(new URL(url, self.location.origin).href); }
+    else if (self.clients.openWindow) await self.clients.openWindow(new URL(url, self.location.origin).href);
+  })());
+});
   try {
     const response = await fetch(request);
     // SEC: never persist authed API JSON or private page HTML on-device.

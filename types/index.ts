@@ -98,6 +98,26 @@ export const LETTER_MOOD_CONFIG: Record<
   SURPRISE: { emoji: "🎉", label: "Kejutan", color: "#F97316" },
 };
 
+// ── Notifications ──────────────────────────
+
+export type NotificationItem = {
+  id: string;
+  type: string;
+  action: string;
+  title: string;
+  body: string | null;
+  href: string | null;
+  createdAt: string; // ISO
+  actor: { id: string; name: string | null; image: string | null };
+  unread: boolean; // createdAt > caller's lastSeenActivityAt
+};
+
+export type NotificationsResponse = {
+  items: NotificationItem[];
+  unreadCount: number;
+  nextCursor: string | null;
+};
+
 // ── Navigation ────────────────────────────
 
 export type NavItem = {

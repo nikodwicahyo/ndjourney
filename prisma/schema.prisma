@@ -18,6 +18,7 @@ model User {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   accounts        Account[]
+  activityEvents  ActivityEvent[]
   coupleMembers   CoupleMember?
   locationShare   LocationShare?
   userLocation      UserLocation?
@@ -30,6 +31,7 @@ model User {
   receivedLetters Letter[]      @relation("LetterRecipient")
   milestones      Milestone[]
   photos          Photo[]
+  pushSubscriptions PushSubscription[]
   albums          Album[]
   wishes          WishItem[]
   sessions        Session[]
@@ -92,6 +94,8 @@ model Couple {
   locationShares     LocationShare[]
   userLocations      UserLocation[]
   userLocationHistory UserLocationHistory[]
+  activityEvents ActivityEvent[]
+  pushSubscriptions PushSubscription[]
 }
 
 model CoupleMember {
@@ -101,7 +105,45 @@ model CoupleMember {
   couple   Couple @relation(fields: [coupleId], references: [id], onDelete: Cascade)
   user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  lastSeenActivityAt DateTime?
+
   @@unique([coupleId, userId])
+}
+
+// Feed of couple-scoped activity events (heart taps, location pings, etc.).
+// Append-only: type + action describe what happened, title/body are the
+// Indonesian user-facing strings, href deep-links into the couple space.
+model ActivityEvent {
+  id        String   @id @default(cuid())
+  coupleId  String
+  actorId   String
+  type      String
+  action    String
+  title     String
+  body      String?
+  href      String?
+  level     String
+  meta      Json?
+  createdAt DateTime @default(now())
+  couple    Couple   @relation(fields: [coupleId], references: [id], onDelete: Cascade)
+  actor     User     @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([coupleId, createdAt])
+}
+
+model PushSubscription {
+  id         String   @id @default(cuid())
+  coupleId   String
+  userId     String
+  endpoint   String   @unique
+  p256dh     String
+  auth       String
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  couple     Couple   @relation(fields: [coupleId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model CoupleConfig {

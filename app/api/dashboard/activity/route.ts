@@ -14,13 +14,11 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // scope feed to caller's couple (was global UNION across all couples).
     const coupleId = await getUserCoupleId(session.user.id);
     if (!coupleId) {
       return NextResponse.json({ data: [] });
     }
 
-    // couple-scoped cache (was per-user: duplicate entries for shared feed).
     const cacheK = cacheKey("dashboard", "activity", coupleId);
     const cached = await getCached<unknown>(cacheK);
     if (cached) {
@@ -29,53 +27,25 @@ export async function GET() {
       });
     }
 
-    const rows = await prisma.$queryRaw<Array<{
-      id: string;
-      type: string;
-      description: string;
-      createdAt: Date;
-      userId: string;
-    }>>`
-      (
-        SELECT id, 'photo' AS type, COALESCE(caption, 'Menambahkan foto baru') AS description, "createdAt", "uploadedById" AS "userId"
-        FROM "Photo"
-        WHERE "coupleId" = ${coupleId}
-        ORDER BY "createdAt" DESC
-        LIMIT 5
-      )
-      UNION ALL
-      (
-        SELECT id, 'letter' AS type, 'Menulis surat: ' || title AS description, "createdAt", "authorId" AS "userId"
-        FROM "Letter"
-        WHERE "coupleId" = ${coupleId}
-        ORDER BY "createdAt" DESC
-        LIMIT 5
-      )
-      UNION ALL
-      (
-        SELECT id, 'milestone' AS type, 'Menambahkan milestone: ' || title AS description, "createdAt", "createdById" AS "userId"
-        FROM "Milestone"
-        WHERE "coupleId" = ${coupleId}
-        ORDER BY "createdAt" DESC
-        LIMIT 5
-      )
-      ORDER BY "createdAt" DESC
-      LIMIT 10
-    `;
+    const rows = await prisma.activityEvent.findMany({
+      where: { coupleId },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+    });
 
     if (rows.length === 0) {
       return NextResponse.json({ data: [] });
     }
 
-    const userIds = rows.map((r) => r.userId);
+    const userIds = rows.map((r) => r.actorId);
     const userMap = await batchLoadUsers(userIds);
 
     const data = rows.map((row) => ({
       id: row.id,
-      type: row.type as "photo" | "letter" | "milestone",
-      description: row.description,
+      type: row.type,
+      description: row.body ?? row.title,
       createdAt: row.createdAt,
-      user: userMap.get(row.userId) ?? { id: "", name: null, image: null },
+      user: userMap.get(row.actorId) ?? { id: row.actorId, name: null, image: null },
     }));
 
     await setCached(cacheK, data, CACHE_TTL);

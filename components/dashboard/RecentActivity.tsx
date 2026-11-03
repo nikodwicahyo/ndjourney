@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRecentActivity } from "@/hooks/useDashboard";
 import { Button, Skeleton, Avatar, AvatarImage, AvatarFallback } from "@/components/ui";
 import { motion } from "framer-motion";
-import { Image, Mail, Flag, Heart, History } from "lucide-react";
+import { Image, Mail, Flag, Heart, History, Star, Gamepad2, User, MapPin, HelpCircle } from "lucide-react";
 import { formatRelativeTime } from "@/lib/utils";
 
 const typeConfig = {
@@ -20,6 +20,12 @@ const typeConfig = {
     href: (_id: string) => `/timeline`,
   },
   note: { icon: Heart, color: "#14B8A6", href: (_id: string) => `/notes` },
+  wish: { icon: Star, color: "#EAB308", href: (_id: string) => `/wishlist` },
+  game: { icon: Gamepad2, color: "#22C55E", href: (_id: string) => `/games` },
+  arcade: { icon: Gamepad2, color: "#22C55E", href: (_id: string) => `/games` },
+  profile: { icon: User, color: "#8B5CF6", href: (_id: string) => `/settings` },
+  location: { icon: MapPin, color: "#0EA5E9", href: (_id: string) => `/location` },
+  questions: { icon: HelpCircle, color: "#F43F5E", href: (_id: string) => `/games` },
 };
 
 export default function RecentActivity() {

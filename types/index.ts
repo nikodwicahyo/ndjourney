@@ -78,7 +78,7 @@ export type CloudinaryUsage = {
 
 export type RecentActivity = {
   id: string;
-  type: "photo" | "letter" | "milestone" | "note";
+  type: "photo" | "letter" | "milestone" | "note" | "wish" | "game" | "arcade" | "profile" | "location" | "questions";
   description: string;
   createdAt: Date;
   user: Pick<User, "id" | "name" | "image">;

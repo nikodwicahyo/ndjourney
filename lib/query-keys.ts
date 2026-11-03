@@ -59,4 +59,7 @@ export const queryKeys = {
   location: {
     all: ["location"] as const,
   },
+  notifications: {
+    all: ["notifications"] as const,
+  },
 } as const;

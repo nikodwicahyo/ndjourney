@@ -27,6 +27,10 @@ export function useRealtimeSync(coupleId: string | undefined) {
     let unsubscribe: (() => void) | null = null;
 
     const onSync = (data: SyncPayload) => {
+      if (data?.activity) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all, refetchType: 'all' });
+        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.activity(), refetchType: 'all' });
+      }
       switch (data.scope) {
         case 'GALLERY':
           queryClient.invalidateQueries({ queryKey: queryKeys.photos.all, refetchType: 'all' });
@@ -48,9 +52,11 @@ export function useRealtimeSync(coupleId: string | undefined) {
           break;
         case 'DAILY_NOTES':
           queryClient.invalidateQueries({ queryKey: queryKeys.notes.all, refetchType: 'all' });
+          queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.activity(), refetchType: 'all' });
           break;
         case 'WISHLIST':
           queryClient.invalidateQueries({ queryKey: queryKeys.wishes.all, refetchType: 'all' });
+          queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.activity(), refetchType: 'all' });
           break;
         case 'GAMES_LEADERBOARD':
           // Every leaderboard tab (per-game and merged "Semua") is prefixed by

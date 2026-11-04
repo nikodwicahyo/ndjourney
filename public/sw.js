@@ -293,28 +293,7 @@ async function staleWhileRevalidate(request) {
   return cached || fetchPromise;
 }
 
-self.addEventListener("push", (event) => {
-  let data = {};
-  try { data = event.data ? event.data.json() : {}; } catch { /* plaintext fallback ignored */ }
-  const url = typeof data.url === "string" && data.url.startsWith("/") && !data.url.startsWith("//") ? data.url : "/";
-  event.waitUntil(self.registration.showNotification(data.title ?? "Pasangan update", {
-    body: data.body ?? "",
-    icon: "/icons/icon-192x192.png",
-    badge: "/icons/icon-48x48.png",
-    data: { url },
-    tag: "couple-web",
-  }));
-});
-self.addEventListener("notificationclick", (event) => {
-  const url = (event.notification.data && /^\/(?!\/)/.test(event.notification.data.url)) ? event.notification.data.url : "/";
-  event.notification.close();
-  event.waitUntil((async () => {
-    const clientsList = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-    const hit = clientsList.find((c) => c.url.includes(self.location.origin));
-    if (hit) { await hit.focus(); if (hit.navigate) await hit.navigate(new URL(url, self.location.origin).href); }
-    else if (self.clients.openWindow) await self.clients.openWindow(new URL(url, self.location.origin).href);
-  })());
-});
+async function networkFirst(request) {
   try {
     const response = await fetch(request);
     // SEC: never persist authed API JSON or private page HTML on-device.
@@ -336,3 +315,92 @@ self.addEventListener("notificationclick", (event) => {
     return new Response("Offline", { status: 503 });
   }
 }
+
+// SEC: notification targets must resolve to this origin. Pattern-matching the
+// raw string is not enough — WHATWG URL parsing normalizes backslash tricks
+// ("/\evil.com" → "https://evil.com/"), so parse first, then compare origins.
+function sameOriginPath(raw) {
+  try {
+    const u = new URL(raw ?? "/", self.location.origin);
+    return u.origin === self.location.origin
+      ? u.pathname + u.search + u.hash
+      : "/";
+  } catch {
+    return "/";
+  }
+}
+
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    const parsed = event.data ? event.data.json() : {};
+    // Payload may be null or a scalar — fall back to defaults, still show.
+    if (parsed && typeof parsed === "object") data = parsed;
+  } catch {
+    /* absent/plaintext payload — show default notification */
+  }
+  const url = sameOriginPath(typeof data.url === "string" ? data.url : "/");
+  event.waitUntil(
+    self.registration.showNotification(data.title ?? "Pasangan update", {
+      body: data.body ?? "",
+      icon: "/icons/icon-192x192.png",
+      badge: "/icons/icon-48x48.png",
+      data: { url },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  const url = sameOriginPath(event.notification.data?.url);
+  event.notification.close();
+  event.waitUntil(
+    (async () => {
+      let target;
+      try {
+        target = new URL(url, self.location.origin).href;
+      } catch {
+        target = self.location.origin + "/";
+      }
+
+      let handled = false;
+      try {
+        const clientsList = await self.clients.matchAll({
+          type: "window",
+          includeUncontrolled: true,
+        });
+        const hit = clientsList.find((c) => {
+          try {
+            return new URL(c.url).origin === self.location.origin;
+          } catch {
+            return false;
+          }
+        });
+        if (hit) {
+          try {
+            await hit.focus();
+          } catch {
+            /* focus failed — still try to reuse the window */
+          }
+          try {
+            if (hit.navigate) {
+              await hit.navigate(target);
+              handled = true;
+            }
+          } catch {
+            /* navigate failed — fall back to openWindow below */
+          }
+        }
+      } catch {
+        /* matchAll failed — fall back to openWindow */
+      }
+
+      if (!handled) {
+        try {
+          if (self.clients.openWindow) await self.clients.openWindow(target);
+        } catch {
+          /* nothing else we can do */
+        }
+      }
+    })(),
+  );
+});

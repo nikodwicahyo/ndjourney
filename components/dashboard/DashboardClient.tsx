@@ -4,6 +4,7 @@ import { useSession } from "next-auth/react";
 import StatsCards from "./StatsCards";
 import QuickActions from "./QuickActions";
 import RecentActivity from "./RecentActivity";
+import PushPermissionCard from "@/components/notifications/PushPermissionCard";
 import { Skeleton } from "@/components/ui";
 import { Heart } from "lucide-react";
 import { Suspense } from "react";
@@ -21,6 +22,8 @@ export default function DashboardClient() {
           Selamat datang di dashboard cinta kalian
         </p>
       </div>
+
+      <PushPermissionCard />
 
       <section>
         <div className="mb-4 flex items-center gap-2">

@@ -1,4 +1,5 @@
 import { SettingsForm } from "@/components/dashboard";
+import PushSettingsToggle from "@/components/notifications/PushSettingsToggle";
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui";
 import PageTransition from "@/components/PageTransition";
@@ -16,6 +17,10 @@ export default function SettingsPage() {
           Atur profil pasangan dan preferensi
         </p>
       </div>
+
+      <section className="mb-8 w-full max-w-xl empty:hidden">
+        <PushSettingsToggle />
+      </section>
 
       <Suspense
         fallback={

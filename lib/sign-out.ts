@@ -1,4 +1,5 @@
 import { signOut } from "next-auth/react";
+import { unsubscribePush } from "@/lib/push-client";
 
 /**
  * Drop all service-worker caches (private pages/photos included) before the
@@ -15,7 +16,10 @@ export function clearServiceWorkerCaches() {
   void navigator.serviceWorker.ready.then((registration) => clear(registration.active)).catch(() => {});
 }
 
-export function signOutAndClear(options?: Parameters<typeof signOut>[0]) {
+export async function signOutAndClear(options?: Parameters<typeof signOut>[0]) {
   clearServiceWorkerCaches();
+  // Best-effort and internally bounded: push-client never waits on
+  // serviceWorker.ready, so a missing/never-registering worker can't stall sign-out.
+  await unsubscribePush();
   return signOut(options);
 }

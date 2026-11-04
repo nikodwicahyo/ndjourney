@@ -319,15 +319,25 @@ async function networkFirst(request) {
 // SEC: notification targets must resolve to this origin. Pattern-matching the
 // raw string is not enough — WHATWG URL parsing normalizes backslash tricks
 // ("/\evil.com" → "https://evil.com/"), so parse first, then compare origins.
+// A pathname starting with "//" is rejected too, since re-resolving it as a
+// relative URL would turn it proto-col-relative ("//evil.com").
 function sameOriginPath(raw) {
   try {
     const u = new URL(raw ?? "/", self.location.origin);
-    return u.origin === self.location.origin
-      ? u.pathname + u.search + u.hash
-      : "/";
+    if (u.origin !== self.location.origin) return "/";
+    if (u.pathname.startsWith("//")) return "/";
+    return u.pathname + u.search + u.hash;
   } catch {
     return "/";
   }
+}
+
+// SEC: same rule applied to an already-derived path, for callers that re-resolve
+// it later (defense in depth).
+function safePath(path) {
+  return typeof path === "string" && path.startsWith("/") && !path.startsWith("//")
+    ? path
+    : "/";
 }
 
 self.addEventListener("push", (event) => {
@@ -345,7 +355,7 @@ self.addEventListener("push", (event) => {
       body: data.body ?? "",
       icon: "/icons/icon-192x192.png",
       badge: "/icons/icon-48x48.png",
-      data: { url },
+      data: { url: safePath(url) },
     }),
   );
 });
@@ -355,11 +365,15 @@ self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   event.waitUntil(
     (async () => {
-      let target;
+      // SEC: re-resolve and re-check — never navigate/open a foreign origin.
+      let target = self.location.origin + "/";
       try {
-        target = new URL(url, self.location.origin).href;
+        const parsed = new URL(url, self.location.origin);
+        if (parsed.origin === self.location.origin && !parsed.pathname.startsWith("//")) {
+          target = parsed.href;
+        }
       } catch {
-        target = self.location.origin + "/";
+        /* keep origin root */
       }
 
       let handled = false;

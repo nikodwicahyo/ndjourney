@@ -5,6 +5,12 @@ import { withRateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: Request) {
   try {
+    // Explicit auth guard — 401 deterministic, independent of withRateLimit internals.
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     // Same rate-limit helper + limit (60/h) as app/api/pusher/auth/route.ts.
     const rateCheck = await withRateLimit(req, {
       maxRequests: 60,
@@ -14,7 +20,7 @@ export async function POST(req: Request) {
     if (!rateCheck.allowed) {
       return rateCheck.response;
     }
-    const userId = rateCheck.session.user.id;
+    const userId = session.user.id;
 
     const body = (await req.json()) as {
       endpoint?: string;

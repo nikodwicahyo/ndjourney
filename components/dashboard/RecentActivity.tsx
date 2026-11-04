@@ -12,7 +12,8 @@ const typeConfig = {
   letter: {
     icon: Mail,
     color: "#EC4899",
-    href: (id: string) => `/dashboard/letters/${id}`,
+    // `id` is the ActivityEvent id, not the letter id → link the list.
+    href: (_id: string) => `/dashboard/letters`,
   },
   milestone: {
     icon: Flag,
@@ -77,7 +78,8 @@ export default function RecentActivity() {
   return (
     <div className="space-y-2">
       {activity.map((item, i) => {
-        const config = typeConfig[item.type];
+        // Unknown type from a newer event emitter must not crash the feed.
+        const config = typeConfig[item.type as keyof typeof typeConfig] ?? typeConfig.photo;
         const Icon = config.icon;
 
         return (

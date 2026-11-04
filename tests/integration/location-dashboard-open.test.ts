@@ -17,6 +17,7 @@ const prismaMock = vi.hoisted(() => ({
   userLocation: { findUnique: vi.fn(), upsert: vi.fn(), delete: vi.fn(async () => ({})) },
   userLocationHistory: { findMany: vi.fn() },
   letter: { count: vi.fn(async () => 0), findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn(async () => ({ count: 1 })) },
+  activityEvent: { findMany: vi.fn(async () => []) },
 }));
 
 vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
@@ -223,7 +224,6 @@ describe("dashboard + letters-open contracts", () => {
     expect(solo.status).toBe(200);
     expect(await solo.json()).toMatchObject({ data: { photoCount: 0 } });
 
-    prismaMock.$queryRaw.mockResolvedValue([]);
     const a = await activity.GET();
     expect(a.status).toBe(200);
 

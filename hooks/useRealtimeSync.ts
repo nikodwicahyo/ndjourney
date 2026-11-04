@@ -27,7 +27,7 @@ export function useRealtimeSync(coupleId: string | undefined) {
     let unsubscribe: (() => void) | null = null;
 
     const onSync = (data: SyncPayload) => {
-      if (data?.activity) {
+      if (data.activity) {
         queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all, refetchType: 'all' });
         queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.activity(), refetchType: 'all' });
       }

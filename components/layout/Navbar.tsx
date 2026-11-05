@@ -11,6 +11,7 @@ import { useAppStore } from "@/stores/useAppStore";
 import { useMounted } from "@/hooks/useMounted";
 
 import { Avatar, AvatarFallback, AvatarImage, Button, Sheet, SheetContent } from "@/components/ui";
+import NotificationBell from "@/components/notifications/NotificationBell";
 import { SidebarContent } from "./Sidebar";
 import { showDeleteConfirm } from "@/lib/swal";
 import {
@@ -134,6 +135,8 @@ export default function Navbar() {
                 )}
               </Button>
             )}
+
+            {session?.user && <NotificationBell />}
 
             {session?.user ? (
               <div className="relative">

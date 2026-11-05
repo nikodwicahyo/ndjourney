@@ -108,10 +108,16 @@ export async function subscribePush(): Promise<boolean> {
       return false;
     }
 
-    const subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
-    });
+    // Reuse an existing subscription instead of calling subscribe() again —
+    // on devices that already opted in, subscribe() can throw InvalidStateError
+    // when the applicationServerKey differs or the permission is already granted.
+    let subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
+      });
+    }
     const json = subscription.toJSON();
     const res = await fetch("/api/push/subscribe", {
       method: "POST",

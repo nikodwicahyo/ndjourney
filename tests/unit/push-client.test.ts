@@ -176,8 +176,9 @@ describe("subscribePush", () => {
   it("subscribes and posts the subscription JSON to /api/push/subscribe", async () => {
     process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY = VAPID_KEY;
     const env = installSupport({ permission: "default" });
+    env.getSubscription.mockResolvedValueOnce(null);
     const fetchMock = stubFetch();
-
+ 
     await expect(subscribePush()).resolves.toBe(true);
 
     expect(env.subscribe).toHaveBeenCalledWith(
@@ -251,6 +252,7 @@ describe("subscribePush", () => {
   it("returns false and logs instead of throwing when subscribing crashes", async () => {
     process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY = VAPID_KEY;
     const env = installSupport({ permission: "granted" });
+    env.getSubscription.mockResolvedValueOnce(null);
     env.subscribe.mockRejectedValueOnce(new Error("boom"));
     stubFetch();
 

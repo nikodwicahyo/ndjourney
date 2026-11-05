@@ -9,6 +9,7 @@ const prismaMock = vi.hoisted(() => ({
 vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
 vi.mock("@/lib/auth", () => ({ auth: vi.fn() }));
 vi.mock("@/lib/email", () => ({ sendEmail: vi.fn(), timeCapsuleNotificationHtml: () => "<p>open</p>", safeAppUrl: (p: string) => `http://localhost${p}` }));
+vi.mock("@/lib/activity", () => ({ emitActivity: vi.fn() }));
 vi.mock("@/lib/pusher-server", () => ({ triggerCoupleEvent: vi.fn() }));
 vi.mock("@/lib/redis", () => ({
   invalidateCache: vi.fn(async () => {}),

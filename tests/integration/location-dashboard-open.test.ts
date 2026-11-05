@@ -33,6 +33,7 @@ vi.mock("@/lib/redis", () => ({
   cacheKey: (...p: string[]) => p.join(":"),
 }));
 vi.mock("@/lib/couple", () => ({ getUserCoupleId: vi.fn(async () => COUPLE) }));
+vi.mock("@/lib/activity", () => ({ emitActivity: vi.fn() }));
 vi.mock("@/lib/pusher-server", () => ({
   triggerCoupleEvent: vi.fn(),
   getPusherServer: vi.fn(() => ({ trigger: vi.fn(async () => {}) })),
@@ -131,6 +132,8 @@ describe("location API contracts", () => {
   });
 
   it("LOC consent: share PUT toggles + wipes location on OFF; 400 invalid", async () => {
+    const { emitActivity } = await import("@/lib/activity");
+    prismaMock.locationShare.findUnique.mockResolvedValue(null);
     prismaMock.locationShare.upsert.mockResolvedValue({ isSharing: false });
     const off = await share.PUT(new Request("http://localhost/api/location/share", {
       method: "PUT", body: JSON.stringify({ isSharing: false }),
@@ -138,10 +141,20 @@ describe("location API contracts", () => {
     expect(off.status).toBe(200);
     expect(txMock.locationShare.upsert).toHaveBeenCalled();
     expect(txMock.userLocation.deleteMany).toHaveBeenCalledWith({ where: { userId: ME } });
+    // OFF never notifies.
+    expect(emitActivity).not.toHaveBeenCalled();
     prismaMock.locationShare.upsert.mockResolvedValue({ isSharing: true });
     expect((await share.PUT(new Request("http://localhost/api/location/share", {
       method: "PUT", body: JSON.stringify({ isSharing: true }),
     }))).status).toBe(200);
+    // OFF→ON emits exactly once...
+    expect(emitActivity).toHaveBeenCalledTimes(1);
+    // ...and a repeated ON (already sharing) emits nothing new.
+    prismaMock.locationShare.findUnique.mockResolvedValue({ isSharing: true });
+    expect((await share.PUT(new Request("http://localhost/api/location/share", {
+      method: "PUT", body: JSON.stringify({ isSharing: true }),
+    }))).status).toBe(200);
+    expect(emitActivity).toHaveBeenCalledTimes(1);
     expect((await share.PUT(new Request("http://localhost/api/location/share", {
       method: "PUT", body: JSON.stringify({ isSharing: "yes" }),
     }))).status).toBe(400);

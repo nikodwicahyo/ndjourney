@@ -9,7 +9,7 @@ import { PHOTO_PAGE_SIZE } from "@/lib/utils";
 import { isAllowedCloudinaryUrl } from "@/lib/upload-policy";
 import { getUserCoupleId } from "@/lib/couple";
 import { canManageCoupleRow } from "@/lib/couple-ownership";
-import { triggerCoupleEvent } from "@/lib/pusher-server";
+import { emitActivity } from "@/lib/activity";
 import { UploadVerifyError, verifyUploadForSave } from "@/lib/upload-verify";
 
 export const runtime = "nodejs";
@@ -149,9 +149,15 @@ export async function POST(request: Request) {
       invalidateCache("storage:*"),
     ]);
 
-    if (coupleId) {
-      triggerCoupleEvent(coupleId, 'GALLERY');
-    }
+    await emitActivity(coupleId, session.user.id, {
+      type: "photo",
+      action: "created",
+      title: "Foto baru",
+      body: `${session.user.name || "Pasangan"} menambahkan 1 foto`,
+      href: "/gallery",
+      level: "both",
+      meta: { thumbnailUrl: created.thumbnailUrl ?? created.url },
+    });
 
     return NextResponse.json({ data: created }, { status: 201 });
   } catch (error) {

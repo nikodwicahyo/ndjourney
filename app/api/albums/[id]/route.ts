@@ -5,7 +5,7 @@ import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { invalidateCache } from "@/lib/redis";
 import { getUserCoupleId } from "@/lib/couple";
 import { canManageCoupleRow } from "@/lib/couple-ownership";
-import { triggerCoupleEvent } from "@/lib/pusher-server";
+import { emitActivity } from "@/lib/activity";
 
 export async function PUT(
   request: Request,
@@ -56,9 +56,15 @@ export async function PUT(
 
     await invalidateCache("albums:*");
 
-    const coupleId = await getUserCoupleId(rateCheck.session.user.id);
-    if (coupleId) {
-      triggerCoupleEvent(coupleId, 'GALLERY');
+    if (editorCoupleId) {
+      await emitActivity(editorCoupleId, rateCheck.session.user.id, {
+        type: "photo",
+        action: "updated",
+        title: "Album baru",
+        body: `${rateCheck.session.user.name || "Pasangan"} mengganti nama album`,
+        href: "/gallery",
+        level: "both",
+      });
     }
 
     return NextResponse.json({ data: album });
@@ -117,9 +123,15 @@ export async function DELETE(
     await invalidateCache("albums:*");
     await invalidateCache("photos:*");
 
-    const coupleId = await getUserCoupleId(rateCheck.session.user.id);
-    if (coupleId) {
-      triggerCoupleEvent(coupleId, 'GALLERY');
+    if (deleterCoupleId) {
+      await emitActivity(deleterCoupleId, rateCheck.session.user.id, {
+        type: "photo",
+        action: "deleted",
+        title: "Album dihapus",
+        body: `${rateCheck.session.user.name || "Pasangan"} menghapus album`,
+        href: "/gallery",
+        level: "both",
+      });
     }
 
     return NextResponse.json({ message: "Album deleted" });

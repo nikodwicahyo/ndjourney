@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { invalidateCache } from "@/lib/redis";
 import { getUserCoupleId } from "@/lib/couple";
-import { triggerCoupleEvent } from "@/lib/pusher-server";
+import { emitActivity } from "@/lib/activity";
 
 export async function DELETE(
   request: Request,
@@ -44,7 +44,14 @@ export async function DELETE(
 
     const coupleId = await getUserCoupleId(session.user.id);
     if (coupleId) {
-      triggerCoupleEvent(coupleId, 'DAILY_NOTES');
+      await emitActivity(coupleId, session.user.id, {
+        type: "note",
+        action: "deleted",
+        title: "Catatan dihapus",
+        body: `${session.user.name || "Pasangan"} menghapus catatan`,
+        href: "/notes",
+        level: "both",
+      });
     }
 
     return NextResponse.json({ data: { id } });

@@ -7,7 +7,7 @@ import { getCached, setCached, invalidateCache, cacheKey } from "@/lib/redis";
 import { batchLoadUsers, mapUsersToRecords } from "@/lib/batch";
 import { sendEmail, letterNotificationHtml, safeAppUrl } from "@/lib/email";
 import { sanitizeStoredHtml } from "@/lib/sanitize-html";
-import { triggerCoupleEvent } from "@/lib/pusher-server";
+import { emitActivity } from "@/lib/activity";
 import { getUserCoupleId } from "@/lib/couple";
 
 const CACHE_TTL = 30;
@@ -199,7 +199,14 @@ export async function POST(request: Request) {
     await invalidateCache("dashboard:*");
     await invalidateCache("home:*");
 
-    triggerCoupleEvent(coupleId, 'LETTERS');
+    await emitActivity(coupleId, session.user.id, {
+      type: "letter",
+      action: "created",
+      title: "Surat baru",
+      body: `${session.user.name || "Pasangan"} mengirim surat`,
+      href: "/dashboard/letters",
+      level: "both",
+    });
 
     return NextResponse.json({ data: enriched }, { status: 201 });
   } catch (error) {

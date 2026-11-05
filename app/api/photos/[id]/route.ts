@@ -7,7 +7,7 @@ import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { getCached, setCached, invalidateCache, cacheKey } from "@/lib/redis";
 import { getUserCoupleId } from "@/lib/couple";
 import { canManageCoupleRow } from "@/lib/couple-ownership";
-import { triggerCoupleEvent } from "@/lib/pusher-server";
+import { emitActivity } from "@/lib/activity";
 
 const CACHE_TTL_AUTH = 120;
 const CACHE_TTL_PUBLIC = 60;
@@ -226,7 +226,15 @@ export async function PUT(
     ]);
 
     if (callerCoupleId) {
-      triggerCoupleEvent(callerCoupleId, 'GALLERY');
+      await emitActivity(callerCoupleId, userId, {
+        type: "photo",
+        action: "updated",
+        title: "Foto diperbarui",
+        body: `${rateCheck.session.user.name || "Pasangan"} memperbarui foto`,
+        href: "/gallery",
+        level: "both",
+        meta: { thumbnailUrl: photo.thumbnailUrl ?? photo.url },
+      });
     }
 
     return NextResponse.json({ data: photo });
@@ -288,7 +296,14 @@ export async function DELETE(
     // P-04: reuse the ownership-check lookup (was a 2nd serial call).
     const deleteCoupleId = photo.coupleId ?? null;
     if (deleteCoupleId) {
-      triggerCoupleEvent(deleteCoupleId, 'GALLERY');
+      await emitActivity(deleteCoupleId, userId, {
+        type: "photo",
+        action: "deleted",
+        title: "Foto dihapus",
+        body: `${rateCheck.session.user.name || "Pasangan"} menghapus foto`,
+        href: "/gallery",
+        level: "both",
+      });
     }
 
     return NextResponse.json({ data: { id } });

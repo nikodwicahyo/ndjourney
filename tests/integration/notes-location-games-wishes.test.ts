@@ -24,6 +24,7 @@ vi.mock("@/lib/batch", () => ({
   toPublicUser: vi.fn((u: unknown) => u),
 }));
 vi.mock("@/lib/couple", () => ({ getUserCoupleId: vi.fn(async () => null) }));
+vi.mock("@/lib/activity", () => ({ emitActivity: vi.fn() }));
 vi.mock("@/lib/pusher-server", () => ({ triggerCoupleEvent: vi.fn() }));
 vi.mock("@/lib/email", () => ({ sendEmail: vi.fn(), noteNotificationHtml: () => "<p>n</p>", safeAppUrl: (p: string) => `http://localhost${p}` }));
 

@@ -7,7 +7,7 @@ import { clearUserCache, invalidateUserCache } from "@/lib/batch";
 import { invalidateCache } from "@/lib/redis";
 import { deleteFromCloudinaryUrl } from "@/lib/cloudinary";
 import { getUserCoupleId } from "@/lib/couple";
-import { triggerCoupleEvent } from "@/lib/pusher-server";
+import { emitActivity } from "@/lib/activity";
 
 export async function PUT(request: Request) {
   try {
@@ -89,7 +89,14 @@ export async function PUT(request: Request) {
 
     const coupleId = await getUserCoupleId(session.user.id);
     if (coupleId) {
-      triggerCoupleEvent(coupleId, 'PROFILE');
+      await emitActivity(coupleId, session.user.id, {
+        type: "profile",
+        action: "updated",
+        title: "Profil diperbarui",
+        body: `${updated.name || session.user.name || "Pasangan"} memperbarui profil`,
+        href: "/settings",
+        level: "bell",
+      });
     }
 
     return NextResponse.json({ data: updated });

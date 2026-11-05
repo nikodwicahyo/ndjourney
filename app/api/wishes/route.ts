@@ -6,7 +6,7 @@ import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { invalidateCache } from "@/lib/redis";
 import { listWishes } from "@/lib/queries/wishes";
 import { getUserCoupleId } from "@/lib/couple";
-import { triggerCoupleEvent } from "@/lib/pusher-server";
+import { emitActivity } from "@/lib/activity";
 
 export async function GET(request: Request) {
   try {
@@ -76,9 +76,14 @@ export async function POST(request: Request) {
     await invalidateCache("wishes:*");
     await invalidateCache("home:*");
 
-    if (wishCoupleId) {
-      triggerCoupleEvent(wishCoupleId, 'WISHLIST');
-    }
+    await emitActivity(wishCoupleId, userId, {
+      type: "wish",
+      action: "created",
+      title: "Wishlist",
+      body: `${rateCheck.session.user.name || "Pasangan"} menambahkan keinginan "${wish.title}"`,
+      href: "/wishlist",
+      level: "both",
+    });
 
     return NextResponse.json({ data: wish }, { status: 201 });
   } catch (error) {

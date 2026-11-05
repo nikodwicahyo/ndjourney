@@ -5,7 +5,8 @@ import { withRateLimit, withAnonymousRateLimit, rateLimitConfigs } from "@/lib/r
 import { invalidateCache } from "@/lib/redis";
 import { auth } from "@/lib/auth";
 import { getUserCoupleId } from "@/lib/couple";
-import { triggerCoupleEvent } from "@/lib/pusher-server";
+import { emitActivity } from "@/lib/activity";
+import { GAME_LABELS } from "@/lib/game-answer";
 
 /**
  * Record one COMPLETED quiz round.
@@ -103,7 +104,14 @@ export async function POST(request: Request) {
       if (isAuthed) {
         const coupleId = await getUserCoupleId(session!.user.id);
         if (coupleId) {
-          await triggerCoupleEvent(coupleId, "GAMES_LEADERBOARD");
+          await emitActivity(coupleId, session!.user.id, {
+            type: "game",
+            action: "scored",
+            title: "Skor baru",
+            body: `${session!.user.name || "Pasangan"} mencatat skor ${round.correct}/${round.totalQuestions} di ${GAME_LABELS[gameType] ?? gameType}`,
+            href: "/games",
+            level: "bell",
+          });
         }
       }
 

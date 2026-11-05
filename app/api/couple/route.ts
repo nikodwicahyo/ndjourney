@@ -9,7 +9,7 @@ import { parseJakartaDateOnly } from "@/lib/date";
 import { deleteFromCloudinaryUrl } from "@/lib/cloudinary";
 import { cloudinaryAssetFromUrl } from "@/lib/cloudinary-urls";
 import { getCoupleMemberIds, getUserCoupleId } from "@/lib/couple";
-import { triggerCoupleEvent } from "@/lib/pusher-server";
+import { emitActivity } from "@/lib/activity";
 
 const CACHE_TTL = 300;
 
@@ -224,7 +224,14 @@ export async function PUT(request: Request) {
 
     const coupleId = await getUserCoupleId(rateCheck.session.user.id);
     if (coupleId) {
-      triggerCoupleEvent(coupleId, 'DASHBOARD');
+      await emitActivity(coupleId, rateCheck.session.user.id, {
+        type: "profile",
+        action: "updated",
+        title: "Profil diperbarui",
+        body: `${rateCheck.session.user.name || "Pasangan"} memperbarui profil`,
+        href: "/settings",
+        level: "bell",
+      });
     }
 
     return NextResponse.json({ data: updated });

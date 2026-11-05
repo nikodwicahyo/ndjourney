@@ -11,7 +11,7 @@ import { parseJakartaDateOnly } from "@/lib/date";
 import { getUserCoupleId } from "@/lib/couple";
 import { isAllowedCloudinaryUrl } from "@/lib/upload-policy";
 import { verifyUploadForSave } from "@/lib/upload-verify";
-import { triggerCoupleEvent } from "@/lib/pusher-server";
+import { emitActivity } from "@/lib/activity";
 
 export async function GET(request: Request) {
   try {
@@ -178,7 +178,14 @@ export async function POST(request: Request) {
     await invalidateCache("home:*");
 
     if (coupleId) {
-      triggerCoupleEvent(coupleId, 'TIMELINE');
+      await emitActivity(coupleId, session.user.id, {
+        type: "milestone",
+        action: "created",
+        title: "Milestone baru",
+        body: `${session.user.name || "Pasangan"} menambahkan "${milestone.title}"`,
+        href: "/timeline",
+        level: "both",
+      });
     }
 
     if (failedPhotos.length > 0) {

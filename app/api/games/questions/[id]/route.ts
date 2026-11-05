@@ -4,7 +4,7 @@ import { updateQuestionSchema } from "@/lib/validations/game";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { invalidateCache } from "@/lib/redis";
 import { getUserCoupleId } from "@/lib/couple";
-import { triggerCoupleEvent } from "@/lib/pusher-server";
+import { emitActivity } from "@/lib/activity";
 
 export async function PUT(
   request: Request,
@@ -53,7 +53,14 @@ export async function PUT(
 
     const coupleId = await getUserCoupleId(rateCheck.session.user.id);
     if (coupleId) {
-      await triggerCoupleEvent(coupleId, 'GAMES_QUESTIONS');
+      await emitActivity(coupleId, rateCheck.session.user.id, {
+        type: "questions",
+        action: "updated",
+        title: "Bank soal",
+        body: `${rateCheck.session.user.name || "Pasangan"} memperbarui bank soal`,
+        href: "/games",
+        level: "bell",
+      });
     }
 
     return NextResponse.json({ data: question });
@@ -101,7 +108,14 @@ export async function DELETE(
 
     const coupleId = await getUserCoupleId(rateCheck.session.user.id);
     if (coupleId) {
-      await triggerCoupleEvent(coupleId, 'GAMES_QUESTIONS');
+      await emitActivity(coupleId, rateCheck.session.user.id, {
+        type: "questions",
+        action: "updated",
+        title: "Bank soal",
+        body: `${rateCheck.session.user.name || "Pasangan"} memperbarui bank soal`,
+        href: "/games",
+        level: "bell",
+      });
     }
 
     return NextResponse.json({ message });

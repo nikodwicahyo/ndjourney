@@ -3,7 +3,9 @@ import { NextResponse } from "next/server";
 import { submitScoreSchema } from "@/lib/validations/game";
 import { withRateLimit, withAnonymousRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { auth } from "@/lib/auth";
-import { isAnswerCorrect } from "@/lib/game-answer";
+import { isAnswerCorrect, GAME_LABELS } from "@/lib/game-answer";
+import { getUserCoupleId } from "@/lib/couple";
+import { emitActivity } from "@/lib/activity";
 
 export async function POST(request: Request) {
   try {
@@ -93,7 +95,22 @@ export async function POST(request: Request) {
 
     // The leaderboard aggregates COMPLETED rounds (/api/games/round), not
     // individual answers — invalidating caches or pinging the partner for every
-    // one of the ~10 answers in a round was pure churn.
+    // one of the ~10 answers in a round was pure churn. A bell-only activity
+    // event is cheap (no push, no cache invalidation).
+    if (isAuthed) {
+      const coupleId = await getUserCoupleId(session!.user.id);
+      if (coupleId) {
+        await emitActivity(coupleId, session!.user.id, {
+          type: "arcade",
+          action: "scored",
+          title: "Skor baru",
+          body: `${session!.user.name || "Pasangan"} mencatat skor ${correct ? 1 : 0} di ${GAME_LABELS[question.type] ?? question.type}`,
+          href: "/games",
+          level: "bell",
+        });
+      }
+    }
+
     return NextResponse.json(
       { data: score, correct, answer: question.answer },
       { status: 201 },

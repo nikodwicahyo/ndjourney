@@ -7,7 +7,7 @@ import { getCached, setCached, invalidateCache, cacheKey } from "@/lib/redis";
 import { batchLoadUsers, toPublicUser } from "@/lib/batch";
 import { jakartaStartOfDay, toJakartaMidnight } from "@/lib/date";
 import { getUserCoupleId } from "@/lib/couple";
-import { triggerCoupleEvent } from "@/lib/pusher-server";
+import { emitActivity } from "@/lib/activity";
 import { sendEmail, noteNotificationHtml, safeAppUrl } from "@/lib/email";
 
 const CACHE_TTL = 30;
@@ -158,7 +158,14 @@ export async function POST(request: Request) {
 
     const coupleId = authorCoupleId;
     if (coupleId) {
-      triggerCoupleEvent(coupleId, 'DAILY_NOTES');
+      await emitActivity(coupleId, session.user.id, {
+        type: "note",
+        action: "created",
+        title: "Catatan harian",
+        body: `${session.user.name || "Pasangan"} menulis catatan`,
+        href: "/notes",
+        level: "both",
+      });
     }
 
     // Send email notification to partner (after response AND guaranteed —

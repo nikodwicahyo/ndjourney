@@ -6,7 +6,7 @@ import { invalidateCache } from "@/lib/redis";
 import { listGameQuestions } from "@/lib/queries/games";
 import { auth } from "@/lib/auth";
 import { getUserCoupleId } from "@/lib/couple";
-import { triggerCoupleEvent } from "@/lib/pusher-server";
+import { emitActivity } from "@/lib/activity";
 
 export async function GET(request: Request) {
   try {
@@ -100,7 +100,14 @@ export async function POST(request: Request) {
     await invalidateCache("games:*");
     await invalidateCache("home:*");
 
-    await triggerCoupleEvent(creatorCoupleId, 'GAMES_QUESTIONS');
+    await emitActivity(creatorCoupleId, rateCheck.session.user.id, {
+      type: "questions",
+      action: "created",
+      title: "Bank soal",
+      body: `${rateCheck.session.user.name || "Pasangan"} memperbarui bank soal`,
+      href: "/games",
+      level: "bell",
+    });
 
     return NextResponse.json({ data: question }, { status: 201 });
   } catch (error) {

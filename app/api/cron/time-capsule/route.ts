@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { sendEmail, timeCapsuleNotificationHtml, safeAppUrl } from "@/lib/email";
-import { triggerCoupleEvent } from "@/lib/pusher-server";
+import { emitActivity } from "@/lib/activity";
 import { invalidateCache } from "@/lib/redis";
 import { safeTokenEqual } from "@/lib/api-body";
 import type { Prisma } from "@/lib/generated/prisma";
@@ -80,14 +80,6 @@ export async function GET(request: Request) {
       if (batch.length < BATCH) break;
     }
 
-    const affectedCouples = new Set<string>();
-
-    for (const letter of unlockedLetters) {
-      if (letter.coupleId) {
-        affectedCouples.add(letter.coupleId);
-      }
-    }
-
     const results: Array<{ letterId: string; emailSent: boolean; error?: string }> = [];
 
     // per-letter isolation — one failing send/update must not skip the rest
@@ -164,8 +156,17 @@ export async function GET(request: Request) {
     }
 
     // awaited fan-out — floating promises hid realtime failures.
-    for (const coupleId of affectedCouples) {
-      await triggerCoupleEvent(coupleId, 'LETTERS');
+    // Per-letter event (actor = letter owner): the cron has no session.
+    for (const letter of unlockedLetters) {
+      if (!letter.coupleId) continue;
+      await emitActivity(letter.coupleId, letter.author.id, {
+        type: "letter",
+        action: "created",
+        title: "Kapsul waktu",
+        body: "Surat kapsul waktu terbuka",
+        href: "/dashboard/letters",
+        level: "both",
+      });
     }
 
     // report if the batch cap left items for the next run.

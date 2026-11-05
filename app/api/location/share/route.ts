@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { updateShareSchema } from "@/lib/validations/location";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { getUserCoupleId } from "@/lib/couple";
-import { triggerCoupleEvent } from "@/lib/pusher-server";
+import { emitActivity } from "@/lib/activity";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +34,10 @@ export async function PUT(request: Request) {
     }
 
     const isSharing = parsed.data.isSharing;
+    const previous = await prisma.locationShare.findUnique({
+      where: { userId },
+      select: { isSharing: true },
+    });
 
     // Flag change and row deletion are one unit: a failed delete rolls back
     // the opt-out instead of leaving a stale location behind the flag.
@@ -49,7 +53,18 @@ export async function PUT(request: Request) {
       }
     });
 
-    triggerCoupleEvent(coupleId, "LOCATION");
+    // Only the off→on transition notifies: share-off and plain updates must
+    // not create feed rows (live pings are the ephemeral /api/location path).
+    if (isSharing && !previous?.isSharing) {
+      await emitActivity(coupleId, userId, {
+        type: "location",
+        action: "updated",
+        title: "Partner online",
+        body: `${rateCheck.session.user.name || "Pasangan"} mulai berbagi lokasi`,
+        href: "/location",
+        level: "both",
+      });
+    }
 
     return NextResponse.json({ data: { isSharing } }, { status: 200 });
   } catch (error) {

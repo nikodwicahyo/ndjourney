@@ -24,6 +24,7 @@ vi.mock("@/lib/redis", () => ({
   cacheKey: (...p: string[]) => p.join(":"),
 }));
 vi.mock("@/lib/couple", () => ({ getUserCoupleId: vi.fn(async () => COUPLE) }));
+vi.mock("@/lib/activity", () => ({ emitActivity: vi.fn() }));
 vi.mock("@/lib/pusher-server", () => ({ triggerCoupleEvent: vi.fn() }));
 vi.mock("@/lib/cloudinary", () => ({ deleteFromCloudinary: vi.fn(async () => {}) }));
 const verifyMock = vi.hoisted(() => vi.fn(async () => ({ resourceType: "image", format: "jpg", bytes: 8 })));

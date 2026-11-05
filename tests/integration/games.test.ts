@@ -28,6 +28,7 @@ vi.mock("@/lib/redis", () => ({
   cacheKey: (...p: string[]) => p.join(":"),
 }));
 vi.mock("@/lib/couple", () => ({ getUserCoupleId: vi.fn(async () => COUPLE) }));
+vi.mock("@/lib/activity", () => ({ emitActivity: vi.fn() }));
 vi.mock("@/lib/pusher-server", () => ({ triggerCoupleEvent: vi.fn() }));
 vi.mock("@/lib/batch", () => ({
   batchLoadUsers: vi.fn(async (ids: string[]) => new Map(ids.map((id) => [id, { id, name: "P", email: "p@x.com", image: null }]))),

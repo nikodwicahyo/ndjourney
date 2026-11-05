@@ -8,7 +8,7 @@ import { deleteFromCloudinaryUrl } from "@/lib/cloudinary";
 import { cloudinaryAssetFromUrl } from "@/lib/cloudinary-urls";
 import { getCoupleMemberIds, getUserCoupleId } from "@/lib/couple";
 import { canManageCoupleRow } from "@/lib/couple-ownership";
-import { triggerCoupleEvent } from "@/lib/pusher-server";
+import { emitActivity } from "@/lib/activity";
 
 export async function PUT(
   request: Request,
@@ -103,7 +103,14 @@ export async function PUT(
     await invalidateCache("home:*");
 
     if (callerCoupleId) {
-      triggerCoupleEvent(callerCoupleId, 'WISHLIST');
+      await emitActivity(callerCoupleId, rateCheck.session.user.id, {
+        type: "wish",
+        action: "updated",
+        title: "Wishlist",
+        body: `${rateCheck.session.user.name || "Pasangan"} memperbarui keinginan "${wish.title}"`,
+        href: "/wishlist",
+        level: "both",
+      });
     }
 
     return NextResponse.json({ data: wish });
@@ -133,7 +140,7 @@ export async function DELETE(
     const [target, deleterCoupleId] = await Promise.all([
       prisma.wishItem.findUnique({
         where: { id },
-        select: { coupleId: true, createdById: true, imageUrl: true },
+        select: { coupleId: true, createdById: true, imageUrl: true, title: true },
       }),
       getUserCoupleId(rateCheck.session.user.id),
     ]);
@@ -169,7 +176,14 @@ export async function DELETE(
     await invalidateCache("home:*");
 
     if (deleterCoupleId) {
-      triggerCoupleEvent(deleterCoupleId, 'WISHLIST');
+      await emitActivity(deleterCoupleId, rateCheck.session.user.id, {
+        type: "wish",
+        action: "deleted",
+        title: "Wishlist",
+        body: `${rateCheck.session.user.name || "Pasangan"} menghapus keinginan "${target.title}"`,
+        href: "/wishlist",
+        level: "both",
+      });
     }
 
     return NextResponse.json({ data: { id } });

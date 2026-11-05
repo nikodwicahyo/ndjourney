@@ -5,7 +5,7 @@ import { createAlbumSchema } from "@/lib/validations/photo";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { getCached, setCached, invalidateCache, cacheKey } from "@/lib/redis";
 import { getUserCoupleId } from "@/lib/couple";
-import { triggerCoupleEvent } from "@/lib/pusher-server";
+import { emitActivity } from "@/lib/activity";
 
 const CACHE_TTL = 120;
 
@@ -157,9 +157,14 @@ export async function POST(request: Request) {
 
     await invalidateCache("albums:*");
 
-    if (creatorCoupleId) {
-      triggerCoupleEvent(creatorCoupleId, 'GALLERY');
-    }
+    await emitActivity(creatorCoupleId, userId, {
+      type: "photo",
+      action: "created",
+      title: "Album baru",
+      body: `${rateCheck.session.user.name || "Pasangan"} membuat album "${album.name}"`,
+      href: "/gallery",
+      level: "both",
+    });
 
     return NextResponse.json({ data: album }, { status: 201 });
   } catch (error) {

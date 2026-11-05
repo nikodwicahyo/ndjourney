@@ -17,6 +17,7 @@ vi.mock("@/lib/batch", () => ({
 }));
 vi.mock("@/lib/auth", () => ({ auth: vi.fn() }));
 vi.mock("@/lib/couple", () => ({ getUserCoupleId: vi.fn(async () => null) }));
+vi.mock("@/lib/activity", () => ({ emitActivity: vi.fn() }));
 vi.mock("@/lib/pusher-server", () => ({ triggerCoupleEvent: vi.fn() }));
 
 const { getLetterDetail } = await import("@/lib/queries/letter");

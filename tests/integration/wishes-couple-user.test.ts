@@ -35,6 +35,7 @@ vi.mock("@/lib/couple", () => ({
   getUserCoupleId: vi.fn(async () => COUPLE),
   getCoupleMemberIds: vi.fn(async () => [ME, PARTNER]),
 }));
+vi.mock("@/lib/activity", () => ({ emitActivity: vi.fn() }));
 vi.mock("@/lib/pusher-server", () => ({ triggerCoupleEvent: vi.fn() }));
 vi.mock("@/lib/batch", () => ({
   invalidateUserCache: vi.fn(async () => {}),

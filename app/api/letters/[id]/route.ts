@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { invalidateCache } from "@/lib/redis";
 import { getLetterDetail } from "@/lib/queries/letter";
 import { getUserCoupleId } from "@/lib/couple";
-import { triggerCoupleEvent } from "@/lib/pusher-server";
+import { emitActivity } from "@/lib/activity";
 
 
 export async function GET(
@@ -73,7 +73,14 @@ export async function DELETE(
 
     const coupleId = await getUserCoupleId(session.user.id);
     if (coupleId) {
-      triggerCoupleEvent(coupleId, 'LETTERS');
+      await emitActivity(coupleId, session.user.id, {
+        type: "letter",
+        action: "deleted",
+        title: "Surat dihapus",
+        body: `${session.user.name || "Pasangan"} menghapus surat`,
+        href: "/dashboard/letters",
+        level: "both",
+      });
     }
 
     return NextResponse.json({ data: { id } });

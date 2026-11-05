@@ -4,7 +4,7 @@ import { z } from "zod";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import type { Photo } from "@/types";
 import { invalidateCache } from "@/lib/redis";
-import { triggerCoupleEvent } from "@/lib/pusher-server";
+import { emitActivity } from "@/lib/activity";
 import { isAllowedCloudinaryUrl, publicIdBelongsToUser } from "@/lib/upload-policy";
 import { verifyUploadForSave } from "@/lib/upload-verify";
 import { canManageCoupleRow } from "@/lib/couple-ownership";
@@ -217,7 +217,15 @@ export async function POST(request: Request) {
     ]);
 
     if (coupleId) {
-      triggerCoupleEvent(coupleId, 'GALLERY');
+      await emitActivity(coupleId, session.user.id, {
+        type: "photo",
+        action: "created",
+        title: "Foto baru",
+        body: `${session.user.name || "Pasangan"} menambahkan ${photos.length} foto`,
+        href: "/gallery",
+        level: "both",
+        meta: { count: photos.length },
+      });
     }
 
     if (failed.length > 0) {

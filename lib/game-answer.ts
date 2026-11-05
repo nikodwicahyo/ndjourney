@@ -1,3 +1,11 @@
+/** Display names for game-activity copy (activity events only). */
+export const GAME_LABELS: Record<string, string> = {
+  WOULD_YOU_RATHER: "Would You Rather",
+  TRIVIA: "Trivia",
+  SLIDING_PUZZLE: "Sliding Puzzle",
+  MEMORY_BLOCK_BLAST: "Memory Block Blast",
+};
+
 /**
  * Canonical answer check for quiz games. Single source for the score route so
  * correctness is never taken from the client.

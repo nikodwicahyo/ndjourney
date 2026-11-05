@@ -10,7 +10,7 @@ import { getUserCoupleId } from "@/lib/couple";
 import { canManageCoupleRow } from "@/lib/couple-ownership";
 import { isAllowedCloudinaryUrl } from "@/lib/upload-policy";
 import { verifyUploadForSave } from "@/lib/upload-verify";
-import { triggerCoupleEvent } from "@/lib/pusher-server";
+import { emitActivity } from "@/lib/activity";
 
 export async function GET(
   _request: Request,
@@ -325,7 +325,14 @@ export async function PUT(
     await invalidateCache("home:*");
 
     if (callerCoupleId) {
-      triggerCoupleEvent(callerCoupleId, 'TIMELINE');
+      await emitActivity(callerCoupleId, session.user.id, {
+        type: "milestone",
+        action: "updated",
+        title: "Milestone baru",
+        body: `${session.user.name || "Pasangan"} memperbarui "${updated.title}"`,
+        href: "/timeline",
+        level: "both",
+      });
     }
 
     return NextResponse.json({
@@ -361,7 +368,7 @@ export async function DELETE(
     const [existingMilestone, callerCoupleId] = await Promise.all([
       prisma.milestone.findUnique({
         where: { id },
-        select: { coupleId: true, createdById: true },
+        select: { coupleId: true, createdById: true, title: true },
       }),
       getUserCoupleId(userId),
     ]);
@@ -401,7 +408,14 @@ export async function DELETE(
     await invalidateCache("home:*");
 
     if (callerCoupleId) {
-      triggerCoupleEvent(callerCoupleId, 'TIMELINE');
+      await emitActivity(callerCoupleId, userId, {
+        type: "milestone",
+        action: "deleted",
+        title: "Milestone dihapus",
+        body: `${rateCheck.session.user.name || "Pasangan"} menghapus "${existingMilestone.title}"`,
+        href: "/timeline",
+        level: "both",
+      });
     }
 
     return NextResponse.json({ data: { id } });

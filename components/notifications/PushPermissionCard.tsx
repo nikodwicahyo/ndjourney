@@ -46,7 +46,7 @@ export default function PushPermissionCard() {
   const needsA2HS = state === "a2hs-required";
 
   return (
-    <Card className="p-4">
+    <Card className="fixed bottom-4 left-1/2 z-50 w-[min(22rem,calc(100vw-2rem))] -translate-x-1/2 p-4 shadow-lg sm:bottom-auto sm:top-1/2 sm:-translate-y-1/2">
       <div className="flex items-start gap-3">
         <Bell className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
         <div className="min-w-0 flex-1 space-y-2">
@@ -56,7 +56,7 @@ export default function PushPermissionCard() {
               ? "Gagal mengaktifkan notifikasi. Coba lagi."
               : needsA2HS
                 ? "Tambahkan aplikasi ini ke Layar Utama (Add to Home Screen) terlebih dahulu untuk mengaktifkan notifikasi."
-                : "Dapatkan kabar baru dari pasanganmu tanpa harus membuka aplikasi."}
+                : "Dapatkan kabar terbaru dari pasanganmu tanpa harus membuka aplikasi."}
           </p>
           <div className="flex flex-wrap gap-2">
             {!needsA2HS && (

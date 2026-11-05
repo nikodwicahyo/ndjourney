@@ -15,7 +15,7 @@ import {
   Star,
   User,
 } from "lucide-react";
-import { Button, Sheet, SheetContent } from "@/components/ui";
+import { Button } from "@/components/ui";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -96,8 +96,8 @@ function NotificationPanel({
   const unreadCount = data?.unreadCount ?? 0;
 
   return (
-    <div className="max-h-[70vh] overflow-y-auto">
-      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+    <div className="max-h-[60vh] overflow-y-auto">
+      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-card px-4 py-3">
         <p className="text-sm font-semibold">Notifikasi</p>
         {unreadCount > 0 && (
           <span className="text-xs text-muted-foreground">{unreadCount} baru</span>
@@ -246,17 +246,23 @@ export default function NotificationBell() {
           */}
           {typeof document !== "undefined" &&
             createPortal(
-              <Sheet open={open} onOpenChange={setOpen}>
-                <SheetContent
-                  side="bottom"
-                  role="dialog"
-                  aria-modal="true"
-                  aria-label="Notifikasi"
-                  className="w-full p-0"
-                >
-                  {panel}
-                </SheetContent>
-              </Sheet>,
+              open ? (
+                <>
+                  <div
+                    className="fixed inset-0 z-40 bg-black/40"
+                    onClick={() => setOpen(false)}
+                    aria-hidden="true"
+                  />
+                  <div
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Notifikasi"
+                    className="fixed left-1/2 top-16 z-50 flex max-h-[70vh] w-[min(22rem,calc(100vw-2rem))] -translate-x-1/2 flex-col overflow-hidden rounded-2xl border border-border bg-card p-0 shadow-xl"
+                  >
+                    {panel}
+                  </div>
+                </>
+              ) : null,
               document.body,
             )}
         </>

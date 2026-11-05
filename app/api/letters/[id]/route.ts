@@ -79,7 +79,7 @@ export async function DELETE(
         title: "Surat dihapus",
         body: `${session.user.name || "Pasangan"} menghapus surat`,
         href: "/dashboard/letters",
-        level: "both",
+        level: "bell",
       });
     }
 

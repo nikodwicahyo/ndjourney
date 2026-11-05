@@ -232,7 +232,7 @@ export async function PUT(
         title: "Foto diperbarui",
         body: `${rateCheck.session.user.name || "Pasangan"} memperbarui foto`,
         href: "/gallery",
-        level: "both",
+        level: "bell",
         meta: { thumbnailUrl: photo.thumbnailUrl ?? photo.url },
       });
     }
@@ -302,7 +302,7 @@ export async function DELETE(
         title: "Foto dihapus",
         body: `${rateCheck.session.user.name || "Pasangan"} menghapus foto`,
         href: "/gallery",
-        level: "both",
+        level: "bell",
       });
     }
 

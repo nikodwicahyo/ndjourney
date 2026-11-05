@@ -328,10 +328,10 @@ export async function PUT(
       await emitActivity(callerCoupleId, session.user.id, {
         type: "milestone",
         action: "updated",
-        title: "Milestone baru",
+        title: "Milestone diperbarui",
         body: `${session.user.name || "Pasangan"} memperbarui "${updated.title}"`,
         href: "/timeline",
-        level: "both",
+        level: "bell",
       });
     }
 
@@ -414,7 +414,7 @@ export async function DELETE(
         title: "Milestone dihapus",
         body: `${rateCheck.session.user.name || "Pasangan"} menghapus "${existingMilestone.title}"`,
         href: "/timeline",
-        level: "both",
+        level: "bell",
       });
     }
 

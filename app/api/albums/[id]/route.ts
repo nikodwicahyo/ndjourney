@@ -60,10 +60,10 @@ export async function PUT(
       await emitActivity(editorCoupleId, rateCheck.session.user.id, {
         type: "photo",
         action: "updated",
-        title: "Album baru",
+        title: "Album diperbarui",
         body: `${rateCheck.session.user.name || "Pasangan"} mengganti nama album`,
         href: "/gallery",
-        level: "both",
+        level: "bell",
       });
     }
 
@@ -130,7 +130,7 @@ export async function DELETE(
         title: "Album dihapus",
         body: `${rateCheck.session.user.name || "Pasangan"} menghapus album`,
         href: "/gallery",
-        level: "both",
+        level: "bell",
       });
     }
 

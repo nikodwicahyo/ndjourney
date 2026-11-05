@@ -109,7 +109,7 @@ export async function PUT(
         title: "Wishlist",
         body: `${rateCheck.session.user.name || "Pasangan"} memperbarui keinginan "${wish.title}"`,
         href: "/wishlist",
-        level: "both",
+        level: "bell",
       });
     }
 
@@ -182,7 +182,7 @@ export async function DELETE(
         title: "Wishlist",
         body: `${rateCheck.session.user.name || "Pasangan"} menghapus keinginan "${target.title}"`,
         href: "/wishlist",
-        level: "both",
+        level: "bell",
       });
     }
 

@@ -404,7 +404,7 @@ export default function BottleLetter() {
   useEffect(() => {
     if (phase === "opening") {
       setConfetti(
-        Array.from({ length: 14 }, (_, i) => ({
+        Array.from({ length: 8 }, (_, i) => ({
           x: (Math.random() - 0.5) * 220,
           y: -(Math.random() * 140 + 30),
           rot: Math.random() * 360,
@@ -549,7 +549,7 @@ export default function BottleLetter() {
           {/* Ambient particles — idle */}
           {phase === "idle" &&
             !afterglow &&
-            Array.from({ length: 8 }, (_, i) => (
+            Array.from({ length: 4 }, (_, i) => (
               <motion.div
                 key={`ap-${i}`}
                 className="pointer-events-none absolute h-1.5 w-1.5 rounded-full bg-amber-400/30"
@@ -602,7 +602,7 @@ export default function BottleLetter() {
 
           {/* Ripple rings — shaking */}
           {phase === "shaking" &&
-            Array.from({ length: 3 }, (_, i) => (
+            Array.from({ length: 2 }, (_, i) => (
               <motion.div
                 key={`rr-${i}`}
                 className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-amber-400/40"
@@ -636,7 +636,7 @@ export default function BottleLetter() {
           {/* Main bottle container */}
           <motion.div
             className="relative mx-auto w-36 sm:w-44"
-            style={{ aspectRatio: "2 / 3" }}
+            style={{ aspectRatio: "2 / 3", willChange: "transform", perspective: "900px" }}
             animate={{
               scale:
                 phase === "idle" ||
@@ -654,6 +654,7 @@ export default function BottleLetter() {
                   : phase === "shaking"
                     ? -8
                     : -24,
+               rotateY: phase === "opening" || phase === "emerging" ? 180 : 0,
             }}
             transition={
               phase === "shaking"

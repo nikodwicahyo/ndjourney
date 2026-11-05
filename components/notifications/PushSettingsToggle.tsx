@@ -40,15 +40,15 @@ export default function PushSettingsToggle() {
     setBusy(true);
     try {
       const next = !enabled;
+      // Optimistic, but corrected from the actual device state below.
       setEnabled(next);
       try {
-        if (enabled) {
+        if (next) {
+          const ok = await subscribePush();
+          setEnabled(ok && (await isPushSubscribed()));
+        } else {
           await unsubscribePush();
           setEnabled(await isPushSubscribed());
-        } else {
-          const ok = await subscribePush();
-          setEnabled(ok);
-          if (!ok) setEnabled(false);
         }
       } catch {
         setEnabled(!next);

@@ -61,7 +61,21 @@ export function getPushState(): PushState {
  */
 async function getServiceWorkerRegistration(): Promise<ServiceWorkerRegistration | null> {
   if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return null;
-  return (await navigator.serviceWorker.getRegistration()) ?? null;
+  try {
+    const existing = await navigator.serviceWorker.getRegistration();
+    if (existing) return existing;
+    // Registration may still be in flight on first load / slow devices.
+    // Wait briefly, but never hang on a worker that never registers.
+    return await Promise.race([
+      navigator.serviceWorker.ready.then((r) => r ?? null).catch(() => null),
+      new Promise<ServiceWorkerRegistration | null>((resolve) =>
+        setTimeout(() => resolve(null), 2000),
+      ),
+    ]);
+  } catch (error) {
+    console.warn("[push] service worker lookup failed:", error);
+    return null;
+  }
 }
 
 export async function subscribePush(): Promise<boolean> {

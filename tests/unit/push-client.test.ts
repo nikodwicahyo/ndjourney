@@ -72,7 +72,11 @@ function installSupport({
     value: {
       getRegistration,
       // Deliberately hanging `ready`: production browsers never reject it.
-      ready: readyHangs ? new Promise(() => {}) : Promise.resolve(registration),
+      ready: registered
+        ? readyHangs
+          ? new Promise(() => {})
+          : Promise.resolve(registration)
+        : Promise.resolve(undefined as unknown as ServiceWorkerRegistration),
     },
   });
 

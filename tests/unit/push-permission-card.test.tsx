@@ -31,8 +31,7 @@ describe("PushPermissionCard", () => {
     render(<PushPermissionCard />);
 
     expect(await screen.findByText("Aktifkan notifikasi")).toBeTruthy();
-    expect(screen.getByText(/kabar baru dari pasanganmu/i)).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Aktifkan" })).toBeTruthy();
+    expect(screen.getByText(/kabar terbaru dari pasanganmu/i)).toBeTruthy();    expect(screen.getByRole("button", { name: "Aktifkan" })).toBeTruthy();
   });
 
   it("calls subscribePush on confirm and disappears once granted", async () => {

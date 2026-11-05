@@ -9,15 +9,25 @@ export function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return outputArray;
 }
 
+/**
+ * iPhone/iPod always report their own UA, but iPadOS 13+ ships a desktop
+ * "MacIntel" UA. Match the same predicate `components/InstallPrompt.tsx` uses.
+ */
 function isIOS(): boolean {
+  const ua = navigator.userAgent.toLowerCase();
+  const platform = (navigator.platform || "").toLowerCase();
   return (
-    /iPad|iPhone|iPod/.test(navigator.userAgent) &&
-    !(window as unknown as { MSStream?: unknown }).MSStream
+    /iphone|ipad|ipod/.test(ua) ||
+    (platform === "macintel" && navigator.maxTouchPoints > 1)
   );
 }
 
 function isStandalone(): boolean {
-  return (navigator as unknown as { standalone?: boolean }).standalone === true;
+  if ((navigator as unknown as { standalone?: boolean }).standalone === true) return true;
+  return (
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(display-mode: standalone)").matches
+  );
 }
 
 export function isPushSupported(): boolean {

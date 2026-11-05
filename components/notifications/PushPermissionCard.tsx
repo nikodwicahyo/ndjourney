@@ -11,6 +11,7 @@ const DISMISS_KEY = "push-card-dismissed-v1";
 export default function PushPermissionCard() {
   const [state, setState] = useState<PushState | null>(null);
   const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     if (localStorage.getItem(DISMISS_KEY)) return;
@@ -24,11 +25,17 @@ export default function PushPermissionCard() {
 
   async function enable() {
     setBusy(true);
+    setFailed(false);
     try {
-      await subscribePush();
+      // Permission can report "granted" while the subscription/POST failed —
+      // derive the card's state from the result, not from the permission alone.
+      if (await subscribePush()) {
+        setState(getPushState());
+      } else {
+        setFailed(true);
+      }
     } finally {
       setBusy(false);
-      setState(getPushState());
     }
   }
 
@@ -43,9 +50,11 @@ export default function PushPermissionCard() {
         <div className="min-w-0 flex-1 space-y-2">
           <p className="text-sm font-medium">Aktifkan notifikasi</p>
           <p className="text-sm text-muted-foreground">
-            {needsA2HS
-              ? "Tambahkan aplikasi ini ke Layar Utama (Add to Home Screen) terlebih dahulu untuk mengaktifkan notifikasi."
-              : "Dapatkan kabar baru dari pasanganmu tanpa harus membuka aplikasi."}
+            {failed
+              ? "Gagal mengaktifkan notifikasi. Coba lagi."
+              : needsA2HS
+                ? "Tambahkan aplikasi ini ke Layar Utama (Add to Home Screen) terlebih dahulu untuk mengaktifkan notifikasi."
+                : "Dapatkan kabar baru dari pasanganmu tanpa harus membuka aplikasi."}
           </p>
           <div className="flex flex-wrap gap-2">
             {!needsA2HS && (

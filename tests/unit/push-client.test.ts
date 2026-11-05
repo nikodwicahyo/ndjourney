@@ -13,6 +13,9 @@ const DESKTOP_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 const IOS_UA =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
+// iPadOS 13+ reports a desktop Macintosh UA; only touch points give it away.
+const IPADOS_UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15";
 
 // Well-known web-push sample VAPID public key: 65-byte uncompressed P-256 point.
 const VAPID_KEY =
@@ -94,6 +97,8 @@ afterEach(() => {
   vi.restoreAllMocks();
   removeNavigatorProp("serviceWorker");
   removeNavigatorProp("standalone");
+  removeNavigatorProp("platform");
+  removeNavigatorProp("maxTouchPoints");
   removeWindowProp("PushManager");
   removeWindowProp("Notification");
   setUserAgent(DESKTOP_UA);
@@ -147,6 +152,18 @@ describe("isPushSupported / getPushState", () => {
     installSupport({ permission: "granted" });
 
     expect(isPushSupported()).toBe(true);
+    expect(getPushState()).toBe("granted");
+  });
+
+  it("treats iPadOS desktop UA with touch as iOS, but a real Mac as desktop", () => {
+    setUserAgent(IPADOS_UA);
+    Object.defineProperty(window.navigator, "platform", { value: "MacIntel", configurable: true });
+    Object.defineProperty(window.navigator, "maxTouchPoints", { value: 5, configurable: true });
+    installSupport();
+
+    expect(getPushState()).toBe("a2hs-required");
+
+    Object.defineProperty(window.navigator, "maxTouchPoints", { value: 0, configurable: true });
     expect(getPushState()).toBe("granted");
   });
 });

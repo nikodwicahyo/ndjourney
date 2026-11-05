@@ -46,6 +46,16 @@ describe("PushPermissionCard", () => {
     await waitFor(() => expect(screen.queryByText("Aktifkan notifikasi")).toBeNull());
   });
 
+  it("stays visible with a retry hint when subscribing fails", async () => {
+    push.subscribePush.mockResolvedValue(false);
+
+    render(<PushPermissionCard />);
+    fireEvent.click(await screen.findByRole("button", { name: "Aktifkan" }));
+
+    expect(await screen.findByText(/Gagal mengaktifkan notifikasi/i)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Aktifkan" })).toBeTruthy();
+  });
+
   it("stores the dismiss flag and hides the card", async () => {
     render(<PushPermissionCard />);
 

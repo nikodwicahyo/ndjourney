@@ -33,17 +33,25 @@ export default function PushSettingsToggle() {
         ? "Tambahkan aplikasi ke Layar Utama (Add to Home Screen) terlebih dahulu."
         : enabled
           ? "Notifikasi aktif di perangkat ini."
-          : "Aktifkan agar kamu dapat kabar baru dari pasanganmu.";
+          : "Aktifkan agar kamu dapat kabar terbaru dari pasanganmu.";
 
   async function toggle() {
     if (busy || blocked) return;
     setBusy(true);
     try {
-      if (enabled) {
-        await unsubscribePush();
-        setEnabled(await isPushSubscribed());
-      } else {
-        setEnabled(await subscribePush());
+      const next = !enabled;
+      setEnabled(next);
+      try {
+        if (enabled) {
+          await unsubscribePush();
+          setEnabled(await isPushSubscribed());
+        } else {
+          const ok = await subscribePush();
+          setEnabled(ok);
+          if (!ok) setEnabled(false);
+        }
+      } catch {
+        setEnabled(!next);
       }
     } finally {
       setBusy(false);
@@ -54,7 +62,7 @@ export default function PushSettingsToggle() {
   return (
     <div className="flex items-start justify-between gap-4 rounded-2xl border border-border bg-card p-4">
       <div className="min-w-0 space-y-1">
-        <p className="text-sm font-medium">Notifikasi Browser</p>
+        <p className="text-sm font-medium">Notifikasi</p>
         <p className="text-xs text-muted-foreground">
           {busy ? "Menyimpan..." : hint}
         </p>
@@ -63,18 +71,18 @@ export default function PushSettingsToggle() {
         type="button"
         role="switch"
         aria-checked={enabled}
-        aria-label="Notifikasi browser"
+        aria-label="Notifikasi"
         disabled={busy || blocked}
         onClick={toggle}
         className={cn(
-          "relative h-6 w-11 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
+          "relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
           enabled ? "bg-primary" : "bg-input",
         )}
       >
         <span
           className={cn(
-            "absolute top-0.5 h-5 w-5 rounded-full bg-background transition-transform",
-            enabled ? "translate-x-[22px]" : "translate-x-0.5",
+            "absolute top-0.5 h-5 w-5 rounded-full bg-background transition-all",
+            enabled ? "right-0.5 left-auto" : "left-0.5 right-auto",
           )}
         />
       </button>

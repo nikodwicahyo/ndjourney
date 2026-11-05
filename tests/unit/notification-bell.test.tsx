@@ -122,4 +122,34 @@ describe("NotificationBell", () => {
     await waitFor(() => expect(seenPosted()).toBe(true));
     expect(nav.push).not.toHaveBeenCalled();
   });
+
+  it("closes on Escape and returns focus to the bell", async () => {
+    renderBell();
+
+    const bell = await screen.findByRole("button", { name: "Notifikasi, 1 belum dibaca" });
+    fireEvent.click(bell);
+    expect(await screen.findByText("Foto baru")).toBeTruthy();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    await waitFor(() => expect(screen.queryByText("Foto baru")).toBeNull());
+    expect(document.activeElement).toBe(bell);
+  });
+
+  it("portals the mobile sheet to <body> so the blurred header cannot trap it", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    renderBell();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Notifikasi, 1 belum dibaca" }));
+    const row = await screen.findByText("Foto baru");
+    const dialog = row.closest('[role="dialog"]');
+
+    expect(dialog).toBeTruthy();
+    expect(dialog?.parentElement).toBe(document.body);
+  });
 });

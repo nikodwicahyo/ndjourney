@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
   Bell,
@@ -64,10 +65,10 @@ function NotificationRow({
         <span className="flex items-center gap-1.5">
           <span className="truncate text-sm font-medium">{item.title}</span>
           {item.unread && (
-            <span
-              className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary"
-              aria-label="Belum dibaca"
-            />
+            <>
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true" />
+              <span className="sr-only">Belum dibaca</span>
+            </>
           )}
         </span>
         {item.body && (
@@ -133,7 +134,10 @@ function NotificationPanel({
 function BellButton({
   unreadCount,
   ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & { unreadCount: number }) {
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  unreadCount: number;
+  ref?: React.Ref<HTMLButtonElement>;
+}) {
   const label =
     unreadCount > 0 ? `Notifikasi, ${unreadCount} belum dibaca` : "Notifikasi";
   const badge = unreadCount > 99 ? "99+" : String(unreadCount);
@@ -167,6 +171,8 @@ export default function NotificationBell() {
   // This is a client-only breakpoint switch; before mount/hydration the
   // desktop panel is a safe default (it renders no floating content closed).
   const [isDesktop, setIsDesktop] = useState(true);
+  const bellRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const { data, refetch } = useNotifications();
   const markSeen = useMarkNotificationsSeen();
   const unreadCount = data?.unreadCount ?? 0;
@@ -180,20 +186,42 @@ export default function NotificationBell() {
     return () => query.removeEventListener?.("change", sync);
   }, []);
 
+  // The UI primitives close on outside click only; Escape and focus belong here.
+  useEffect(() => {
+    if (!open) return;
+    const bell = bellRef.current;
+    panelRef.current?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setOpen(false);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      bell?.focus();
+    };
+  }, [open]);
+
   function handleSelect(item: NotificationItem) {
     setOpen(false);
     markSeen.mutate();
     if (item.href) router.push(item.href);
   }
 
-  const panel = <NotificationPanel onSelect={handleSelect} onRetry={() => void refetch()} />;
+  const panel = (
+    <div ref={panelRef} tabIndex={-1} className="outline-none">
+      <NotificationPanel onSelect={handleSelect} onRetry={() => void refetch()} />
+    </div>
+  );
 
   return (
     <div className="relative">
       {isDesktop ? (
         <DropdownMenu open={open} onOpenChange={setOpen}>
           <DropdownMenuTrigger asChild>
-            <BellButton unreadCount={unreadCount} aria-expanded={open} />
+            <BellButton ref={bellRef} unreadCount={unreadCount} aria-expanded={open} />
           </DropdownMenuTrigger>
           <DropdownMenuContent
             role="dialog"
@@ -206,21 +234,31 @@ export default function NotificationBell() {
       ) : (
         <>
           <BellButton
+            ref={bellRef}
             unreadCount={unreadCount}
             aria-expanded={open}
             onClick={() => setOpen(true)}
           />
-          <Sheet open={open} onOpenChange={setOpen}>
-            <SheetContent
-              side="bottom"
-              role="dialog"
-              aria-modal="true"
-              aria-label="Notifikasi"
-              className="w-full p-0"
-            >
-              {panel}
-            </SheetContent>
-          </Sheet>
+          {/*
+            Portal the sheet to <body>: the navbar header gets `backdrop-blur`,
+            which becomes the containing block for fixed children and would
+            trap this overlay inside the 64px bar once the page scrolls.
+          */}
+          {typeof document !== "undefined" &&
+            createPortal(
+              <Sheet open={open} onOpenChange={setOpen}>
+                <SheetContent
+                  side="bottom"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="Notifikasi"
+                  className="w-full p-0"
+                >
+                  {panel}
+                </SheetContent>
+              </Sheet>,
+              document.body,
+            )}
         </>
       )}
     </div>

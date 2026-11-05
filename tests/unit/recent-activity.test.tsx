@@ -49,8 +49,12 @@ describe("RecentActivity feed", () => {
     expect(screen.getByText("Ingin liburan ke Bali")).toBeTruthy();
     expect(screen.getByText("Menang catur")).toBeTruthy();
     // every known type must resolve to an existing route
-    expect(screen.getByText("Ingin liburan ke Bali").closest("a")?.getAttribute("href")).toBe("/wishlist");
-    expect(screen.getByText("Menang catur").closest("a")?.getAttribute("href")).toBe("/games");
+    expect(screen.getByText("Ingin liburan ke Bali").closest("a")?.getAttribute("href")).toBe(
+      "/dashboard/wishlist",
+    );
+    expect(screen.getByText("Menang catur").closest("a")?.getAttribute("href")).toBe(
+      "/dashboard/games",
+    );
   });
 
   it("letter row links to the letters list, not /dashboard/letters/<activity-id>", () => {

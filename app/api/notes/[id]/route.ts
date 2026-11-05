@@ -49,7 +49,7 @@ export async function DELETE(
         action: "deleted",
         title: "Catatan dihapus",
         body: `${session.user.name || "Pasangan"} menghapus catatan`,
-        href: "/notes",
+        href: "/dashboard/notes",
         level: "bell",
       });
     }

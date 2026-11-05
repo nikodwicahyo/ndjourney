@@ -8,7 +8,7 @@ import { Image, Mail, Flag, Heart, History, Star, Gamepad2, User, MapPin, HelpCi
 import { formatRelativeTime } from "@/lib/utils";
 
 const typeConfig = {
-  photo: { icon: Image, color: "#6366F1", href: (id: string) => `/gallery` },
+  photo: { icon: Image, color: "#6366F1", href: (id: string) => `/dashboard/gallery` },
   letter: {
     icon: Mail,
     color: "#EC4899",
@@ -18,15 +18,15 @@ const typeConfig = {
   milestone: {
     icon: Flag,
     color: "#F97316",
-    href: (_id: string) => `/timeline`,
+    href: (_id: string) => `/dashboard/timeline`,
   },
-  note: { icon: Heart, color: "#14B8A6", href: (_id: string) => `/notes` },
-  wish: { icon: Star, color: "#EAB308", href: (_id: string) => `/wishlist` },
-  game: { icon: Gamepad2, color: "#22C55E", href: (_id: string) => `/games` },
-  arcade: { icon: Gamepad2, color: "#22C55E", href: (_id: string) => `/games` },
-  profile: { icon: User, color: "#8B5CF6", href: (_id: string) => `/settings` },
+  note: { icon: Heart, color: "#14B8A6", href: (_id: string) => `/dashboard/notes` },
+  wish: { icon: Star, color: "#EAB308", href: (_id: string) => `/dashboard/wishlist` },
+  game: { icon: Gamepad2, color: "#22C55E", href: (_id: string) => `/dashboard/games` },
+  arcade: { icon: Gamepad2, color: "#22C55E", href: (_id: string) => `/dashboard/games` },
+  profile: { icon: User, color: "#8B5CF6", href: (_id: string) => `/dashboard/settings` },
   location: { icon: MapPin, color: "#0EA5E9", href: (_id: string) => `/location` },
-  questions: { icon: HelpCircle, color: "#F43F5E", href: (_id: string) => `/games` },
+  questions: { icon: HelpCircle, color: "#F43F5E", href: (_id: string) => `/dashboard/games` },
 };
 
 export default function RecentActivity() {

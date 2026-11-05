@@ -154,7 +154,7 @@ export async function POST(request: Request) {
       action: "created",
       title: "Foto baru",
       body: `${session.user.name || "Pasangan"} menambahkan 1 foto`,
-      href: "/gallery",
+      href: "/dashboard/gallery",
       level: "both",
       meta: { thumbnailUrl: created.thumbnailUrl ?? created.url },
     });

@@ -162,7 +162,7 @@ export async function POST(request: Request) {
       action: "created",
       title: "Album baru",
       body: `${rateCheck.session.user.name || "Pasangan"} membuat album "${album.name}"`,
-      href: "/gallery",
+      href: "/dashboard/gallery",
       level: "both",
     });
 

@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { getCached, setCached, cacheKey } from "@/lib/redis";
 import { batchLoadUsers } from "@/lib/batch";
+import { toPublicUser } from "@/lib/format";
 import { getUserCoupleId } from "@/lib/couple";
 
 const CACHE_TTL = 120;
@@ -45,7 +46,7 @@ export async function GET() {
       type: row.type,
       description: row.body ?? row.title,
       createdAt: row.createdAt,
-      user: userMap.get(row.actorId) ?? { id: row.actorId, name: null, image: null },
+      user: toPublicUser(userMap.get(row.actorId)) ?? { id: row.actorId, name: null, image: null },
     }));
 
     await setCached(cacheK, data, CACHE_TTL);

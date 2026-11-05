@@ -34,6 +34,10 @@ function sanitizeHref(href: string | null | undefined): string | null {
   if (typeof href !== "string" || !href.startsWith("/") || href.startsWith("//")) {
     return null;
   }
+  // the bell navigates with router.push, which does not get the SW's origin
+  // guard — reject backslashes (a URL parser folds them into "/") and control
+  // bytes here too.
+  if (/[\\\u0000-\u001f]/.test(href)) return null;
   return href;
 }
 
@@ -106,29 +110,35 @@ export async function emitActivity(
       const subs = userIds.length
         ? await prisma.pushSubscription.findMany({ where: { userId: { in: userIds } } })
         : [];
-      for (const sub of subs) {
-        try {
-          await sendNotification(
-            sub.endpoint as unknown as Parameters<typeof sendNotification>[0],
-            JSON.stringify({ title: input.title, body: input.body, url: href }),
-            {
-              vapidDetails: {
-                subject: process.env.CONTACT_EMAIL ?? "mailto:app@couple-web",
-                publicKey,
-                privateKey,
-              },
-            },
-          );
-        } catch (error) {
-          const statusCode = (error as { statusCode?: number })?.statusCode;
-          // 404/410 = subscription gone — prune exactly that row.
-          if (statusCode === 404 || statusCode === 410) {
-            await prisma.pushSubscription.delete({ where: { endpoint: sub.endpoint } });
-          } else {
-            console.error("[ACTIVITY_PUSH_ERROR]", error);
+      // web-push rejects a bare endpoint string with "You must pass in a
+      // subscription with at least an endpoint." — it needs the keys object.
+      const payload = JSON.stringify({ title: input.title, body: input.body, url: href });
+      const vapidDetails = {
+        subject: process.env.CONTACT_EMAIL ?? "mailto:app@couple-web",
+        publicKey,
+        privateKey,
+      };
+      // allSettled: one dead endpoint must not delay the others; each row keeps
+      // its own guard so a 404/410 prunes exactly its own subscription.
+      await Promise.allSettled(
+        subs.map(async (sub) => {
+          try {
+            await sendNotification(
+              { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+              payload,
+              { vapidDetails, timeout: 5000 },
+            );
+          } catch (error) {
+            const statusCode = (error as { statusCode?: number })?.statusCode;
+            // 404/410 = subscription gone — prune exactly that row.
+            if (statusCode === 404 || statusCode === 410) {
+              await prisma.pushSubscription.delete({ where: { endpoint: sub.endpoint } });
+            } else {
+              console.error("[ACTIVITY_PUSH_ERROR]", error);
+            }
           }
-        }
-      }
+        }),
+      );
     }
   } catch (error) {
     console.error("[ACTIVITY_ERROR]", error);

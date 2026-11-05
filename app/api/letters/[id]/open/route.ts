@@ -3,6 +3,8 @@ import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { sendEmail, letterNotificationHtml, safeAppUrl } from "@/lib/email";
 import { invalidateCache } from "@/lib/redis";
+import { getUserCoupleId } from "@/lib/couple";
+import { triggerCoupleEvent } from "@/lib/pusher-server";
 import { isLetterLocked } from "@/lib/letter-lock";
 
 
@@ -76,6 +78,11 @@ export async function PUT(
     await invalidateCache("letters:*");
     await invalidateCache("dashboard:*");
     await invalidateCache("home:*");
+
+    const coupleId = await getUserCoupleId(session.user.id);
+    if (coupleId) {
+      triggerCoupleEvent(coupleId, "LETTERS");
+    }
 
     return NextResponse.json({ data: updated });
   } catch (error) {

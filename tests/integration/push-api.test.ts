@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 const me = "user-me";
 const coupleId = "couple-1";
 
-const endpoint = "https://example.com/push/abc-123";
+const endpoint = "https://fcm.googleapis.com/fcm/send/abc-123";
 const badEndpoint = "http://example.com/push/abc-123";
 const keys = { p256dh: "p256dh-value", auth: "auth-value" };
 

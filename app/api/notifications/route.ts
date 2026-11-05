@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { batchLoadUsers } from "@/lib/batch";
+import { toPublicUser } from "@/lib/format";
 import { getUserCoupleId } from "@/lib/couple";
 import type { NotificationItem, NotificationsResponse } from "@/types/index";
 
@@ -93,7 +94,7 @@ export async function GET(request: Request) {
       body: row.body,
       href: row.href,
       createdAt: row.createdAt.toISOString(),
-      actor: userMap.get(row.actorId) ?? { id: "", name: null, image: null },
+      actor: toPublicUser(userMap.get(row.actorId)) ?? { id: "", name: null, image: null },
       unread: !lastSeen || row.createdAt > lastSeen,
     }));
 

@@ -41,7 +41,7 @@ export default function PushSettingsToggle() {
     try {
       if (enabled) {
         await unsubscribePush();
-        setEnabled(false);
+        setEnabled(await isPushSubscribed());
       } else {
         setEnabled(await subscribePush());
       }

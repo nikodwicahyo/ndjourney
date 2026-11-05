@@ -33,6 +33,8 @@ export default function PushPermissionCard() {
         setState(getPushState());
       } else {
         setFailed(true);
+        // A permanent denial must not keep offering a button that can never work.
+        setState(getPushState());
       }
     } finally {
       setBusy(false);

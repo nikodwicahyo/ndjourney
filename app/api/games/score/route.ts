@@ -94,9 +94,9 @@ export async function POST(request: Request) {
     });
 
     // The leaderboard aggregates COMPLETED rounds (/api/games/round), not
-    // individual answers — invalidating caches or pinging the partner for every
-    // one of the ~10 answers in a round was pure churn. A bell-only activity
-    // event is cheap (no push, no cache invalidation).
+    // individual answers — so no round-level cache invalidation here. The
+    // bell-only event below is cheap for push (no fan-out) but emitActivity
+    // still triggers Pusher and drops the dashboard activity cache.
     if (isAuthed) {
       const coupleId = await getUserCoupleId(session!.user.id);
       if (coupleId) {

@@ -73,13 +73,23 @@ describe("emitActivity", () => {
     expect(prisma.activityEvent.create).toHaveBeenLastCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ href: "/notes/123" }) }),
     );
+
+    // backslashes / control bytes would let router.push leave the origin
+    for (const bad of ["/\\evil.com", "/notes/\u0000x", "/notes/\nx"]) {
+      await emitActivity("c1", "a1", { ...baseInput, type: "note", href: bad });
+      expect(prisma.activityEvent.create).toHaveBeenLastCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ href: null }) }),
+      );
+    }
   });
 
   it("bell sends nothing; both sends to partner subscriptions only", async () => {
     process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY = "pk";
     process.env.VAPID_PRIVATE_KEY = "sk";
     vi.mocked(prisma.coupleMember.findMany).mockResolvedValue([{ userId: "partner" }] as never);
-    vi.mocked(prisma.pushSubscription.findMany).mockResolvedValue([{ endpoint: "ep-partner", userId: "partner" }] as never);
+    vi.mocked(prisma.pushSubscription.findMany).mockResolvedValue([
+      { endpoint: "ep-partner", p256dh: "p256dh-value", auth: "auth-value", userId: "partner" },
+    ] as never);
 
     await emitActivity("c1", "actor-1", { ...baseInput, level: "bell" });
     expect(sendNotification).not.toHaveBeenCalled();
@@ -88,7 +98,9 @@ describe("emitActivity", () => {
     vi.mocked(getPusherServer).mockReturnValue(null);
     vi.mocked(prisma.activityEvent.create).mockResolvedValue({ id: "ev1", createdAt: new Date("2026-11-03T10:00:00Z") } as never);
     vi.mocked(prisma.coupleMember.findMany).mockResolvedValue([{ userId: "partner" }] as never);
-    vi.mocked(prisma.pushSubscription.findMany).mockResolvedValue([{ endpoint: "ep-partner", userId: "partner" }] as never);
+    vi.mocked(prisma.pushSubscription.findMany).mockResolvedValue([
+      { endpoint: "ep-partner", p256dh: "p256dh-value", auth: "auth-value", userId: "partner" },
+    ] as never);
 
     await emitActivity("c1", "actor-1", { ...baseInput, level: "both" });
     expect(prisma.coupleMember.findMany).toHaveBeenCalledWith(
@@ -97,10 +109,15 @@ describe("emitActivity", () => {
       }),
     );
     expect(sendNotification).toHaveBeenCalledTimes(1);
+    // web-push needs the subscription object, not the bare endpoint string.
     expect(sendNotification).toHaveBeenCalledWith(
-      "ep-partner",
+      {
+        endpoint: "ep-partner",
+        keys: { p256dh: "p256dh-value", auth: "auth-value" },
+      },
       JSON.stringify({ title: "Foto baru", body: "Ada foto baru dari Anda", url: null }),
       expect.objectContaining({
+        timeout: 5000,
         vapidDetails: expect.objectContaining({
           subject: "mailto:app@couple-web",
           publicKey: "pk",
@@ -108,6 +125,29 @@ describe("emitActivity", () => {
         }),
       }),
     );
+  });
+
+  it("fans out to every partner subscription and prunes only the dead one", async () => {
+    process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY = "pk";
+    process.env.VAPID_PRIVATE_KEY = "sk";
+    vi.mocked(prisma.coupleMember.findMany).mockResolvedValue([{ userId: "partner" }] as never);
+    vi.mocked(prisma.pushSubscription.findMany).mockResolvedValue([
+      { endpoint: "ep-live", p256dh: "k1", auth: "a1", userId: "partner" },
+      { endpoint: "ep-gone", p256dh: "k2", auth: "a2", userId: "partner" },
+    ] as never);
+    const gone = new Error("gone") as Error & { statusCode?: number };
+    gone.statusCode = 410;
+    vi.mocked(sendNotification)
+      .mockResolvedValueOnce({ statusCode: 201 } as never)
+      .mockRejectedValueOnce(gone);
+
+    await emitActivity("c1", "actor-1", { ...baseInput, level: "both" });
+
+    expect(sendNotification).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(prisma.pushSubscription.delete)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(prisma.pushSubscription.delete)).toHaveBeenCalledWith({
+      where: { endpoint: "ep-gone" },
+    });
   });
 
   it.each([404, 410])("deletes the subscription on WebPushError %s", async (status) => {

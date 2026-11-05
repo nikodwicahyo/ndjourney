@@ -4,6 +4,7 @@ import { updateShareSchema } from "@/lib/validations/location";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { getUserCoupleId } from "@/lib/couple";
 import { emitActivity } from "@/lib/activity";
+import { triggerCoupleEvent } from "@/lib/pusher-server";
 
 export const dynamic = "force-dynamic";
 
@@ -64,6 +65,9 @@ export async function PUT(request: Request) {
         href: "/location",
         level: "both",
       });
+    } else if (!isSharing && previous?.isSharing) {
+      // Turning off still has to refresh the partner's live map (no feed row).
+      triggerCoupleEvent(coupleId, "LOCATION");
     }
 
     return NextResponse.json({ data: { isSharing } }, { status: 200 });

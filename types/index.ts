@@ -146,7 +146,15 @@ export type SyncAction = 'REFRESH';
 export type SyncPayload = {
   scope: SyncScope;
   action: SyncAction;
-  activity?: { id: string; type: string; title: string };
+  activity?: {
+    id: string;
+    type: string;
+    action: string;
+    title: string;
+    body?: string | null;
+    href?: string | null;
+    createdAt?: Date;
+  };
 };
 
 declare global {

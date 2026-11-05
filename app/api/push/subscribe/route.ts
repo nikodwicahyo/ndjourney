@@ -3,6 +3,22 @@ import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { withRateLimit } from "@/lib/rate-limit";
 
+// Only real push services — an authenticated user must not be able to point a
+// stored subscription at an arbitrary https host (that is an SSRF at send time).
+const PUSH_HOSTS = ["fcm.googleapis.com", "web.push.apple.com"];
+const PUSH_HOST_SUFFIXES = [
+  ".push.services.mozilla.com",
+  ".notify.windows.com",
+  ".push.apple.com",
+];
+
+function isPushHost(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  return (
+    PUSH_HOSTS.includes(host) || PUSH_HOST_SUFFIXES.some((suffix) => host.endsWith(suffix))
+  );
+}
+
 export async function POST(req: Request) {
   try {
     // Explicit auth guard — 401 deterministic, independent of withRateLimit internals.
@@ -40,6 +56,12 @@ export async function POST(req: Request) {
     if (url.protocol !== "https:") {
       return NextResponse.json({ error: "Endpoint must use https" }, { status: 400 });
     }
+    if (!isPushHost(url.hostname)) {
+      return NextResponse.json(
+        { error: "Endpoint host is not a supported push service" },
+        { status: 400 },
+      );
+    }
     endpoint = url.href;
     if (!p256dh || !authKey) {
       return NextResponse.json({ error: "Missing push keys" }, { status: 400 });
@@ -57,7 +79,16 @@ export async function POST(req: Request) {
 
     await prisma.pushSubscription.upsert({
       where: { endpoint },
-      update: { p256dh: p256dh!, auth: authKey!, userAgent },
+      // A reused endpoint (shared device, re-pair, failed sign-out unsubscribe)
+      // must follow the current session, or the previous user keeps receiving
+      // the new owner's couple activity.
+      update: {
+        p256dh: p256dh!,
+        auth: authKey!,
+        userId,
+        coupleId: member.coupleId,
+        userAgent,
+      },
       create: {
         endpoint,
         p256dh: p256dh!,

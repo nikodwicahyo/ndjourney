@@ -19,6 +19,7 @@ import {
   User,
   Ruler,
   HardDrive,
+  Folder,
 } from "lucide-react";
 import { cn, formatDate, formatBytes } from "@/lib/utils";
 import {
@@ -818,6 +819,16 @@ function Lightbox({
                     <p className="text-sm font-medium truncate">
                       {photo.uploadedBy?.name || photo.uploadedByName || "Tidak diketahui"}
                     </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                    <Folder className="h-4.5 w-4.5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Album</p>
+                    <p className="text-sm font-medium truncate">{photo.albumName || "Tanpa album"}</p>
                   </div>
                 </div>
 

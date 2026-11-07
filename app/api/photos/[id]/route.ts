@@ -56,6 +56,9 @@ export async function GET(
         uploadedBy: {
           select: { id: true, name: true, image: true },
         },
+        album: {
+          select: { name: true },
+        },
       },
     });
 
@@ -107,8 +110,8 @@ export async function GET(
     }
 
     // Strip internal fields from the response
-    const { isMilestoneOnly, coupleId: _coupleId, ...publicPhoto } = photo;
-    const response = { data: publicPhoto };
+    const { isMilestoneOnly, coupleId: _coupleId, album, ...publicPhoto } = photo;
+    const response = { data: { ...publicPhoto, albumName: album?.name ?? null } };
 
     await setCached(cacheK, response, isAuthed ? CACHE_TTL_AUTH : CACHE_TTL_PUBLIC);
 

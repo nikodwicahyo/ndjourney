@@ -36,7 +36,7 @@ export class PhotoFilterError extends Error {}
 
 function buildPhotoSelect(alias = "") {
   const p = alias ? `${alias}.` : "";
-  return `${p}"id", ${p}"url", ${p}"publicId", ${p}"thumbnailUrl", ${p}"caption", ${p}"width", ${p}"height", ${p}"isVideo", ${p}"isFavorite", ${p}"isPublic", ${p}"albumId", ${p}"uploadedById", ${p}"createdAt", ${p}"updatedAt", u."name" AS "uploadedByName", u."image" AS "uploadedByImage"`;
+  return `${p}"id", ${p}"url", ${p}"publicId", ${p}"thumbnailUrl", ${p}"caption", ${p}"width", ${p}"height", ${p}"isVideo", ${p}"isFavorite", ${p}"isPublic", ${p}"albumId", ${p}"uploadedById", ${p}"createdAt", ${p}"updatedAt", u."name" AS "uploadedByName", u."image" AS "uploadedByImage", a."name" AS "albumName"`;
 }
 
 /**
@@ -151,7 +151,7 @@ export async function listPhotos(
   const selectCols = buildPhotoSelect("p");
   const limitParamIdx = allParams.length + 1;
 
-  const query = `SELECT ${selectCols} FROM "Photo" p LEFT JOIN "User" u ON p."uploadedById" = u."id" ${baseWhereClause}${cursorCondition} ORDER BY p."createdAt" ${orderDir}, p."id" ${orderDir} LIMIT $${limitParamIdx}`;
+  const query = `SELECT ${selectCols} FROM "Photo" p LEFT JOIN "User" u ON p."uploadedById" = u."id" LEFT JOIN "Album" a ON p."albumId" = a."id" ${baseWhereClause}${cursorCondition} ORDER BY p."createdAt" ${orderDir}, p."id" ${orderDir} LIMIT $${limitParamIdx}`;
   allParams.push(limit + 1);
 
   const photos = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(query, ...allParams);

@@ -43,6 +43,8 @@ export type PhotoWithUploader = Photo & {
   uploadedByImage?: string | null;
   uploadedBy?: { id: string; name: string | null; image: string | null } | null;
   fileSize?: number | null;
+  /** Album the media belongs to; null when unfiled. Populated by the photo queries. */
+  albumName?: string | null;
 };
 
 // ── Dashboard Types ───────────────────────

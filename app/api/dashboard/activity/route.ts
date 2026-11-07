@@ -45,6 +45,7 @@ export async function GET() {
       id: row.id,
       type: row.type,
       description: row.body ?? row.title,
+      href: row.href,
       createdAt: row.createdAt,
       user: toPublicUser(userMap.get(row.actorId)) ?? { id: row.actorId, name: null, image: null },
     }));

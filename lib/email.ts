@@ -43,8 +43,16 @@ export function escapeHtml(s: string): string {
 /** Links in emails must stay same-origin (auth-gated app routes). */
 export function safeAppUrl(path: string): string {
   const base = (process.env.NEXTAUTH_URL || "").replace(/\/+$/, "");
-  const url = new URL(path, base || "http://localhost");
-  if (base && url.origin !== new URL(base).origin) return base;
+  // Fail closed: without a configured origin we cannot vouch for any absolute
+  // or protocol-relative destination, so only same-origin relative paths pass.
+  if (!base) {
+    if (typeof path === "string" && path.startsWith("/") && !path.startsWith("//")) {
+      return path;
+    }
+    return "";
+  }
+  const url = new URL(path, base);
+  if (url.origin !== new URL(base).origin) return base;
   return url.toString();
 }
 

@@ -103,7 +103,7 @@ export default function PublicGameClient() {
         <div>
           <h1 className="font-heading text-2xl font-semibold">Masuk untuk Main</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Masukkan nama kamu untuk bermain sebagai tamu. Login untuk masuk leaderboard
+            Masukkan nama kamu untuk bermain sebagai tamu.
           </p>
         </div>
         <form onSubmit={handleNameSubmit} className="flex w-full flex-col gap-3">

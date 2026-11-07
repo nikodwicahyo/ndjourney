@@ -90,7 +90,7 @@ export default function RecentActivity() {
             transition={{ duration: 0.2, delay: i * 0.03 }}
           >
             <Link
-              href={config.href(item.id)}
+              href={item.href || config.href(item.id)}
               className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 transition-all duration-300 hover:scale-[1.01] hover:shadow-md"
             >
               <div

@@ -204,7 +204,7 @@ export async function POST(request: Request) {
       action: "created",
       title: "Surat baru",
       body: `${session.user.name || "Pasangan"} mengirim surat`,
-      href: "/dashboard/letters",
+      href: `/dashboard/letters/${letter.id}`,
       level: "both",
     });
 

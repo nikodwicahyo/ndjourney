@@ -164,7 +164,7 @@ export async function GET(request: Request) {
         action: "created",
         title: "Kapsul waktu",
         body: "Surat kapsul waktu terbuka",
-        href: "/dashboard/letters",
+        href: `/dashboard/letters/${letter.id}`,
         level: "both",
       });
     }

@@ -62,7 +62,7 @@ export async function PUT(
         action: "updated",
         title: "Album diperbarui",
         body: `${rateCheck.session.user.name || "Pasangan"} mengganti nama album`,
-        href: "/dashboard/gallery",
+        href: `/dashboard/gallery?photo=${id}`,
         level: "bell",
       });
     }
@@ -129,7 +129,7 @@ export async function DELETE(
         action: "deleted",
         title: "Album dihapus",
         body: `${rateCheck.session.user.name || "Pasangan"} menghapus album`,
-        href: "/dashboard/gallery",
+        href: `/dashboard/gallery?photo=${id}`,
         level: "bell",
       });
     }

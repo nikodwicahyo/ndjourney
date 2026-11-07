@@ -58,7 +58,7 @@ export async function PUT(
         action: "updated",
         title: "Bank soal",
         body: `${rateCheck.session.user.name || "Pasangan"} memperbarui bank soal`,
-        href: "/dashboard/games",
+        href: `/dashboard/games?question=${id}`,
         level: "bell",
       });
     }
@@ -113,7 +113,7 @@ export async function DELETE(
         action: "updated",
         title: "Bank soal",
         body: `${rateCheck.session.user.name || "Pasangan"} memperbarui bank soal`,
-        href: "/dashboard/games",
+        href: `/dashboard/games?question=${id}`,
         level: "bell",
       });
     }

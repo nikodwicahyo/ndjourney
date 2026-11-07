@@ -81,6 +81,7 @@ export type RecentActivity = {
   type: "photo" | "letter" | "milestone" | "note" | "wish" | "game" | "arcade" | "profile" | "location" | "questions";
   description: string;
   createdAt: Date;
+  href?: string | null;
   user: Pick<User, "id" | "name" | "image">;
 };
 

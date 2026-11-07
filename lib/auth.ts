@@ -375,7 +375,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     }),
   ],
   callbacks: {
-    async signIn({ account, user }) {
+    async signIn({ account, user, profile }) {
       try {
         if (account?.provider === "credentials") {
           if (user.id) await ensureCouple(user.id);
@@ -431,6 +431,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           }
 
           if (email) {
+            if (profile && (profile as { email_verified?: boolean }).email_verified === false) {
+              return false;
+            }
             const existing = await prisma.user.findUnique({
               where: { email },
               select: { id: true, role: true },

@@ -9,6 +9,7 @@ import { queryKeys } from "@/lib/query-keys";
 import { api } from "@/lib/api-client";
 import { Loader2, Save, Upload, X, Cake, ImagePlus, Crop } from "lucide-react";
 import { toast } from "sonner";
+import { startMutationToast, settleMutationToast } from "@/lib/mutation-feedback";
 import { uploadFileSimple } from "@/lib/chunked-upload";
 import { validateFileSize } from "@/lib/upload-config";
 import { getJakartaDateOnly } from "@/lib/date";
@@ -192,7 +193,10 @@ export default function SettingsForm() {
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
+    if (saving) return;
+
     setSaving(true);
+    const toastId = startMutationToast("Menyimpan pengaturan...");
 
     try {
       const { error } = await api.put("/api/couple", {
@@ -212,15 +216,15 @@ export default function SettingsForm() {
       });
 
       if (error) {
-        toast.error(error);
+        settleMutationToast(toastId, "error", error);
         return;
       }
 
       qc.invalidateQueries({ queryKey: queryKeys.couple.config() });
       qc.invalidateQueries({ queryKey: queryKeys.dashboard.stats() });
-      toast.success("Pengaturan disimpan!");
+      settleMutationToast(toastId, "success", "Pengaturan disimpan!");
     } catch {
-      toast.error("Gagal menyimpan pengaturan");
+      settleMutationToast(toastId, "error", "Gagal menyimpan pengaturan");
     } finally {
       setSaving(false);
     }

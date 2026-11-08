@@ -10,6 +10,7 @@ import { uploadFileSimple } from "@/lib/chunked-upload";
 import { resolveUploadMime, validateFileSize } from "@/lib/upload-config";
 import { cropImageFile, isFullCrop, type CropRect } from "@/lib/image-crop";
 import { toast } from "sonner";
+import { startMutationToast, settleMutationToast } from "@/lib/mutation-feedback";
 
 type ProfileContentProps = {
   user: {
@@ -199,6 +200,7 @@ export default function ProfileContent({ user, partner, couple }: ProfileContent
   }
 
   async function handleSave() {
+    if (saving) return;
     if (!editName.trim()) {
       toast.error("Nama wajib diisi");
       setNameError("Nama wajib diisi");
@@ -207,6 +209,7 @@ export default function ProfileContent({ user, partner, couple }: ProfileContent
     setNameError("");
 
     setSaving(true);
+    const toastId = startMutationToast("Menyimpan profil...");
     try {
       const body: Record<string, unknown> = { name: editName.trim() };
       if (editImage !== displayImage) {
@@ -221,7 +224,7 @@ export default function ProfileContent({ user, partner, couple }: ProfileContent
 
       if (!res.ok) {
         const err = await res.json();
-        toast.error(err.error || "Gagal menyimpan profil");
+        settleMutationToast(toastId, "error", err.error || "Gagal menyimpan profil");
         return;
       }
 
@@ -231,7 +234,7 @@ export default function ProfileContent({ user, partner, couple }: ProfileContent
       setDisplayName(nextName);
       setDisplayImage(editImage);
       setShowModal(false);
-      toast.success("Profil berhasil diperbarui!");
+      settleMutationToast(toastId, "success", "Profil berhasil diperbarui!");
       try {
         // Data is required: bare update() is a GET that never fires the jwt
         // "update" trigger, leaving the token (Navbar/Sidebar/refresh) stale
@@ -249,7 +252,7 @@ export default function ProfileContent({ user, partner, couple }: ProfileContent
         // Session catches up on next login; this page is already correct.
       }
     } catch {
-      toast.error("Gagal menyimpan profil");
+      settleMutationToast(toastId, "error", "Gagal menyimpan profil");
     } finally {
       setSaving(false);
     }

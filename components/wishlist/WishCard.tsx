@@ -1,98 +1,22 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
-import Image from "next/image";
+import React, { useState } from "react";
 import { getOptimizedImageUrl } from "@/lib/cloudinary-urls";
 import { useToggleWish } from "@/hooks/useWishes";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { Check, Pencil, ExternalLink, Heart, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { startMutationToast, settleMutationToast } from "@/lib/mutation-feedback";
 import type { WishItem } from "@/types";
-import { cropCoverStyle, parseCropRect } from "@/lib/image-crop";
-
-const categoryConfig: Record<string, { label: string; color: string }> = {
-  DATE_IDEAS: { label: "Date Ideas", color: "#F43F5E" },
-  GIFTS: { label: "Gifts", color: "#6366F1" },
-  TRAVEL: { label: "Travel", color: "#22C55E" },
-  OTHER: { label: "Lainnya", color: "#F97316" },
-};
+import CropBanner from "./CropBanner";
+import WishDetailDialog from "./WishDetailDialog";
+import { categoryConfig } from "./wish-categories";
 
 type WishCardProps = {
   wish: WishItem;
   readOnly?: boolean;
   onEdit?: (wish: WishItem) => void;
 };
-
-// banner renders through imageCrop with the same math as the
-// cropper — null crop falls back to plain object-cover. Frame is 16/9, the same
-// as the cropper and the form preview, so what was framed is what shows.
-function CropBanner({ src, crop, alt, onError }: { src: string; crop: unknown; alt: string; onError?: () => void }) {
-  const rect = parseCropRect(crop);
-  const ref = useRef<HTMLDivElement>(null);
-  const [frame, setFrame] = useState<{ w: number; h: number } | null>(null);
-  const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const measure = () => {
-      const r = el.getBoundingClientRect();
-      if (r.width > 0 && r.height > 0) setFrame({ w: r.width, h: r.height });
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  // Reset measured dimensions when the image changes — render-time adjustment
-  // (React-endorsed), not a post-paint effect, so no cascading render.
-  const [prevSrc, setPrevSrc] = useState(src);
-  if (prevSrc !== src) {
-    setPrevSrc(src);
-    setNatural(null);
-  }
-
-  const onLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    const img = e.currentTarget;
-    if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-      setNatural({ w: img.naturalWidth, h: img.naturalHeight });
-    }
-  };
-
-  const style = rect && natural && frame
-    ? cropCoverStyle(natural.w, natural.h, frame.w, frame.h, rect)
-    : null;
-
-  return (
-    <div ref={ref} className="relative mt-2 aspect-[16/9] w-full overflow-hidden rounded-xl">
-      {style ? (
-        <Image
-          src={src}
-          alt={alt}
-          width={Math.round(style.width)}
-          height={Math.round(style.height)}
-          onLoad={onLoad}
-          onError={onError}
-          className="absolute max-w-none"
-          style={{ left: style.left, top: style.top }}
-          sizes="(max-width: 768px) 100vw, 33vw"
-        />
-      ) : (
-        <Image
-          src={src}
-          alt={alt}
-          fill
-          onLoad={onLoad}
-          onError={onError}
-          sizes="(max-width: 768px) 100vw, 33vw"
-          className="object-cover"
-        />
-      )}
-    </div>
-  );
-}
 
 // Deterministic per-sparkle jitter. Math.random() in render is impure
 // (react-hooks/purity) and made the burst jump on every re-render.
@@ -104,6 +28,7 @@ function jitter(i: number, salt: number): number {
 function WishCard({ wish, readOnly = false, onEdit }: WishCardProps) {
   const toggleWish = useToggleWish();
   const [imgError, setImgError] = useState(false);
+  const [open, setOpen] = useState(false);
   const cat = wish.category || "OTHER";
   const config = categoryConfig[cat] || categoryConfig.OTHER;
   const reduceMotion =
@@ -129,9 +54,21 @@ function WishCard({ wish, readOnly = false, onEdit }: WishCardProps) {
   }
 
   return (
+    <>
     <div
+      role="button"
+      tabIndex={0}
+      aria-label={`Lihat detail ${wish.title}`}
+      onClick={() => setOpen(true)}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return;
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          setOpen(true);
+        }
+      }}
       className={cn(
-        "group relative rounded-2xl border p-4 transition-all duration-300",
+        "group relative cursor-pointer rounded-2xl border p-4 transition-all duration-300 outline-none focus-visible:ring-2 focus-visible:ring-primary",
         wish.isDone
           ? "border-green-500/30 bg-green-500/[0.03]"
           : "border-border bg-card hover:scale-[1.02] hover:shadow-lg",
@@ -226,6 +163,7 @@ function WishCard({ wish, readOnly = false, onEdit }: WishCardProps) {
                 href={wish.link}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
                 className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
               >
                 <ExternalLink className="h-3 w-3" aria-hidden="true" />
@@ -239,7 +177,10 @@ function WishCard({ wish, readOnly = false, onEdit }: WishCardProps) {
           <div className="flex shrink-0 items-center gap-1">
             {onEdit && (
               <button
-                onClick={() => onEdit(wish)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(wish);
+                }}
                 className="flex h-11 w-11 items-center justify-center rounded-full text-muted-foreground transition-all hover:bg-primary/10 hover:text-primary"
                 aria-label="Ubah wish"
               >
@@ -247,7 +188,10 @@ function WishCard({ wish, readOnly = false, onEdit }: WishCardProps) {
               </button>
             )}
             <button
-              onClick={handleToggle}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleToggle();
+              }}
               disabled={toggleWish.isPending}
               className={cn(
                 "flex h-11 w-11 items-center justify-center rounded-full border-2 transition-all",
@@ -280,6 +224,11 @@ function WishCard({ wish, readOnly = false, onEdit }: WishCardProps) {
         </div>
       )}
     </div>
+
+    {/* Dialog renders OUTSIDE the clickable card so modal clicks never
+        re-trigger the card; when closed it renders null. */}
+    <WishDetailDialog wish={wish} open={open} onOpenChange={setOpen} readOnly={readOnly} />
+    </>
   );
 }
 

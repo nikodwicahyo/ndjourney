@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
-import Image from "next/image";
+import React, { useRef, useState } from "react";
 import { motion, useInView } from "framer-motion";
 import { MapPin, Edit3, Trash2, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -9,8 +8,8 @@ import { formatDate } from "@/lib/utils";
 import { showDeleteConfirm } from "@/lib/swal";
 import type { MilestoneWithRelations } from "@/hooks/useMilestones";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui";
-import { cropCoverStyle, cropDisplaySrc, parseCropRect } from "@/lib/image-crop";
-import { getOptimizedImageUrl } from "@/lib/cloudinary-urls";
+import CropThumb from "./CropThumb";
+import MilestoneDetailDialog from "./MilestoneDetailDialog";
 
 type MilestoneCardProps = {
   milestone: MilestoneWithRelations;
@@ -23,80 +22,6 @@ type MilestoneCardProps = {
   onPhotoClick?: (url: string) => void;
 };
 
-// thumb renders through the link crop with the same math as the
-// cropper — null crop falls back to plain object-cover. src = ORIGINAL url
-// (rects are original-space), thumb = square center-fill for the no-crop case.
-function CropThumb({ src, thumb, crop, eager, alt }: { src: string; thumb?: string | null; crop: unknown; eager?: boolean; alt: string }) {
-  const rect = parseCropRect(crop);
-  // Cloudinary variant of the original (aspect-preserving → crop
-  // fractions stay exact). Raw originals hang /_next/image past its 7s timeout
-  // (500) and HEIC never decodes in the browser — same rule as WishCard.
-  const url = getOptimizedImageUrl(cropDisplaySrc(src, thumb, rect), 640);
-  const ref = useRef<HTMLDivElement>(null);
-  const [frame, setFrame] = useState<{ w: number; h: number } | null>(null);
-  const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const measure = () => {
-      const r = el.getBoundingClientRect();
-      if (r.width > 0 && r.height > 0) setFrame({ w: r.width, h: r.height });
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  // Reset measured dimensions when the image changes — render-time adjustment
-  // (React-endorsed), not a post-paint effect, so no cascading render.
-  const [prevUrl, setPrevUrl] = useState(url);
-  if (prevUrl !== url) {
-    setPrevUrl(url);
-    setNatural(null);
-  }
-
-  const onLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    const img = e.currentTarget;
-    if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-      setNatural({ w: img.naturalWidth, h: img.naturalHeight });
-    }
-  };
-
-  const style = rect && natural && frame
-    ? cropCoverStyle(natural.w, natural.h, frame.w, frame.h, rect)
-    : null;
-
-  return (
-    <div ref={ref} className="absolute inset-0">
-      {style ? (
-        <Image
-          src={url}
-          alt={alt}
-          width={Math.round(style.width)}
-          height={Math.round(style.height)}
-          onLoad={onLoad}
-          className="absolute max-w-none transition-transform hover:scale-110"
-          style={{ left: style.left, top: style.top }}
-          sizes="130px"
-          loading={eager ? "eager" : "lazy"}
-        />
-      ) : (
-        <Image
-          src={url}
-          alt={alt}
-          fill
-          onLoad={onLoad}
-          sizes="130px"
-          loading={eager ? "eager" : "lazy"}
-          className="object-cover transition-transform hover:scale-110"
-        />
-      )}
-    </div>
-  );
-}
-
 function MilestoneCard({
   milestone,
   isAuthenticated,
@@ -108,6 +33,7 @@ function MilestoneCard({
 }: MilestoneCardProps) {
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-60px" });
+  const [open, setOpen] = useState(false);
 
   const isLeft = index % 2 === 0;
   const cardColor = milestone.color || "var(--primary)";
@@ -137,8 +63,19 @@ function MilestoneCard({
           )}
         >
           <div
+            role="button"
+            tabIndex={0}
+            aria-label={`Lihat detail ${milestone.title}`}
+            onClick={() => setOpen(true)}
+            onKeyDown={(e) => {
+              if (e.target !== e.currentTarget) return;
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setOpen(true);
+              }
+            }}
             className={cn(
-              "relative rounded-2xl border border-border bg-card p-5 shadow-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-lg",
+              "relative cursor-pointer rounded-2xl border border-border bg-card p-5 shadow-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-lg outline-none focus-visible:ring-2 focus-visible:ring-primary",
             )}
           >
             <div
@@ -213,14 +150,18 @@ function MilestoneCard({
               {isAuthenticated && (
                 <div className="flex shrink-0 gap-1">
                   <button
-                    onClick={() => onEdit?.(milestone)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEdit?.(milestone);
+                    }}
                     className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                     aria-label="Ubah milestone"
                   >
                     <Edit3 className="h-3.5 w-3.5" aria-hidden="true" />
                   </button>
                   <button
-                    onClick={async () => {
+                    onClick={async (e) => {
+                      e.stopPropagation();
                       const confirmed = await showDeleteConfirm({
                         title: "Hapus Milestone",
                         text: `Apakah Anda yakin ingin menghapus "${milestone.title}"?`,
@@ -253,6 +194,18 @@ function MilestoneCard({
           </div>
         </div>
       </div>
+
+      {/* Dialog renders OUTSIDE the clickable card so modal clicks never
+          re-trigger the card; when closed it renders null. */}
+      <MilestoneDetailDialog
+        milestone={milestone}
+        open={open}
+        onOpenChange={setOpen}
+        isAuthenticated={!!isAuthenticated}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        isDeleting={isDeleting}
+      />
     </motion.div>
   );
 }

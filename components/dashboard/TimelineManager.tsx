@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { useMilestones, useDeleteMilestone } from "@/hooks/useMilestones";
+import MilestoneDetailDialog from "@/components/timeline/MilestoneDetailDialog";
 import MilestoneCard from "@/components/timeline/MilestoneCard";
 import { Button, Skeleton } from "@/components/ui";
 import { Plus, Heart } from "lucide-react";
@@ -21,10 +22,16 @@ export default function TimelineManager() {
   const searchParams = useSearchParams();
   const milestoneParam = searchParams.get("milestone");
 
-  useEffect(() => {
-    if (!milestoneParam) return;
-    document.getElementById(`milestone-${milestoneParam}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [milestoneParam]);
+  // Deep link from push/notification or recent activity ("?milestone=<id>") →
+  // open that exact milestone in the detail modal. Derived live from the
+  // query param + list, so it opens as soon as the data is hydrated/loaded
+  // and nothing stale reopens after dismissal.
+  const [dismissedFor, setDismissedFor] = useState<string | null>(null);
+  const deepLinkedId =
+    milestoneParam && milestoneParam !== dismissedFor ? milestoneParam : null;
+  const deepLinkedMilestone = deepLinkedId
+    ? (milestones ?? []).find((m) => m.id === deepLinkedId) ?? null
+    : null;
 
   const openEdit = useCallback((m: import("@/hooks/useMilestones").MilestoneWithRelations) => {
     setEditingMilestone(m);
@@ -115,16 +122,15 @@ export default function TimelineManager() {
           <div className="absolute left-5 top-0 bottom-0 hidden w-0.5 bg-border md:block" />
           <div className="space-y-10 md:space-y-12">
             {milestones.map((milestone, index) => (
-              <div key={milestone.id} id={`milestone-${milestone.id}`}>
-                <MilestoneCard
-                  milestone={milestone}
-                  index={index}
-                  isAuthenticated
-                  onEdit={openEdit}
-                  onDelete={handleDelete}
-                  isDeleting={deleteMilestone.isPending}
-                />
-              </div>
+              <MilestoneCard
+                key={milestone.id}
+                milestone={milestone}
+                index={index}
+                isAuthenticated
+                onEdit={openEdit}
+                onDelete={handleDelete}
+                isDeleting={deleteMilestone.isPending}
+              />
             ))}
           </div>
         </div>
@@ -137,6 +143,23 @@ export default function TimelineManager() {
             setShowForm(false);
             setEditingMilestone(null);
           }}
+        />
+      )}
+
+      {deepLinkedMilestone && (
+        <MilestoneDetailDialog
+          milestone={deepLinkedMilestone}
+          open
+          onOpenChange={(next) => {
+            if (!next) setDismissedFor(milestoneParam);
+          }}
+          isAuthenticated
+          onEdit={(m) => {
+            setDismissedFor(milestoneParam);
+            openEdit(m);
+          }}
+          onDelete={handleDelete}
+          isDeleting={deleteMilestone.isPending}
         />
       )}
     </div>

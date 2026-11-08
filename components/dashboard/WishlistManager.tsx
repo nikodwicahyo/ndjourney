@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useWishes } from "@/hooks/useWishes";
 import WishCard from "@/components/wishlist/WishCard";
 import WishForm from "@/components/wishlist/WishForm";
+import WishDetailDialog from "@/components/wishlist/WishDetailDialog";
 import { Button, Skeleton } from "@/components/ui";
 import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
@@ -28,20 +29,14 @@ export default function WishlistManager() {
   const wishParam = searchParams.get("wish");
 
   // Deep link from push/notification or recent activity ("?wish=<id>") → open
-  // that exact wish.
-  const [prevWishParam, setPrevWishParam] = useState<string | null>(null);
-  const [deepLinkedWishId, setDeepLinkedWishId] = useState<string | null>(null);
-
-  const deepLinkedWish = deepLinkedWishId
-    ? (wishes ?? []).find((w) => w.id === deepLinkedWishId) ?? null
+  // that exact wish in the detail modal. Derived live from the query param +
+  // list, so it opens as soon as the data is hydrated/loaded.
+  const [dismissedFor, setDismissedFor] = useState<string | null>(null);
+  const deepLinkedId =
+    wishParam && wishParam !== dismissedFor ? wishParam : null;
+  const deepLinkedWish = deepLinkedId
+    ? (wishes ?? []).find((w) => w.id === deepLinkedId) ?? null
     : null;
-
-  if (wishParam !== prevWishParam) {
-    setPrevWishParam(wishParam);
-    setDeepLinkedWishId(wishParam && (wishes ?? []).some((w) => w.id === wishParam) ? wishParam : null);
-  }
-
-  const effectiveEditingWish = deepLinkedWish ?? editingWish;
 
   const filtered = (wishes || [])
     .filter((w) => !filter || w.category === filter)
@@ -144,11 +139,8 @@ export default function WishlistManager() {
           </button>
 
           <WishForm
-            editingWish={effectiveEditingWish}
-            onClose={() => {
-              setEditingWish(null);
-              setDeepLinkedWishId(null);
-            }}
+            editingWish={editingWish}
+            onClose={() => setEditingWish(null)}
           />
         </div>
       </div>
@@ -160,7 +152,7 @@ export default function WishlistManager() {
 
       {filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
-          <Gift className="h-12 w-12 text-muted-foreground" />
+          <Gift className="h-12 w-12 text-muted-foreground" aria-hidden="true" />
           <div>
             <p className="font-medium">Belum ada wish</p>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -174,13 +166,20 @@ export default function WishlistManager() {
             <WishCard
               key={wish.id}
               wish={wish}
-              onEdit={(w) => {
-                setDeepLinkedWishId(null);
-                setEditingWish(w);
-              }}
+              onEdit={(w) => setEditingWish(w)}
             />
           ))}
         </motion.div>
+      )}
+
+      {deepLinkedWish && (
+        <WishDetailDialog
+          wish={deepLinkedWish}
+          open
+          onOpenChange={(next) => {
+            if (!next) setDismissedFor(wishParam);
+          }}
+        />
       )}
     </div>
   );

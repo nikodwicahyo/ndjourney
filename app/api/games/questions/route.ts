@@ -105,7 +105,7 @@ export async function POST(request: Request) {
       action: "created",
       title: "Bank soal",
       body: `${rateCheck.session.user.name || "Pasangan"} memperbarui bank soal`,
-      href: "/dashboard/games",
+      href: `/dashboard/games?question=${question.id}`,
       level: "bell",
     });
 

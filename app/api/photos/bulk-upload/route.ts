@@ -222,7 +222,8 @@ export async function POST(request: Request) {
         action: "created",
         title: "Foto baru",
         body: `${session.user.name || "Pasangan"} menambahkan ${photos.length} foto`,
-        href: "/dashboard/gallery",
+        // Single batch notification → deep-link to the first media of the batch.
+        href: photos[0] ? `/dashboard/gallery?photo=${photos[0].id}` : "/dashboard/gallery",
         level: "both",
         meta: { count: photos.length },
       });

@@ -81,7 +81,7 @@ export async function POST(request: Request) {
       action: "created",
       title: "Wishlist",
       body: `${rateCheck.session.user.name || "Pasangan"} menambahkan keinginan "${wish.title}"`,
-      href: "/dashboard/wishlist",
+      href: `/dashboard/wishlist?wish=${wish.id}`,
       level: "both",
     });
 

@@ -183,7 +183,7 @@ export async function POST(request: Request) {
         action: "created",
         title: "Milestone baru",
         body: `${session.user.name || "Pasangan"} menambahkan "${milestone.title}"`,
-        href: "/dashboard/timeline",
+        href: `/dashboard/timeline?milestone=${milestone.id}`,
         level: "both",
       });
     }

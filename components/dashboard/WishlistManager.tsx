@@ -5,6 +5,7 @@ import { useWishes } from "@/hooks/useWishes";
 import WishCard from "@/components/wishlist/WishCard";
 import WishForm from "@/components/wishlist/WishForm";
 import { Button, Skeleton } from "@/components/ui";
+import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Gift, Filter, Heart, PartyPopper } from "lucide-react";
 import { cn, FILTER_CHIP_CLASSES } from "@/lib/utils";
@@ -23,6 +24,24 @@ export default function WishlistManager() {
   const [filter, setFilter] = useState("");
   const [showDone, setShowDone] = useState(true);
   const [editingWish, setEditingWish] = useState<WishItem | null>(null);
+  const searchParams = useSearchParams();
+  const wishParam = searchParams.get("wish");
+
+  // Deep link from push/notification or recent activity ("?wish=<id>") → open
+  // that exact wish.
+  const [prevWishParam, setPrevWishParam] = useState<string | null>(null);
+  const [deepLinkedWishId, setDeepLinkedWishId] = useState<string | null>(null);
+
+  const deepLinkedWish = deepLinkedWishId
+    ? (wishes ?? []).find((w) => w.id === deepLinkedWishId) ?? null
+    : null;
+
+  if (wishParam !== prevWishParam) {
+    setPrevWishParam(wishParam);
+    setDeepLinkedWishId(wishParam && (wishes ?? []).some((w) => w.id === wishParam) ? wishParam : null);
+  }
+
+  const effectiveEditingWish = deepLinkedWish ?? editingWish;
 
   const filtered = (wishes || [])
     .filter((w) => !filter || w.category === filter)
@@ -125,8 +144,11 @@ export default function WishlistManager() {
           </button>
 
           <WishForm
-            editingWish={editingWish}
-            onClose={() => setEditingWish(null)}
+            editingWish={effectiveEditingWish}
+            onClose={() => {
+              setEditingWish(null);
+              setDeepLinkedWishId(null);
+            }}
           />
         </div>
       </div>
@@ -149,7 +171,14 @@ export default function WishlistManager() {
       ) : (
         <motion.div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filtered.map((wish) => (
-            <WishCard key={wish.id} wish={wish} onEdit={setEditingWish} />
+            <WishCard
+              key={wish.id}
+              wish={wish}
+              onEdit={(w) => {
+                setDeepLinkedWishId(null);
+                setEditingWish(w);
+              }}
+            />
           ))}
         </motion.div>
       )}

@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { usePhotos, useUploadPhotos, useDeletePhoto, useAlbums, useUpdatePhoto } from "@/hooks/usePhotos";
+import { usePhotos, usePhoto, useUploadPhotos, useDeletePhoto, useAlbums, useUpdatePhoto } from "@/hooks/usePhotos";
 import { useStorageUsage } from "@/hooks/useStorage";
 import AlbumManager from "./AlbumManager";
 import { Button, Skeleton, StorageUsageBar } from "@/components/ui";
@@ -83,8 +83,12 @@ export default function GalleryManager() {
 
   const [lightboxIndex, setLightboxIndex] = useState(-1);
   const lightboxIndexRef = useRef(-1);
+  // Photo fetched by id when a deep link points outside the current filter/page
+  // (e.g. a private upload) — shown as a one-off lightbox.
+  const [standalonePhoto, setStandalonePhoto] = useState<Photo | null>(null);
 
   const handlePhotoClick = useCallback((index: number) => {
+    setStandalonePhoto(null);
     lightboxIndexRef.current = index;
     setLightboxIndex(index);
   }, []);
@@ -97,6 +101,7 @@ export default function GalleryManager() {
   const handleLightboxClose = useCallback(() => {
     lightboxIndexRef.current = -1;
     setLightboxIndex(-1);
+    setStandalonePhoto(null);
   }, []);
 
   const queryClient = useQueryClient();
@@ -104,16 +109,43 @@ export default function GalleryManager() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const photos = useMemo(() => data?.pages.flatMap((p) => p.data || []) ?? [], [data]);
+  const lightboxPhotos = useMemo(
+    () => (standalonePhoto ? [standalonePhoto] : photos),
+    [standalonePhoto, photos],
+  );
 
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
   // Deep link from push/notification or recent activity ("?photo=<id>") →
-  // open the lightbox directly on that media.
-  useEffect(() => {
-    if (!photoParam) return;
-    const idx = photos.findIndex((p) => p.id === photoParam);
-    if (idx >= 0) handlePhotoClick(idx);
-  }, [photoParam, photos, handlePhotoClick]);
+  // open the lightbox directly on that media. Only a *new* param opens it: the
+  // param stays in the URL, so keying off `photos` would re-open the lightbox
+  // on every refetch (upload, filter, invalidation).
+  const [prevPhotoParam, setPrevPhotoParam] = useState<string | null>(null);
+  const [pendingPhotoId, setPendingPhotoId] = useState<string | null>(null);
+
+  if (photoParam !== prevPhotoParam) {
+    setPrevPhotoParam(photoParam);
+    setPendingPhotoId(photoParam);
+  }
+
+  const deepLinkMissing =
+    !!pendingPhotoId && !isLoading && !photos.some((p) => p.id === pendingPhotoId);
+  const { data: fetchedPhoto } = usePhoto(deepLinkMissing ? pendingPhotoId ?? "" : "");
+
+  if (pendingPhotoId) {
+    const idx = photos.findIndex((p) => p.id === pendingPhotoId);
+    if (idx >= 0) {
+      // Consumed: later refetches no longer touch the lightbox.
+      setPendingPhotoId(null);
+      lightboxIndexRef.current = idx;
+      setLightboxIndex(idx);
+    } else if (fetchedPhoto) {
+      setPendingPhotoId(null);
+      setStandalonePhoto(fetchedPhoto);
+      lightboxIndexRef.current = 0;
+      setLightboxIndex(0);
+    }
+  }
 
   useEffect(() => {
     document.documentElement.toggleAttribute("data-select-mode", selectedIds.size > 0);
@@ -442,10 +474,11 @@ export default function GalleryManager() {
     try {
       await deletePhoto.mutateAsync(id);
       const idx = lightboxIndexRef.current;
-      const total = photos.length;
+      const total = standalonePhoto ? 1 : photos.length;
       if (total <= 1) {
         setLightboxIndex(-1);
         lightboxIndexRef.current = -1;
+        setStandalonePhoto(null);
       } else if (idx >= total - 1) {
         const next = idx - 1;
         setLightboxIndex(next);
@@ -455,7 +488,7 @@ export default function GalleryManager() {
     } catch (err) {
       settleMutationToast(toastId, "error", err instanceof Error ? err.message : "Gagal menghapus media");
     }
-  }, [deletePhoto, photos.length]);
+  }, [deletePhoto, photos.length, standalonePhoto]);
 
   // Favorite/public toggles are optimistic and toast from useUpdatePhoto, so
   // callers stay one-line and never double-toast.
@@ -1070,7 +1103,7 @@ export default function GalleryManager() {
       )}
 
       <Lightbox
-        photos={photos}
+        photos={lightboxPhotos}
         currentIndex={lightboxIndex}
         isOpen={lightboxIndex >= 0}
         onClose={handleLightboxClose}
@@ -1078,9 +1111,9 @@ export default function GalleryManager() {
         onDelete={handleDelete}
         showAlbumMove={true}
         showDownload={true}
-        fetchNextPage={fetchNextPage}
-        hasNextPage={hasNextPage}
-        totalCount={data?.pages[0]?.total ?? photos.length}
+        fetchNextPage={standalonePhoto ? undefined : fetchNextPage}
+        hasNextPage={standalonePhoto ? false : hasNextPage}
+        totalCount={standalonePhoto ? 1 : (data?.pages[0]?.total ?? photos.length)}
       />
     </div>
   );

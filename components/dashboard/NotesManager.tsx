@@ -8,7 +8,7 @@ import { Button, Skeleton, Avatar, AvatarImage, AvatarFallback } from "@/compone
 import { Send, Heart, MessageCircle, Calendar, List, Loader2, Trash2 } from "lucide-react";
 import { formatDate, formatRelativeTime } from "@/lib/utils";
 import { startMutationToast, settleMutationToast } from "@/lib/mutation-feedback";
-import { getJakartaToday } from "@/lib/date";
+import { getJakartaDateOnly, getJakartaToday } from "@/lib/date";
 import { motion } from "framer-motion";
 import { cn, FILTER_GROUP_CLASSES, FILTER_SEGMENT_CLASSES } from "@/lib/utils";
 import { showDeleteConfirm } from "@/lib/swal";
@@ -28,16 +28,30 @@ export default function NotesManager() {
   );
 
   // Deep link from push/notification or recent activity ("?note=<id>") → open
-  // that exact note (jump the history view to its date).
+  // that exact note. The id can belong to any day, but the list is date-scoped
+  // by default, so load the full history first and resolve once it arrives —
+  // the render-phase check runs before the first fetch has any data.
   const [prevNoteParam, setPrevNoteParam] = useState<string | null>(null);
+  const [pendingNoteId, setPendingNoteId] = useState<string | null>(null);
 
   if (noteParam !== prevNoteParam) {
     setPrevNoteParam(noteParam);
-    const note = (selectedNotes ?? []).find((n) => n.id === noteParam);
-    if (note) {
+    setPendingNoteId(noteParam);
+    // Already loaded (e.g. a note written today) → no extra fetch needed.
+    if (noteParam && !(selectedNotes ?? []).some((n) => n.id === noteParam)) {
       setViewMode("all");
-      setSelectedDate(new Date(note.date).toISOString().slice(0, 10));
     }
+  }
+
+  const deepLinkedNote = pendingNoteId
+    ? ((selectedNotes ?? []).find((n) => n.id === pendingNoteId) ?? null)
+    : null;
+
+  if (deepLinkedNote) {
+    // Consumed: jump the history view to the note's day and stop watching.
+    setPendingNoteId(null);
+    setSelectedDate(getJakartaDateOnly(deepLinkedNote.date));
+    setViewMode("date");
   }
 
   async function handleSubmit(e: React.FormEvent) {

@@ -183,4 +183,19 @@ describe("notifications API (GET /api/notifications, POST /api/notifications/see
     expect(res.status).toBe(401);
     expect(prismaMock.coupleMember.update).not.toHaveBeenCalled();
   });
+
+  it("N-06: maps title+body pass-through and preserves deep-link href", async () => {
+    vi.mocked(prismaMock.activityEvent.findMany).mockResolvedValue([e2]);
+    vi.mocked(prismaMock.activityEvent.count).mockResolvedValue(1);
+
+    const res = await getNotifications(new Request("http://localhost/api/notifications"));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+
+    // Content copy must survive the API layer (title = headline, body = detail)
+    // and stay in sync with the push payload shape ({ title, body, url }).
+    expect(body.items[0].title).toBe("A letter");
+    expect(body.items[0].body).toBe("x");
+    expect(body.items[0].href).toBe("/letters/1");
+  });
 });

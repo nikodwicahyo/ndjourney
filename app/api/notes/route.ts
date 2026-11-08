@@ -163,7 +163,7 @@ export async function POST(request: Request) {
         action: "created",
         title: "Catatan harian",
         body: `${session.user.name || "Pasangan"} menulis catatan`,
-        href: "/dashboard/notes",
+        href: `/dashboard/notes?note=${note.id}`,
         level: "both",
       });
     }

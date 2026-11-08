@@ -7,6 +7,7 @@ import { Button } from "@/components/ui";
 import GalleryPicker from "@/components/ui/GalleryPicker";
 import { Plus, Loader2, X, Upload, ImagePlus, Trash2, Crop } from "lucide-react";
 import { toast } from "sonner";
+import { startMutationToast, settleMutationToast } from "@/lib/mutation-feedback";
 import { showDeleteConfirm } from "@/lib/swal";
 import { uploadFileSimple } from "@/lib/chunked-upload";
 import { resolveUploadMime } from "@/lib/upload-config";
@@ -98,7 +99,6 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
   const [localPreviewUrl, setLocalPreviewUrl] = useState("");
   const [previewFailed, setPreviewFailed] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [showGalleryPicker, setShowGalleryPicker] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const localPreviewUrlRef = useRef("");
@@ -252,10 +252,14 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
       imageCrop: imageUrl ? (imageCrop ?? null) : null,
     };
 
+    if (createWish.isPending || updateWish.isPending) return;
+
+    const toastId = startMutationToast(isEditing ? "Menyimpan wish..." : "Menambahkan wish...");
+
     try {
       if (isEditing) {
         await updateWish.mutateAsync({ id: editingWish.id, ...data });
-        toast.success("Wish diperbarui!");
+        settleMutationToast(toastId, "success", "Wish diperbarui!");
       } else {
         await createWish.mutateAsync({
           ...data,
@@ -264,13 +268,11 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
           imageUrl: imageUrl || undefined,
           imageCrop: imageUrl ? (imageCrop ?? undefined) : undefined,
         });
-        toast.success("Wish ditambahkan!");
+        settleMutationToast(toastId, "success", "Wish ditambahkan!");
       }
       reset();
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Gagal menyimpan wish",
-      );
+      settleMutationToast(toastId, "error", err instanceof Error ? err.message : "Gagal menyimpan wish");
     }
   }
 
@@ -283,15 +285,14 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
     });
     if (!confirmed) return;
 
-    setDeleting(true);
+    const toastId = startMutationToast("Menghapus wish...");
+
     try {
       await deleteWish.mutateAsync(editingWish.id);
-      toast.success("Wish dihapus");
+      settleMutationToast(toastId, "success", "Wish dihapus");
       reset();
     } catch {
-      toast.error("Gagal menghapus wish");
-    } finally {
-      setDeleting(false);
+      settleMutationToast(toastId, "error", "Gagal menghapus wish");
     }
   }
 
@@ -509,15 +510,15 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
                   <button
                     type="button"
                     onClick={handleDelete}
-                    disabled={deleting}
+                    disabled={deleteWish.isPending}
                     className="flex w-full items-center justify-center gap-2 rounded-xl border border-destructive/30 px-4 py-2 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10"
                   >
-                    {deleting ? (
+                    {deleteWish.isPending ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <Trash2 className="h-4 w-4" />
                     )}
-                    {deleting ? "Menghapus..." : "Hapus Wish"}
+                    {deleteWish.isPending ? "Menghapus..." : "Hapus Wish"}
                   </button>
                 </div>
               )}

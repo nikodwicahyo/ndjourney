@@ -7,7 +7,7 @@ import { useToggleWish } from "@/hooks/useWishes";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, Pencil, ExternalLink, Heart, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
+import { startMutationToast, settleMutationToast } from "@/lib/mutation-feedback";
 import type { WishItem } from "@/types";
 import { cropCoverStyle, parseCropRect } from "@/lib/image-crop";
 
@@ -96,7 +96,6 @@ function CropBanner({ src, crop, alt, onError }: { src: string; crop: unknown; a
 
 function WishCard({ wish, readOnly = false, onEdit }: WishCardProps) {
   const toggleWish = useToggleWish();
-  const [animating, setAnimating] = useState(false);
   const [imgError, setImgError] = useState(false);
   const cat = wish.category || "OTHER";
   const config = categoryConfig[cat] || categoryConfig.OTHER;
@@ -106,20 +105,19 @@ function WishCard({ wish, readOnly = false, onEdit }: WishCardProps) {
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   async function handleToggle() {
-    if (animating) return;
-    setAnimating(true);
+    if (toggleWish.isPending) return;
+
+    const toastId = startMutationToast("Menyimpan status wish...");
 
     try {
       await toggleWish.mutateAsync({ id: wish.id, isDone: !wish.isDone });
-      toast.success(
-        wish.isDone
-          ? "Wish ditandai belum selesai"
-          : "Selamat! Wish tercapai!",
+      settleMutationToast(
+        toastId,
+        "success",
+        wish.isDone ? "Wish ditandai belum selesai" : "Selamat! Wish tercapai!",
       );
     } catch {
-      toast.error("Gagal mengupdate wish");
-    } finally {
-      setTimeout(() => setAnimating(false), 600);
+      settleMutationToast(toastId, "error", "Gagal mengupdate wish");
     }
   }
 
@@ -243,13 +241,13 @@ function WishCard({ wish, readOnly = false, onEdit }: WishCardProps) {
             )}
             <button
               onClick={handleToggle}
-              disabled={animating}
+              disabled={toggleWish.isPending}
               className={cn(
                 "flex h-11 w-11 items-center justify-center rounded-full border-2 transition-all",
                 wish.isDone
                   ? "scale-110 border-green-500 bg-green-500 text-white"
                   : "border-muted-foreground/30 text-muted-foreground hover:border-primary hover:text-primary",
-                animating && "scale-90",
+                toggleWish.isPending && "scale-90",
               )}
               aria-label={wish.isDone ? "Tandai belum selesai" : "Tandai selesai"}
             >

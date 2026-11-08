@@ -91,7 +91,7 @@ describe("photos API contracts", () => {
     expect(res?.status).toBe(200);
     // SEC: legacy null-couple rows are uploader-scoped, and the cache is per-user.
     const [listSql, ...listParams] = prismaMock.$queryRawUnsafe.mock.calls[0];
-    expect(listSql).toContain(`"uploadedById" = $2`);
+    expect(listSql).toContain(`p."uploadedById" = $2`);
     expect(listParams).toContain(ME);
     const { getCached } = await import("@/lib/redis");
     expect(vi.mocked(getCached).mock.calls[0][0]).toContain(`:${ME}:`);
@@ -104,6 +104,41 @@ describe("photos API contracts", () => {
     const [countSql, ...countParams] = prismaMock.$queryRawUnsafe.mock.calls[1];
     const maxPlaceholder = Math.max(...[...countSql.matchAll(/\$(\d+)/g)].map((m) => Number(m[1])));
     expect(maxPlaceholder).toBe(countParams.length);
+  });
+
+  it("GAL-05e: list SQL qualifies Photo columns (Album join is not ambiguous)", async () => {
+    // Regression: the Album join shares isPublic/coupleId/createdAt with Photo,
+    // so unqualified WHERE columns made Postgres reject the query with 42702.
+    const PHOTO_COLS = [
+      "isMilestoneOnly",
+      "isPublic",
+      "coupleId",
+      "albumId",
+      "uploadedById",
+      "isFavorite",
+      "createdAt",
+      "isVideo",
+    ];
+    const barePhotoCols = (sql: string) => {
+      const withoutSubqueries = sql.replace(/\(SELECT[\s\S]*?FROM "Album"[\s\S]*?\)/g, "");
+      return PHOTO_COLS.filter((c) => new RegExp(`(?<![.\\w])"${c}"`).test(withoutSubqueries));
+    };
+
+    prismaMock.$queryRawUnsafe
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ total: 0, fotoTotal: 0, videoTotal: 0 }]);
+    const res = await GET(
+      new Request("http://localhost/api/photos?visibility=public&isFavorite=true&year=2024&mediaType=foto&limit=30"),
+    );
+    expect(res?.status).toBe(200);
+
+    const [listSql] = prismaMock.$queryRawUnsafe.mock.calls[0];
+    expect(listSql).toContain(`FROM "Photo" p`);
+    expect(barePhotoCols(listSql)).toEqual([]);
+
+    const [countSql] = prismaMock.$queryRawUnsafe.mock.calls[1];
+    expect(countSql.match(/FROM "Photo" p/g)).toHaveLength(3);
+    expect(barePhotoCols(countSql)).toEqual([]);
   });
 
   it("GAL-05b: GET public (anon) still 200", async () => {

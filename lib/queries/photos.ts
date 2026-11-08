@@ -74,7 +74,9 @@ export async function listPhotos(
     }
   }
 
-  const conditions: string[] = ['"isMilestoneOnly" = false'];
+  // Columns are `p.`-qualified: the data query joins Album, which shares
+  // isPublic/coupleId/createdAt, so bare names are Postgres 42702 ambiguous.
+  const conditions: string[] = ['p."isMilestoneOnly" = false'];
   const sqlParams: unknown[] = [];
 
   // one public rule for anon AND authed public filter — photo must be
@@ -82,33 +84,33 @@ export async function listPhotos(
   // SEC: authed non-public views are couple-scoped; legacy null-couple rows
   // stay visible only to their uploader (matches GET /api/photos/[id]).
   if (!isAuthed || visibility === "public") {
-    conditions.push(`"isPublic" = true`);
+    conditions.push(`p."isPublic" = true`);
     conditions.push(
-      `("albumId" IS NULL OR "albumId" IN (SELECT "id" FROM "Album" WHERE "isPublic" = true))`,
+      `(p."albumId" IS NULL OR p."albumId" IN (SELECT al."id" FROM "Album" al WHERE al."isPublic" = true))`,
     );
   } else if (!coupleId) {
     // Unpaired member: only their own rows, never another user's orphans.
-    conditions.push(`"uploadedById" = $${sqlParams.length + 1}`);
+    conditions.push(`p."uploadedById" = $${sqlParams.length + 1}`);
     sqlParams.push(userId);
     if (visibility === "private") {
-      conditions.push(`"isPublic" = false`);
+      conditions.push(`p."isPublic" = false`);
     }
   } else if (visibility === "private") {
-    conditions.push(`"isPublic" = false`);
-    conditions.push(`("coupleId" = $${sqlParams.length + 1} OR ("coupleId" IS NULL AND "uploadedById" = $${sqlParams.length + 2}))`);
+    conditions.push(`p."isPublic" = false`);
+    conditions.push(`(p."coupleId" = $${sqlParams.length + 1} OR (p."coupleId" IS NULL AND p."uploadedById" = $${sqlParams.length + 2}))`);
     sqlParams.push(coupleId, userId);
   } else {
-    conditions.push(`("coupleId" = $${sqlParams.length + 1} OR ("coupleId" IS NULL AND "uploadedById" = $${sqlParams.length + 2}))`);
+    conditions.push(`(p."coupleId" = $${sqlParams.length + 1} OR (p."coupleId" IS NULL AND p."uploadedById" = $${sqlParams.length + 2}))`);
     sqlParams.push(coupleId, userId);
   }
 
   if (albumId) {
-    conditions.push(`"albumId" = $${sqlParams.length + 1}`);
+    conditions.push(`p."albumId" = $${sqlParams.length + 1}`);
     sqlParams.push(albumId);
   }
 
   if (isFavorite === "true") {
-    conditions.push(`"isFavorite" = true`);
+    conditions.push(`p."isFavorite" = true`);
   }
 
   if (year) {
@@ -119,14 +121,14 @@ export async function listPhotos(
     const startDate = jakartaYearStart(yearNum);
     const endDate = jakartaYearStart(yearNum + 1);
     const startIdx = sqlParams.length + 1;
-    conditions.push(`"createdAt" >= $${startIdx} AND "createdAt" < $${startIdx + 1}`);
+    conditions.push(`p."createdAt" >= $${startIdx} AND p."createdAt" < $${startIdx + 1}`);
     sqlParams.push(startDate, endDate);
   }
 
   if (mediaType === "video") {
-    conditions.push(`"isVideo" = true`);
+    conditions.push(`p."isVideo" = true`);
   } else if (mediaType === "foto") {
-    conditions.push(`"isVideo" = false`);
+    conditions.push(`p."isVideo" = false`);
   }
 
   const isOldest = sort === "oldest";
@@ -169,9 +171,9 @@ export async function listPhotos(
   const shiftPlaceholders = (clause: string, offset: number) =>
     clause.replace(/\$(\d+)/g, (_, n) => `$${Number(n) + offset}`);
   const nParams = sqlParams.length;
-  const countQuery = `SELECT (SELECT COUNT(*)::int FROM "Photo" ${baseWhereClause}) AS total,
-    (SELECT COUNT(*)::int FROM "Photo" ${shiftPlaceholders(baseWhereClause, nParams)}${baseWhereClause ? " AND" : "WHERE"} "isVideo" = false) AS "fotoTotal",
-    (SELECT COUNT(*)::int FROM "Photo" ${shiftPlaceholders(baseWhereClause, 2 * nParams)}${baseWhereClause ? " AND" : "WHERE"} "isVideo" = true) AS "videoTotal"`;
+  const countQuery = `SELECT (SELECT COUNT(*)::int FROM "Photo" p ${baseWhereClause}) AS total,
+    (SELECT COUNT(*)::int FROM "Photo" p ${shiftPlaceholders(baseWhereClause, nParams)}${baseWhereClause ? " AND" : "WHERE"} p."isVideo" = false) AS "fotoTotal",
+    (SELECT COUNT(*)::int FROM "Photo" p ${shiftPlaceholders(baseWhereClause, 2 * nParams)}${baseWhereClause ? " AND" : "WHERE"} p."isVideo" = true) AS "videoTotal"`;
   const countResult = await prisma.$queryRawUnsafe<{ total: number; fotoTotal: number; videoTotal: number }[]>(countQuery, ...sqlParams, ...sqlParams, ...sqlParams);
   const total = countResult[0]?.total ?? data.length;
   const fotoTotal = countResult[0]?.fotoTotal ?? 0;

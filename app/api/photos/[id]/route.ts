@@ -232,8 +232,8 @@ export async function PUT(
       await emitActivity(callerCoupleId, userId, {
         type: "photo",
         action: "updated",
-        title: "Foto diperbarui",
-        body: `${rateCheck.session.user.name || "Pasangan"} memperbarui foto`,
+        title: photo.isVideo ? "Video diperbarui" : "Foto diperbarui",
+        body: `${rateCheck.session.user.name || "Pasangan"} memperbarui ${photo.isVideo ? "video" : "foto"}`,
         href: `/dashboard/gallery?photo=${id}`,
         level: "bell",
         meta: { thumbnailUrl: photo.thumbnailUrl ?? photo.url },
@@ -302,8 +302,8 @@ export async function DELETE(
       await emitActivity(deleteCoupleId, userId, {
         type: "photo",
         action: "deleted",
-        title: "Foto dihapus",
-        body: `${rateCheck.session.user.name || "Pasangan"} menghapus foto`,
+        title: photo.isVideo ? "Video dihapus" : "Foto dihapus",
+        body: `${rateCheck.session.user.name || "Pasangan"} menghapus ${photo.isVideo ? "video" : "foto"}`,
         // The target no longer exists — a `?photo=` link would 404 and the
         // deep link would silently do nothing. Land on the gallery instead.
         href: "/dashboard/gallery",

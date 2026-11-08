@@ -217,11 +217,22 @@ export async function POST(request: Request) {
     ]);
 
     if (coupleId) {
+      const videoCount = photos.filter((p) => p.isVideo).length;
+      const imageCount = photos.length - videoCount;
+      const mediaSummary =
+        videoCount === 0
+          ? `${imageCount} foto`
+          : imageCount === 0
+            ? `${videoCount} video`
+            : `${imageCount} foto dan ${videoCount} video`;
+      const mediaTitle =
+        videoCount === 0 ? "Foto baru" : imageCount === 0 ? "Video baru" : "Media baru";
+
       await emitActivity(coupleId, session.user.id, {
         type: "photo",
         action: "created",
-        title: "Foto baru",
-        body: `${session.user.name || "Pasangan"} menambahkan ${photos.length} foto`,
+        title: mediaTitle,
+        body: `${session.user.name || "Pasangan"} menambahkan ${mediaSummary}`,
         // Single batch notification → deep-link to the first media of the batch.
         href: photos[0] ? `/dashboard/gallery?photo=${photos[0].id}` : "/dashboard/gallery",
         level: "both",

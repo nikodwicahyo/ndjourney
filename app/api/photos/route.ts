@@ -152,8 +152,8 @@ export async function POST(request: Request) {
     await emitActivity(coupleId, session.user.id, {
       type: "photo",
       action: "created",
-      title: "Foto baru",
-      body: `${session.user.name || "Pasangan"} menambahkan 1 foto`,
+      title: created.isVideo ? "Video baru" : "Foto baru",
+      body: `${session.user.name || "Pasangan"} menambahkan 1 ${created.isVideo ? "video" : "foto"}`,
       href: `/dashboard/gallery?photo=${created.id}`,
       level: "both",
       meta: { thumbnailUrl: created.thumbnailUrl ?? created.url },

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useCreateNote } from "@/hooks/useNotes";
 import { Button } from "@/components/ui";
 import { Send, Loader2 } from "lucide-react";
-import { toast } from "sonner";
+import { startMutationToast, settleMutationToast } from "@/lib/mutation-feedback";
 
 const MAX_LENGTH = 280;
 
@@ -15,14 +15,17 @@ export default function NoteForm({ onSuccess }: { onSuccess?: () => void }) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!content.trim()) return;
+    if (createNote.isPending) return;
+
+    const toastId = startMutationToast("Mengirim catatan...");
 
     try {
       await createNote.mutateAsync(content.trim());
-      toast.success("Catatan terkirim!");
+      settleMutationToast(toastId, "success", "Catatan terkirim!");
       setContent("");
       onSuccess?.();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Gagal mengirim catatan");
+      settleMutationToast(toastId, "error", err instanceof Error ? err.message : "Gagal mengirim catatan");
     }
   }
 

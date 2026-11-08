@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { useSession } from "next-auth/react";
+import { useSearchParams } from "next/navigation";
 import { useDailyNotes, useCreateNote, useDeleteNote } from "@/hooks/useNotes";
 import { Button, Skeleton, Avatar, AvatarImage, AvatarFallback } from "@/components/ui";
 import { Send, Heart, MessageCircle, Calendar, List, Loader2, Trash2 } from "lucide-react";
 import { formatDate, formatRelativeTime } from "@/lib/utils";
+import { startMutationToast, settleMutationToast } from "@/lib/mutation-feedback";
 import { getJakartaToday } from "@/lib/date";
 import { motion } from "framer-motion";
-import { toast } from "sonner";
 import { cn, FILTER_GROUP_CLASSES, FILTER_SEGMENT_CLASSES } from "@/lib/utils";
 import { showDeleteConfirm } from "@/lib/swal";
 
@@ -20,20 +21,39 @@ export default function NotesManager() {
   const [content, setContent] = useState("");
   const [selectedDate, setSelectedDate] = useState(today);
   const [viewMode, setViewMode] = useState<"all" | "date">("date");
+  const searchParams = useSearchParams();
+  const noteParam = searchParams.get("note");
   const { data: selectedNotes, isLoading, error } = useDailyNotes(
     viewMode === "all" ? undefined : selectedDate,
   );
+
+  // Deep link from push/notification or recent activity ("?note=<id>") → open
+  // that exact note (jump the history view to its date).
+  const [prevNoteParam, setPrevNoteParam] = useState<string | null>(null);
+
+  if (noteParam !== prevNoteParam) {
+    setPrevNoteParam(noteParam);
+    const note = (selectedNotes ?? []).find((n) => n.id === noteParam);
+    if (note) {
+      setViewMode("all");
+      setSelectedDate(new Date(note.date).toISOString().slice(0, 10));
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!content.trim()) return;
 
+    if (createNote.isPending) return;
+
+    const toastId = startMutationToast("Mengirim catatan...");
+
     try {
       await createNote.mutateAsync(content.trim());
-      toast.success("Catatan terkirim!");
+      settleMutationToast(toastId, "success", "Catatan terkirim!");
       setContent("");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Gagal mengirim catatan");
+      settleMutationToast(toastId, "error", err instanceof Error ? err.message : "Gagal mengirim catatan");
     }
   }
 
@@ -44,11 +64,15 @@ export default function NotesManager() {
     });
     if (!confirmed) return;
 
+    if (deleteNote.isPending) return;
+
+    const toastId = startMutationToast("Menghapus catatan...");
+
     try {
       await deleteNote.mutateAsync(id);
-      toast.success("Catatan berhasil dihapus");
+      settleMutationToast(toastId, "success", "Catatan berhasil dihapus");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Gagal menghapus catatan");
+      settleMutationToast(toastId, "error", err instanceof Error ? err.message : "Gagal menghapus catatan");
     }
   }
 
@@ -190,7 +214,8 @@ export default function NotesManager() {
                       {isAuthor && (
                         <button
                           onClick={() => handleDelete(note.id)}
-                          className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                          disabled={deleteNote.isPending}
+                          className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-50 disabled:cursor-not-allowed"
                           aria-label="Hapus catatan"
                         >
                           <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />

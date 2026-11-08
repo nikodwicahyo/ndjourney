@@ -39,6 +39,9 @@ export default function QueryProvider({
             refetchOnReconnect: true,
           },
           mutations: {
+            // Writes must never retry: a retried create/update can double-apply
+            // (or surface a stale error after a successful commit).
+            retry: 0,
             onError: queryErrorHandler,
           },
         },

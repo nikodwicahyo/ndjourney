@@ -16,9 +16,11 @@ type LetterCardProps = {
   index?: number;
   baseHref?: string;
   onDelete?: () => void;
+  /** True while the delete mutation is in flight — gates the delete button. */
+  isDeleting?: boolean;
 };
 
-function LetterCard({ letter, type, index = 0, baseHref = "/dashboard/letters", onDelete }: LetterCardProps) {
+function LetterCard({ letter, type, index = 0, baseHref = "/dashboard/letters", onDelete, isDeleting }: LetterCardProps) {
   const mood = LETTER_MOOD_CONFIG[letter.mood as keyof typeof LETTER_MOOD_CONFIG];
   const isLocked = isLetterLocked(letter);
   // Both tabs anchor on the author: inbox reads who it's from,
@@ -98,7 +100,8 @@ function LetterCard({ letter, type, index = 0, baseHref = "/dashboard/letters", 
             e.stopPropagation();
             onDelete();
           }}
-          className="absolute top-1/2 right-2 flex min-h-[44px] min-w-[44px] -translate-y-1/2 items-center justify-center rounded-full p-2.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+          disabled={isDeleting}
+          className="absolute top-1/2 right-2 flex min-h-[44px] min-w-[44px] -translate-y-1/2 items-center justify-center rounded-full p-2.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-50"
           aria-label="Hapus surat"
         >
           <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />

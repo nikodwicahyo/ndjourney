@@ -19,6 +19,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { toast } from "sonner";
+import { startMutationToast, settleMutationToast } from "@/lib/mutation-feedback";
 import type { LetterMood } from "@/types";
 import {
   formatInJakarta,
@@ -136,6 +137,7 @@ export default function NewLetterForm({
     }
 
     setLoading(true);
+    const toastId = startMutationToast("Mengirim surat...");
     try {
       await createLetter.mutateAsync({
         title: title.trim(),
@@ -146,11 +148,11 @@ export default function NewLetterForm({
         unlockAt: isTimeCapsule && unlockAt ? unlockAt.toISOString() : null,
       });
       clear();
-      toast.success("Surat terkirim!");
+      settleMutationToast(toastId, "success", "Surat terkirim!");
       if (onClose) onClose();
       else router.push("/dashboard/letters");
     } catch {
-      toast.error("Gagal mengirim surat");
+      settleMutationToast(toastId, "error", "Gagal mengirim surat");
     } finally {
       setLoading(false);
     }

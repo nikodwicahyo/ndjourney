@@ -11,7 +11,7 @@ import { useSession } from "next-auth/react";
 import { LETTER_MOOD_CONFIG } from "@/types";
 import { Avatar, AvatarImage, AvatarFallback, BackLink } from "@/components/ui";
 import { ArrowLeft, Sparkles } from "lucide-react";
-import { toast } from "sonner";
+import { startMutationToast, settleMutationToast } from "@/lib/mutation-feedback";
 import EnvelopeAnimation from "./EnvelopeAnimation";
 import TimeCapsuleLock from "./TimeCapsuleLock";
 import LetterDetailSkeleton from "./LetterDetailSkeleton";
@@ -74,13 +74,15 @@ export default function LetterViewer({ id, backHref = "/dashboard/letters" }: Le
   }, [fullLetter?.content]);
 
   async function handleOpen() {
+    if (isOpening) return;
     setIsOpening(true);
+    const toastId = startMutationToast("Membuka surat...");
     try {
       await openLetter.mutateAsync(id);
       setOpened(true);
-      toast.success("Surat dibuka!");
+      settleMutationToast(toastId, "success", "Surat dibuka!");
     } catch {
-      toast.error("Gagal membuka surat");
+      settleMutationToast(toastId, "error", "Gagal membuka surat");
     } finally {
       setIsOpening(false);
     }

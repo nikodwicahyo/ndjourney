@@ -6,7 +6,7 @@ import { Button, Skeleton } from "@/components/ui";
 import { PenLine, Inbox, Send, MailQuestion } from "lucide-react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { toast } from "sonner";
+import { startMutationToast, settleMutationToast } from "@/lib/mutation-feedback";
 import { cn, FILTER_GROUP_CLASSES, FILTER_SEGMENT_CLASSES } from "@/lib/utils";
 import { showDeleteConfirm } from "@/lib/swal";
 
@@ -20,6 +20,25 @@ export default function LetterList() {
   const [tab, setTab] = useLetterTab();
   const { data: letters, isLoading, error, refetch } = useLetters(tab);
   const deleteLetter = useDeleteLetter();
+
+  async function handleDeleteLetter(id: string) {
+    if (deleteLetter.isPending) return;
+
+    const confirmed = await showDeleteConfirm({
+      title: "Hapus Surat",
+      text: "Apakah Anda yakin ingin menghapus surat ini?",
+    });
+    if (!confirmed) return;
+
+    const toastId = startMutationToast("Menghapus surat...");
+
+    try {
+      await deleteLetter.mutateAsync(id);
+      settleMutationToast(toastId, "success", "Surat dihapus");
+    } catch {
+      settleMutationToast(toastId, "error", "Gagal menghapus surat");
+    }
+  }
 
   if (!session?.user) {
     return (
@@ -134,18 +153,8 @@ export default function LetterList() {
               letter={letter}
               type={tab}
               index={i}
-              onDelete={tab === "sent" ? async () => {
-                const confirmed = await showDeleteConfirm({
-                  title: "Hapus Surat",
-                  text: "Apakah Anda yakin ingin menghapus surat ini?",
-                });
-                if (confirmed) {
-                  deleteLetter.mutate(letter.id, {
-                    onSuccess: () => toast.success("Surat dihapus"),
-                    onError: () => toast.error("Gagal menghapus surat"),
-                  });
-                }
-              } : undefined}
+              onDelete={tab === "sent" ? () => handleDeleteLetter(letter.id) : undefined}
+              isDeleting={deleteLetter.isPending}
             />
           ))}
         </div>

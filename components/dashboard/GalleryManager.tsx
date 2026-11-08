@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useMemo, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePhotos, useUploadPhotos, useDeletePhoto, useAlbums, useUpdatePhoto } from "@/hooks/usePhotos";
 import { useStorageUsage } from "@/hooks/useStorage";
@@ -15,6 +16,7 @@ import type { Photo } from "@/types";
 import PhotoCard from "@/components/gallery/PhotoCard";
 import AlbumDropdown from "@/components/gallery/AlbumDropdown";
 import { formatBytes, formatTime, getMaxFileSize, resolveUploadMime } from "@/lib/upload-config";
+import { startMutationToast, settleMutationToast } from "@/lib/mutation-feedback";
 import { toast } from "sonner";
 
 const Lightbox = dynamic(() => import("../gallery/Lightbox"), { ssr: false });
@@ -58,6 +60,8 @@ export default function GalleryManager() {
   const [storageOpen, setStorageOpen] = useState(false);
   const [albumOpen, setAlbumOpen] = useState(false);
   const [showMoveModal, setShowMoveModal] = useState(false);
+  const searchParams = useSearchParams();
+  const photoParam = searchParams.get("photo");
   const [mediaType, setMediaType] = useState<string | undefined>();
   const [sort, setSort] = useState<string | undefined>();
   const [albumFilter, setAlbumFilter] = useState<string | undefined>();
@@ -101,6 +105,14 @@ export default function GalleryManager() {
   const photos = useMemo(() => data?.pages.flatMap((p) => p.data || []) ?? [], [data]);
 
   const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  // Deep link from push/notification or recent activity ("?photo=<id>") →
+  // open the lightbox directly on that media.
+  useEffect(() => {
+    if (!photoParam) return;
+    const idx = photos.findIndex((p) => p.id === photoParam);
+    if (idx >= 0) handlePhotoClick(idx);
+  }, [photoParam, photos, handlePhotoClick]);
 
   useEffect(() => {
     document.documentElement.toggleAttribute("data-select-mode", selectedIds.size > 0);
@@ -151,6 +163,7 @@ export default function GalleryManager() {
     });
     if (!confirmed) return;
     const ids = Array.from(selectedIds);
+    const toastId = startMutationToast(`Menghapus ${count} media...`);
     const results = await Promise.allSettled(
       ids.map(async (id) => {
         const r = await fetch(`/api/photos/${id}`, { method: "DELETE" });
@@ -171,24 +184,23 @@ export default function GalleryManager() {
     );
     const failed = results.filter((r) => r.status === "rejected");
     const succeeded = results.filter((r) => r.status === "fulfilled").length;
-    if (succeeded > 0) {
-      toast.success(`${succeeded} media dihapus`);
-      queryClient.invalidateQueries({ queryKey: ["photos"] });
-      queryClient.invalidateQueries({ queryKey: ["albums"] });
-      queryClient.invalidateQueries({ queryKey: ["storage", "usage"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard", "stats"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard", "activity"] });
-    }
     if (failed.length > 0) {
       const reason = failed[0].status === "rejected" ? (failed[0].reason as Error)?.message : "";
       const allSame = failed.every(
         (f) => f.status === "rejected" && (f.reason as Error)?.message === reason,
       );
-      toast.error(
-        allSame && reason
-          ? `${failed.length} media gagal dihapus: ${reason}`
-          : `${failed.length} media gagal dihapus`,
+      settleMutationToast(
+        toastId,
+        "error",
+        allSame && reason ? `${failed.length} media gagal dihapus: ${reason}` : `${failed.length} media gagal dihapus`,
       );
+    } else if (succeeded > 0) {
+      settleMutationToast(toastId, "success", `${succeeded} media dihapus`);
+      queryClient.invalidateQueries({ queryKey: ["photos"] });
+      queryClient.invalidateQueries({ queryKey: ["albums"] });
+      queryClient.invalidateQueries({ queryKey: ["storage", "usage"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard", "stats"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard", "activity"] });
     }
     clearSelection();
   }, [selectedIds, queryClient, clearSelection]);
@@ -197,6 +209,7 @@ export default function GalleryManager() {
   const handleBatchMove = useCallback(async () => {
     if (!moveAlbumId || selectedIds.size === 0) return;
     const ids = Array.from(selectedIds);
+    const toastId = startMutationToast("Memindahkan media...");
     const results = await Promise.allSettled(
       ids.map((id) =>
         fetch(`/api/photos/${id}`, {
@@ -210,12 +223,13 @@ export default function GalleryManager() {
     );
     const failed = results.filter((r) => r.status === "rejected").length;
     const succeeded = results.filter((r) => r.status === "fulfilled").length;
-    if (succeeded > 0) {
-      toast.success(`${succeeded} media dipindahkan`);
+    if (failed > 0) {
+      settleMutationToast(toastId, "error", `${failed} media gagal dipindahkan`);
+    } else if (succeeded > 0) {
+      settleMutationToast(toastId, "success", `${succeeded} media dipindahkan`);
       queryClient.invalidateQueries({ queryKey: ["photos"] });
       queryClient.invalidateQueries({ queryKey: ["albums"] });
     }
-    if (failed > 0) toast.error(`${failed} media gagal dipindahkan`);
     setMoveAlbumId("");
     clearSelection();
   }, [moveAlbumId, selectedIds, queryClient, clearSelection]);
@@ -223,6 +237,7 @@ export default function GalleryManager() {
   const handleBatchVisibility = useCallback(async (isPublic: boolean) => {
     if (selectedIds.size === 0) return;
     const ids = Array.from(selectedIds);
+    const toastId = startMutationToast(isPublic ? "Mengubah visibilitas media..." : "Mengubah visibilitas media...");
     const results = await Promise.allSettled(
       ids.map((id) =>
         fetch(`/api/photos/${id}`, {
@@ -236,12 +251,13 @@ export default function GalleryManager() {
     );
     const failed = results.filter((r) => r.status === "rejected").length;
     const succeeded = results.filter((r) => r.status === "fulfilled").length;
-    if (succeeded > 0) {
-      toast.success(`${succeeded} media ${isPublic ? "publik" : "privat"}`);
+    if (failed > 0) {
+      settleMutationToast(toastId, "error", `${failed} media gagal diubah`);
+    } else if (succeeded > 0) {
+      settleMutationToast(toastId, "success", `${succeeded} media ${isPublic ? "publik" : "privat"}`);
       queryClient.invalidateQueries({ queryKey: ["photos"] });
       queryClient.invalidateQueries({ queryKey: ["albums"] });
     }
-    if (failed > 0) toast.error(`${failed} media gagal diubah`);
     clearSelection();
   }, [selectedIds, queryClient, clearSelection]);
 
@@ -394,23 +410,23 @@ export default function GalleryManager() {
 
   const handleDelete = useCallback(async (id: string) => {
     const confirmed = await showDeleteConfirm({ title: "Hapus Media", text: "Apakah Anda yakin ingin menghapus media ini?" });
-    if (confirmed) {
+    if (!confirmed) return;
+    const toastId = startMutationToast("Menghapus media...");
+    try {
+      await deletePhoto.mutateAsync(id);
       const idx = lightboxIndexRef.current;
       const total = photos.length;
-      deletePhoto.mutate(id, {
-        onSuccess: () => {
-          if (total <= 1) {
-            setLightboxIndex(-1);
-            lightboxIndexRef.current = -1;
-          } else if (idx >= total - 1) {
-            const next = idx - 1;
-            lightboxIndexRef.current = next;
-            setLightboxIndex(next);
-          }
-          toast.success("Media dihapus");
-        },
-        onError: (err) => toast.error(err instanceof Error ? err.message : "Gagal menghapus media"),
-      });
+      if (total <= 1) {
+        setLightboxIndex(-1);
+        lightboxIndexRef.current = -1;
+      } else if (idx >= total - 1) {
+        const next = idx - 1;
+        setLightboxIndex(next);
+        lightboxIndexRef.current = next;
+      }
+      settleMutationToast(toastId, "success", "Media dihapus");
+    } catch (err) {
+      settleMutationToast(toastId, "error", err instanceof Error ? err.message : "Gagal menghapus media");
     }
   }, [deletePhoto, photos.length]);
 

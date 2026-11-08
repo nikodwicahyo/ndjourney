@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useAlbums, useUpdatePhoto } from "@/hooks/usePhotos";
 import { Folder, Loader2, Check, X } from "lucide-react";
-import { toast } from "sonner";
+import { startMutationToast, settleMutationToast } from "@/lib/mutation-feedback";
 import { cn } from "@/lib/utils";
 
 type AlbumMoveDropdownProps = {
@@ -25,12 +25,13 @@ export default function AlbumMoveDropdown({
       setOpen(false);
       return;
     }
+    const toastId = startMutationToast("Memindahkan media...");
     try {
       await updatePhoto.mutateAsync({ id: photoId, albumId: selectedId });
-      toast.success("Media dipindahkan");
+      settleMutationToast(toastId, "success", "Media dipindahkan");
       setOpen(false);
     } catch {
-      toast.error("Gagal memindahkan media");
+      settleMutationToast(toastId, "error", "Gagal memindahkan media");
     }
   }
 

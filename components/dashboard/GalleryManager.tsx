@@ -130,7 +130,9 @@ export default function GalleryManager() {
 
   const deepLinkMissing =
     !!pendingPhotoId && !isLoading && !photos.some((p) => p.id === pendingPhotoId);
-  const { data: fetchedPhoto } = usePhoto(deepLinkMissing ? pendingPhotoId ?? "" : "");
+  const { data: fetchedPhoto, isError: deepLinkFailed } = usePhoto(
+    deepLinkMissing ? pendingPhotoId ?? "" : "",
+  );
 
   if (pendingPhotoId) {
     const idx = photos.findIndex((p) => p.id === pendingPhotoId);
@@ -144,6 +146,14 @@ export default function GalleryManager() {
       setStandalonePhoto(fetchedPhoto);
       lightboxIndexRef.current = 0;
       setLightboxIndex(0);
+    } else if (deepLinkFailed) {
+      // Target is gone (deleted/invalid id — e.g. a stale or mistyped deep
+      // link). Surface it instead of silently landing on the plain grid.
+      // Stable id: fires once per link, even under StrictMode double-render.
+      setPendingPhotoId(null);
+      toast.error("Media tidak ditemukan atau sudah dihapus", {
+        id: `deeplink-404-${pendingPhotoId}`,
+      });
     }
   }
 

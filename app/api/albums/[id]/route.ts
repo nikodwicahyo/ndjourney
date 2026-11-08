@@ -62,7 +62,9 @@ export async function PUT(
         action: "updated",
         title: "Album diperbarui",
         body: `${rateCheck.session.user.name || "Pasangan"} mengganti nama album`,
-        href: `/dashboard/gallery?photo=${id}`,
+        // Album is not a photo — a `?photo=<albumId>` link resolves to a 404
+        // and silently opens nothing. Land on the gallery instead.
+        href: "/dashboard/gallery",
         level: "bell",
       });
     }
@@ -129,7 +131,9 @@ export async function DELETE(
         action: "deleted",
         title: "Album dihapus",
         body: `${rateCheck.session.user.name || "Pasangan"} menghapus album`,
-        href: `/dashboard/gallery?photo=${id}`,
+        // Album is not a photo — a `?photo=<albumId>` link resolves to a 404
+        // and silently opens nothing. Land on the gallery instead.
+        href: "/dashboard/gallery",
         level: "bell",
       });
     }

@@ -304,7 +304,9 @@ export async function DELETE(
         action: "deleted",
         title: "Foto dihapus",
         body: `${rateCheck.session.user.name || "Pasangan"} menghapus foto`,
-        href: `/dashboard/gallery?photo=${id}`,
+        // The target no longer exists — a `?photo=` link would 404 and the
+        // deep link would silently do nothing. Land on the gallery instead.
+        href: "/dashboard/gallery",
         level: "bell",
       });
     }

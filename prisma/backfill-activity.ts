@@ -20,7 +20,7 @@ async function main() {
         action: "created",
         title: p.isVideo ? "Video baru" : "Foto baru",
         body: null,
-        href: "/dashboard/gallery",
+        href: `/dashboard/gallery?photo=${p.id}`,
         level: "both",
         createdAt: p.createdAt,
       },

@@ -18,6 +18,8 @@ type MilestoneCardProps = {
   index: number;
   onEdit?: (milestone: MilestoneWithRelations) => void;
   onDelete?: (id: string) => void;
+  /** True while the delete mutation is in flight — gates the confirm button. */
+  isDeleting?: boolean;
   onPhotoClick?: (url: string) => void;
 };
 
@@ -101,6 +103,7 @@ function MilestoneCard({
   index,
   onEdit,
   onDelete,
+  isDeleting,
   onPhotoClick,
 }: MilestoneCardProps) {
   const ref = useRef<HTMLDivElement>(null);
@@ -224,7 +227,8 @@ function MilestoneCard({
                       });
                       if (confirmed) onDelete?.(milestone.id);
                     }}
-                    className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                    disabled={isDeleting}
+                    className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-50 disabled:cursor-not-allowed"
                     aria-label="Hapus milestone"
                   >
                     <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />

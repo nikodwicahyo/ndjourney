@@ -14,7 +14,7 @@ const AddMilestoneForm = dynamic(() => import("./AddMilestoneForm"), {
 });
 import { Button, Skeleton } from "@/components/ui";
 import { Heart, Plus } from "lucide-react";
-import { toast } from "sonner";
+import { startMutationToast, settleMutationToast } from "@/lib/mutation-feedback";
 import type { MilestoneWithRelations } from "@/hooks/useMilestones";
 
 export default function TimelineList() {
@@ -32,13 +32,16 @@ export default function TimelineList() {
   }, []);
 
   const handleDelete = useCallback(
-    (id: string) => {
+    async (id: string) => {
       // Single confirmation lives in MilestoneCard (with the milestone title)
       // — confirming here too showed two dialogs in a row.
-      deleteMilestone.mutate(id, {
-        onSuccess: () => toast.success("Milestone dihapus"),
-        onError: () => toast.error("Gagal menghapus milestone"),
-      });
+      const toastId = startMutationToast("Menghapus milestone...");
+      try {
+        await deleteMilestone.mutateAsync(id);
+        settleMutationToast(toastId, "success", "Milestone dihapus");
+      } catch {
+        settleMutationToast(toastId, "error", "Gagal menghapus milestone");
+      }
     },
     [deleteMilestone],
   );
@@ -128,6 +131,7 @@ export default function TimelineList() {
               isAuthenticated={!!session?.user}
               onEdit={openEdit}
               onDelete={handleDelete}
+              isDeleting={deleteMilestone.isPending}
             />
           ))}
         </div>

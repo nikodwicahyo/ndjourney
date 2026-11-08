@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import { useSearchParams } from "next/navigation";
 import { useMilestones, useDeleteMilestone } from "@/hooks/useMilestones";
 import MilestoneCard from "@/components/timeline/MilestoneCard";
 import { Button, Skeleton } from "@/components/ui";
 import { Plus, Heart } from "lucide-react";
-import { toast } from "sonner";
+import { startMutationToast, settleMutationToast } from "@/lib/mutation-feedback";
 
 const AddMilestoneForm = dynamic(() => import("@/components/timeline/AddMilestoneForm"), {
   loading: () => <div className="h-48 animate-pulse rounded-2xl bg-muted" />,
@@ -17,6 +18,13 @@ export default function TimelineManager() {
   const deleteMilestone = useDeleteMilestone();
   const [showForm, setShowForm] = useState(false);
   const [editingMilestone, setEditingMilestone] = useState<import("@/hooks/useMilestones").MilestoneWithRelations | null>(null);
+  const searchParams = useSearchParams();
+  const milestoneParam = searchParams.get("milestone");
+
+  useEffect(() => {
+    if (!milestoneParam) return;
+    document.getElementById(`milestone-${milestoneParam}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [milestoneParam]);
 
   const openEdit = useCallback((m: import("@/hooks/useMilestones").MilestoneWithRelations) => {
     setEditingMilestone(m);
@@ -24,13 +32,16 @@ export default function TimelineManager() {
   }, []);
 
   const handleDelete = useCallback(
-    (id: string) => {
+    async (id: string) => {
       // Single confirmation lives in MilestoneCard (with the milestone title)
       // — confirming here too showed two dialogs in a row.
-      deleteMilestone.mutate(id, {
-        onSuccess: () => toast.success("Milestone dihapus"),
-        onError: () => toast.error("Gagal menghapus milestone"),
-      });
+      const toastId = startMutationToast("Menghapus milestone...");
+      try {
+        await deleteMilestone.mutateAsync(id);
+        settleMutationToast(toastId, "success", "Milestone dihapus");
+      } catch {
+        settleMutationToast(toastId, "error", "Gagal menghapus milestone");
+      }
     },
     [deleteMilestone],
   );
@@ -103,13 +114,14 @@ export default function TimelineManager() {
           <div className="absolute left-5 top-0 bottom-0 hidden w-0.5 bg-border md:block" />
           <div className="space-y-10 md:space-y-12">
             {milestones.map((milestone, index) => (
-              <div key={milestone.id}>
+              <div key={milestone.id} id={`milestone-${milestone.id}`}>
                 <MilestoneCard
                   milestone={milestone}
                   index={index}
                   isAuthenticated
                   onEdit={openEdit}
                   onDelete={handleDelete}
+                  isDeleting={deleteMilestone.isPending}
                 />
               </div>
             ))}

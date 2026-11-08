@@ -10,6 +10,7 @@ import { X, Loader2, Upload, ImagePlus, Crop } from "lucide-react";
 import { toast } from "sonner";
 import type { MilestoneWithRelations } from "@/hooks/useMilestones";
 import { uploadFileSimple } from "@/lib/chunked-upload";
+import { startMutationToast, settleMutationToast } from "@/lib/mutation-feedback";
 import { getJakartaDateOnly, getJakartaToday } from "@/lib/date";
 import { cn } from "@/lib/utils";
 import { parseCropRect, cropCoverStyle, cropDisplaySrc, type CropRect } from "@/lib/image-crop";
@@ -240,6 +241,7 @@ export default function AddMilestoneForm({
       return;
     }
     setTitleError(null);
+    if (loading) return;
 
     setLoading(true);
 
@@ -267,17 +269,19 @@ export default function AddMilestoneForm({
       photoCrops: Object.keys(photoCrops).length > 0 ? photoCrops : undefined,
     };
 
+    const toastId = startMutationToast(isEditing ? "Menyimpan milestone..." : "Milestone baru ditambahkan...");
+
     try {
       if (isEditing) {
         await updateMilestone.mutateAsync({ id: milestone.id, ...data });
-        toast.success("Milestone diperbarui!");
+        settleMutationToast(toastId, "success", "Milestone diperbarui!");
       } else {
         await createMilestone.mutateAsync(data);
-        toast.success("Milestone baru ditambahkan!");
+        settleMutationToast(toastId, "success", "Milestone baru ditambahkan!");
       }
       onClose();
     } catch {
-      toast.error("Gagal menyimpan milestone");
+      settleMutationToast(toastId, "error", "Gagal menyimpan milestone");
     } finally {
       setLoading(false);
     }

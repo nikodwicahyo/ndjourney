@@ -94,6 +94,13 @@ function CropBanner({ src, crop, alt, onError }: { src: string; crop: unknown; a
   );
 }
 
+// Deterministic per-sparkle jitter. Math.random() in render is impure
+// (react-hooks/purity) and made the burst jump on every re-render.
+function jitter(i: number, salt: number): number {
+  const x = Math.sin(i * 12.9898 + salt * 78.233) * 43758.5453;
+  return x - Math.floor(x);
+}
+
 function WishCard({ wish, readOnly = false, onEdit }: WishCardProps) {
   const toggleWish = useToggleWish();
   const [imgError, setImgError] = useState(false);
@@ -143,12 +150,12 @@ function WishCard({ wish, readOnly = false, onEdit }: WishCardProps) {
               }}
               animate={{
                 opacity: [1, 0],
-                x: `${40 + Math.random() * 20}%`,
-                y: `${10 + Math.random() * 30}%`,
+                x: `${40 + jitter(i, 1) * 20}%`,
+                y: `${10 + jitter(i, 2) * 30}%`,
                 scale: [0, 1.5],
               }}
               transition={{
-                duration: 0.8 + Math.random() * 0.4,
+                duration: 0.8 + jitter(i, 3) * 0.4,
                 delay: i * 0.08,
                 ease: "easeOut",
               }}

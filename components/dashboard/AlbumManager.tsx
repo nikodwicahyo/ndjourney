@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button, Skeleton } from "@/components/ui";
 import { Plus, Loader2, X, Trash2, Pencil, Check, Globe, EyeOff, ChevronDown, FolderOpen } from "lucide-react";
-import { toast } from "sonner";
+import { startMutationToast, settleMutationToast } from "@/lib/mutation-feedback";
 import { showDeleteConfirm } from "@/lib/swal";
 import { cn, FILTER_GROUP_CLASSES, FILTER_SEGMENT_CLASSES } from "@/lib/utils";
 import { queryKeys } from "@/lib/query-keys";
@@ -52,13 +52,11 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.albums.all });
-      toast.success("Album dibuat!");
       setShowForm(false);
       setName("");
       setDescription("");
       setIsPublic(true);
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "Gagal membuat album"),
   });
 
   const updateAlbum = useMutation({
@@ -84,12 +82,10 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.albums.all });
-      toast.success("Album diubah");
       setEditingId(null);
       setEditName("");
       setEditDescription("");
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "Gagal mengupdate album"),
   });
 
   const deleteAlbum = useMutation({
@@ -99,10 +95,25 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.albums.all });
-      toast.success("Album dihapus");
     },
-    onError: () => toast.error("Gagal menghapus album"),
   });
+
+  async function handleCreateAlbum() {
+    if (createAlbum.isPending || !name.trim()) return;
+
+    const toastId = startMutationToast("Membuat album...");
+
+    try {
+      await createAlbum.mutateAsync({
+        name: name.trim(),
+        description: description.trim() || undefined,
+        isPublic,
+      });
+      settleMutationToast(toastId, "success", "Album dibuat!");
+    } catch (err) {
+      settleMutationToast(toastId, "error", err instanceof Error ? err.message : "Gagal membuat album");
+    }
+  }
 
   function startEditing(album: AlbumWithCount) {
     setEditingId(album.id);
@@ -118,14 +129,41 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
     setEditIsPublic(true);
   }
 
-  function saveEdit() {
-    if (!editingId || !editName.trim()) return;
-    updateAlbum.mutate({
-      id: editingId,
-      name: editName.trim(),
-      description: editDescription.trim() || undefined,
-      isPublic: editIsPublic,
+  async function saveEdit() {
+    if (!editingId || !editName.trim() || updateAlbum.isPending) return;
+
+    const toastId = startMutationToast("Menyimpan album...");
+
+    try {
+      await updateAlbum.mutateAsync({
+        id: editingId,
+        name: editName.trim(),
+        description: editDescription.trim() || undefined,
+        isPublic: editIsPublic,
+      });
+      settleMutationToast(toastId, "success", "Album diubah");
+    } catch (err) {
+      settleMutationToast(toastId, "error", err instanceof Error ? err.message : "Gagal mengupdate album");
+    }
+  }
+
+  async function handleDeleteAlbum(album: AlbumWithCount) {
+    if (deleteAlbum.isPending) return;
+
+    const confirmed = await showDeleteConfirm({
+      title: "Hapus Album",
+      text: `Apakah Anda yakin ingin menghapus album "${album.name}"?`,
     });
+    if (!confirmed) return;
+
+    const toastId = startMutationToast("Menghapus album...");
+
+    try {
+      await deleteAlbum.mutateAsync(album.id);
+      settleMutationToast(toastId, "success", "Album dihapus");
+    } catch (err) {
+      settleMutationToast(toastId, "error", err instanceof Error ? err.message : "Gagal menghapus album");
+    }
   }
 
   return (
@@ -238,7 +276,7 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
               </div>
             </div>
             <Button
-              onClick={() => createAlbum.mutate({ name: name.trim(), description: description.trim() || undefined, isPublic })}
+              onClick={handleCreateAlbum}
               disabled={!name.trim() || createAlbum.isPending}
               className="w-full gap-2"
             >
@@ -391,17 +429,10 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
                               <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                             </button>
                             <button
-                              onClick={async () => {
-                                const confirmed = await showDeleteConfirm({
-                                  title: "Hapus Album",
-                                  text: `Apakah Anda yakin ingin menghapus album "${album.name}"?`,
-                                });
-                                if (confirmed) {
-                                  deleteAlbum.mutate(album.id);
-                                }
-                              }}
+                              onClick={() => handleDeleteAlbum(album)}
+                              disabled={deleteAlbum.isPending}
                               aria-label={`Hapus album ${album.name}`}
-                              className="flex min-h-11 min-w-11 items-center justify-center rounded-full p-2.5 text-muted-foreground transition-all hover:bg-destructive/10 hover:text-destructive"
+                              className="flex min-h-11 min-w-11 items-center justify-center rounded-full p-2.5 text-muted-foreground transition-all hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-50"
                             >
                               <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                             </button>

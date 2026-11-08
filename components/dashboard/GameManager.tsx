@@ -2,11 +2,13 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "next/navigation";
 import { Button, Skeleton } from "@/components/ui";
 import { Plus, Loader2, X, Shuffle, Brain, Cherry, Sparkles, Pencil, Trash2, ChevronDown, ChevronUp, Grid3x3, Blocks, Trophy, Gamepad2, Star } from "lucide-react";
 import { toast } from "sonner";
 import { cn, FILTER_CHIP_CLASSES } from "@/lib/utils";
 import { showDeleteConfirm } from "@/lib/swal";
+import { startMutationToast, settleMutationToast } from "@/lib/mutation-feedback";
 import { formatInJakarta } from "@/lib/date";
 import { queryKeys } from "@/lib/query-keys";
 import type { GameType } from "@/types";
@@ -45,6 +47,8 @@ export default function GameManager() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
   const [fieldError, setFieldError] = useState<{ field: "question" | "options" | "category"; message: string } | null>(null);
+  const searchParams = useSearchParams();
+  const questionParam = searchParams.get("question");
 
   const { data: allQuestions, isLoading } = useQuery({
     queryKey: ["games", "questions", "all", sortOrder] as const,
@@ -58,9 +62,26 @@ export default function GameManager() {
     staleTime: 30_000,
   });
 
+  // Deep link from push/notification or recent activity ("?question=<id>") →
+  // expand that exact question (and open its game tab).
+  const [prevQuestionParam, setPrevQuestionParam] = useState<string | null>(null);
+  const [deepLinkedQuestionId, setDeepLinkedQuestionId] = useState<string | null>(null);
+
+  const deepLinkedQuestion = deepLinkedQuestionId
+    ? (allQuestions?.find((q) => q.id === deepLinkedQuestionId) ?? null)
+    : null;
+
+  if (questionParam !== prevQuestionParam) {
+    setPrevQuestionParam(questionParam);
+    setDeepLinkedQuestionId(questionParam && allQuestions?.some((q) => q.id === questionParam) ? questionParam : null);
+  }
+
+  const effectiveTab: GameType = deepLinkedQuestion?.type ?? activeTab;
+  const effectiveExpandedId = deepLinkedQuestion?.id ?? expandedId;
+
   const questions = useMemo(
-    () => allQuestions?.filter((q) => q.type === activeTab) ?? [],
-    [allQuestions, activeTab],
+    () => allQuestions?.filter((q) => q.type === effectiveTab) ?? [],
+    [allQuestions, effectiveTab],
   );
 
   const countByType = useMemo(() => {
@@ -92,7 +113,6 @@ export default function GameManager() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.games.all, refetchType: 'all' });
-      toast.success("Pertanyaan ditambahkan!");
       setQuestion("");
       setOptionA("");
       setOptionB("");
@@ -100,8 +120,6 @@ export default function GameManager() {
       setCategory("");
       setOpen(false);
     },
-    onError: (err) =>
-      toast.error(err instanceof Error ? err.message : "Gagal membuat pertanyaan"),
   });
 
   const deleteQuestion = useMutation({
@@ -111,9 +129,7 @@ export default function GameManager() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.games.all, refetchType: 'all' });
-      toast.success("Pertanyaan dihapus");
     },
-    onError: () => toast.error("Gagal menghapus pertanyaan"),
   });
 
   const editQuestion = useMutation({
@@ -142,7 +158,6 @@ export default function GameManager() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.games.all, refetchType: 'all' });
-      toast.success("Pertanyaan diubah!");
       setQuestion("");
       setOptionA("");
       setOptionB("");
@@ -152,8 +167,6 @@ export default function GameManager() {
       setEditingId(null);
       setOpen(false);
     },
-    onError: (err) =>
-      toast.error(err instanceof Error ? err.message : "Gagal mengubah pertanyaan"),
   });
 
   async function handleSubmit(e: React.FormEvent) {
@@ -181,27 +194,60 @@ export default function GameManager() {
 
     const finalAnswer = type === "WOULD_YOU_RATHER" && !answer.trim() ? "none" : answer.trim();
 
-    if (editingId) {
-      editQuestion.mutate({
-        id: editingId,
-        data: {
+    if (editingId ? editQuestion.isPending : createQuestion.isPending) return;
+
+    const toastId = startMutationToast(editingId ? "Menyimpan pertanyaan..." : "Menambahkan pertanyaan...");
+
+    try {
+      if (editingId) {
+        await editQuestion.mutateAsync({
+          id: editingId,
+          data: {
+            type,
+            question: question.trim(),
+            optionA: optionA.trim() || null,
+            optionB: optionB.trim() || null,
+            answer: finalAnswer || null,
+            category: category.trim() || null,
+          },
+        });
+        settleMutationToast(toastId, "success", "Pertanyaan diubah!");
+      } else {
+        await createQuestion.mutateAsync({
           type,
           question: question.trim(),
-          optionA: optionA.trim() || null,
-          optionB: optionB.trim() || null,
-          answer: finalAnswer || null,
-          category: category.trim() || null,
-        },
-      });
-    } else {
-      createQuestion.mutate({
-        type,
-        question: question.trim(),
-        optionA: optionA.trim() || undefined,
-        optionB: optionB.trim() || undefined,
-        answer: finalAnswer || undefined,
-        category: category.trim() || undefined,
-      });
+          optionA: optionA.trim() || undefined,
+          optionB: optionB.trim() || undefined,
+          answer: finalAnswer || undefined,
+          category: category.trim() || undefined,
+        });
+        settleMutationToast(toastId, "success", "Pertanyaan ditambahkan!");
+      }
+    } catch (err) {
+      settleMutationToast(
+        toastId,
+        "error",
+        err instanceof Error ? err.message : "Gagal menyimpan pertanyaan",
+      );
+    }
+  }
+
+  async function handleDeleteQuestion(q: Question) {
+    if (deleteQuestion.isPending) return;
+
+    const confirmed = await showDeleteConfirm({
+      title: "Hapus Pertanyaan",
+      text: "Apakah Anda yakin ingin menghapus pertanyaan ini?",
+    });
+    if (!confirmed) return;
+
+    const toastId = startMutationToast("Menghapus pertanyaan...");
+
+    try {
+      await deleteQuestion.mutateAsync(q.id);
+      settleMutationToast(toastId, "success", "Pertanyaan dihapus");
+    } catch (err) {
+      settleMutationToast(toastId, "error", err instanceof Error ? err.message : "Gagal menghapus pertanyaan");
     }
   }
 
@@ -252,18 +298,18 @@ export default function GameManager() {
   const isTOD = type === "TRUTH_OR_DARE";
   const isSpin = type === "SPIN_THE_WHEEL";
   const isEditing = !!editingId;
-  const activeGameType = GAME_TYPES.find((t) => t.value === activeTab);
+  const activeGameType = GAME_TYPES.find((t) => t.value === effectiveTab);
   const isArcadeTab = activeGameType?.isArcade ?? false;
 
   const arcadeLabel = isArcadeTab
-    ? activeTab === "SLIDING_PUZZLE" ? "Puzzle" : "Block Blast"
+    ? effectiveTab === "SLIDING_PUZZLE" ? "Puzzle" : "Block Blast"
     : "";
 
   const { data: arcadeStats } = useQuery({
-    queryKey: ["games", "arcade-stats", activeTab],
+    queryKey: ["games", "arcade-stats", effectiveTab],
     queryFn: async () => {
       if (!isArcadeTab) return null;
-      const res = await fetch(`/api/games/arcade-leaderboard?type=${activeTab}`);
+      const res = await fetch(`/api/games/arcade-leaderboard?type=${effectiveTab}`);
       if (!res.ok) return null;
       const json = await res.json();
       const entries = (json.data ?? []) as Array<{ totalScore: number; totalPlayed: number; bestScore: number; avgScore: number }>;
@@ -292,11 +338,14 @@ export default function GameManager() {
         {GAME_TYPES.map(({ value, label, icon: Icon, isArcade }) => (
           <button
             key={value}
-            onClick={() => setActiveTab(value)}
+            onClick={() => {
+              setDeepLinkedQuestionId(null);
+              setActiveTab(value);
+            }}
             className={cn(
               FILTER_CHIP_CLASSES,
               "border",
-              activeTab === value
+              effectiveTab === value
                 ? "border-primary bg-card text-primary shadow-sm"
                 : "border-border bg-card text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground",
             )}
@@ -592,14 +641,16 @@ export default function GameManager() {
               <div
                 role="button"
                 tabIndex={0}
-                aria-expanded={expandedId === q.id}
-                onClick={() =>
-                  setExpandedId(expandedId === q.id ? null : q.id)
-                }
+                aria-expanded={effectiveExpandedId === q.id}
+                onClick={() => {
+                  setDeepLinkedQuestionId(null);
+                  setExpandedId(effectiveExpandedId === q.id ? null : q.id);
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    setExpandedId(expandedId === q.id ? null : q.id);
+                    setDeepLinkedQuestionId(null);
+                    setExpandedId(effectiveExpandedId === q.id ? null : q.id);
                   }
                 }}
                 className="grid w-full cursor-pointer grid-cols-[1fr_auto] items-center gap-2 px-3 py-2.5 text-left sm:gap-3 sm:px-4 sm:py-3"
@@ -624,22 +675,17 @@ export default function GameManager() {
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
                   <button
-                    onClick={async (e) => {
+                    onClick={(e) => {
                       e.stopPropagation();
-                      const confirmed = await showDeleteConfirm({
-                        title: "Hapus Pertanyaan",
-                        text: "Apakah Anda yakin ingin menghapus pertanyaan ini?",
-                      });
-                      if (confirmed) {
-                        deleteQuestion.mutate(q.id);
-                      }
+                      handleDeleteQuestion(q);
                     }}
-                    className="rounded-full p-2.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                    disabled={deleteQuestion.isPending}
+                    className="rounded-full p-2.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-50"
                     aria-label="Hapus pertanyaan"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
-                  {expandedId === q.id ? (
+                  {effectiveExpandedId === q.id ? (
                     <ChevronUp className="h-4 w-4 text-muted-foreground" />
                   ) : (
                     <ChevronDown className="h-4 w-4 text-muted-foreground" />
@@ -647,7 +693,7 @@ export default function GameManager() {
                 </div>
               </div>
 
-              {expandedId === q.id && (
+              {effectiveExpandedId === q.id && (
                 <div className="border-t border-border px-3 py-2.5 space-y-1.5 sm:px-4 sm:py-3">
                   {q.optionA && (
                     <p className="truncate text-xs text-muted-foreground">

@@ -277,7 +277,7 @@ export default function WishForm({ editingWish, onClose }: WishFormProps) {
   }
 
   async function handleDelete() {
-    if (!editingWish) return;
+    if (!editingWish || deleteWish.isPending) return;
 
     const confirmed = await showDeleteConfirm({
       title: "Hapus Wish",

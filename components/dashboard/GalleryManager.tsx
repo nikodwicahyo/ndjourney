@@ -76,6 +76,7 @@ export default function GalleryManager() {
   const [photoPublic, setPhotoPublic] = useState(true);
   const [fileErrors, setFileErrors] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isBatchPending, setIsBatchPending] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const { data: albums } = useAlbums();
   const [pendingFiles, setPendingFiles] = useState<UploadFileItem[]>([]);
@@ -156,7 +157,7 @@ export default function GalleryManager() {
 
   const handleBatchDelete = useCallback(async () => {
     const count = selectedIds.size;
-    if (count === 0) return;
+    if (count === 0 || isBatchPending) return;
     const confirmed = await showDeleteConfirm({
       title: "Hapus Media",
       text: `Apakah Anda yakin ingin menghapus ${count} media?`,
@@ -164,102 +165,117 @@ export default function GalleryManager() {
     if (!confirmed) return;
     const ids = Array.from(selectedIds);
     const toastId = startMutationToast(`Menghapus ${count} media...`);
-    const results = await Promise.allSettled(
-      ids.map(async (id) => {
-        const r = await fetch(`/api/photos/${id}`, { method: "DELETE" });
-        if (!r.ok) {
-          let message = "Gagal menghapus media";
-          try {
-            const body = await r.json();
-            if (body?.error) message = body.error;
-          } catch {
-            // ignore parse errors
+    setIsBatchPending(true);
+    try {
+      const results = await Promise.allSettled(
+        ids.map(async (id) => {
+          const r = await fetch(`/api/photos/${id}`, { method: "DELETE" });
+          if (!r.ok) {
+            let message = "Gagal menghapus media";
+            try {
+              const body = await r.json();
+              if (body?.error) message = body.error;
+            } catch {
+              // ignore parse errors
+            }
+            if (r.status === 403) message = "Kamu tidak punya akses untuk menghapus media ini";
+            else if (r.status === 404) message = "Media tidak ditemukan atau sudah dihapus";
+            else if (r.status === 429) message = "Terlalu banyak permintaan, coba lagi nanti";
+            throw new Error(message);
           }
-          if (r.status === 403) message = "Kamu tidak punya akses untuk menghapus media ini";
-          else if (r.status === 404) message = "Media tidak ditemukan atau sudah dihapus";
-          else if (r.status === 429) message = "Terlalu banyak permintaan, coba lagi nanti";
-          throw new Error(message);
-        }
-      }),
-    );
-    const failed = results.filter((r) => r.status === "rejected");
-    const succeeded = results.filter((r) => r.status === "fulfilled").length;
-    if (failed.length > 0) {
-      const reason = failed[0].status === "rejected" ? (failed[0].reason as Error)?.message : "";
-      const allSame = failed.every(
-        (f) => f.status === "rejected" && (f.reason as Error)?.message === reason,
+        }),
       );
-      settleMutationToast(
-        toastId,
-        "error",
-        allSame && reason ? `${failed.length} media gagal dihapus: ${reason}` : `${failed.length} media gagal dihapus`,
-      );
-    } else if (succeeded > 0) {
-      settleMutationToast(toastId, "success", `${succeeded} media dihapus`);
-      queryClient.invalidateQueries({ queryKey: ["photos"] });
-      queryClient.invalidateQueries({ queryKey: ["albums"] });
-      queryClient.invalidateQueries({ queryKey: ["storage", "usage"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard", "stats"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard", "activity"] });
+      const failed = results.filter((r) => r.status === "rejected");
+      const succeeded = results.filter((r) => r.status === "fulfilled").length;
+      if (failed.length > 0) {
+        const reason = failed[0].status === "rejected" ? (failed[0].reason as Error)?.message : "";
+        const allSame = failed.every(
+          (f) => f.status === "rejected" && (f.reason as Error)?.message === reason,
+        );
+        settleMutationToast(
+          toastId,
+          "error",
+          allSame && reason ? `${failed.length} media gagal dihapus: ${reason}` : `${failed.length} media gagal dihapus`,
+        );
+      } else if (succeeded > 0) {
+        settleMutationToast(toastId, "success", `${succeeded} media dihapus`);
+        queryClient.invalidateQueries({ queryKey: ["photos"] });
+        queryClient.invalidateQueries({ queryKey: ["albums"] });
+        queryClient.invalidateQueries({ queryKey: ["storage", "usage"] });
+        queryClient.invalidateQueries({ queryKey: ["dashboard", "stats"] });
+        queryClient.invalidateQueries({ queryKey: ["dashboard", "activity"] });
+      }
+      clearSelection();
+    } finally {
+      setIsBatchPending(false);
     }
-    clearSelection();
-  }, [selectedIds, queryClient, clearSelection]);
+  }, [selectedIds, queryClient, clearSelection, isBatchPending]);
 
   const [moveAlbumId, setMoveAlbumId] = useState("");
   const handleBatchMove = useCallback(async () => {
-    if (!moveAlbumId || selectedIds.size === 0) return;
+    if (!moveAlbumId || selectedIds.size === 0 || isBatchPending) return;
     const ids = Array.from(selectedIds);
     const toastId = startMutationToast("Memindahkan media...");
-    const results = await Promise.allSettled(
-      ids.map((id) =>
-        fetch(`/api/photos/${id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ albumId: moveAlbumId }),
-        }).then((r) => {
-          if (!r.ok) throw new Error("Gagal memindahkan");
-        }),
-      ),
-    );
-    const failed = results.filter((r) => r.status === "rejected").length;
-    const succeeded = results.filter((r) => r.status === "fulfilled").length;
-    if (failed > 0) {
-      settleMutationToast(toastId, "error", `${failed} media gagal dipindahkan`);
-    } else if (succeeded > 0) {
-      settleMutationToast(toastId, "success", `${succeeded} media dipindahkan`);
-      queryClient.invalidateQueries({ queryKey: ["photos"] });
-      queryClient.invalidateQueries({ queryKey: ["albums"] });
+    setIsBatchPending(true);
+    try {
+      const results = await Promise.allSettled(
+        ids.map((id) =>
+          fetch(`/api/photos/${id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ albumId: moveAlbumId }),
+          }).then((r) => {
+            if (!r.ok) throw new Error("Gagal memindahkan");
+          }),
+        ),
+      );
+      const failed = results.filter((r) => r.status === "rejected").length;
+      const succeeded = results.filter((r) => r.status === "fulfilled").length;
+      if (failed > 0) {
+        settleMutationToast(toastId, "error", `${failed} media gagal dipindahkan`);
+      } else if (succeeded > 0) {
+        settleMutationToast(toastId, "success", `${succeeded} media dipindahkan`);
+        queryClient.invalidateQueries({ queryKey: ["photos"] });
+        queryClient.invalidateQueries({ queryKey: ["albums"] });
+      }
+      setMoveAlbumId("");
+      clearSelection();
+    } finally {
+      setIsBatchPending(false);
     }
-    setMoveAlbumId("");
-    clearSelection();
-  }, [moveAlbumId, selectedIds, queryClient, clearSelection]);
+  }, [moveAlbumId, selectedIds, queryClient, clearSelection, isBatchPending]);
 
   const handleBatchVisibility = useCallback(async (isPublic: boolean) => {
-    if (selectedIds.size === 0) return;
+    if (selectedIds.size === 0 || isBatchPending) return;
     const ids = Array.from(selectedIds);
-    const toastId = startMutationToast(isPublic ? "Mengubah visibilitas media..." : "Mengubah visibilitas media...");
-    const results = await Promise.allSettled(
-      ids.map((id) =>
-        fetch(`/api/photos/${id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ isPublic }),
-        }).then((r) => {
-          if (!r.ok) throw new Error("Gagal mengubah visibilitas");
-        }),
-      ),
-    );
-    const failed = results.filter((r) => r.status === "rejected").length;
-    const succeeded = results.filter((r) => r.status === "fulfilled").length;
-    if (failed > 0) {
-      settleMutationToast(toastId, "error", `${failed} media gagal diubah`);
-    } else if (succeeded > 0) {
-      settleMutationToast(toastId, "success", `${succeeded} media ${isPublic ? "publik" : "privat"}`);
-      queryClient.invalidateQueries({ queryKey: ["photos"] });
-      queryClient.invalidateQueries({ queryKey: ["albums"] });
+    const toastId = startMutationToast("Mengubah visibilitas media...");
+    setIsBatchPending(true);
+    try {
+      const results = await Promise.allSettled(
+        ids.map((id) =>
+          fetch(`/api/photos/${id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ isPublic }),
+          }).then((r) => {
+            if (!r.ok) throw new Error("Gagal mengubah visibilitas");
+          }),
+        ),
+      );
+      const failed = results.filter((r) => r.status === "rejected").length;
+      const succeeded = results.filter((r) => r.status === "fulfilled").length;
+      if (failed > 0) {
+        settleMutationToast(toastId, "error", `${failed} media gagal diubah`);
+      } else if (succeeded > 0) {
+        settleMutationToast(toastId, "success", `${succeeded} media ${isPublic ? "publik" : "privat"}`);
+        queryClient.invalidateQueries({ queryKey: ["photos"] });
+        queryClient.invalidateQueries({ queryKey: ["albums"] });
+      }
+      clearSelection();
+    } finally {
+      setIsBatchPending(false);
     }
-    clearSelection();
-  }, [selectedIds, queryClient, clearSelection]);
+  }, [selectedIds, queryClient, clearSelection, isBatchPending]);
 
   const addFiles = useCallback((filesArray: File[]) => {
     setFileErrors([]);
@@ -429,6 +445,19 @@ export default function GalleryManager() {
       settleMutationToast(toastId, "error", err instanceof Error ? err.message : "Gagal menghapus media");
     }
   }, [deletePhoto, photos.length]);
+
+  // Favorite/public toggles are optimistic in useUpdatePhoto; this only adds
+  // the error toast when the server rejects and the rollback runs.
+  const handlePhotoUpdate = useCallback(
+    async (id: string, data: { isFavorite?: boolean; isPublic?: boolean }) => {
+      try {
+        await updatePhoto.mutateAsync({ id, ...data });
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Gagal mengupdate media");
+      }
+    },
+    [updatePhoto],
+  );
 
   const uploadQueue = useMemo(() => {
     const persistent = uploadPhotos.queue;
@@ -846,6 +875,7 @@ export default function GalleryManager() {
                   onClick={() => handleBatchVisibility(true)}
                   title="Jadikan publik"
                   aria-label="Jadikan publik"
+                  disabled={isBatchPending}
                   className={cn(
                     FILTER_SEGMENT_CLASSES,
                     "border border-emerald-500/40 text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400",
@@ -858,6 +888,7 @@ export default function GalleryManager() {
                   onClick={() => handleBatchVisibility(false)}
                   title="Jadikan privat"
                   aria-label="Jadikan privat"
+                  disabled={isBatchPending}
                   className={cn(
                     FILTER_SEGMENT_CLASSES,
                     "border border-amber-500/40 text-amber-600 hover:bg-amber-500/10 dark:text-amber-400",
@@ -872,6 +903,7 @@ export default function GalleryManager() {
                 size="sm"
                 variant="destructive"
                 onClick={handleBatchDelete}
+                disabled={isBatchPending}
                 className="gap-1.5"
               >
                 <Trash2 className="h-4 w-4" aria-hidden="true" />
@@ -923,8 +955,8 @@ export default function GalleryManager() {
                   key={photo.id}
                   photo={photo}
                   onClick={() => handlePhotoClick(index)}
-                  onFavoriteToggle={(id, isFavorite) => updatePhoto.mutate({ id, isFavorite })}
-                  onPublicToggle={(id, isPublic) => updatePhoto.mutate({ id, isPublic })}
+                  onFavoriteToggle={(id, isFavorite) => handlePhotoUpdate(id, { isFavorite })}
+                  onPublicToggle={(id, isPublic) => handlePhotoUpdate(id, { isPublic })}
                   isPrioritized={index < 8}
                   selectable={selectMode}
                   isSelected={selectedIds.has(photo.id)}
@@ -1020,8 +1052,12 @@ export default function GalleryManager() {
               </Button>
               <Button
                 className="flex-1 gap-1.5"
-                onClick={() => { handleBatchMove(); setShowMoveModal(false); }}
-                disabled={!moveAlbumId}
+                onClick={() => {
+                  if (isBatchPending) return;
+                  handleBatchMove();
+                  setShowMoveModal(false);
+                }}
+                disabled={!moveAlbumId || isBatchPending}
               >
                 <Folder className="h-4 w-4" aria-hidden="true" />
                 Pindahkan

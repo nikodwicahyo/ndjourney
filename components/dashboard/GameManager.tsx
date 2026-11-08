@@ -669,7 +669,8 @@ export default function GameManager() {
                       e.stopPropagation();
                       startEditing(q);
                     }}
-                    className="rounded-full p-2.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+                    disabled={deleteQuestion.isPending || createQuestion.isPending || editQuestion.isPending}
+                    className="rounded-full p-2.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:pointer-events-none disabled:opacity-50"
                     aria-label="Edit pertanyaan"
                   >
                     <Pencil className="h-3.5 w-3.5" />

@@ -423,8 +423,9 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
                           <div className="flex shrink-0 items-center gap-1">
                             <button
                               onClick={() => startEditing(album)}
+                              disabled={updateAlbum.isPending || deleteAlbum.isPending}
                               aria-label={`Edit album ${album.name}`}
-                              className="flex min-h-11 min-w-11 items-center justify-center rounded-full p-2.5 text-muted-foreground transition-all hover:bg-muted"
+                              className="flex min-h-11 min-w-11 items-center justify-center rounded-full p-2.5 text-muted-foreground transition-all hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
                             >
                               <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                             </button>

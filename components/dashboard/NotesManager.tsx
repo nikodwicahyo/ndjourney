@@ -58,13 +58,13 @@ export default function NotesManager() {
   }
 
   async function handleDelete(id: string) {
+    if (deleteNote.isPending) return;
+
     const confirmed = await showDeleteConfirm({
       title: "Hapus Catatan",
       text: "Apakah Anda yakin ingin menghapus catatan ini?",
     });
     if (!confirmed) return;
-
-    if (deleteNote.isPending) return;
 
     const toastId = startMutationToast("Menghapus catatan...");
 

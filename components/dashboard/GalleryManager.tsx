@@ -199,6 +199,10 @@ export default function GalleryManager() {
         );
       } else if (succeeded > 0) {
         settleMutationToast(toastId, "success", `${succeeded} media dihapus`);
+      }
+      // Invalidate on any partial success too: the failed rows stay, the
+      // deleted ones must disappear from the grid immediately.
+      if (succeeded > 0) {
         queryClient.invalidateQueries({ queryKey: ["photos"] });
         queryClient.invalidateQueries({ queryKey: ["albums"] });
         queryClient.invalidateQueries({ queryKey: ["storage", "usage"] });
@@ -235,6 +239,9 @@ export default function GalleryManager() {
         settleMutationToast(toastId, "error", `${failed} media gagal dipindahkan`);
       } else if (succeeded > 0) {
         settleMutationToast(toastId, "success", `${succeeded} media dipindahkan`);
+      }
+      // Partial success still moved some photos between albums.
+      if (succeeded > 0) {
         queryClient.invalidateQueries({ queryKey: ["photos"] });
         queryClient.invalidateQueries({ queryKey: ["albums"] });
       }
@@ -268,6 +275,9 @@ export default function GalleryManager() {
         settleMutationToast(toastId, "error", `${failed} media gagal diubah`);
       } else if (succeeded > 0) {
         settleMutationToast(toastId, "success", `${succeeded} media ${isPublic ? "publik" : "privat"}`);
+      }
+      // Partial success still flipped visibility for some photos.
+      if (succeeded > 0) {
         queryClient.invalidateQueries({ queryKey: ["photos"] });
         queryClient.invalidateQueries({ queryKey: ["albums"] });
       }
@@ -425,6 +435,7 @@ export default function GalleryManager() {
   }, [pendingFiles, selectedAlbumId, uploadPhotos, isSubmitting, photoPublic, sort]);
 
   const handleDelete = useCallback(async (id: string) => {
+    if (deletePhoto.isPending) return;
     const confirmed = await showDeleteConfirm({ title: "Hapus Media", text: "Apakah Anda yakin ingin menghapus media ini?" });
     if (!confirmed) return;
     const toastId = startMutationToast("Menghapus media...");
@@ -446,18 +457,9 @@ export default function GalleryManager() {
     }
   }, [deletePhoto, photos.length]);
 
-  // Favorite/public toggles are optimistic in useUpdatePhoto; this only adds
-  // the error toast when the server rejects and the rollback runs.
-  const handlePhotoUpdate = useCallback(
-    async (id: string, data: { isFavorite?: boolean; isPublic?: boolean }) => {
-      try {
-        await updatePhoto.mutateAsync({ id, ...data });
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Gagal mengupdate media");
-      }
-    },
-    [updatePhoto],
-  );
+  // Favorite/public toggles are optimistic and toast from useUpdatePhoto, so
+  // callers stay one-line and never double-toast.
+
 
   const uploadQueue = useMemo(() => {
     const persistent = uploadPhotos.queue;
@@ -955,8 +957,8 @@ export default function GalleryManager() {
                   key={photo.id}
                   photo={photo}
                   onClick={() => handlePhotoClick(index)}
-                  onFavoriteToggle={(id, isFavorite) => handlePhotoUpdate(id, { isFavorite })}
-                  onPublicToggle={(id, isPublic) => handlePhotoUpdate(id, { isPublic })}
+                  onFavoriteToggle={(id, isFavorite) => updatePhoto.mutate({ id, isFavorite })}
+                  onPublicToggle={(id, isPublic) => updatePhoto.mutate({ id, isPublic })}
                   isPrioritized={index < 8}
                   selectable={selectMode}
                   isSelected={selectedIds.has(photo.id)}

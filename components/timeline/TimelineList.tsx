@@ -35,6 +35,7 @@ export default function TimelineList() {
     async (id: string) => {
       // Single confirmation lives in MilestoneCard (with the milestone title)
       // — confirming here too showed two dialogs in a row.
+      if (deleteMilestone.isPending) return;
       const toastId = startMutationToast("Menghapus milestone...");
       try {
         await deleteMilestone.mutateAsync(id);

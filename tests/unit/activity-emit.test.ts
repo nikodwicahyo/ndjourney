@@ -277,7 +277,7 @@ describe("notifyLocationReonline", () => {
         type: "location",
         action: "updated",
         title: "Partner online",
-        body: "Niko kembali online — GPS aktif, lokasi live",
+        body: "Niko kembali online - Sharing live location",
         href: "/location",
         level: "both",
       }),

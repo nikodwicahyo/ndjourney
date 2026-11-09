@@ -188,7 +188,7 @@ export type NotificationItem = {
 | couple, user (profile/couple-config edits) | `profile`/`updated` | `Profil diperbarui` | `{actor} memperbarui profil` | `/settings` | `bell` |
 | cron/time-capsule | `letter`/`created` (time capsule opened) | `Kapsul waktu` | `Surat kapsul waktu terbuka` | `/letters` | `both`, actorId = letter owner |
 | location/share | `location`/`updated` **only when share turns ON** | `Partner online` | `{actor} mulai berbagi lokasi` | `/location` | `both` |
-| location (POST, GPS recovery) | `location`/`updated` (only when the previous fix is ≥60 s old; 5-min cooldown) | `Partner online` | `{actor} kembali online — GPS aktif, lokasi live` | `/location` | `both` |
+| location (POST, GPS recovery) | `location`/`updated` (only when the previous fix is ≥60 s old; 5-min cooldown) | `Partner online` | `{actor} kembali online — Sharing live location` | `/location` | `both` |
 
 `meta`: pass cheap context (`{ thumbnailUrl }` for photos, `{ count }` for bulk, none elsewhere). Covers the mutation families listed in the spec's route inventory; sweep the grep list and use the table rows, choosing the closest row when a route doesn't map 1:1.
 

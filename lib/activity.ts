@@ -188,7 +188,7 @@ export async function notifyLocationReonline(
       type: "location",
       action: "updated",
       title: "Partner online",
-      body: `${actorName || "Pasangan"} kembali online — GPS aktif, lokasi live`,
+      body: `${actorName || "Pasangan"} kembali online - Sharing live location`,
       href: "/location",
       level: "both",
     });

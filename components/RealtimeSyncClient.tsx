@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic';
 import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
+import { LocationPresenceTracker } from './location/LocationPresenceTracker';
 
 // pusher-js (~35 KB raw) is only needed for signed-in visitors. The dynamic
 // import keeps it out of the public first load entirely: guests download
@@ -44,5 +45,10 @@ export function RealtimeSyncClient({
 
   if (status !== 'authenticated') return null;
 
-  return <RealtimeSyncInner coupleId={resolved} />;
+  return (
+    <>
+      <RealtimeSyncInner coupleId={resolved} />
+      <LocationPresenceTracker />
+    </>
+  );
 }

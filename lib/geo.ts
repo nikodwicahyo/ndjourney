@@ -1,4 +1,12 @@
 export const MEET_THRESHOLD_METERS = 100;
+
+/**
+ * A location fix older than this is shown as "Offline" in the UI. The live
+ * re-online notification uses the same threshold, so the bell can never claim
+ * "online" while the location card says "Offline".
+ */
+export const LOCATION_STALE_AFTER_SECONDS = 60;
+
 // distance-based road factor, shorter routes have more turns
 function roadFactor(meters: number): number {
   if (meters < 1000) return 1.6;

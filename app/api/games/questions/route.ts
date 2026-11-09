@@ -103,8 +103,8 @@ export async function POST(request: Request) {
     await emitActivity(creatorCoupleId, rateCheck.session.user.id, {
       type: "questions",
       action: "created",
-      title: "Bank soal",
-      body: `${rateCheck.session.user.name || "Pasangan"} memperbarui bank soal`,
+      title: "Bank soal games",
+      body: `${rateCheck.session.user.name || "Pasangan"} menambahkan bank soal games`,
       href: `/dashboard/games?question=${question.id}`,
       level: "bell",
     });

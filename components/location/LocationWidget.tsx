@@ -8,7 +8,6 @@ import {
   useLocationSettings,
   useDistance,
   useIsMeeting,
-  useShareLocation,
   useFloatingHearts,
 } from "@/hooks/useLocation";
 import DeviceBadge from "./DeviceBadge";
@@ -42,7 +41,6 @@ function LocationWidgetContent() {
   const distance = useDistance(data);
   const meeting = useIsMeeting(data);
   const { heart, clearHeart } = useFloatingHearts(data?.coupleId);
-  useShareLocation(data?.self.isSharing ?? false);
 
   if (isLoading) {
     return (

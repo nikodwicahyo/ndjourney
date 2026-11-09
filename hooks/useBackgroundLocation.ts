@@ -47,6 +47,9 @@ let globalGpsFailCount = 0;
 const GPS_ERROR_THRESHOLD = 3;
 // track retry timers so stopWatching() actually stops posting.
 let globalRetryTimers: Set<ReturnType<typeof setTimeout>> = new Set();
+// wake listeners are owned by the watch: they must die with it, or a stopped
+// tracker keeps pinging after the user turns sharing off.
+let globalWakeHandlers: { wake: () => void; online: () => void } | null = null;
 
 function setGlobalStatus(status: ShareStatus) {
   if (globalStatus === status) return;
@@ -171,14 +174,17 @@ function postIfBetter(
   return false;
 }
 
-function pingGps(qc: ReturnType<typeof useQueryClient>) {
+function pingGps(qc: ReturnType<typeof useQueryClient>, force = false) {
   if (!navigator.geolocation) return;
 
   navigator.geolocation.getCurrentPosition(
     (pos) => {
       const payload = makePayload(pos);
       noteGpsSuccess();
-      postIfBetter(payload, qc);
+      // A wake-up must post even when the fix is not "better" — the server
+      // needs a fresh updatedAt to know the GPS is back.
+      if (force) void postLocation(payload, qc, true);
+      else postIfBetter(payload, qc);
     },
     (err) => {
       // surface geolocation failures instead of silent ()=>{}.
@@ -255,6 +261,19 @@ function startWatching(qc: ReturnType<typeof useQueryClient>) {
 
   scheduleGpsPing(qc);
   scheduleKeepAlive(qc);
+
+  // Returning to the tab (or regaining the network) must not wait up to 12 s
+  // for the next scheduled ping: force one fix so a GPS that came back while
+  // backgrounded is detected immediately and the partner's notification is
+  // prompt instead of arriving on the next timer tick.
+  const wake = () => {
+    if (document.visibilityState !== "visible") return;
+    pingGps(qc, true);
+  };
+  const online = () => pingGps(qc, true);
+  document.addEventListener("visibilitychange", wake);
+  window.addEventListener("online", online);
+  globalWakeHandlers = { wake, online };
 }
 
 function stopWatching() {
@@ -269,6 +288,11 @@ function stopWatching() {
   if (globalKeepAliveTimer) {
     clearTimeout(globalKeepAliveTimer);
     globalKeepAliveTimer = null;
+  }
+  if (globalWakeHandlers) {
+    document.removeEventListener("visibilitychange", globalWakeHandlers.wake);
+    window.removeEventListener("online", globalWakeHandlers.online);
+    globalWakeHandlers = null;
   }
   clearRetries();
   globalRetryCount = 0;

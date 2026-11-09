@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getPusherServer } from "@/lib/pusher-server";
 import { redis, cacheKey } from "@/lib/redis";
+import { LOCATION_STALE_AFTER_SECONDS } from "@/lib/geo";
 import type { SyncScope } from "@/types";
 import type { Prisma } from "@/lib/generated/prisma";
 import { sendNotification } from "web-push";
@@ -142,5 +143,56 @@ export async function emitActivity(
     }
   } catch (error) {
     console.error("[ACTIVITY_ERROR]", error);
+  }
+}
+
+const LOCATION_REONLINE_COOLDOWN_MS = 5 * 60 * 1000;
+
+/**
+ * Bell + push for "the device GPS is posting again". A normal 8–30 s ping must
+ * stay silent: only a gap at least as long as the UI's "Offline" threshold is a
+ * recovery. The cooldown is shared with the share-on event, so turning sharing
+ * on (which already notifies) does not double-notify on the first fix — unless
+ * the GPS took longer than the cooldown to acquire, in which case "GPS aktif"
+ * is the useful message.
+ *
+ * Fail-open: a notification failure never blocks the position write.
+ */
+export async function notifyLocationReonline(
+  coupleId: string,
+  actorId: string,
+  actorName: string | null,
+  previousUpdatedAt: Date | null,
+): Promise<void> {
+  try {
+    const now = Date.now();
+
+    if (previousUpdatedAt) {
+      const gapMs = now - previousUpdatedAt.getTime();
+      if (gapMs < LOCATION_STALE_AFTER_SECONDS * 1000) return;
+    }
+
+    const lastLocationEvent = await prisma.activityEvent.findFirst({
+      where: { coupleId, actorId, type: "location" },
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true },
+    });
+    if (
+      lastLocationEvent &&
+      now - lastLocationEvent.createdAt.getTime() < LOCATION_REONLINE_COOLDOWN_MS
+    ) {
+      return;
+    }
+
+    await emitActivity(coupleId, actorId, {
+      type: "location",
+      action: "updated",
+      title: "Partner online",
+      body: `${actorName || "Pasangan"} kembali online — GPS aktif, lokasi live`,
+      href: "/location",
+      level: "both",
+    });
+  } catch (error) {
+    console.error("[LOCATION_REONLINE_ERROR]", error);
   }
 }

@@ -56,8 +56,8 @@ export async function PUT(
       await emitActivity(coupleId, rateCheck.session.user.id, {
         type: "questions",
         action: "updated",
-        title: "Bank soal",
-        body: `${rateCheck.session.user.name || "Pasangan"} memperbarui bank soal`,
+        title: "Bank soal games",
+        body: `${rateCheck.session.user.name || "Pasangan"} memperbarui bank soal games`,
         href: `/dashboard/games?question=${id}`,
         level: "bell",
       });
@@ -111,8 +111,8 @@ export async function DELETE(
       await emitActivity(coupleId, rateCheck.session.user.id, {
         type: "questions",
         action: "updated",
-        title: "Bank soal",
-        body: `${rateCheck.session.user.name || "Pasangan"} memperbarui bank soal`,
+        title: "Bank soal games",
+        body: `${rateCheck.session.user.name || "Pasangan"} memperbarui bank soal games`,
         href: `/dashboard/games?question=${id}`,
         level: "bell",
       });

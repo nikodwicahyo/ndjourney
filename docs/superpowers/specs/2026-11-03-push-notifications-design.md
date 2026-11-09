@@ -89,7 +89,7 @@ Deep-link rule: `href` must be a `//`-free, site-relative path starting with `/`
 ### Route wiring
 
 - Replace existing `triggerCoupleEvent()` calls with `emitActivity()` calls. Actual inventory: **28 call sites across 23 route files** (photos, albums, letters + letters/open, milestones, notes, wishes, games/questions + questions/[id] + round + arcade-score, location/share, couple, user, cron/time-capsule…). Build the sweep list with `grep triggerCoupleEvent app/api`, not from this doc; fill payload per content type.
-- **Exception — do NOT swap the live location ping.** `app/api/location/route.ts` fires `triggerCoupleEvent(coupleId, "LOCATION")` on every position update (~8 s poll per tab); the ping keeps its raw `triggerCoupleEvent` (or nothing) — no `ActivityEvent` rows for heartbeats, otherwise the feed/table is spammed. Only the **share-on** toggle becomes `emitActivity` (partner came online → `both`); share-off emits nothing beyond the existing Pusher invalidation.
+- **Exception — the live location ping stays a raw `triggerCoupleEvent`.** `app/api/location/route.ts` fires `triggerCoupleEvent(coupleId, "LOCATION")` on every position update (~8 s poll per tab) so the map stays live; heartbeats never create an `ActivityEvent`. **One exception:** when the previous fix is older than `LOCATION_STALE_AFTER_SECONDS` (the same 60 s the location card renders as "Offline"), the GPS has come back online and the ping calls `notifyLocationReonline` → one `location`/`updated` event (`both`, "Partner online" / "{actor} kembali online — GPS aktif, lokasi live"). A 5-minute cooldown (shared with the share-on event) stops a flapping GPS from spamming. The **share-on** toggle also emits (`both`); share-off emits nothing beyond the existing Pusher invalidation.
 - True new emits: `app/api/location/share` (on-toggle → `both`), `app/api/location/heart` stays **ephemeral, instant-only** (bespoke `location-heart` Pusher event, unchanged — no `emitActivity`, no history), and `app/api/games/score` (per-question scores → `bell`).
 - Profile/couple-config edits already trigger (`app/api/user/route.ts`, `app/api/couple/route.ts`) → swap only. Letter-opened (`letters/[id]/open`) and question-bank create/archive (`games/questions*`) have triggers but no mapping row: builder picks sensible defaults (letter-open → no event or `bell`; question-bank is admin-mode noise → `bell` at most).
 
@@ -99,7 +99,8 @@ Deep-link rule: `href` must be a `//`-free, site-relative path starting with `/`
 |---|---|
 | Photo/video, letter, milestone, note, wishlist, time-capsule cron | `both` |
 | Game/arcade scores, profile/couple-config edits, question-bank admin changes | `bell` |
-| Partner starts sharing location (comes online: `location/share` → on) | `both` (body: "partner online") — share-off and live pings emit **nothing**; heart taps stay ephemeral live-only (no event) |
+| Partner starts sharing location (comes online: `location/share` → on) | `both` (body: "partner online") — share-off emits nothing; heart taps stay ephemeral live-only (no event) |
+| GPS comes back online while sharing is already on (`POST /api/location` after a ≥60 s gap) | `both` ("{actor} kembali online — GPS aktif, lokasi live"), 5-minute cooldown shared with the share-on event; normal 8–30 s pings emit nothing |
 
 Updates count (action `updated`) and are surfaced like creates — with "what changed" text where cheap (e.g. priority/visibility/album title).
 

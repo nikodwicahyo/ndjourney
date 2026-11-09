@@ -148,4 +148,44 @@ describe("background location GPS failure escalation", () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
     expect(result.current).toBe("denied");
   });
+
+  it("forces an immediate GPS ping when the tab becomes visible or the network returns", async () => {
+    act(() => initBackgroundLocation(true, qc));
+    geoMock.gets.shift(); // initial fix attempt, not under test
+
+    // Establish a previous fix so the accuracy gate would normally drop a
+    // worse one — a wake-up must post regardless.
+    act(() => geoMock.watch?.success(position(10)));
+    await act(async () => {});
+    const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
+    fetchMock.mockClear();
+
+    const before = geoMock.getCurrentPosition.mock.calls.length;
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect(geoMock.getCurrentPosition.mock.calls.length).toBe(before + 1);
+    act(() => geoMock.gets.shift()?.success(position(50)));
+    await act(async () => {});
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/location",
+      expect.objectContaining({ method: "POST" }),
+    );
+
+    fetchMock.mockClear();
+    act(() => {
+      window.dispatchEvent(new Event("online"));
+    });
+    act(() => geoMock.gets.shift()?.success(position(50)));
+    await act(async () => {});
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // Listeners die with the watch: a stopped tracker must not ping.
+    act(() => initBackgroundLocation(false, qc));
+    const stopped = geoMock.getCurrentPosition.mock.calls.length;
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect(geoMock.getCurrentPosition.mock.calls.length).toBe(stopped);
+  });
 });

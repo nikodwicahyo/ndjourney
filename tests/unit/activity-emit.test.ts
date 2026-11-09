@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("@/lib/pusher-server", () => ({
   getPusherServer: vi.fn(() => ({ trigger: vi.fn() })),
@@ -6,7 +6,7 @@ vi.mock("@/lib/pusher-server", () => ({
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    activityEvent: { create: vi.fn() },
+    activityEvent: { create: vi.fn(), findFirst: vi.fn() },
     coupleMember: { findMany: vi.fn() },
     pushSubscription: { findMany: vi.fn(), delete: vi.fn() },
   },
@@ -19,7 +19,7 @@ vi.mock("@/lib/redis", () => ({
 
 vi.mock("web-push", () => ({ sendNotification: vi.fn() }));
 
-import { emitActivity } from "@/lib/activity";
+import { emitActivity, notifyLocationReonline } from "@/lib/activity";
 import { getPusherServer } from "@/lib/pusher-server";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
@@ -236,6 +236,84 @@ describe("emitActivity", () => {
     await expect(emitActivity("c1", "a1", { ...baseInput, type: "letter" })).resolves.toBeUndefined();
 
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("[ACTIVITY_PUSHER_ERROR]"), expect.any(Error));
+    errorSpy.mockRestore();
+  });
+});
+
+// "Online" means the device GPS is posting again — the same 60 s threshold the
+// location card renders as "Offline". A normal 8–30 s ping must stay silent.
+describe("notifyLocationReonline", () => {
+  const NOW = new Date("2026-11-10T10:00:00Z");
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY = "pk";
+    process.env.VAPID_PRIVATE_KEY = "sk";
+    vi.mocked(prisma.coupleMember.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.activityEvent.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.activityEvent.create).mockResolvedValue({ id: "ev-loc", createdAt: NOW } as never);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("skips a ping whose previous fix is still fresh", async () => {
+    await notifyLocationReonline("c1", "a1", "Niko", new Date(NOW.getTime() - 30_000));
+
+    expect(prisma.activityEvent.findFirst).not.toHaveBeenCalled();
+    expect(prisma.activityEvent.create).not.toHaveBeenCalled();
+  });
+
+  it("notifies the partner when GPS comes back after the stale threshold", async () => {
+    await notifyLocationReonline("c1", "a1", "Niko", new Date(NOW.getTime() - 120_000));
+
+    expect(prisma.activityEvent.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { coupleId: "c1", actorId: "a1", type: "location" } }),
+    );
+    expect(prisma.activityEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        type: "location",
+        action: "updated",
+        title: "Partner online",
+        body: "Niko kembali online — GPS aktif, lokasi live",
+        href: "/location",
+        level: "both",
+      }),
+    });
+  });
+
+  it("suppresses a re-online inside the 5-minute cooldown", async () => {
+    vi.mocked(prisma.activityEvent.findFirst).mockResolvedValue({
+      createdAt: new Date(NOW.getTime() - 60_000),
+    } as never);
+
+    await notifyLocationReonline("c1", "a1", "Niko", new Date(NOW.getTime() - 120_000));
+
+    expect(prisma.activityEvent.create).not.toHaveBeenCalled();
+  });
+
+  it("lets the first fix through once the share-on event ages past the cooldown", async () => {
+    vi.mocked(prisma.activityEvent.findFirst).mockResolvedValue({
+      createdAt: new Date(NOW.getTime() - 6 * 60_000),
+    } as never);
+
+    await notifyLocationReonline("c1", "a1", "Niko", null);
+
+    expect(prisma.activityEvent.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails open when the cooldown lookup errors", async () => {
+    vi.mocked(prisma.activityEvent.findFirst).mockRejectedValue(new Error("db down"));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(
+      notifyLocationReonline("c1", "a1", null, new Date(NOW.getTime() - 120_000)),
+    ).resolves.toBeUndefined();
+
+    expect(prisma.activityEvent.create).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith("[LOCATION_REONLINE_ERROR]", expect.any(Error));
     errorSpy.mockRestore();
   });
 });

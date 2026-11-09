@@ -47,7 +47,7 @@ vi.mock("@/lib/email", () => ({
   letterNotificationHtml: () => "",
   safeAppUrl: (p: string) => `http://localhost${p}`,
 }));
-vi.mock("@/lib/activity", () => ({ emitActivity: vi.fn() }));
+vi.mock("@/lib/activity", () => ({ emitActivity: vi.fn(), notifyLocationReonline: vi.fn() }));
 vi.mock("@/lib/pusher-server", () => ({
   triggerCoupleEvent: vi.fn(),
   getPusherServer: vi.fn(() => ({ trigger: vi.fn(), authenticate: vi.fn() })),

@@ -15,13 +15,16 @@ import {
   useLocationSettings,
   useDistance,
   useIsMeeting,
-  useShareLocation,
   useFloatingHearts,
   useLocationHistory,
 } from "@/hooks/useLocation";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query-keys";
-import { retrySharing, type ShareStatus } from "@/hooks/useBackgroundLocation";
+import {
+  retrySharing,
+  useBackgroundLocationStatus,
+  type ShareStatus,
+} from "@/hooks/useBackgroundLocation";
 import LocationToggle from "@/components/location/LocationToggle";
 import DistanceCard from "@/components/location/DistanceCard";
 import MeetBanner from "@/components/location/MeetBanner";
@@ -111,7 +114,9 @@ export default function LocationManager() {
   const distance = useDistance(data);
   const meeting = useIsMeeting(data);
   const { heart, clearHeart } = useFloatingHearts(data?.coupleId);
-  const { status: shareStatus } = useShareLocation(data?.self.isSharing ?? false);
+  // The global tracker (LocationPresenceTracker) owns the watcher now; this
+  // component only subscribes to its status.
+  const shareStatus = useBackgroundLocationStatus();
 
   // Update previous distance ref after render
   if (distance !== null && distance !== previousDistance) {

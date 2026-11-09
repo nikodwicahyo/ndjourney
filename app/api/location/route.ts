@@ -6,7 +6,8 @@ import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { getUserCoupleId } from "@/lib/couple";
 import { triggerCoupleEvent } from "@/lib/pusher-server";
 import { detectDeviceType } from "@/lib/device";
-import { MEET_THRESHOLD_METERS } from "@/lib/geo";
+import { MEET_THRESHOLD_METERS, LOCATION_STALE_AFTER_SECONDS } from "@/lib/geo";
+import { notifyLocationReonline } from "@/lib/activity";
 
 export const dynamic = "force-dynamic";
 
@@ -138,7 +139,7 @@ export async function GET() {
         deviceType: selfLocation?.deviceType ?? detectDeviceType(),
         location: toLocationPayload(selfLocation),
         locationAgeSeconds: selfAge,
-        isStale: selfAge !== null && selfAge > 60,
+        isStale: selfAge !== null && selfAge > LOCATION_STALE_AFTER_SECONDS,
       },
       partner: {
         userId: partner.id,
@@ -148,7 +149,7 @@ export async function GET() {
         deviceType: partnerSharing ? (partnerLocation?.deviceType ?? null) : null,
         location: partnerSharing ? toLocationPayload(partnerLocation) : null,
         locationAgeSeconds: partnerSharing ? partnerAge : null,
-        isStale: partnerSharing && partnerAge !== null && partnerAge > 60,
+        isStale: partnerSharing && partnerAge !== null && partnerAge > LOCATION_STALE_AFTER_SECONDS,
       },
     };
 
@@ -209,7 +210,7 @@ export async function POST(request: Request) {
 
     // P-11: current position + history in ONE transaction — a history-trim rollback
     // used to leave the current row advanced past the trail.
-    await prisma.$transaction(async (tx) => {
+    const { previousUpdatedAt } = await prisma.$transaction(async (tx) => {
       // Re-check inside the write transaction so an opt-out that committed
       // after the fast pre-check above aborts this write. The GET read gate
       // remains authoritative if a row survives an overlapping commit.
@@ -218,6 +219,15 @@ export async function POST(request: Request) {
         select: { isSharing: true },
       });
       if (!currentShare?.isSharing) throw new SharingDisabledError();
+
+      // The previous fix's age is the only honest "was GPS offline?" signal:
+      // the location card calls the same 60 s gap "Offline". Read inside the
+      // write transaction so the value matches the row being advanced.
+      const existing = await tx.userLocation.findUnique({
+        where: { userId },
+        select: { updatedAt: true },
+      });
+      const previousUpdatedAt = existing?.updatedAt ?? null;
 
       // Upsert current location
       await tx.userLocation.upsert({
@@ -252,7 +262,9 @@ export async function POST(request: Request) {
         select: { createdAt: true },
       });
 
-      if (lastHistory && now.getTime() - lastHistory.createdAt.getTime() <= 30000) return;
+      if (lastHistory && now.getTime() - lastHistory.createdAt.getTime() <= 30000) {
+        return { previousUpdatedAt };
+      }
 
       await tx.userLocationHistory.create({
         data: {
@@ -281,9 +293,27 @@ export async function POST(request: Request) {
           where: { userId, createdAt: { lt: cutoff } },
         });
       }
+
+      return { previousUpdatedAt };
     });
 
     triggerCoupleEvent(coupleId, "LOCATION");
+
+    // A normal 8–30 s ping stays silent. Only a fix that ended a real offline
+    // gap is a "partner is back online" moment worth the bell + push. Gated
+    // here so the cooldown query runs only on a recovery, not every ping.
+    if (
+      previousUpdatedAt === null ||
+      now.getTime() - previousUpdatedAt.getTime() >=
+        LOCATION_STALE_AFTER_SECONDS * 1000
+    ) {
+      await notifyLocationReonline(
+        coupleId,
+        userId,
+        rateCheck.session.user.name ?? null,
+        previousUpdatedAt,
+      );
+    }
 
     return NextResponse.json({ data: { ok: true } }, { status: 200 });
   } catch (error) {

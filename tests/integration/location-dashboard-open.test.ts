@@ -6,7 +6,7 @@ const COUPLE = "couple-1";
 
 const txMock = vi.hoisted(() => ({
   userLocationHistory: { findFirst: vi.fn(async () => null), create: vi.fn(async () => ({})), findMany: vi.fn(async () => []), deleteMany: vi.fn(async () => ({})) },
-  userLocation: { upsert: vi.fn(async () => ({})), deleteMany: vi.fn(async () => ({ count: 1 })) },
+  userLocation: { findUnique: vi.fn(async (): Promise<{ updatedAt: Date } | null> => null), upsert: vi.fn(async () => ({})), deleteMany: vi.fn(async () => ({ count: 1 })) },
   locationShare: { findUnique: vi.fn(async () => ({ isSharing: true })), upsert: vi.fn(async () => ({})) },
 }));
 const prismaMock = vi.hoisted(() => ({
@@ -33,7 +33,7 @@ vi.mock("@/lib/redis", () => ({
   cacheKey: (...p: string[]) => p.join(":"),
 }));
 vi.mock("@/lib/couple", () => ({ getUserCoupleId: vi.fn(async () => COUPLE) }));
-vi.mock("@/lib/activity", () => ({ emitActivity: vi.fn() }));
+vi.mock("@/lib/activity", () => ({ emitActivity: vi.fn(), notifyLocationReonline: vi.fn() }));
 vi.mock("@/lib/pusher-server", () => ({
   triggerCoupleEvent: vi.fn(),
   getPusherServer: vi.fn(() => ({ trigger: vi.fn(async () => {}) })),
@@ -129,6 +129,49 @@ describe("location API contracts", () => {
     expect((await loc.POST(new Request("http://localhost/api/location", {
       method: "POST", body: JSON.stringify({ latitude: -6.2, longitude: 106.8, deviceType: "mobile" }),
     }))).status).toBe(404);
+  });
+
+  it("LOC-06: a stale previous fix notifies the partner that GPS is back online", async () => {
+    const { notifyLocationReonline } = await import("@/lib/activity");
+    prismaMock.locationShare.findUnique.mockResolvedValue({ isSharing: true });
+    const stale = new Date(Date.now() - 120_000);
+    txMock.userLocation.findUnique.mockResolvedValueOnce({ updatedAt: stale });
+
+    const res = await loc.POST(new Request("http://localhost/api/location", {
+      method: "POST",
+      body: JSON.stringify({ latitude: -6.2, longitude: 106.8, deviceType: "mobile" }),
+    }));
+
+    expect(res.status).toBe(200);
+    expect(notifyLocationReonline).toHaveBeenCalledWith(COUPLE, ME, null, stale);
+  });
+
+  it("LOC-06b: a fresh previous fix stays silent", async () => {
+    const { notifyLocationReonline } = await import("@/lib/activity");
+    prismaMock.locationShare.findUnique.mockResolvedValue({ isSharing: true });
+    txMock.userLocation.findUnique.mockResolvedValueOnce({ updatedAt: new Date() });
+
+    const res = await loc.POST(new Request("http://localhost/api/location", {
+      method: "POST",
+      body: JSON.stringify({ latitude: -6.2, longitude: 106.8, deviceType: "mobile" }),
+    }));
+
+    expect(res.status).toBe(200);
+    expect(notifyLocationReonline).not.toHaveBeenCalled();
+  });
+
+  it("LOC-07: GET /api/location/share reports the caller's own status; 401 anon", async () => {
+    prismaMock.locationShare.findUnique.mockResolvedValue({ isSharing: true });
+
+    const res = await share.GET();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ data: { isSharing: true } });
+
+    prismaMock.locationShare.findUnique.mockResolvedValue(null);
+    expect(await (await share.GET()).json()).toEqual({ data: { isSharing: false } });
+
+    vi.mocked(auth).mockResolvedValue(null as never);
+    expect((await share.GET()).status).toBe(401);
   });
 
   it("LOC consent: share PUT toggles + wipes location on OFF; 400 invalid", async () => {

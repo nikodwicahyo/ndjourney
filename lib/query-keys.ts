@@ -58,6 +58,7 @@ export const queryKeys = {
   },
   location: {
     all: ["location"] as const,
+    shareStatus: () => ["location", "share-status"] as const,
   },
   notifications: {
     all: ["notifications"] as const,

@@ -4,13 +4,23 @@ vi.mock("@/lib/pusher-server", () => ({
   getPusherServer: vi.fn(() => ({ trigger: vi.fn() })),
 }));
 
-vi.mock("@/lib/prisma", () => ({
-  prisma: {
+vi.mock("@/lib/prisma", () => {
+  // Real transactions run concurrently and serialize on the advisory lock; the
+  // mock runs whole callbacks one at a time, which is the ordering that matters.
+  const queue: { tail: Promise<unknown> } = { tail: Promise.resolve() };
+  const prismaMock: any = {
     activityEvent: { create: vi.fn(), findFirst: vi.fn() },
     coupleMember: { findMany: vi.fn() },
     pushSubscription: { findMany: vi.fn(), delete: vi.fn() },
-  },
-}));
+    $executeRaw: vi.fn(async () => 1),
+    $transaction: vi.fn((fn: (tx: unknown) => unknown) => {
+      const run = queue.tail.then(() => fn(prismaMock));
+      queue.tail = run.catch(() => {});
+      return run;
+    }),
+  };
+  return { prisma: prismaMock };
+});
 
 vi.mock("@/lib/redis", () => ({
   redis: { del: vi.fn().mockResolvedValue(1) },
@@ -282,6 +292,41 @@ describe("notifyLocationReonline", () => {
         level: "both",
       }),
     });
+  });
+
+  it("takes the per-actor advisory lock before the cooldown read and the insert", async () => {
+    await notifyLocationReonline("c1", "a1", "Niko", new Date(NOW.getTime() - 120_000));
+
+    const lockCalls = vi.mocked(prisma.$executeRaw).mock.calls as unknown[][];
+    const lockSql = String((lockCalls[0]?.[0] as ArrayLike<unknown> | undefined)?.[0] ?? "");
+    expect(lockSql).toContain("pg_advisory_xact_lock");
+    expect(lockCalls[0]?.[1]).toBe("location-reonline:a1");
+
+    const lockOrder = vi.mocked(prisma.$executeRaw).mock.invocationCallOrder[0] ?? -1;
+    expect(vi.mocked(prisma.activityEvent.findFirst).mock.invocationCallOrder[0]).toBeGreaterThan(lockOrder);
+    expect(vi.mocked(prisma.activityEvent.create).mock.invocationCallOrder[0]).toBeGreaterThan(lockOrder);
+  });
+
+  it("concurrent recoveries (one per open tab) create exactly one event", async () => {
+    let persisted: { id: string; createdAt: Date } | null = null;
+    vi.mocked(prisma.activityEvent.findFirst).mockImplementation(
+      (async () => persisted) as never,
+    );
+    vi.mocked(prisma.activityEvent.create).mockImplementation(
+      (async () => {
+        persisted = { id: "ev-loc", createdAt: NOW };
+        return persisted;
+      }) as never,
+    );
+
+    const stale = new Date(NOW.getTime() - 120_000);
+    await Promise.all([
+      notifyLocationReonline("c1", "a1", "Niko", stale),
+      notifyLocationReonline("c1", "a1", "Niko", stale),
+      notifyLocationReonline("c1", "a1", "Niko", stale),
+    ]);
+
+    expect(prisma.activityEvent.create).toHaveBeenCalledTimes(1);
   });
 
   it("suppresses a re-online inside the 5-minute cooldown", async () => {

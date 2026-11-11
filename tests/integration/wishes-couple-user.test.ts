@@ -279,6 +279,65 @@ describe("couple / user / partner / notes-delete contracts", () => {
     expect(bad.status).toBe(400);
   });
 
+  it("settings/profile notifications name what actually changed (silent on no-op saves)", async () => {
+    const { emitActivity } = await import("@/lib/activity");
+    vi.mocked(withRateLimit).mockResolvedValue({
+      allowed: true,
+      remaining: 99,
+      session: { user: { id: ME, name: "Niko" } },
+    } as never);
+
+    const base = {
+      name1: "Niko",
+      name2: "Dzikria",
+      anniversaryDate: new Date("2020-02-02T00:00:00Z"),
+      birthDate1: null,
+      birthDate2: null,
+      tagline: "lama",
+      heroPhotoUrl: null,
+      heroCrop: null,
+      spotifyPlaylistUrl: null,
+      backgroundMusicUrl: null,
+    };
+    prismaMock.coupleConfig.findFirst.mockResolvedValue({ id: "cfg", ...base });
+    prismaMock.coupleConfig.update.mockResolvedValue({ id: "cfg", ...base, tagline: "baru" });
+
+    const settingsReq = () => new Request("http://localhost/api/couple", {
+      method: "PUT", body: JSON.stringify({ tagline: "baru" }),
+    });
+    expect((await couple.PUT(settingsReq())).status).toBe(200);
+    expect(emitActivity).toHaveBeenCalledWith(COUPLE, ME, expect.objectContaining({
+      title: "Pengaturan diperbarui",
+      body: "Niko memperbarui tagline",
+      href: "/dashboard/settings",
+    }));
+
+    // nothing changed → no bell entry claiming a profile edit
+    vi.mocked(emitActivity).mockClear();
+    prismaMock.coupleConfig.update.mockResolvedValue({ id: "cfg", ...base });
+    expect((await couple.PUT(settingsReq())).status).toBe(200);
+    expect(emitActivity).not.toHaveBeenCalled();
+
+    // profile page: only the changed field is announced, deep-linked to /profile
+    prismaMock.user.findUnique.mockResolvedValue({ name: "Lama", image: null });
+    prismaMock.user.update.mockResolvedValue({ id: ME, name: "Baru", image: null });
+    expect((await userRoute.PUT(new Request("http://localhost/api/user", {
+      method: "PUT", body: JSON.stringify({ name: "Baru" }),
+    }))).status).toBe(200);
+    expect(emitActivity).toHaveBeenCalledWith(COUPLE, ME, expect.objectContaining({
+      title: "Profil diperbarui",
+      body: "Baru memperbarui nama",
+      href: "/dashboard/profile",
+    }));
+
+    vi.mocked(emitActivity).mockClear();
+    prismaMock.user.findUnique.mockResolvedValue({ name: "Baru", image: null });
+    await userRoute.PUT(new Request("http://localhost/api/user", {
+      method: "PUT", body: JSON.stringify({ name: "Baru" }),
+    }));
+    expect(emitActivity).not.toHaveBeenCalled();
+  });
+
   it("partner GET: 200 partner, 404 solo, 401 anon", async () => {
     prismaMock.coupleMember.findUnique.mockResolvedValue({ couple: { members: [{ user: { id: "p2", name: "B" } }] } });
     const ok = await partner.GET();

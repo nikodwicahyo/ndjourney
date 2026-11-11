@@ -129,6 +129,13 @@ export function formatNumber(n: number): string {
   return n.toLocaleString("id-ID");
 }
 
+/** Indonesian list: "a", "a dan b", "a, b, dan c". */
+export function formatIndonesianList(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  if (items.length === 2) return `${items[0]} dan ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, dan ${items[items.length - 1]}`;
+}
+
 export function formatBytes(bytes: number): string {
   if (bytes <= 0) return "0 B";
   const units = ["B", "KB", "MB", "GB", "TB"];

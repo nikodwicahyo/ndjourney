@@ -10,8 +10,66 @@ import { deleteFromCloudinaryUrl } from "@/lib/cloudinary";
 import { cloudinaryAssetFromUrl } from "@/lib/cloudinary-urls";
 import { getCoupleMemberIds, getUserCoupleId } from "@/lib/couple";
 import { emitActivity } from "@/lib/activity";
+import { formatIndonesianList } from "@/lib/utils";
 
 const CACHE_TTL = 300;
+
+type SettingsSnapshot = {
+  name1: string | null;
+  name2: string | null;
+  anniversaryDate: Date | null;
+  birthDate1: Date | null;
+  birthDate2: Date | null;
+  tagline: string | null;
+  heroPhotoUrl: string | null;
+  heroCrop: unknown;
+  spotifyPlaylistUrl: string | null;
+  backgroundMusicUrl: string | null;
+};
+
+function sameDay(a: Date | null | undefined, b: Date | null | undefined): boolean {
+  if (!a || !b) return !a && !b;
+  return a.getTime() === b.getTime();
+}
+
+// Postgres jsonb normalizes key order, so JSON.stringify is not a safe compare.
+function sameCrop(a: unknown, b: unknown): boolean {
+  const rect = (value: unknown): [unknown, unknown, unknown, unknown] | null => {
+    if (!value || typeof value !== "object") return null;
+    const r = value as Record<string, unknown>;
+    return [r.x, r.y, r.w, r.h];
+  };
+  const ra = rect(a);
+  const rb = rect(b);
+  if (!ra || !rb) return ra === rb; // both absent
+  return ra.every((n, i) => n === rb[i]);
+}
+
+/** Exactly what changed on the settings page — never "memperbarui profil". */
+function changedSettingsLabels(previous: SettingsSnapshot, next: SettingsSnapshot): string[] {
+  const labels: string[] = [];
+  const add = (changed: boolean, label: string) => {
+    if (changed) labels.push(label);
+  };
+
+  add(previous.name1 !== next.name1 || previous.name2 !== next.name2, "nama pasangan");
+  add(!sameDay(previous.anniversaryDate, next.anniversaryDate), "tanggal anniversary");
+  add(
+    !sameDay(previous.birthDate1, next.birthDate1) ||
+      !sameDay(previous.birthDate2, next.birthDate2),
+    "tanggal lahir",
+  );
+  add(previous.tagline !== next.tagline, "tagline");
+  add(previous.heroPhotoUrl !== next.heroPhotoUrl, "foto/video beranda");
+  add(
+    previous.heroPhotoUrl === next.heroPhotoUrl && !sameCrop(previous.heroCrop, next.heroCrop),
+    "crop foto beranda",
+  );
+  add(previous.spotifyPlaylistUrl !== next.spotifyPlaylistUrl, "playlist Spotify");
+  add(previous.backgroundMusicUrl !== next.backgroundMusicUrl, "musik latar");
+
+  return labels;
+}
 
 export async function GET() {
   try {
@@ -89,7 +147,19 @@ export async function PUT(request: Request) {
 
     const config = await prisma.coupleConfig.findFirst({
       take: 1,
-      select: { id: true, heroPhotoUrl: true, backgroundMusicUrl: true },
+      select: {
+        id: true,
+        name1: true,
+        name2: true,
+        anniversaryDate: true,
+        birthDate1: true,
+        birthDate2: true,
+        tagline: true,
+        heroPhotoUrl: true,
+        heroCrop: true,
+        spotifyPlaylistUrl: true,
+        backgroundMusicUrl: true,
+      },
     });
 
     if (!config) {
@@ -223,12 +293,15 @@ export async function PUT(request: Request) {
     }
 
     const coupleId = await getUserCoupleId(rateCheck.session.user.id);
-    if (coupleId) {
+    // A save with no edits must not notify at all; a real save names the fields
+    // that changed instead of claiming the profile was updated.
+    const changed = changedSettingsLabels(config, updated);
+    if (coupleId && changed.length > 0) {
       await emitActivity(coupleId, rateCheck.session.user.id, {
         type: "profile",
         action: "updated",
-        title: "Profil diperbarui",
-        body: `${rateCheck.session.user.name || "Pasangan"} memperbarui profil`,
+        title: "Pengaturan diperbarui",
+        body: `${rateCheck.session.user.name || "Pasangan"} memperbarui ${formatIndonesianList(changed)}`,
         href: "/dashboard/settings",
         level: "bell",
       });

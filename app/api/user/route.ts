@@ -8,6 +8,7 @@ import { invalidateCache } from "@/lib/redis";
 import { deleteFromCloudinaryUrl } from "@/lib/cloudinary";
 import { getUserCoupleId } from "@/lib/couple";
 import { emitActivity } from "@/lib/activity";
+import { formatIndonesianList } from "@/lib/utils";
 
 export async function PUT(request: Request) {
   try {
@@ -31,14 +32,11 @@ export async function PUT(request: Request) {
 
     const { name, image } = parsed.data;
 
-    let oldImage: string | null = null;
-    if (image !== undefined) {
-      const existingUser = await prisma.user.findUnique({
-        where: { id: session.user.id },
-        select: { image: true },
-      });
-      oldImage = existingUser?.image ?? null;
-    }
+    const existingUser = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { name: true, image: true },
+    });
+    const oldImage = existingUser?.image ?? null;
 
     const updated = await prisma.user.update({
       where: { id: session.user.id },
@@ -88,13 +86,18 @@ export async function PUT(request: Request) {
     }
 
     const coupleId = await getUserCoupleId(session.user.id);
-    if (coupleId) {
+    // Only real edits notify, and the body names what changed — a name-only
+    // save must not claim the photo changed (and a no-op save says nothing).
+    const changed: string[] = [];
+    if (name !== undefined && name !== existingUser?.name) changed.push("nama");
+    if (image !== undefined && image !== existingUser?.image) changed.push("foto profil");
+    if (coupleId && changed.length > 0) {
       await emitActivity(coupleId, session.user.id, {
         type: "profile",
         action: "updated",
         title: "Profil diperbarui",
-        body: `${updated.name || session.user.name || "Pasangan"} memperbarui profil`,
-        href: "/dashboard/settings",
+        body: `${updated.name || session.user.name || "Pasangan"} memperbarui ${formatIndonesianList(changed)}`,
+        href: "/dashboard/profile",
         level: "bell",
       });
     }

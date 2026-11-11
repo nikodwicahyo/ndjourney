@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { Lock, Clock, ArrowLeft } from "lucide-react";
-import { formatInJakarta, getJakartaDayDiff } from "@/lib/date";
+import { formatCountdownRemaining, formatInJakarta, formatJakartaTime } from "@/lib/date";
 import { useClockTick } from "@/hooks/useClockTick";
 import { Avatar, AvatarImage, AvatarFallback, BackLink } from "@/components/ui";
 
@@ -21,12 +21,11 @@ export default function TimeCapsuleLock({
   senderImage,
   backHref = "/dashboard/letters",
 }: TimeCapsuleLockProps) {
-  // Ticks once a second so the label rolls over at unlock time and the day
-  // count uses Jakarta calendar days (tomorrow = 1, later today = "Hari ini").
+  // Ticks once a second so the label rolls over at unlock time; the remaining
+  // time is shown to the minute, not rounded to whole Jakarta days.
   const { now } = useClockTick();
   const unlockDate = new Date(unlockAt);
   const diffMs = unlockDate.getTime() - now.getTime();
-  const daysLeft = getJakartaDayDiff(unlockDate, now);
 
   return (
     <div className="mx-auto flex max-w-md flex-col items-center justify-center py-16 text-center">
@@ -82,10 +81,7 @@ export default function TimeCapsuleLock({
             })}
           </p>
           <p className="text-sm text-muted-foreground">
-            {formatInJakarta(unlockAt, {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
+            {formatJakartaTime(unlockAt)}
           </p>
         </div>
 
@@ -97,9 +93,7 @@ export default function TimeCapsuleLock({
             className="mt-4 inline-flex items-center gap-2 rounded-full bg-orange-500/10 px-4 py-2 text-sm text-orange-600 dark:text-orange-400"
           >
             <Clock className="h-4 w-4" aria-hidden="true" />
-            <span>
-              {daysLeft && daysLeft > 0 ? `${daysLeft} hari lagi` : "Hari ini"}
-            </span>
+            <span>{formatCountdownRemaining(diffMs)}</span>
           </motion.div>
         )}
 

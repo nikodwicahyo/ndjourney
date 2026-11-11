@@ -44,6 +44,38 @@ export function formatInJakarta(date: Date | string, options?: Intl.DateTimeForm
   });
 }
 
+/**
+ * Jakarta wall-clock time as `HH:mm`. One canonical format for the whole app —
+ * `toLocaleString("id-ID")` renders `00.00`, which we never want.
+ */
+export function formatJakartaTime(date: Date | string): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  const parts = getJakartaParts(d);
+  if (!parts) return "";
+  // Some engines report midnight as hour 24 under hour12:false.
+  const hour = parts.hour % 24;
+  return `${String(hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")}`;
+}
+
+/**
+ * Human countdown with hour + minute precision: "2 hari 5 jam 12 menit lagi".
+ * Seconds are deliberately omitted — the caller re-renders every minute.
+ */
+export function formatCountdownRemaining(ms: number): string {
+  const totalMinutes = Math.floor(Math.max(ms, 0) / 60_000);
+  if (totalMinutes < 1) return "kurang dari 1 menit lagi";
+
+  const days = Math.floor(totalMinutes / 1_440);
+  const hours = Math.floor((totalMinutes % 1_440) / 60);
+  const minutes = totalMinutes % 60;
+
+  const parts: string[] = [];
+  if (days > 0) parts.push(`${days} hari`);
+  if (days > 0 || hours > 0) parts.push(`${hours} jam`);
+  parts.push(`${minutes} menit`);
+  return `${parts.join(" ")} lagi`;
+}
+
 export function parseJakartaDateOnly(dateStr: string): Date | null {
   if (!DATE_ONLY_RE.test(dateStr)) return null;
   const [y, m, d] = dateStr.split("-").map(Number);

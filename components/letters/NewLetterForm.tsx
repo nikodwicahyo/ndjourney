@@ -23,7 +23,7 @@ import { startMutationToast, settleMutationToast } from "@/lib/mutation-feedback
 import type { LetterMood } from "@/types";
 import {
   formatInJakarta,
-  getJakartaParts,
+  formatJakartaTime,
   getJakartaToday,
   parseJakartaDateTime,
 } from "@/lib/date";
@@ -38,16 +38,13 @@ const MOODS = Object.entries(LETTER_MOOD_CONFIG) as [
 const DEFAULT_UNLOCK_TIME = "00:00";
 
 function formatDraftTime(timestamp: number): string {
-  const parts = getJakartaParts(new Date(timestamp));
-  if (!parts) return "";
-  return `${String(parts.hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")}`;
+  return formatJakartaTime(new Date(timestamp));
 }
 
 function formatUnlockMoment(date: Date): string {
   const day = formatInJakarta(date, { dateStyle: "long" });
-  const parts = getJakartaParts(date);
-  if (!parts) return day;
-  return `${day} pukul ${String(parts.hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")}`;
+  const time = formatJakartaTime(date);
+  return time ? `${day} pukul ${time}` : day;
 }
 
 export default function NewLetterForm({

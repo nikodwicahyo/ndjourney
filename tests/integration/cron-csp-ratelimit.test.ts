@@ -60,6 +60,15 @@ describe("cron time-capsule + csp + rate-limit configs", () => {
     expect(entry?.value).toBe(CSP_DIRECTIVES.join("; "));
   });
 
+  it("CRON-TZ: cron fires at 00:00 Asia/Jakarta, not mid-afternoon", () => {
+    const cfg = JSON.parse(readFileSync(join(process.cwd(), "vercel.json"), "utf-8"));
+    const cron = cfg.crons?.find(
+      (c: { path: string }) => c.path === "/api/cron/time-capsule",
+    );
+    // Vercel cron expressions are UTC; 17:00 UTC == 00:00 WIB (UTC+7).
+    expect(cron?.schedule).toBe("0 17 * * *");
+  });
+
   it("SEC-01: rate-limit budgets match TESTPLAN", async () => {
     const { rateLimitConfigs } = await import("@/lib/rate-limit");
     expect(rateLimitConfigs.upload).toMatchObject({ maxRequests: 50, windowSeconds: 3600 });

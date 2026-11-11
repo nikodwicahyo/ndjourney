@@ -83,7 +83,7 @@ function LetterCard({ letter, type, index = 0, baseHref = "/dashboard/letters", 
           {isLocked && (
             <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
               <Lock className="h-3 w-3" aria-hidden="true" />
-              Time capsule — belum bisa dibuka
+              Time capsule - belum bisa dibuka
             </div>
           )}
         </div>

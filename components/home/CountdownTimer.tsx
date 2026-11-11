@@ -3,6 +3,7 @@
 import { useEffect, useRef, useMemo, useState } from "react";
 import { motion, useInView, useAnimate } from "framer-motion";
 import { useCountdown } from "@/hooks/useCountdown";
+import { useClockTick } from "@/hooks/useClockTick";
 import { isSameMonthDayJakarta, getYearsSince, getElapsedSince } from "@/lib/date";
 import { Heart, Sparkles } from "lucide-react";
 
@@ -71,17 +72,22 @@ export default function CountdownTimer({
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-50px" });
 
+  // Fresh Date per clock tick: the anniversary label must flip at Jakarta
+  // midnight even if the page is never reloaded.
+  const { tick } = useClockTick();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `tick` is the 1 Hz trigger for a fresh Date
+  const now = useMemo(() => new Date(), [tick]);
   const yearsSince = useMemo(
-    () => getYearsSince(anniversaryDate),
-    [anniversaryDate],
+    () => getYearsSince(anniversaryDate, now),
+    [anniversaryDate, now],
   );
   const elapsed = useMemo(
-    () => getElapsedSince(anniversaryDate),
-    [anniversaryDate],
+    () => getElapsedSince(anniversaryDate, now),
+    [anniversaryDate, now],
   );
   const isAnniversaryToday = useMemo(
-    () => isSameMonthDayJakarta(anniversaryDate, new Date()),
-    [anniversaryDate],
+    () => isSameMonthDayJakarta(anniversaryDate, now),
+    [anniversaryDate, now],
   );
 
   const { days, hours, minutes, seconds } = useCountdown(anniversaryDate);

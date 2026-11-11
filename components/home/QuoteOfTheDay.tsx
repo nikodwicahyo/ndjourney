@@ -75,10 +75,12 @@ function getMsUntilNextPeriod(): number {
   let boundaryHour: number;
 
   if (nextBoundaryHour === 24) {
-    const nextDate = new Date(year, month - 1, day + 1);
-    boundaryYear = nextDate.getFullYear();
-    boundaryMonth = nextDate.getMonth() + 1;
-    boundaryDay = nextDate.getDate();
+    // Advance the Jakarta calendar day in UTC — local Date arithmetic would
+    // roll over at the browser's midnight, not Jakarta's.
+    const nextDate = new Date(Date.UTC(year, month - 1, day + 1));
+    boundaryYear = nextDate.getUTCFullYear();
+    boundaryMonth = nextDate.getUTCMonth() + 1;
+    boundaryDay = nextDate.getUTCDate();
     boundaryHour = 0;
   } else {
     boundaryHour = nextBoundaryHour;

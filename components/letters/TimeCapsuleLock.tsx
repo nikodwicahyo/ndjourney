@@ -2,7 +2,8 @@
 
 import { motion } from "framer-motion";
 import { Lock, Clock, ArrowLeft } from "lucide-react";
-import { formatInJakarta } from "@/lib/date";
+import { formatInJakarta, getJakartaDayDiff } from "@/lib/date";
+import { useClockTick } from "@/hooks/useClockTick";
 import { Avatar, AvatarImage, AvatarFallback, BackLink } from "@/components/ui";
 
 type TimeCapsuleLockProps = {
@@ -20,10 +21,12 @@ export default function TimeCapsuleLock({
   senderImage,
   backHref = "/dashboard/letters",
 }: TimeCapsuleLockProps) {
+  // Ticks once a second so the label rolls over at unlock time and the day
+  // count uses Jakarta calendar days (tomorrow = 1, later today = "Hari ini").
+  const { now } = useClockTick();
   const unlockDate = new Date(unlockAt);
-  const now = new Date();
   const diffMs = unlockDate.getTime() - now.getTime();
-  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  const daysLeft = getJakartaDayDiff(unlockDate, now);
 
   return (
     <div className="mx-auto flex max-w-md flex-col items-center justify-center py-16 text-center">
@@ -86,7 +89,7 @@ export default function TimeCapsuleLock({
           </p>
         </div>
 
-        {diffDays > 0 && (
+        {diffMs > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -95,12 +98,12 @@ export default function TimeCapsuleLock({
           >
             <Clock className="h-4 w-4" aria-hidden="true" />
             <span>
-              {diffDays} hari lagi
+              {daysLeft && daysLeft > 0 ? `${daysLeft} hari lagi` : "Hari ini"}
             </span>
           </motion.div>
         )}
 
-        {diffDays <= 0 && (
+        {diffMs <= 0 && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}

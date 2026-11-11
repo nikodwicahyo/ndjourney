@@ -36,7 +36,9 @@ export function getJakartaParts(date: Date): { year: number; month: number; day:
 
 export function formatInJakarta(date: Date | string, options?: Intl.DateTimeFormatOptions): string {
   const d = typeof date === "string" ? new Date(date) : date;
-  return d.toLocaleDateString("id-ID", {
+  // toLocaleString (not toLocaleDateString) so time-only options actually
+  // render the clock in every engine.
+  return d.toLocaleString("id-ID", {
     timeZone: TIMEZONE,
     ...options,
   });
@@ -161,12 +163,12 @@ export function getAge(
   return age;
 }
 
-export function getYearsSince(date: Date | string): number {
+export function getYearsSince(date: Date | string, now: Date = new Date()): number {
   if (!date) return 0;
   const d = typeof date === "string" ? new Date(date) : date;
   if (isNaN(d.getTime())) return 0;
   const dateParts = getJakartaParts(d);
-  const todayParts = getJakartaParts(new Date());
+  const todayParts = getJakartaParts(now);
   if (!dateParts || !todayParts) return 0;
 
   let years = todayParts.year - dateParts.year;
@@ -234,11 +236,39 @@ export function jakartaEndOfDay(): Date {
   return new Date(Date.UTC(parts.year, parts.month - 1, parts.day, 23, 59, 59, 999) - 7 * 60 * 60 * 1000);
 }
 
-export function getJakartaToday(): string {
-  const now = new Date();
+export function getJakartaToday(now: Date = new Date()): string {
   const parts = getJakartaParts(now);
   if (!parts) return new Date().toISOString().split("T")[0];
   return `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
+}
+
+/**
+ * Jakarta calendar day key (`YYYY-MM-DD`) shifted by whole days.
+ * `getJakartaDayKey(-1)` is yesterday, so daily streaks can compare day keys
+ * without ever touching the browser's local timezone.
+ */
+export function getJakartaDayKey(offsetDays = 0, now: Date = new Date()): string {
+  const parts = getJakartaParts(now);
+  if (!parts) return getJakartaToday(now);
+  return getJakartaDateOnly(
+    new Date(Date.UTC(parts.year, parts.month - 1, parts.day + offsetDays)),
+  );
+}
+
+/**
+ * Milliseconds until the next 00:00 Asia/Jakarta. Used to schedule a single
+ * timer that flips "today" exactly at Jakarta midnight (instead of polling).
+ */
+export function msUntilNextJakartaMidnight(now: Date = new Date()): number {
+  const parts = getJakartaParts(now);
+  if (!parts) {
+    const next = new Date(now);
+    next.setHours(24, 0, 0, 0);
+    return Math.max(next.getTime() - now.getTime(), 0);
+  }
+  const nextMidnight =
+    Date.UTC(parts.year, parts.month - 1, parts.day + 1) - JAKARTA_OFFSET_MS;
+  return Math.max(nextMidnight - now.getTime(), 0);
 }
 
 export function getJakartaYear(): number {
@@ -246,12 +276,15 @@ export function getJakartaYear(): number {
   return parts?.year ?? new Date().getFullYear();
 }
 
-export function getElapsedSince(date: Date | string): { years: number; months: number; days: number } {
+export function getElapsedSince(
+  date: Date | string,
+  now: Date = new Date(),
+): { years: number; months: number; days: number } {
   if (!date) return { years: 0, months: 0, days: 0 };
   const d = typeof date === "string" ? new Date(date) : date;
   if (isNaN(d.getTime())) return { years: 0, months: 0, days: 0 };
   const dateParts = getJakartaParts(d);
-  const todayParts = getJakartaParts(new Date());
+  const todayParts = getJakartaParts(now);
   if (!dateParts || !todayParts) return { years: 0, months: 0, days: 0 };
 
   let years = todayParts.year - dateParts.year;

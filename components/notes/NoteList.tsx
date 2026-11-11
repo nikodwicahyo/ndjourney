@@ -5,10 +5,10 @@ import { Skeleton, Button, Avatar, AvatarImage, AvatarFallback } from "@/compone
 import { motion } from "framer-motion";
 import { Heart, MessageCircle, Calendar } from "lucide-react";
 import { formatDate, formatRelativeTime } from "@/lib/utils";
-import { getJakartaToday } from "@/lib/date";
+import { useJakartaToday } from "@/hooks/useJakartaToday";
 
 export default function NoteList() {
-  const today = getJakartaToday();
+  const today = useJakartaToday();
   const { data: notes, isLoading, error, refetch } = useDailyNotes(today);
 
   if (isLoading) {
@@ -50,7 +50,7 @@ export default function NoteList() {
     <div className="space-y-3">
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
-        <span>{formatDate(new Date())}</span>
+        <span>{formatDate(today)}</span>
       </div>
 
       {notes.map((note, i) => (

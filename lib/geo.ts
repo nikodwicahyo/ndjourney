@@ -1,3 +1,5 @@
+import { getJakartaParts } from "./date";
+
 export const MEET_THRESHOLD_METERS = 100;
 
 /**
@@ -18,7 +20,7 @@ function roadFactor(meters: number): number {
 
 // time-of-day traffic adjustment, driving only
 function trafficMultiplier(): number {
-  const h = new Date().getHours();
+  const h = getJakartaParts(new Date())?.hour ?? new Date().getHours();
   if (h >= 22 || h < 5) return 1.3;
   if (h >= 5 && h < 7) return 1.1;
   if (h >= 7 && h < 9) return 0.65;

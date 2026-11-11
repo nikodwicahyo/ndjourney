@@ -3,6 +3,8 @@
 import { useState, useRef, useSyncExternalStore } from "react";
 import { motion, useInView } from "framer-motion";
 import { Check, Sparkles, Heart, RotateCcw, ArrowRight, PartyPopper } from "lucide-react";
+import { getJakartaDayKey, getJakartaParts, getJakartaToday } from "@/lib/date";
+import { useJakartaToday } from "@/hooks/useJakartaToday";
 
 const tasks = [
   "Kirim pesan selamat pagi yang manis",
@@ -238,10 +240,13 @@ const tasks = [
 ];
 
 function getTodayTask(): string {
-  const start = new Date(2024, 0, 1);
-  const today = new Date();
-  const diff = Math.floor((today.getTime() - start.getTime()) / 86400000);
-  return tasks[diff % tasks.length];
+  // Pick from the Jakarta calendar day so the task flips at 00:00 WIB.
+  const parts = getJakartaParts(new Date());
+  if (!parts) return tasks[0];
+  const startDay = Date.UTC(2024, 0, 1);
+  const todayDay = Date.UTC(parts.year, parts.month - 1, parts.day);
+  const diff = Math.round((todayDay - startDay) / 86_400_000);
+  return tasks[((diff % tasks.length) + tasks.length) % tasks.length];
 }
 
 const streakKey = "dailylovetask-streak";
@@ -252,11 +257,7 @@ function getStreak(): number {
     const raw = localStorage.getItem(streakKey);
     if (!raw) return 0;
     const { streak, date } = JSON.parse(raw);
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const lastDate = new Date(date);
-    if (lastDate.toDateString() === new Date().toDateString()) return streak;
-    if (lastDate.toDateString() === yesterday.toDateString()) return streak;
+    if (date === getJakartaToday() || date === getJakartaDayKey(-1)) return streak;
     return 0;
   } catch {
     return 0;
@@ -265,7 +266,7 @@ function getStreak(): number {
 
 function saveStreak(streak: number) {
   try {
-    localStorage.setItem(streakKey, JSON.stringify({ streak, date: new Date().toDateString() }));
+    localStorage.setItem(streakKey, JSON.stringify({ streak, date: getJakartaToday() }));
   } catch {}
 }
 
@@ -274,6 +275,7 @@ type TaskSnapshot = { task: string; streak: number; done: boolean; history: stri
 const EMPTY_SNAPSHOT: TaskSnapshot = { task: "", streak: 0, done: false, history: [] };
 
 let taskSnapshot: TaskSnapshot | null = null;
+let taskSnapshotDay = "";
 
 function subscribeTaskSnapshot(): () => void {
   return () => {};
@@ -287,14 +289,16 @@ function getTaskServerSnapshot(): TaskSnapshot {
 // useSyncExternalStore so SSR HTML (server snapshot) and first client render
 // match — a mount effect syncing these into state would cascade renders.
 function getTaskSnapshot(): TaskSnapshot {
-  if (!taskSnapshot) {
+  const today = getJakartaToday();
+  if (!taskSnapshot || taskSnapshotDay !== today) {
+    taskSnapshotDay = today;
     let done = false;
     let history: string[] = [];
     try {
       const stored = localStorage.getItem("dailylovetask-done");
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (parsed.date === new Date().toDateString()) done = !!parsed.done;
+        if (parsed.date === today) done = !!parsed.done;
       }
     } catch {}
     try {
@@ -306,7 +310,7 @@ function getTaskSnapshot(): TaskSnapshot {
   return taskSnapshot;
 }
 
-export default function DailyLoveTask() {
+function DailyLoveTaskInner() {
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-40px" });
   const initial = useSyncExternalStore(subscribeTaskSnapshot, getTaskSnapshot, getTaskServerSnapshot);
@@ -319,14 +323,14 @@ export default function DailyLoveTask() {
 
   function isStreakCountedToday(): boolean {
     try {
-      return localStorage.getItem("dailylovetask-streak-date") === new Date().toDateString();
+      return localStorage.getItem("dailylovetask-streak-date") === getJakartaToday();
     } catch {
       return false;
     }
   }
   function markStreakCountedToday() {
     try {
-      localStorage.setItem("dailylovetask-streak-date", new Date().toDateString());
+      localStorage.setItem("dailylovetask-streak-date", getJakartaToday());
     } catch {}
   }
 
@@ -336,7 +340,7 @@ export default function DailyLoveTask() {
     try {
       localStorage.setItem(
         "dailylovetask-done",
-        JSON.stringify({ date: new Date().toDateString(), done: newDone }),
+        JSON.stringify({ date: getJakartaToday(), done: newDone }),
       );
     } catch {}
     if (newDone) {
@@ -516,4 +520,11 @@ export default function DailyLoveTask() {
       )}
     </motion.div>
   );
+}
+
+// Remount at Jakarta midnight so the new day's task and streak state come from
+// the day-keyed localStorage snapshot instead of lingering on yesterday's.
+export default function DailyLoveTask() {
+  const today = useJakartaToday();
+  return <DailyLoveTaskInner key={today} />;
 }

@@ -93,6 +93,24 @@ export function useLetters(
     // resolves only produced 401s in the console.
     enabled,
     staleTime: 30_000,
+    // A capsule that unlocks while the list is open must stop looking locked.
+    // Wake 1s after the soonest unlock; the hourly cap keeps distant capsules
+    // cheap.
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data?.length) return false;
+      const now = Date.now();
+      const remaining = data
+        .filter((letter) => isLetterLocked(letter, now))
+        .map((letter) =>
+          letter.unlockAt
+            ? new Date(letter.unlockAt).getTime() - now
+            : Number.POSITIVE_INFINITY,
+        );
+      const soonest = Math.min(...remaining);
+      if (!Number.isFinite(soonest)) return false;
+      return Math.min(Math.max(soonest + 1_000, 1_000), 60 * 60 * 1_000);
+    },
   });
 }
 

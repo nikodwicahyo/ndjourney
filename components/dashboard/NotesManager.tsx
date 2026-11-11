@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { useDailyNotes, useCreateNote, useDeleteNote } from "@/hooks/useNotes";
@@ -8,19 +8,30 @@ import { Button, Skeleton, Avatar, AvatarImage, AvatarFallback } from "@/compone
 import { Send, Heart, MessageCircle, Calendar, List, Loader2, Trash2 } from "lucide-react";
 import { formatDate, formatRelativeTime } from "@/lib/utils";
 import { startMutationToast, settleMutationToast } from "@/lib/mutation-feedback";
-import { getJakartaDateOnly, getJakartaToday } from "@/lib/date";
+import { getJakartaDateOnly } from "@/lib/date";
+import { useJakartaToday } from "@/hooks/useJakartaToday";
 import { motion } from "framer-motion";
 import { cn, FILTER_GROUP_CLASSES, FILTER_SEGMENT_CLASSES } from "@/lib/utils";
 import { showDeleteConfirm } from "@/lib/swal";
 
 export default function NotesManager() {
-  const today = getJakartaToday();
+  const today = useJakartaToday();
   const { data: session } = useSession();
   const createNote = useCreateNote();
   const deleteNote = useDeleteNote();
   const [content, setContent] = useState("");
   const [selectedDate, setSelectedDate] = useState(today);
   const [viewMode, setViewMode] = useState<"all" | "date">("date");
+
+  // If the reader was on "today" when the day flipped at 00:00 WIB, follow the
+  // new day instead of leaving them on yesterday's notes.
+  const prevTodayRef = useRef(today);
+  useEffect(() => {
+    if (prevTodayRef.current === today) return;
+    const previous = prevTodayRef.current;
+    prevTodayRef.current = today;
+    setSelectedDate((date) => (date === previous ? today : date));
+  }, [today]);
   const searchParams = useSearchParams();
   const noteParam = searchParams.get("note");
   const { data: selectedNotes, isLoading, error } = useDailyNotes(

@@ -2,7 +2,12 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { getCached, setCached, cacheKey } from "@/lib/redis";
-import { getDaysUntilNextBirthday, getAge } from "@/lib/date";
+import {
+  getDaysUntilNextBirthday,
+  getAge,
+  getJakartaDayDiff,
+  msUntilNextJakartaMidnight,
+} from "@/lib/date";
 import { getCloudinaryUsage } from "@/lib/cloudinary";
 
 const CACHE_TTL = 180;
@@ -106,11 +111,10 @@ export async function GET() {
     const row = rows[0];
     const today = new Date();
 
+    // Calendar days in Jakarta — elapsed 24h blocks would leave the counter
+    // one day behind from 00:00 until the anniversary's original time of day.
     const daysSinceAnniversary = row?.anniversaryDate
-      ? Math.floor(
-          (today.getTime() - new Date(row.anniversaryDate).getTime()) /
-            (1000 * 60 * 60 * 24),
-        )
+      ? Math.max(getJakartaDayDiff(today, row.anniversaryDate) ?? 0, 0)
       : 0;
 
     const stats = {
@@ -130,7 +134,13 @@ export async function GET() {
 
     // shared couple entry holds couple-level fields only.
     const { unreadLetterCount: _mine, ...sharedStats } = stats;
-    await setCached(cacheK, sharedStats, CACHE_TTL);
+    // Never let the cache outlive Jakarta midnight — otherwise "Hari Bersama"
+    // and the birthday counters can lag into the new day.
+    const cacheTtl = Math.max(
+      1,
+      Math.min(CACHE_TTL, Math.ceil(msUntilNextJakartaMidnight(today) / 1000)),
+    );
+    await setCached(cacheK, sharedStats, cacheTtl);
 
     return NextResponse.json({ data: stats }, {
       headers: { "Cache-Control": "private, no-cache" },

@@ -1,6 +1,6 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { formatInJakarta } from "./date";
+import { formatInJakarta, getJakartaDayDiff } from "./date";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -63,7 +63,12 @@ export function formatDateTime(date: Date | string): string {
     month: "short",
     year: "numeric",
   });
-  const timePart = `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
+  const timePart = d.toLocaleTimeString("en-GB", {
+    timeZone: "Asia/Jakarta",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
   return `${timePart}, ${datePart}`;
 }
 
@@ -86,11 +91,9 @@ export function formatRelativeTime(date: Date | string): string {
 
 export function getDaysSince(date: Date | string): number {
   if (!date) return 0;
-  const d = typeof date === "string" ? new Date(date) : new Date(date);
-  if (isNaN(d.getTime())) return 0;
-  const diffMs = Date.now() - d.getTime();
-
-  return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  // Jakarta calendar days — the counter must advance at 00:00 WIB, not 24h later.
+  const diff = getJakartaDayDiff(new Date(), date);
+  return diff === null ? 0 : Math.max(diff, 0);
 }
 
 export function seededRandom(seed: number): () => number {

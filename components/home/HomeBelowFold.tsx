@@ -12,6 +12,8 @@ import MemoryMatch from "./MemoryMatch";
 import Reveal from "./Reveal";
 import MotionRoot from "@/components/MotionRoot";
 import { SECTION_SLOTS } from "./section-slots";
+import { getJakartaDayDiff } from "@/lib/date";
+import { useJakartaToday } from "@/hooks/useJakartaToday";
 import LocationWidget from "@/components/location/LocationWidget";
 import type { GalleryPhoto } from "./GallerySlideshow";
 import type { HomeSummaries } from "./HomeStats";
@@ -48,13 +50,14 @@ export default function HomeBelowFold({
   summaries,
   loveMeterTargets,
 }: HomeBelowFoldProps) {
+  // Jakarta calendar days, recomputed when the day flips at 00:00 WIB.
+  const today = useJakartaToday();
+  const anniversaryDate = coupleConfig?.anniversaryDate;
   const daysTogether = useMemo(() => {
-    if (!coupleConfig?.anniversaryDate) return 0;
-    const target = new Date(coupleConfig.anniversaryDate);
-    const now = new Date();
-    const diffMs = now.getTime() - target.getTime();
-    return Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  }, [coupleConfig]);
+    if (!anniversaryDate) return 0;
+    const diff = getJakartaDayDiff(today, anniversaryDate);
+    return diff === null ? 0 : Math.max(diff, 0);
+  }, [anniversaryDate, today]);
 
   const wishProgress = useMemo(() => {
     const { total, done } = summaries.wishlist;

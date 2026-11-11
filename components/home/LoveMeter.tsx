@@ -73,9 +73,15 @@ export default function LoveMeter({
 
   const is100Pct = atTargetPercent;
 
-  // Snapshot once per mount (not during render): the text has day/hour
-  // granularity, so a ticking clock would only waste renders.
-  const [now] = useState(() => Date.now());
+  // Minute tick: the text has day/hour granularity, so 1 Hz would be waste —
+  // but a mount snapshot goes stale while the page stays open.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!targetMetAt || !is100Pct) return;
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, [targetMetAt, is100Pct]);
+
   const countdownText = useMemo(() => {
     if (!targetMetAt || !is100Pct) return null;
     const met = new Date(targetMetAt).getTime();

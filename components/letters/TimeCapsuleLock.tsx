@@ -40,7 +40,7 @@ export default function TimeCapsuleLock({
             ],
           }}
           transition={{ repeat: Infinity, duration: 2 }}
-          className="mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-orange-500/20 to-amber-500/20"
+          className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-orange-500/20 to-amber-500/20"
         >
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-amber-500 shadow-lg">
             <Lock className="h-8 w-8 text-white" aria-hidden="true" />

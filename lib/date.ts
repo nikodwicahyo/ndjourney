@@ -73,19 +73,21 @@ export function jakartaYearEnd(year: number): Date {
   return new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999) - JAKARTA_OFFSET_MS);
 }
 
-export function getNextBirthday(birthDate: Date | string | null | undefined): Date | null {
+export function getNextBirthday(
+  birthDate: Date | string | null | undefined,
+  now: Date = new Date(),
+): Date | null {
   if (!birthDate) return null;
   const d = typeof birthDate === "string" ? new Date(birthDate) : new Date(birthDate);
   if (isNaN(d.getTime())) return null;
   const bdParts = getJakartaParts(d);
-  const todayParts = getJakartaParts(new Date());
+  const todayParts = getJakartaParts(now);
   if (!bdParts || !todayParts) return null;
 
   const thisYear = todayParts.year;
 
   const thisBirthday = new Date(`${thisYear}-${String(bdParts.month).padStart(2, "0")}-${String(bdParts.day).padStart(2, "0")}T00:00:00+07:00`);
   if (isNaN(thisBirthday.getTime())) return null;
-  const now = new Date();
 
   if (thisBirthday >= now) {
     return thisBirthday;
@@ -95,12 +97,61 @@ export function getNextBirthday(birthDate: Date | string | null | undefined): Da
   return isNaN(next.getTime()) ? null : next;
 }
 
-export function getAge(birthDate: Date | string | null | undefined): number {
+/**
+ * Whole calendar days between two instants in Asia/Jakarta (target - from).
+ * Compares date parts, not elapsed 24h blocks, so 6 hours left on the eve of a
+ * date still counts as "1 day" (tomorrow), never "0" (today).
+ */
+export function getJakartaDayDiff(
+  target: Date | string,
+  from: Date | string = new Date(),
+): number | null {
+  const t = typeof target === "string" ? new Date(target) : target;
+  const f = typeof from === "string" ? new Date(from) : from;
+  if (isNaN(t.getTime()) || isNaN(f.getTime())) return null;
+  const tp = getJakartaParts(t);
+  const fp = getJakartaParts(f);
+  if (!tp || !fp) return null;
+  const targetDay = Date.UTC(tp.year, tp.month - 1, tp.day);
+  const fromDay = Date.UTC(fp.year, fp.month - 1, fp.day);
+  return Math.round((targetDay - fromDay) / 86_400_000);
+}
+
+/**
+ * Calendar days until the next birthday in Jakarta.
+ * 0 = today (even after midnight), 1 = tomorrow, n = n calendar days away.
+ */
+export function getDaysUntilNextBirthday(
+  birthDate: Date | string | null | undefined,
+  now: Date = new Date(),
+): number {
   if (!birthDate) return 0;
   const d = typeof birthDate === "string" ? new Date(birthDate) : new Date(birthDate);
   if (isNaN(d.getTime())) return 0;
   const bdParts = getJakartaParts(d);
-  const todayParts = getJakartaParts(new Date());
+  const todayParts = getJakartaParts(now);
+  if (!bdParts || !todayParts) return 0;
+
+  // On the birthday itself getNextBirthday has already rolled to next year,
+  // so answer "today" before asking it.
+  if (bdParts.month === todayParts.month && bdParts.day === todayParts.day) {
+    return 0;
+  }
+
+  const next = getNextBirthday(d, now);
+  if (!next) return 0;
+  return getJakartaDayDiff(next, now) ?? 0;
+}
+
+export function getAge(
+  birthDate: Date | string | null | undefined,
+  now: Date = new Date(),
+): number {
+  if (!birthDate) return 0;
+  const d = typeof birthDate === "string" ? new Date(birthDate) : new Date(birthDate);
+  if (isNaN(d.getTime())) return 0;
+  const bdParts = getJakartaParts(d);
+  const todayParts = getJakartaParts(now);
   if (!bdParts || !todayParts) return 0;
 
   let age = todayParts.year - bdParts.year;

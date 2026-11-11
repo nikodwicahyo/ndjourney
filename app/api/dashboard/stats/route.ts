@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { getCached, setCached, cacheKey } from "@/lib/redis";
-import { getNextBirthday, getAge } from "@/lib/date";
+import { getDaysUntilNextBirthday, getAge } from "@/lib/date";
 import { getCloudinaryUsage } from "@/lib/cloudinary";
 
 const CACHE_TTL = 180;
@@ -113,13 +113,6 @@ export async function GET() {
         )
       : 0;
 
-    function daysUntilNextBirthday(birthDate: Date | null): number {
-      if (!birthDate) return 0;
-      const next = getNextBirthday(birthDate);
-      if (!next) return 0;
-      return Math.floor((next.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    }
-
     const stats = {
       photoCount: Number(row?.photoCount ?? 0),
       videoCount: Number(row?.videoCount ?? 0),
@@ -127,10 +120,10 @@ export async function GET() {
       milestoneCount: Number(row?.milestoneCount ?? 0),
       daysSinceAnniversary,
       unreadLetterCount,
-      daysUntilBirthday1: daysUntilNextBirthday(row?.birthDate1 ?? null),
-      daysUntilBirthday2: daysUntilNextBirthday(row?.birthDate2 ?? null),
-      birthday1Age: getAge(row?.birthDate1 ?? null),
-      birthday2Age: getAge(row?.birthDate2 ?? null),
+      daysUntilBirthday1: getDaysUntilNextBirthday(row?.birthDate1 ?? null, today),
+      daysUntilBirthday2: getDaysUntilNextBirthday(row?.birthDate2 ?? null, today),
+      birthday1Age: getAge(row?.birthDate1 ?? null, today),
+      birthday2Age: getAge(row?.birthDate2 ?? null, today),
       storageUsed: cloudinaryUsage.storageUsed,
       storageLimit: cloudinaryUsage.storageLimit,
     };

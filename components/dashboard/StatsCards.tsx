@@ -10,7 +10,6 @@ import {
   Heart,
   Cake,
   HardDrive,
-  PartyPopper,
 } from "lucide-react";
 import { formatNumber, formatBytes } from "@/lib/utils";
 import { motion } from "framer-motion";
@@ -120,6 +119,13 @@ return (
         const value = stats[key];
         const isBirthday =
           key === "daysUntilBirthday1" || key === "daysUntilBirthday2";
+        const isBirthdayToday = isBirthday && value === 0;
+        const birthdayName =
+          key === "daysUntilBirthday1"
+            ? config?.name1 || "1"
+            : key === "daysUntilBirthday2"
+              ? config?.name2 || "2"
+              : "";
         const isStorage = key === "storageUsed";
         const isLetter = key === "letterCount";
 
@@ -155,21 +161,27 @@ return (
                 aria-hidden="true"
               />
             </div>
-            <p className="font-heading text-xl font-bold truncate">
-              {isBirthday
-                ? value === 0
-                  ? <PartyPopper className="h-5 w-5 text-amber-500" aria-hidden="true" />
-                  : `${value}`
-                : isStorage
-                  ? storagePercent >= 0
-                    ? storagePercent === 0 || storagePercent >= 1
-                      ? `${Math.round(storagePercent)}%`
-                      : `${storagePercent.toFixed(2)}%`
-                    : formatNumber(value)
-                  : formatNumber(value)}
-            </p>
+            {isBirthdayToday ? (
+              <p className="font-heading text-sm font-bold leading-tight text-amber-500">
+                🎉 Selamat Ulang Tahun
+              </p>
+            ) : (
+              <p className="font-heading text-xl font-bold truncate">
+                {isBirthday
+                  ? `${value}`
+                  : isStorage
+                    ? storagePercent >= 0
+                      ? storagePercent === 0 || storagePercent >= 1
+                        ? `${Math.round(storagePercent)}%`
+                        : `${storagePercent.toFixed(2)}%`
+                      : formatNumber(value)
+                    : formatNumber(value)}
+              </p>
+            )}
             {!isStorage && (
-              <p className="mt-0.5 text-xs text-muted-foreground truncate">{label}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground truncate">
+                {isBirthdayToday ? `Ultah ${birthdayName}` : label}
+              </p>
             )}
             {isLetter && stats.unreadLetterCount > 0 && (
               <p className="text-xs text-muted-foreground truncate">

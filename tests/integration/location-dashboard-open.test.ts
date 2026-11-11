@@ -288,6 +288,31 @@ describe("dashboard + letters-open contracts", () => {
     expect((await activity.GET()).status).toBe(401);
   });
 
+  it("DASH birthday: eve counts as 1 day, birthday as 0", async () => {
+    prismaMock.coupleMember.findUnique.mockResolvedValue({ coupleId: COUPLE });
+    prismaMock.$queryRaw.mockResolvedValue([{
+      photoCount: 0,
+      videoCount: 0,
+      letterCount: 0,
+      milestoneCount: 0,
+      anniversaryDate: new Date("2020-01-01"),
+      birthDate1: new Date("1990-11-11T17:00:00Z"), // Jakarta midnight 1990-11-12
+      birthDate2: null,
+    }]);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-11-11T10:31:00Z")); // 17:31 Jakarta, eve
+      const eve = await (await stats.GET()).json();
+      expect(eve.data.daysUntilBirthday1).toBe(1);
+
+      vi.setSystemTime(new Date("2026-11-12T03:00:00Z")); // 10:00 Jakarta, birthday
+      const day = await (await stats.GET()).json();
+      expect(day.data.daysUntilBirthday1).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("LTR-05: open PUT 200 + email; 404/403/400-opened/423-locked/401", async () => {
     const fresh = { id: "l1", recipientId: ME, isOpened: false, isTimeCapsule: false, unlockAt: null, author: { id: "a", name: "A", email: "a@x.com" } };
     prismaMock.letter.findUnique.mockResolvedValue(fresh);

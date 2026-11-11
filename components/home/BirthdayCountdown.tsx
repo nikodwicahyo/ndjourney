@@ -3,7 +3,13 @@
 import { useEffect, useRef, useMemo, useState } from "react";
 import { motion, useInView, useAnimate } from "framer-motion";
 import { useCountdown } from "@/hooks/useCountdown";
-import { getNextBirthday, getAge, isSameMonthDayJakarta } from "@/lib/date";
+import { useClockTick } from "@/hooks/useClockTick";
+import {
+  getNextBirthday,
+  getAge,
+  getDaysUntilNextBirthday,
+  isSameMonthDayJakarta,
+} from "@/lib/date";
 import { Cake, PartyPopper, Sparkles } from "lucide-react";
 import { DEFAULT_NAME1 } from "@/lib/couple-display";
 
@@ -65,17 +71,27 @@ export default function BirthdayCountdown({
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-50px" });
 
+  // One Date instance per clock tick: stable within a render pass (so
+  // useCountdown's effect can't loop) but refreshed every second, which keeps
+  // "Besok"/age/celebration correct if the page stays open across midnight.
+  const { tick } = useClockTick();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `tick` is the 1 Hz trigger for a fresh Date
+  const now = useMemo(() => new Date(), [tick]);
   const nextBirthday = useMemo(
-    () => (birthDate ? getNextBirthday(birthDate) : null),
-    [birthDate],
+    () => (birthDate ? getNextBirthday(birthDate, now) : null),
+    [birthDate, now],
   );
   const age = useMemo(
-    () => (birthDate ? getAge(birthDate) : 0),
-    [birthDate],
+    () => (birthDate ? getAge(birthDate, now) : 0),
+    [birthDate, now],
+  );
+  const daysUntil = useMemo(
+    () => (birthDate ? getDaysUntilNextBirthday(birthDate, now) : 0),
+    [birthDate, now],
   );
   const isBirthdayToday = useMemo(
-    () => (birthDate ? isSameMonthDayJakarta(birthDate, new Date()) : false),
-    [birthDate],
+    () => (birthDate ? isSameMonthDayJakarta(birthDate, now) : false),
+    [birthDate, now],
   );
 
   const { days, hours, minutes, seconds } = useCountdown(nextBirthday);
@@ -124,9 +140,11 @@ export default function BirthdayCountdown({
       ) : (
         <>
           <p className="mb-1 font-heading text-xl">
-            {days > 0
-              ? `${days.toLocaleString("id-ID")} hari lagi`
-              : "Hari ini!"}
+            {daysUntil === 0
+              ? "Hari ini!"
+              : daysUntil === 1
+                ? "Besok!"
+                : `${daysUntil.toLocaleString("id-ID")} hari lagi`}
           </p>
           <p className="mb-3 text-sm text-muted-foreground">
             Menuju ulang tahun {displayName} (usia ke-{age + 1} tahun)

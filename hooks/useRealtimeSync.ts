@@ -58,6 +58,11 @@ export function useRealtimeSync(coupleId: string | undefined) {
           queryClient.invalidateQueries({ queryKey: queryKeys.wishes.all, refetchType: 'all' });
           queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.activity(), refetchType: 'all' });
           break;
+        case 'DAILY_TASK':
+          // Per-user state carried on the couple channel: the acting user's
+          // other devices (and the partner's, harmlessly) refetch today's card.
+          queryClient.invalidateQueries({ queryKey: queryKeys.dailyLoveTask.all, refetchType: 'all' });
+          break;
         case 'GAMES_LEADERBOARD':
           // Every leaderboard tab (per-game and merged "Semua") is prefixed by
           // ["games","leaderboard"]; one invalidation covers all of them.

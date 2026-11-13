@@ -142,7 +142,8 @@ export type SyncScope =
   | 'GAMES_LEADERBOARD'
   | 'GAMES_QUESTIONS'
   | 'PROFILE'
-  | 'LOCATION';
+  | 'LOCATION'
+  | 'DAILY_TASK';
 
 export type SyncAction = 'REFRESH';
 

@@ -24,6 +24,7 @@ model User {
   userLocation      UserLocation?
   userLocationHistory UserLocationHistory[]
   dailyNotes        DailyNote[]
+  dailyLoveTasks    DailyLoveTaskEntry[]
   gameScores      GameScore[]
   gameArcadeScores GameArcadeScore[]
   gameRounds      GameRound[]
@@ -286,6 +287,24 @@ model Letter {
   @@index([isTimeCapsule, isOpened, unlockAt])
   @@index([coupleId])
   @@index([isTimeCapsule, isOpened, notificationSentAt, unlockAt])
+}
+
+// Per-user daily love task state. One row per user per Jakarta calendar day:
+// the seed/history on every device, with the daily task and streak derived from
+// `done` rows instead of a second counter that could drift.
+model DailyLoveTaskEntry {
+  id          String    @id @default(cuid())
+  userId      String
+  date        DateTime  @db.Date
+  task        String
+  done        Boolean   @default(false)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId, date, done])
 }
 
 model DailyNote {

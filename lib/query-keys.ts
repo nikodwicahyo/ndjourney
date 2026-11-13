@@ -50,6 +50,10 @@ export const queryKeys = {
     stats: () => ["dashboard", "stats"] as const,
     activity: () => ["dashboard", "activity"] as const,
   },
+  dailyLoveTask: {
+    all: ["daily-love-task"] as const,
+    today: (date: string) => ["daily-love-task", date] as const,
+  },
   storage: {
     usage: () => ["storage", "usage"] as const,
   },

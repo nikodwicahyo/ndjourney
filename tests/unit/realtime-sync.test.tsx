@@ -66,6 +66,28 @@ describe("useRealtimeSync (notifications invalidation)", () => {
     }
   });
 
+  it("invalidates the daily love task query on DAILY_TASK", async () => {
+    bound.handler = undefined;
+    const { invalidate, unmount } = setup();
+    try {
+      await waitFor(() => expect(bound.handler).toBeDefined());
+      act(() => {
+        bound.handler!({ scope: "DAILY_TASK", action: "REFRESH" });
+      });
+
+      expect(invalidatedKeys(invalidate)).toContainEqual(
+        queryKeys.dailyLoveTask.all,
+      );
+      const call = invalidate.mock.calls.find(
+        ([arg]) =>
+          (arg as { queryKey: unknown }).queryKey === queryKeys.dailyLoveTask.all,
+      )?.[0];
+      expect(call).toMatchObject({ refetchType: "all" });
+    } finally {
+      unmount();
+    }
+  });
+
   it("does not touch notifications when the payload carries no activity", async () => {
     bound.handler = undefined;
     const { invalidate, unmount } = setup();

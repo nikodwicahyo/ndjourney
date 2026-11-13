@@ -460,7 +460,7 @@ model WishItem {
 | Hero Section | Foto pasangan full-width dengan overlay gradient |
 | Countdown | "Hari ke-XXX bersama" — dihitung dari `anniversaryDate` |
 | Nama pasangan | Tampil besar, animasi typewriter |
-| Quote of the day | Diambil dari daftar quotes, ganti setiap hari via seed |
+| Quote of the day | Diambil dari daftar quotes, berganti otomatis setiap 6 jam (WIB) |
 | Memory of the day | 1 foto random dari galeri muncul tiap buka halaman |
 | Musik mini player | Embed Spotify playlist (iframe), posisi pojok kanan bawah |
 | Tombol navigasi | Menuju Gallery, Timeline, Letters |

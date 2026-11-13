@@ -3,41 +3,51 @@
 import { useRef, useState, useEffect } from "react";
 import { motion, useInView } from "framer-motion";
 import { Quote } from "lucide-react";
-import { getQuoteOfTheDay, QUOTES, loadShownQuoteIndices, saveShownQuoteIndex, resetShownQuotes } from "@/lib/quotes";
-import { getJakartaParts } from "@/lib/date";
-import { useMounted } from "@/hooks/useMounted";
+import { getQuoteOfTheDay, msUntilNextQuotePeriod } from "@/lib/quotes";
 
 export default function QuoteOfTheDay() {
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-40px" });
   const [quote, setQuote] = useState<string>("");
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Gate dynamic content on mount so server HTML and first client render match
-  // (the quote depends on localStorage/random, which differ).
-  const mounted = useMounted();
 
   useEffect(() => {
-    function update() {
-      const shown = loadShownQuoteIndices();
-      const q = getQuoteOfTheDay(shown);
-      setQuote(q);
-      const idx = QUOTES.indexOf(q);
-      if (idx !== -1) saveShownQuoteIndex(idx);
+    let active = true;
+
+    // Pure function of the current WIB period: re-running it is always safe, and
+    // React bails out when the text is unchanged.
+    function sync() {
+      if (active) setQuote(getQuoteOfTheDay());
     }
 
-    function scheduleNext() {
-      const ms = getMsUntilNextPeriod();
+    function schedule() {
+      if (!active) return;
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
       timeoutRef.current = setTimeout(() => {
-        update();
-        scheduleNext();
-      }, ms);
+        sync();
+        schedule();
+      }, msUntilNextQuotePeriod());
     }
 
-    update();
-    scheduleNext();
+    // Background tabs throttle timers and devices sleep mid-period, so re-check
+    // and re-arm whenever the page wakes up rather than trusting one long timer.
+    function resync() {
+      sync();
+      schedule();
+    }
+
+    sync();
+    schedule();
+    document.addEventListener("visibilitychange", resync);
+    window.addEventListener("focus", resync);
+    window.addEventListener("pageshow", resync);
 
     return () => {
+      active = false;
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      document.removeEventListener("visibilitychange", resync);
+      window.removeEventListener("focus", resync);
+      window.removeEventListener("pageshow", resync);
     };
   }, []);
 
@@ -59,34 +69,4 @@ export default function QuoteOfTheDay() {
       </div>
     </motion.div>
   );
-}
-
-function getMsUntilNextPeriod(): number {
-  const now = new Date();
-  const parts = getJakartaParts(now);
-  if (!parts) return 4 * 60 * 60 * 1000;
-
-  const { year, month, day, hour } = parts;
-  const nextBoundaryHour = (Math.floor(hour / 4) + 1) * 4;
-
-  let boundaryYear = year;
-  let boundaryMonth = month;
-  let boundaryDay = day;
-  let boundaryHour: number;
-
-  if (nextBoundaryHour === 24) {
-    // Advance the Jakarta calendar day in UTC — local Date arithmetic would
-    // roll over at the browser's midnight, not Jakarta's.
-    const nextDate = new Date(Date.UTC(year, month - 1, day + 1));
-    boundaryYear = nextDate.getUTCFullYear();
-    boundaryMonth = nextDate.getUTCMonth() + 1;
-    boundaryDay = nextDate.getUTCDate();
-    boundaryHour = 0;
-  } else {
-    boundaryHour = nextBoundaryHour;
-  }
-
-  const boundary = Date.UTC(boundaryYear, boundaryMonth - 1, boundaryDay, boundaryHour - 7, 0, 0, 0);
-  const ms = boundary - now.getTime();
-  return ms > 0 ? ms : 4 * 60 * 60 * 1000;
 }

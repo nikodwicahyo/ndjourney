@@ -12,7 +12,7 @@ Built for two. Powered by Next.js.
 ### 🏠 Home
 - Hero section with parallax photo/video, typewriter couple names, and tagline
 - Days-together countdown since anniversary
-- Daily romantic quote of the day
+- Romantic quote that rotates every 6 hours (WIB)
 - Birthday countdowns for both partners
 - Love Meter — fun stats gauge based on photos, letters, milestones, wishes
 - Memory of the Day — random photo from the gallery

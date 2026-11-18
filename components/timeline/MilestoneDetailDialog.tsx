@@ -1,14 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
-import Image from "next/image";
-import { createPortal } from "react-dom";
+import React, { useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import FullscreenImage from "@/components/ui/FullscreenImage";
 import { Avatar, AvatarImage, AvatarFallback, Button, Separator } from "@/components/ui";
 import { MapPin, Edit3, Trash2, Heart, X } from "lucide-react";
 import { formatDate } from "@/lib/utils";
@@ -38,6 +37,9 @@ function MilestoneDetailDialog({
   isDeleting,
 }: MilestoneDetailDialogProps) {
   const [zoomedId, setZoomedId] = useState<string | null>(null);
+  // Return focus to the thumbnail that opened the overlay (it is still
+  // mounted when the overlay closes).
+  const photoRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const cardColor = milestone.color || "var(--primary)";
   const zoomed = milestone.photos?.find(({ photo }) => photo.id === zoomedId) ?? null;
 
@@ -50,64 +52,28 @@ function MilestoneDetailDialog({
     if (!open && zoomedId !== null) setZoomedId(null);
   }
 
+  const closeZoom = (id: string | null) => {
+    setZoomedId(null);
+    if (id) photoRefs.current[id]?.focus();
+  };
+
   // While the full-screen photo overlay is open, Escape/backdrop/close
   // dismiss the overlay first — not the whole modal underneath it.
   const handleOpenChange = (next: boolean) => {
     if (!next && zoomedId) {
-      setZoomedId(null);
+      closeZoom(zoomedId);
       return;
     }
     onOpenChange(next);
   };
 
-  const overlay = zoomed ? (
-    <div
-      onClick={() => setZoomedId(null)}
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/90"
-    >
-      <button
-        onClick={() => setZoomedId(null)}
-        autoFocus
-        aria-label="Tutup foto"
-        style={{
-          top: "max(1rem, env(safe-area-inset-top))",
-          right: "max(1rem, env(safe-area-inset-right))",
-        }}
-        className="absolute flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80"
-      >
-        <X className="h-6 w-6" aria-hidden="true" />
-      </button>
-      <div className="relative h-full w-full">
-        <Image
-          src={getOptimizedImageUrl(zoomed.photo.url, 1920)}
-          alt={zoomed.photo.caption || milestone.title}
-          fill
-          priority
-          sizes="100vw"
-          className="object-contain p-2 sm:p-8"
-        />
-      </div>
-      {zoomed.photo.caption && (
-        <p
-          className="pointer-events-none absolute inset-x-0 px-6 text-center text-sm text-white/80"
-          style={{ bottom: "max(1.25rem, env(safe-area-inset-bottom))" }}
-        >
-          {zoomed.photo.caption}
-        </p>
-      )}
-    </div>
-  ) : null;
-
-  // Portal escapes DialogContent's transform — a transformed ancestor would
-  // otherwise trap the `fixed inset-0` overlay inside the modal rectangle.
-  const portaledOverlay = overlay && typeof document !== "undefined"
-    ? createPortal(overlay, document.body)
-    : null;
-
   return (
     <>
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-2xl p-4 pt-10 sm:p-6">
+      <DialogContent
+        aria-hidden={zoomedId ? true : undefined}
+        className="max-w-2xl p-4 pt-10 sm:p-6"
+      >
         <div
           className="absolute top-0 left-0 h-1 w-full rounded-t-2xl"
           style={{ backgroundColor: cardColor }}
@@ -163,6 +129,9 @@ function MilestoneDetailDialog({
                 {milestone.photos.map(({ photo, crop }) => (
                   <button
                     key={photo.id}
+                    ref={(el) => {
+                      photoRefs.current[photo.id] = el;
+                    }}
                     onClick={() => setZoomedId(photo.id)}
                     aria-label={`Lihat foto penuh ${milestone.title}`}
                     className="relative aspect-square overflow-hidden rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-primary"
@@ -224,7 +193,14 @@ function MilestoneDetailDialog({
           </div>
       </DialogContent>
     </Dialog>
-      {portaledOverlay}
+        {zoomed && (
+          <FullscreenImage
+            src={getOptimizedImageUrl(zoomed.photo.url, 1920)}
+            alt={zoomed.photo.caption || milestone.title}
+            caption={zoomed.photo.caption}
+            onClose={() => closeZoom(zoomed.photo.id)}
+          />
+        )}
     </>
   );
 }

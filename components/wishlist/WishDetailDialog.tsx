@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import FullscreenImage from "@/components/ui/FullscreenImage";
 import { Button } from "@/components/ui";
 import { getOptimizedImageUrl } from "@/lib/cloudinary-urls";
 import { useToggleWish } from "@/hooks/useWishes";
@@ -28,8 +29,40 @@ type WishDetailDialogProps = {
 function WishDetailDialog({ wish, open, onOpenChange, readOnly = false }: WishDetailDialogProps) {
   const toggleWish = useToggleWish();
   const [imgError, setImgError] = useState(false);
+  const [zoomed, setZoomed] = useState(false);
+  const bannerRef = useRef<HTMLButtonElement>(null);
   const cat = wish.category || "OTHER";
   const config = categoryConfig[cat] || categoryConfig.OTHER;
+
+  // Drop the zoomed photo whenever the dialog closes so reopening lands on
+  // the banner, not a stale full-screen view. Render-time adjustment
+  // (React-endorsed), not a post-paint effect.
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
+    if (!open && zoomed) setZoomed(false);
+  }
+
+  // Overlay open → Escape/backdrop dismiss the overlay first, not the modal.
+  // Both paths return focus to the banner (the overlay X unmounts and the
+  // modal is hidden from assistive tech underneath).
+  const closeZoom = () => {
+    setZoomed(false);
+    bannerRef.current?.focus();
+  };
+
+  const handleOpenChange = (next: boolean) => {
+    if (!next && zoomed) {
+      closeZoom();
+      return;
+    }
+    onOpenChange(next);
+  };
+
+  const closeModal = () => {
+    setZoomed(false);
+    onOpenChange(false);
+  };
 
   // Same optimistic toast flow as WishCard — the wish list is the same data.
   async function handleToggle() {
@@ -50,10 +83,14 @@ function WishDetailDialog({ wish, open, onOpenChange, readOnly = false }: WishDe
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl p-4 pt-12 sm:p-6 sm:pt-6">
+    <>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent
+        aria-hidden={zoomed || undefined}
+        className="max-w-xl p-4 pt-12 sm:p-6 sm:pt-6"
+      >
         <button
-          onClick={() => onOpenChange(false)}
+          onClick={closeModal}
           aria-label="Tutup"
           className="absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
@@ -96,13 +133,26 @@ function WishDetailDialog({ wish, open, onOpenChange, readOnly = false }: WishDe
         )}
 
         {wish.imageUrl && !imgError && (
-          <CropBanner
-            src={getOptimizedImageUrl(wish.imageUrl, 1024)}
-            crop={(wish as { imageCrop?: unknown }).imageCrop}
-            alt={wish.title}
-            sizes="(max-width: 768px) 100vw, 640px"
-            onError={() => setImgError(true)}
-          />
+          // The button sits on top of the banner (never wrapping it): a card
+          // body inside <button> is invalid HTML, and this keeps the cropped
+          // preview untouched.
+          <div className="relative">
+            <CropBanner
+              src={getOptimizedImageUrl(wish.imageUrl, 1024)}
+              crop={(wish as { imageCrop?: unknown }).imageCrop}
+              alt={wish.title}
+              sizes="(max-width: 768px) 100vw, 640px"
+              onError={() => setImgError(true)}
+            />
+            <button
+              ref={bannerRef}
+              type="button"
+              onClick={() => setZoomed(true)}
+              aria-label={`Lihat gambar penuh ${wish.title}`}
+              aria-haspopup="dialog"
+              className="absolute inset-0 z-10 cursor-zoom-in rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            />
+          </div>
         )}
 
         <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
@@ -147,6 +197,14 @@ function WishDetailDialog({ wish, open, onOpenChange, readOnly = false }: WishDe
         )}
       </DialogContent>
     </Dialog>
+    {zoomed && wish.imageUrl && !imgError && (
+      <FullscreenImage
+        src={getOptimizedImageUrl(wish.imageUrl, 1920)}
+        alt={wish.title}
+        onClose={closeZoom}
+      />
+    )}
+    </>
   );
 }
 

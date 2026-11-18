@@ -34,7 +34,7 @@ function SyncNote({ syncState }: { syncState: DailyLoveTaskSyncState }) {
     return (
       <span className={`${base} text-muted-foreground`}>
         <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
-        Menyinkronkan...
+        Syncing...
       </span>
     );
   }
@@ -42,7 +42,7 @@ function SyncNote({ syncState }: { syncState: DailyLoveTaskSyncState }) {
     return (
       <span className={`${base} text-destructive`}>
         <AlertCircle className="h-3 w-3" aria-hidden="true" />
-        Belum tersinkron
+        Not synced
       </span>
     );
   }
@@ -50,14 +50,14 @@ function SyncNote({ syncState }: { syncState: DailyLoveTaskSyncState }) {
     return (
       <span className={`${base} text-muted-foreground`}>
         <Cloud className="h-3 w-3" aria-hidden="true" />
-        Tersinkron antar perangkat
+        Synced
       </span>
     );
   }
   return (
     <span className={`${base} text-muted-foreground`}>
       <HardDrive className="h-3 w-3" aria-hidden="true" />
-      Tersimpan di perangkat ini
+      Saved
     </span>
   );
 }

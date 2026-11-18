@@ -319,10 +319,15 @@
   /* Below-the-fold section shell: reserve the slot height before the widget
      mounts, and let the browser skip layout/paint while it is off-screen.
      `auto` remembers the measured height after the first render, so the
-     estimate only ever applies to sections that have never been shown. */
+     estimate only ever applies to sections that have never been shown.
+     `min-height` is the hard floor: an empty slot can be remembered at 0px by
+     `contain-intrinsic-size: auto`, which collapsed every not-yet-mounted
+     section to zero height and made the document grow while scrolling (the
+     last sections, including Daily Love Task, appeared to be missing). */
   .reveal-slot {
     content-visibility: auto;
     contain-intrinsic-size: auto var(--reveal-h, 320px);
+    min-height: var(--reveal-h, 320px);
   }
 
   .bg-shimmer {

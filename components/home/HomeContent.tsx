@@ -12,8 +12,23 @@ import type { CropRect } from "@/lib/image-crop";
 
 // Below-the-fold content is a separate chunk, fetched only when the visitor
 // actually scrolls toward it. It also keeps framer-motion out of the hero's
-// critical path.
-const HomeBelowFold = dynamic(() => import("./HomeBelowFold"), { ssr: false });
+// critical path. The placeholder is reused as the loading state: on a cold
+// first visit the chunk still has to download, and swapping the placeholders
+// out for `null` made the whole page below the hero collapse to nothing.
+function SectionPlaceholders() {
+  return (
+    <div aria-hidden="true" className="space-y-16 md:space-y-24">
+      {SECTION_SLOTS.map((slot) => (
+        <div key={slot.key} style={{ minHeight: slot.minHeight }} />
+      ))}
+    </div>
+  );
+}
+
+const HomeBelowFold = dynamic(() => import("./HomeBelowFold"), {
+  ssr: false,
+  loading: () => <SectionPlaceholders />,
+});
 
 type HomeContentProps = {
   coupleConfig: {
@@ -116,11 +131,7 @@ export default function HomeContent({
         ) : (
           // Same slot heights the real sections reserve, so the document does
           // not change height when the content swaps in.
-          <div aria-hidden="true" className="space-y-16 md:space-y-24">
-            {SECTION_SLOTS.map((slot) => (
-              <div key={slot.key} style={{ minHeight: slot.minHeight }} />
-            ))}
-          </div>
+          <SectionPlaceholders />
         )}
       </div>
     </>

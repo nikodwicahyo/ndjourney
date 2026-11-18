@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { motion, useInView } from "framer-motion";
+import { useState } from "react";
+import { motion } from "framer-motion";
 import {
   AlertCircle,
   Check,
@@ -57,14 +57,12 @@ function SyncNote({ syncState }: { syncState: DailyLoveTaskSyncState }) {
   return (
     <span className={`${base} text-muted-foreground`}>
       <HardDrive className="h-3 w-3" aria-hidden="true" />
-      Saved
+      Stored 
     </span>
   );
 }
 
 function DailyLoveTaskInner({ today }: { today: string }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const isInView = useInView(ref, { once: true, margin: "-40px" });
   const [showConfetti, setShowConfetti] = useState(false);
   const [showAllHistory, setShowAllHistory] = useState(false);
   const { task, done, streak, history, saving, syncState, toggleDone, nextTask } =
@@ -80,10 +78,13 @@ function DailyLoveTaskInner({ today }: { today: string }) {
   };
 
   return (
+    // Animates on mount instead of on `useInView`: a second visibility gate
+    // left the card at opacity 0 whenever its observer did not fire (e.g.
+    // inside skipped `content-visibility` content). The parent `Reveal`
+    // already delays mounting until the section is near the viewport.
     <motion.div
-      ref={ref}
       initial={{ opacity: 0, y: 24 }}
-      animate={isInView ? { opacity: 1, y: 0 } : {}}
+      animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: "easeOut" }}
       role="region"
       aria-labelledby="daily-love-task-title"

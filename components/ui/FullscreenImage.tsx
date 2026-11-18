@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 
 type FullscreenImageProps = {
   src: string;
@@ -20,6 +20,7 @@ type FullscreenImageProps = {
 function FullscreenImage({ src, alt, caption, onClose }: FullscreenImageProps) {
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [elapsed, setElapsed] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
 
   // Reset load state when the source changes while the overlay stays mounted.
@@ -29,7 +30,17 @@ function FullscreenImage({ src, alt, caption, onClose }: FullscreenImageProps) {
     setPrevSrc(src);
     setFailed(false);
     setLoaded(false);
+    setElapsed(false);
   }
+
+  // Delay the spinner so cached/preloaded images never flash it.
+  useEffect(() => {
+    if (loaded || failed) return;
+    const timer = window.setTimeout(() => setElapsed(true), 250);
+    return () => window.clearTimeout(timer);
+  }, [loaded, failed, src]);
+
+  const showSpinner = elapsed && !loaded && !failed;
 
   const overlay = (
     <div
@@ -72,11 +83,6 @@ function FullscreenImage({ src, alt, caption, onClose }: FullscreenImageProps) {
         </p>
       ) : (
         <>
-          {!loaded && (
-            <p className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-white/60">
-              Memuat gambar…
-            </p>
-          )}
           <div className="relative h-full w-full">
             <Image
               src={src}
@@ -90,6 +96,18 @@ function FullscreenImage({ src, alt, caption, onClose }: FullscreenImageProps) {
               className="object-contain p-2 sm:p-8"
             />
           </div>
+          {showSpinner && (
+            <div
+              role="status"
+              className="pointer-events-none absolute inset-0 flex items-center justify-center"
+            >
+              <Loader2
+                className="h-8 w-8 text-white/70 motion-safe:animate-spin"
+                aria-hidden="true"
+              />
+              <span className="sr-only">Memuat gambar…</span>
+            </div>
+          )}
         </>
       )}
 

@@ -14,6 +14,7 @@ import {
   File,
   ExternalLink,
   RefreshCw,
+  Loader2,
   Info,
   Calendar,
   User,
@@ -86,6 +87,7 @@ function Lightbox({
   totalCount,
 }: LightboxProps) {
   const [mediaState, setMediaState] = useState<MediaState>("loading");
+  const [spinnerElapsed, setSpinnerElapsed] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
   const MAX_ZOOM = 8;
   // Controlled zoom view: scale + translate in STABLE container coords.
@@ -483,6 +485,7 @@ function Lightbox({
 
   useEffect(() => {
     setMediaState("loading");
+    setSpinnerElapsed(false);
     resetView();
     setShowInfo(false);
   }, [photo?.id, resetView]);
@@ -508,6 +511,16 @@ function Lightbox({
       img.onerror = null;
     };
   }, [photo?.id, photo?.url, displayWidth, photo?.isVideo, retryKey]);
+
+  // Delay the spinner so cached/preloaded neighbours never flash it; the blur
+  // placeholder already covers the stage meanwhile.
+  useEffect(() => {
+    if (mediaState !== "loading" || photo?.isVideo) return;
+    const timer = window.setTimeout(() => setSpinnerElapsed(true), 250);
+    return () => window.clearTimeout(timer);
+  }, [mediaState, photo?.isVideo, photo?.id]);
+
+  const showSpinner = spinnerElapsed && !photo?.isVideo && mediaState === "loading";
 
   useEffect(() => {
     if (isOpen) {
@@ -721,8 +734,7 @@ function Lightbox({
                         decoding="async"
                         fetchPriority={mediaState === "loading" ? "low" : "high"}
                         className={cn(
-                          "max-h-full w-auto max-w-full rounded-lg object-contain transition-opacity duration-500 select-none",
-                          mediaState === "loading" ? "opacity-40" : "opacity-100",
+                          "max-h-full w-auto max-w-full rounded-lg object-contain select-none",
                           !isZoomed
                             ? "cursor-zoom-in"
                             : panning
@@ -749,6 +761,19 @@ function Lightbox({
                       <ExternalLink className="h-4 w-4" />
                       Buka file
                     </a>
+                  </div>
+                )}
+                {/* Sibling of the zoom transform so it never scales mid-gesture. */}
+                {showSpinner && (
+                  <div
+                    role="status"
+                    className="pointer-events-none absolute inset-0 flex items-center justify-center"
+                  >
+                    <Loader2
+                      className="h-8 w-8 text-white/70 motion-safe:animate-spin"
+                      aria-hidden="true"
+                    />
+                    <span className="sr-only">Memuat media…</span>
                   </div>
                 )}
               </motion.div>

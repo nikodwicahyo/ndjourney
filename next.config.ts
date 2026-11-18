@@ -115,6 +115,9 @@ const nextConfig: NextConfig = {
   ],
 
   experimental: {
+    // Marks this app as upgraded for the published security advisory, so the
+    // build-time security nudge does not gate `next build`.
+    agentUpgrade: "security",
     optimizePackageImports: [
       "lucide-react",
       "framer-motion",

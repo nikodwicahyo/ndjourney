@@ -27,7 +27,6 @@ import {
   getOptimizedImageUrl,
   getImageSrcSet,
   getOptimizedVideoUrl,
-  getBlurImageUrl,
 } from "@/lib/cloudinary-urls";
 import type { PhotoWithUploader } from "@/types";
 import AlbumMoveDropdown from "./AlbumMoveDropdown";
@@ -143,11 +142,6 @@ function Lightbox({
     const quality = isZoomed ? "auto:best" : "auto:eco";
     return getOptimizedImageUrl(photo.url, displayWidth, { quality, crop: "limit" });
   }, [photo?.url, displayWidth, isZoomed]);
-
-  const blurPlaceholderUrl = useMemo(() => {
-    if (!photo?.url) return "";
-    return getBlurImageUrl(photo.url);
-  }, [photo?.url]);
 
   const srcSet = useMemo(() => {
     if (!photo?.url) return undefined;
@@ -724,15 +718,15 @@ function Lightbox({
                           Muat ulang
                         </button>
                       </div>
-                    ) : (
+                    ) : mediaState === "loaded" ? (
                       <img
-                        src={mediaState === "loaded" ? optimizedUrl : blurPlaceholderUrl}
+                        src={optimizedUrl}
                         alt={photo.caption ?? fileName}
                         draggable={false}
-                        srcSet={mediaState === "loaded" ? srcSet : undefined}
+                        srcSet={srcSet}
                         sizes="(max-width: 768px) 100vw, (max-width: 1200px) 90vw, 80vw"
                         decoding="async"
-                        fetchPriority={mediaState === "loading" ? "low" : "high"}
+                        fetchPriority="high"
                         className={cn(
                           "max-h-full w-auto max-w-full rounded-lg object-contain select-none",
                           !isZoomed
@@ -743,7 +737,7 @@ function Lightbox({
                         )}
                         style={{ maxWidth: "100%", height: "auto" }}
                       />
-                    )}
+                    ) : null}
                   </div>
                 ) : (
                   <div className="flex max-w-sm flex-col items-center gap-4 rounded-lg border border-white/10 bg-white/5 p-6 text-center">
@@ -767,13 +761,10 @@ function Lightbox({
                 {showSpinner && (
                   <div
                     role="status"
-                    className="pointer-events-none absolute inset-0 flex items-center justify-center"
+                    className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3"
                   >
-                    <Loader2
-                      className="h-8 w-8 text-white/70 motion-safe:animate-spin"
-                      aria-hidden="true"
-                    />
-                    <span className="sr-only">Memuat media…</span>
+                    <Loader2 className="h-8 w-8 animate-spin text-white/70" aria-hidden="true" />
+                    <span className="text-sm text-white/60">Memuat media…</span>
                   </div>
                 )}
               </motion.div>

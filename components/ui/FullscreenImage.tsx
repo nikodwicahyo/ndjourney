@@ -99,13 +99,10 @@ function FullscreenImage({ src, alt, caption, onClose }: FullscreenImageProps) {
           {showSpinner && (
             <div
               role="status"
-              className="pointer-events-none absolute inset-0 flex items-center justify-center"
+              className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3"
             >
-              <Loader2
-                className="h-8 w-8 text-white/70 motion-safe:animate-spin"
-                aria-hidden="true"
-              />
-              <span className="sr-only">Memuat gambar…</span>
+              <Loader2 className="h-8 w-8 animate-spin text-white/70" aria-hidden="true" />
+              <span className="text-sm text-white/60">Memuat gambar…</span>
             </div>
           )}
         </>

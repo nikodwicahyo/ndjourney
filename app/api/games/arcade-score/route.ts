@@ -85,7 +85,7 @@ export async function POST(request: Request) {
           type: "game",
           action: "scored",
           title: "Skor baru",
-          body: `${session!.user.name || "Pasangan"} mencatat skor ${score.score} di ${GAME_LABELS[score.gameType] ?? score.gameType}`,
+          body: `${session!.user.name || "Pasangan"} bermain game dan mencetak skor ${score.score} di ${GAME_LABELS[score.gameType] ?? score.gameType}`,
           href: "/dashboard/games",
           level: "bell",
         });

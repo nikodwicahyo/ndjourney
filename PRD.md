@@ -575,8 +575,8 @@ Surat dibuat dengan unlockAt = tanggal masa depan
 - Kedua user pilih, lalu reveal pilihan masing-masing
 - Buat pertanyaan custom sendiri
 
-#### 5b. Trivia — Seberapa Kenal Kamu?
-- Buat pertanyaan trivia tentang pasangan (isi sendiri)
+#### 5b. Love Quiz — Seberapa Kenal Kamu?
+- Buat pertanyaan tentang pasangan (isi sendiri)
 - Contoh: "Apa makanan favorit aku?" → A / B / C / D
 - Skor real-time, leaderboard dua orang
 
@@ -1144,7 +1144,7 @@ git push origin main
 - [ ] Dashboard dasar
 
 ### Phase 3 — Fun Features (Minggu 6–7)
-- [ ] F-05: Games (Would You Rather, Trivia, Spin Wheel, T&D)
+- [ ] F-05: Games (Would You Rather, Love Quiz, Spin Wheel, T&D)
 - [ ] F-07: Daily love note
 - [ ] F-08: Wish list
 

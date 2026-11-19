@@ -317,7 +317,7 @@ async function seedGameQuestions() {
     })),
     skipDuplicates: true,
   });
-  console.log(`✅ ${TRIVIA_QUESTIONS.length} Trivia questions seeded`);
+  console.log(`✅ ${TRIVIA_QUESTIONS.length} Love Quiz questions seeded`);
 
   await prisma.gameQuestion.createMany({
     data: TRUTH_CARDS.map((card) => ({

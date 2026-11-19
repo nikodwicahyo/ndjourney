@@ -16,6 +16,17 @@ export type MilestoneWithRelations = Milestone & {
 
 export const milestoneKeys = queryKeys.milestones;
 
+/** 207 partial-failure payload surfaced to the form — never silent. */
+export type MilestoneSaveResult = {
+  data?: unknown;
+  failedPhotos: Array<{ publicId: string; error: string }>;
+};
+
+function normalizeSaveBody(body: unknown): MilestoneSaveResult {
+  const b = (body ?? {}) as { data?: unknown; failedPhotos?: Array<{ publicId: string; error: string }> };
+  return { data: b.data ?? body, failedPhotos: b.failedPhotos ?? [] };
+}
+
 export function useMilestones() {
   return useQuery({
     queryKey: milestoneKeys.list(),
@@ -62,11 +73,9 @@ export function useCreateMilestone() {
       photoIds?: string[];
       photoUploads?: Array<{ url: string; publicId: string; thumbnailUrl?: string; crop?: CropRect | null }>;
       photoCrops?: Record<string, CropRect>;
-    }) => api.post("/api/milestones", data).then((res) => {
+    }) => api.post("/api/milestones", data).then((res): MilestoneSaveResult => {
       if (res.error) throw new Error(res.error);
-      return (res.data as { data?: unknown }) && typeof res.data === "object" && "data" in (res.data as object)
-        ? (res.data as { data: unknown }).data
-        : res.data;
+      return normalizeSaveBody(res.data);
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: milestoneKeys.all, refetchType: 'all' });
@@ -95,9 +104,9 @@ export function useUpdateMilestone() {
       photoIds?: string[];
       photoUploads?: Array<{ url: string; publicId: string; thumbnailUrl?: string; crop?: CropRect | null }>;
       photoCrops?: Record<string, CropRect>;
-    }) => api.put(`/api/milestones/${id}`, data).then((res) => {
+    }) => api.put(`/api/milestones/${id}`, data).then((res): MilestoneSaveResult => {
       if (res.error) throw new Error(res.error);
-      return res.data;
+      return normalizeSaveBody(res.data);
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: milestoneKeys.all, refetchType: 'all' });

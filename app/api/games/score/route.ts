@@ -3,9 +3,7 @@ import { NextResponse } from "next/server";
 import { submitScoreSchema } from "@/lib/validations/game";
 import { withRateLimit, withAnonymousRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { auth } from "@/lib/auth";
-import { isAnswerCorrect, GAME_LABELS } from "@/lib/game-answer";
-import { getUserCoupleId } from "@/lib/couple";
-import { emitActivity } from "@/lib/activity";
+import { isAnswerCorrect } from "@/lib/game-answer";
 
 export async function POST(request: Request) {
   try {
@@ -92,24 +90,6 @@ export async function POST(request: Request) {
         playedAt: true,
       },
     });
-
-    // The leaderboard aggregates COMPLETED rounds (/api/games/round), not
-    // individual answers — so no round-level cache invalidation here. The
-    // bell-only event below is cheap for push (no fan-out) but emitActivity
-    // still triggers Pusher and drops the dashboard activity cache.
-    if (isAuthed) {
-      const coupleId = await getUserCoupleId(session!.user.id);
-      if (coupleId) {
-        await emitActivity(coupleId, session!.user.id, {
-          type: "arcade",
-          action: "scored",
-          title: "Skor baru",
-          body: `${session!.user.name || "Pasangan"} mencatat skor ${correct ? 1 : 0} di ${GAME_LABELS[question.type] ?? question.type}`,
-          href: "/dashboard/games",
-          level: "bell",
-        });
-      }
-    }
 
     return NextResponse.json(
       { data: score, correct, answer: question.answer },

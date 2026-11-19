@@ -2,15 +2,18 @@ export const BREAKPOINTS = [320, 480, 640, 768, 1024, 1280, 1536] as const;
 
 export type CloudinaryAsset = {
   publicId: string;
-  resourceType: "image" | "video";
+  // raw = raw uploads (e.g. background music) — kept extension-inclusive.
+  resourceType: "image" | "video" | "raw";
 };
 
 /**
  * Parse a Cloudinary delivery URL into the asset it points at.
  *
  * Returns null unless the URL is https, belongs to `cloudName`, and uses an
- * image/video upload path. The version segment is ignored so a rewritten
- * `/v999/` URL resolves to the same publicId.
+ * image/video/raw upload path. The version segment is ignored so a rewritten
+ * `/v999/` URL resolves to the same publicId. The extension is stripped only
+ * for image/video (Cloudinary stores those publicIds extensionless); raw
+ * publicIds keep their extension.
  */
 export function cloudinaryAssetFromUrl(
   url: string | null | undefined,
@@ -18,17 +21,19 @@ export function cloudinaryAssetFromUrl(
 ): CloudinaryAsset | null {
   if (!url || !cloudName) return null;
   const match = url.match(
-    /^https:\/\/res\.cloudinary\.com\/([^/]+)\/(image|video)\/upload\/(?:v\d+\/)?([^?#]+)$/,
+    /^https:\/\/res\.cloudinary\.com\/([^/]+)\/(image|video|raw)\/upload\/(?:v\d+\/)?([^?#]+)$/,
   );
   if (!match) return null;
   const [, urlCloud, resourceType, rest] = match;
   if (urlCloud !== cloudName) return null;
 
   const cleanedParts = rest.split("/").filter((part) => !part.includes(","));
-  const publicId = cleanedParts.join("/").replace(/\.[^/.]+$/, "");
+  const joined = cleanedParts.join("/");
+  // raw publicIds include the extension (folder/song.mp3) — never strip it.
+  const publicId = resourceType === "raw" ? joined : joined.replace(/\.[^/.]+$/, "");
   if (!publicId) return null;
 
-  return { publicId, resourceType: resourceType as "image" | "video" };
+  return { publicId, resourceType: resourceType as CloudinaryAsset["resourceType"] };
 }
 
 function extractUploadBaseAndId(url: string): { base: string; publicId: string } | null {

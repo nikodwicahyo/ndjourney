@@ -215,6 +215,9 @@ export async function PUT(
               publicId: upload.publicId,
               thumbnailUrl: upload.thumbnailUrl ?? null,
               uploadedById: session.user.id,
+              // couple-share the upload (see POST counterpart) — null for solo
+              // callers, re-link gate still lets the uploader re-link it.
+              coupleId: callerCoupleId,
               isMilestoneOnly: true,
             },
             select: { id: true },

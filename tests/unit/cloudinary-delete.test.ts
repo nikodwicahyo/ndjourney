@@ -76,4 +76,22 @@ describe("deleteFromCloudinaryUrl ownership", () => {
       expect.objectContaining({ resource_type: "image" }),
     );
   });
+
+  it("deletes a video asset with the version segment stripped", async () => {
+    const fn = await loadUrlDelete();
+    await fn("https://res.cloudinary.com/test-cloud/video/upload/v1/ndjourney-web/u1/clip.mp4", ["u1"]);
+    expect(destroyMock).toHaveBeenCalledWith(
+      "ndjourney-web/u1/clip",
+      expect.objectContaining({ resource_type: "video" }),
+    );
+  });
+
+  it("deletes a raw (audio) asset — the background-music leak path; raw publicIds keep their extension", async () => {
+    const fn = await loadUrlDelete();
+    await fn("https://res.cloudinary.com/test-cloud/raw/upload/v1/ndjourney-web/u1/song.mp3", ["u1"]);
+    expect(destroyMock).toHaveBeenCalledWith(
+      "ndjourney-web/u1/song.mp3",
+      expect.objectContaining({ resource_type: "raw" }),
+    );
+  });
 });

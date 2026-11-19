@@ -114,6 +114,9 @@ export async function POST(request: Request) {
               publicId: upload.publicId,
               thumbnailUrl: upload.thumbnailUrl ?? null,
               uploadedById: session.user.id,
+              // couple-share the upload — milestone rows are couple-shared, so the
+              // photo must be too (orphan rows can't be re-linked by the partner).
+              coupleId,
               isMilestoneOnly: true,
             },
             select: { id: true },

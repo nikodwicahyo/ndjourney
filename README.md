@@ -40,7 +40,7 @@ Built for two. Powered by Next.js.
 
 ### 🎮 Games
 - **Would You Rather** — A/B card pick with reveal animation
-- **Trivia Quiz** — Multiple choice with timer
+- **Love Quiz** — Multiple choice with timer
 - **Spin the Wheel** — Canvas spinning wheel with date ideas + confetti
 - **Truth or Dare** — Card flip with romantic truths/dares
 - Score tracking and leaderboard

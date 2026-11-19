@@ -1,7 +1,7 @@
 /** Display names for game-activity copy (activity events only). */
 export const GAME_LABELS: Record<string, string> = {
   WOULD_YOU_RATHER: "Would You Rather",
-  TRIVIA: "Trivia",
+  TRIVIA: "Love Quiz",
   SLIDING_PUZZLE: "Sliding Puzzle",
   MEMORY_BLOCK_BLAST: "Memory Block Blast",
 };

@@ -182,7 +182,7 @@ export type NotificationItem = {
 | milestones (+[id]) | `milestone`/`created` or `updated` | `Milestone baru` | `{actor} menambahkan "{title}"` | `/timeline` | `both` |
 | notes (+[id]) | `note`/`created` or `updated` | `Catatan harian` | `{actor} menulis catatan` | `/notes` | `both` |
 | wishes (+[id]) | `wish`/`created` or `updated` | `Wishlist` | `{actor} menambahkan keinginan "{name}"` | `/wishlist` | `both` |
-| games/round, games/arcade-score (existing triggers) | `game`/`scored` | `Skor baru` | `{actor} mencatat skor {score} di {game}` | `/games` | `bell` |
+| games/round, games/arcade-score (existing triggers) | `game`/`scored` | `Skor baru` | `{actor} mencetak skor {score} di {game}` | `/games` | `bell` |
 | games/score (new emit) | `arcade`/`scored` | same as above | same | `/games` | `bell` |
 | games/questions (+[id]) | `questions`/`created`/`updated` | `Bank soal` | `{actor} memperbarui bank soal` | `/games` | `bell` |
 | couple, user (profile/couple-config edits) | `profile`/`updated` | `Profil diperbarui` | `{actor} memperbarui profil` | `/settings` | `bell` |

@@ -11,7 +11,8 @@ import BottleLetter from "./BottleLetter";
 import MemoryMatch from "./MemoryMatch";
 import Reveal from "./Reveal";
 import MotionRoot from "@/components/MotionRoot";
-import { SECTION_SLOTS } from "./section-slots";
+import { getSectionMinHeight } from "./section-slots";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { getJakartaDayDiff } from "@/lib/date";
 import { useJakartaToday } from "@/hooks/useJakartaToday";
 import LocationWidget from "@/components/location/LocationWidget";
@@ -35,10 +36,6 @@ type HomeBelowFoldProps = {
   loveMeterTargets: LoveMeterState;
 };
 
-const HEIGHTS = Object.fromEntries(
-  SECTION_SLOTS.map((slot) => [slot.key, slot.minHeight]),
-) as Record<(typeof SECTION_SLOTS)[number]["key"], number>;
-
 // Everything below the hero. The chunk is loaded on demand (see HomeContent)
 // and each section inside mounts only as it approaches the viewport — mounting
 // all nine widgets at once measured as a multi-hundred-ms long task, which is
@@ -52,6 +49,12 @@ export default function HomeBelowFold({
 }: HomeBelowFoldProps) {
   // Jakarta calendar days, recomputed when the day flips at 00:00 WIB.
   const today = useJakartaToday();
+  // Reserved section heights follow the viewport: small screens get the mobile
+  // floor, `md` and up the desktop one — otherwise the gallery slot held a
+  // desktop-only gap above the Love Meter card on phones.
+  const isDesktop = useMediaQuery("(min-width: 768px)");
+  const heightFor = (key: string) => getSectionMinHeight(key, isDesktop);
+
   const anniversaryDate = coupleConfig?.anniversaryDate;
   const daysTogether = useMemo(() => {
     if (!anniversaryDate) return 0;
@@ -67,14 +70,14 @@ export default function HomeBelowFold({
   return (
     <MotionRoot>
       <div className="space-y-16 md:space-y-24">
-      <Reveal minHeight={HEIGHTS.location}>
+      <Reveal minHeight={heightFor("location")}>
         <Suspense fallback={<div className="h-24 animate-pulse rounded-2xl bg-muted" />}>
           <LocationWidget />
         </Suspense>
       </Reveal>
 
       {coupleConfig?.anniversaryDate ? (
-        <Reveal minHeight={HEIGHTS.countdown}>
+        <Reveal minHeight={heightFor("countdown")}>
           <CountdownTimer
             anniversaryDate={coupleConfig.anniversaryDate}
             name1={coupleConfig.name1}
@@ -83,31 +86,31 @@ export default function HomeBelowFold({
         </Reveal>
       ) : null}
 
-      <Reveal minHeight={HEIGHTS.birthday1}>
+      <Reveal minHeight={heightFor("birthday1")}>
         <BirthdayCountdown
           birthDate={coupleConfig?.birthDate1 ?? null}
           name={coupleConfig?.name1 ?? ""}
         />
       </Reveal>
 
-      <Reveal minHeight={HEIGHTS.birthday2}>
+      <Reveal minHeight={heightFor("birthday2")}>
         <BirthdayCountdown
           birthDate={coupleConfig?.birthDate2 ?? null}
           name={coupleConfig?.name2 ?? ""}
         />
       </Reveal>
 
-      <Reveal minHeight={HEIGHTS.quote}>
+      <Reveal minHeight={heightFor("quote")}>
         <QuoteOfTheDay />
       </Reveal>
 
-      <Reveal minHeight={HEIGHTS.gallery}>
+      <Reveal minHeight={heightFor("gallery")}>
         <Suspense fallback={<div className="h-64 animate-pulse rounded-2xl bg-muted" />}>
           <GallerySlideshow photos={galleryPhotos} />
         </Suspense>
       </Reveal>
 
-      <Reveal minHeight={HEIGHTS["love-meter"]}>
+      <Reveal minHeight={heightFor("love-meter")}>
         <Suspense fallback={<div className="h-48 animate-pulse rounded-2xl bg-muted" />}>
           <LoveMeter
             daysTogether={daysTogether}
@@ -128,19 +131,19 @@ export default function HomeBelowFold({
         </Suspense>
       </Reveal>
 
-      <Reveal minHeight={HEIGHTS["bottle-letter"]}>
+      <Reveal minHeight={heightFor("bottle-letter")}>
         <Suspense fallback={<div className="h-48 animate-pulse rounded-2xl bg-muted" />}>
           <BottleLetter />
         </Suspense>
       </Reveal>
 
-      <Reveal minHeight={HEIGHTS["memory-match"]}>
+      <Reveal minHeight={heightFor("memory-match")}>
         <Suspense fallback={<div className="h-64 animate-pulse rounded-2xl bg-muted" />}>
           <MemoryMatch photos={galleryPhotos} />
         </Suspense>
       </Reveal>
 
-      <Reveal minHeight={HEIGHTS["daily-task"]}>
+      <Reveal minHeight={heightFor("daily-task")}>
         <Suspense fallback={<div className="h-32 animate-pulse rounded-2xl bg-muted" />}>
           <DailyLoveTask />
         </Suspense>

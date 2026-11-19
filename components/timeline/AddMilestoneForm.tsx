@@ -272,12 +272,13 @@ export default function AddMilestoneForm({
     const toastId = startMutationToast(isEditing ? "Menyimpan milestone..." : "Milestone baru ditambahkan...");
 
     try {
-      if (isEditing) {
-        await updateMilestone.mutateAsync({ id: milestone.id, ...data });
-        settleMutationToast(toastId, "success", "Milestone diperbarui!");
-      } else {
-        await createMilestone.mutateAsync(data);
-        settleMutationToast(toastId, "success", "Milestone baru ditambahkan!");
+      const save = isEditing
+        ? await updateMilestone.mutateAsync({ id: milestone.id, ...data })
+        : await createMilestone.mutateAsync(data);
+      settleMutationToast(toastId, "success", isEditing ? "Milestone diperbarui!" : "Milestone baru ditambahkan!");
+      const failedCount = save?.failedPhotos?.length ?? 0;
+      if (failedCount > 0) {
+        toast.warning(`${failedCount} foto gagal disimpan — simpan ulang milestone untuk mencoba lagi.`);
       }
       onClose();
     } catch {

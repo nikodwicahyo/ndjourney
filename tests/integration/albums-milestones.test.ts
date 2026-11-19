@@ -377,6 +377,94 @@ describe("milestones API contracts", () => {
     expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
   });
 
+  it("TML-07a: POST photoUploads persists coupleId on the created photo (couple-shared, not orphan)", async () => {
+    prismaMock.milestone.create.mockResolvedValue({ id: "m1", createdById: ME });
+    prismaMock.photo.create.mockResolvedValue({ id: "cjld2cjxh0000qz8n0p3q4w5e7" });
+    const res = await milestones.POST(new Request("http://localhost/api/milestones", {
+      method: "POST",
+      body: JSON.stringify({
+        title: "T",
+        date: "2024-02-14",
+        photoUploads: [{ url: IMG(ME), publicId: `ndjourney-web/${ME}/a.jpg`, crop: { x: 0.1, y: 0.1, w: 0.8, h: 0.8 } }],
+      }),
+    }));
+    expect(res.status).toBe(201);
+    expect(prismaMock.photo.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ coupleId: COUPLE, isMilestoneOnly: true, uploadedById: ME }),
+    }));
+  });
+
+  it("TML-07b: PUT photoUploads persists coupleId on the created photo", async () => {
+    prismaMock.milestone.findUnique.mockResolvedValue({ coupleId: COUPLE, createdById: ME });
+    prismaMock.milestone.update.mockResolvedValue({ id: "m1", createdById: ME });
+    prismaMock.user.findUnique.mockResolvedValue({ id: ME, name: "A", image: null });
+    prismaMock.milestonePhoto.findMany.mockResolvedValue([]);
+    prismaMock.photo.create.mockResolvedValue({ id: "cjld2cjxh0000qz8n0p3q4w5e8" });
+    const res = await milestoneById.PUT(new Request("http://localhost/api/milestones/m1", {
+      method: "PUT",
+      body: JSON.stringify({
+        photoUploads: [{ url: IMG(ME), publicId: `ndjourney-web/${ME}/a.jpg`, crop: { x: 0.2, y: 0.2, w: 0.5, h: 0.5 } }],
+      }),
+    }), { params: Promise.resolve({ id: "m1" }) });
+    expect(res.status).toBe(200);
+    expect(prismaMock.photo.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ coupleId: COUPLE, isMilestoneOnly: true, uploadedById: ME }),
+    }));
+  });
+
+  it("TML-07c: partner can re-link + recrop the other member's milestone-only photo (couple-scoped)", async () => {
+    // Faithful OR-semantics evaluator over the rows the partner's upload would
+    // produce post-fix — the caller (ME) is NOT the uploader ("partner").
+    const partnerPhoto = { id: "cjld2cjxh0000qz8n0p3q4w5e7", coupleId: COUPLE, uploadedById: "partner" };
+    prismaMock.milestone.findUnique.mockResolvedValue({ coupleId: COUPLE, createdById: "partner" });
+    prismaMock.milestonePhoto.findMany.mockResolvedValue([{ photoId: partnerPhoto.id }]);
+    prismaMock.photo.findMany.mockImplementation(async ({ where }: { where?: { id?: { in?: string[] }; OR?: Array<Record<string, unknown>> } }) => {
+      const ids = where?.id?.in ?? [];
+      const ors = where?.OR ?? [];
+      return [partnerPhoto].filter((p) =>
+        ids.includes(p.id) &&
+        ors.some((clause) =>
+          clause.coupleId === null
+            ? p.coupleId === null && clause.uploadedById === p.uploadedById
+            : clause.coupleId !== undefined && clause.coupleId === p.coupleId,
+        ),
+      ).map(({ id }) => ({ id }));
+    });
+    prismaMock.milestone.update.mockResolvedValue({ id: "m1", createdById: "partner" });
+    prismaMock.user.findUnique.mockResolvedValue({ id: "partner", name: "A", image: null });
+    const crop = { x: 0.15, y: 0, w: 0.7, h: 1 };
+    const res = await milestoneById.PUT(new Request("http://localhost/api/milestones/m1", {
+      method: "PUT",
+      body: JSON.stringify({ photoIds: [partnerPhoto.id], photoCrops: { [partnerPhoto.id]: crop } }),
+    }), { params: Promise.resolve({ id: "m1" }) });
+    expect(res.status).toBe(200);
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("TML-08: un-migrated orphan (coupleId null, uploaded by another member) stays re-link-blocked — gate is not weakened", async () => {
+    const orphan = { id: "cjld2cjxh0000qz8n0p3q4w5e9", coupleId: null, uploadedById: "partner" };
+    prismaMock.milestone.findUnique.mockResolvedValue({ coupleId: COUPLE, createdById: "partner" });
+    prismaMock.photo.findMany.mockImplementation(async ({ where }: { where?: { id?: { in?: string[] }; OR?: Array<Record<string, unknown>> } }) => {
+      const ids = where?.id?.in ?? [];
+      const ors = where?.OR ?? [];
+      const out = [orphan].filter((p) =>
+        ids.includes(p.id) &&
+        ors.some((clause) =>
+          clause.coupleId === null
+            ? p.coupleId === null && clause.uploadedById === p.uploadedById
+            : clause.coupleId !== undefined && clause.coupleId === p.coupleId,
+        ),
+      ).map(({ id }) => ({ id }));
+      return out;
+    });
+    const res = await milestoneById.PUT(new Request("http://localhost/api/milestones/m1", {
+      method: "PUT",
+      body: JSON.stringify({ photoIds: [orphan.id] }),
+    }), { params: Promise.resolve({ id: "m1" }) });
+    // 400 "Foto tidak ditemukan" — defense in depth for rows that predate the backfill.
+    expect(res.status).toBe(400);
+  });
+
   it("milestones/[id] PUT: rejects photoIds outside the caller's couple", async () => {
     prismaMock.milestone.findUnique.mockResolvedValue({ coupleId: COUPLE, createdById: ME });
     prismaMock.photo.findMany.mockResolvedValue([]);

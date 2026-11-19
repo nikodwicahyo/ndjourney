@@ -206,6 +206,29 @@ describe("couple / user / partner / notes-delete contracts", () => {
     expect(deleteFromCloudinaryUrl).toHaveBeenCalledWith("https://old.example/h.jpg", [ME, PARTNER]);
   });
 
+  it("DASH-04d: replacing backgroundMusicUrl deletes the old raw audio asset (both members' namespaces)", async () => {
+    const { deleteFromCloudinaryUrl } = await import("@/lib/cloudinary");
+    prismaMock.coupleConfig.findFirst.mockResolvedValue({
+      id: "cfg",
+      heroPhotoUrl: null,
+      backgroundMusicUrl: "https://res.cloudinary.com/test-cloud/raw/upload/v1/ndjourney-web/u1/song.mp3",
+    });
+    prismaMock.coupleConfig.update.mockResolvedValue({
+      id: "cfg",
+      backgroundMusicUrl: "https://res.cloudinary.com/test-cloud/raw/upload/v1/ndjourney-web/u1/song2.mp3",
+    });
+    await couple.PUT(new Request("http://localhost/api/couple", {
+      method: "PUT",
+      body: JSON.stringify({
+        backgroundMusicUrl: "https://res.cloudinary.com/test-cloud/raw/upload/v1/ndjourney-web/u1/song2.mp3",
+      }),
+    }));
+    expect(deleteFromCloudinaryUrl).toHaveBeenCalledWith(
+      "https://res.cloudinary.com/test-cloud/raw/upload/v1/ndjourney-web/u1/song.mp3",
+      [ME, PARTNER],
+    );
+  });
+
   it("DASH-04c: video hero URL saves fine; non-Cloudinary hero URL is rejected (allowlist)", async () => {
     prismaMock.coupleConfig.findFirst.mockResolvedValue({ id: "cfg", heroPhotoUrl: null, backgroundMusicUrl: null });
     prismaMock.coupleConfig.update.mockResolvedValue({ id: "cfg" });

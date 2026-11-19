@@ -192,6 +192,12 @@ export default function LocationManager() {
     snapToRoads && !!selfPin && !!partnerPin,
   );
 
+  // One gated route object for the map line, the distance label and the ETA.
+  // A failed/fallback OSRM call must not be presented as a road route.
+  const roadRoute = shouldUseRoadRoute(
+    snapToRoads ? routeQuery.data ?? null : null,
+  );
+
   const allStops = useMemo(
     () => [...detectedStops.self, ...detectedStops.partner],
     [detectedStops],
@@ -211,7 +217,7 @@ export default function LocationManager() {
       <div className="space-y-4">
         <Skeleton className="h-10 w-56" />
         <Skeleton className="h-[420px] w-full rounded-2xl" />
-        <div className="grid gap-6 lg:grid-cols-5">
+        <div className="grid gap-4 sm:gap-6 lg:grid-cols-5">
           <div className="lg:col-span-3">
             <Skeleton className="h-64 w-full rounded-2xl" />
           </div>
@@ -277,7 +283,7 @@ export default function LocationManager() {
       <MeetBanner show={meeting && bothSharing} distance={distance} />
 
       {/* Main grid */}
-      <div className="grid gap-6 lg:grid-cols-5">
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-5">
         <div className="lg:col-span-3">
           <div className="relative space-y-2">
             <PartnerMap
@@ -289,7 +295,7 @@ export default function LocationManager() {
               stops={detectedStops}
               filterUser={filterUser}
               snapToRoads={snapToRoads}
-              route={routeQuery.data ?? null}
+              route={roadRoute}
               stopAddresses={stopAddresses}
             />
             {!self.isSharing && !partner.isSharing && (
@@ -340,6 +346,12 @@ export default function LocationManager() {
                     <span>{snapToRoads ? "Rute: Mengikuti Jalan" : "Rute: Garis Lurus"}</span>
                   </button>
                 </div>
+
+                {snapToRoads && bothSharing && !roadRoute && (
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400" role="status">
+                    Rute jalan belum tersedia — sementara menampilkan garis lurus.
+                  </p>
+                )}
 
                 {/* History duration and filter toolbar */}
                 {showHistory && (
@@ -405,19 +417,29 @@ export default function LocationManager() {
                       </div>
                     </div>
 
-                    {/* Stats & Description Banner */}
-                    <div className="flex items-center justify-between text-[11px] text-muted-foreground border-t border-border/50 pt-2">
-                      <span>
+                    {/* Legend: explains the colours and what the map draws. */}
+                    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-border/50 pt-2 text-[11px] text-muted-foreground">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <span className="flex items-center gap-1.5">
+                          <span className="h-2 w-2 rounded-full bg-blue-500" />
+                          Kamu · {filterUser === "partner" ? 0 : detectedStops.self.length} singgah
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <span className="h-2 w-2 rounded-full bg-rose-500" />
+                          {partner.name} · {filterUser === "self" ? 0 : detectedStops.partner.length} singgah
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <span className={`h-0.5 w-4 rounded-full ${roadRoute ? "bg-blue-600" : "bg-rose-500"}`} />
+                          {roadRoute ? "Rute jalan (biru)" : "Garis lurus (merah)"}
+                        </span>
+                      </div>
+                      <span className="text-[10px] opacity-75">
                         {isHistoryLoading
-                          ? "Memuat riwayat rute…"
-                          : historyData && historyData.length > 0
-                          ? `Total ${historyData.length} titik jejak jalan · ${
-                              (filterUser === "partner" || filterUser === "all" ? detectedStops.partner.length : 0) +
-                              (filterUser === "self" || filterUser === "all" ? detectedStops.self.length : 0)
-                            } tempat singgah`
-                          : "Belum ada titik jejak pada rentang waktu ini."}
+                          ? "Memuat jejak…"
+                          : historyData?.length
+                            ? `${historyData.length} titik jejak · klik singgah untuk fokus`
+                            : "Belum ada jejak pada rentang ini"}
                       </span>
-                      <span className="text-[10px] opacity-75">Klik tempat singgah untuk fokus di peta</span>
                     </div>
                   </div>
                 )}
@@ -533,7 +555,7 @@ export default function LocationManager() {
             state={data}
             distance={distance}
             previousDistance={previousDistance ?? null}
-            roadRoute={shouldUseRoadRoute(snapToRoads ? routeQuery.data ?? null : null)}
+            roadRoute={roadRoute}
           />
 
           {meeting && bothSharing && <NearbySuggestion />}

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { fetchRoadRoute, reverseGeocodeName, shouldUseRoadRoute } from "@/lib/routing";
+import { fetchRoadRoute, reverseGeocodeName, shouldUseRoadRoute, effectiveDistance } from "@/lib/routing";
 import { haversineMeters } from "@/lib/geo";
 
 const a = { lat: -6.2, lng: 106.81 };
@@ -59,6 +59,18 @@ describe("shouldUseRoadRoute", () => {
   it("accepts a real OSRM route", () => {
     const route = { distanceMeters: 100, durationSeconds: 30, geometry: [[-6.2, 106.8], [-6.21, 106.81]] as Array<[number, number]>, source: "osrm" as const };
     expect(shouldUseRoadRoute(route)).toBe(route);
+  });
+});
+
+describe("effectiveDistance", () => {
+  const road = { distanceMeters: 14088, durationSeconds: 900, geometry: [[-6.2, 106.8], [-6.21, 106.81]] as Array<[number, number]>, source: "osrm" as const };
+
+  it("shows road distance when a real route is active", () => {
+    expect(effectiveDistance(road, 8200)).toBe(14088);
+  });
+
+  it("keeps straight-line distance when there is no route", () => {
+    expect(effectiveDistance(null, 8200)).toBe(8200);
   });
 });
 

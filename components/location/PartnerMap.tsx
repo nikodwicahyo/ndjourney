@@ -13,7 +13,7 @@ import {
   haversineMeters,
 } from "@/lib/geo";
 import { safeAvatarSrc } from "@/lib/format";
-import { reverseGeocodeName, type RoadRoute } from "@/lib/routing";
+import { effectiveDistance, reverseGeocodeName, type RoadRoute } from "@/lib/routing";
 import { escapeHtml } from "@/lib/escape-html";
 
 import type { LocationPoint, LocationHistoryPoint } from "@/hooks/useLocation";
@@ -366,6 +366,7 @@ export default function PartnerMap({
 .leaflet-control-scale{max-width:none!important;width:fit-content!important}
 .leaflet-control-scale-line{background:var(--card,#fff)!important;border:1px solid #ccc!important;border-top:none!important;color:var(--foreground,#333)!important;padding:0 6px 1px!important;font-size:12px!important;font-weight:500!important;width:fit-content!important;text-shadow:none!important;box-shadow:none!important}
 .leaflet-bar a{width:44px!important;height:44px!important;line-height:44px!important;font-size:18px!important;}
+@media (max-width:639px){.leaflet-bar a{width:36px!important;height:36px!important;line-height:36px!important;font-size:16px!important}.leaflet-control-scale-line{font-size:10px!important}}
 @keyframes leaflet-line-dash{to{stroke-dashoffset:-24}}
 .leaflet-connecting-line{animation:leaflet-line-dash 1.5s linear infinite}
 @keyframes leaflet-pulse{0%{transform:scale(1);opacity:.2}50%{transform:scale(2);opacity:0}100%{transform:scale(1);opacity:.2}}
@@ -907,21 +908,33 @@ export default function PartnerMap({
     if (pins.length === 2) {
       const hasRoadRoute = !!route?.geometry && route.geometry.length >= 2;
       const lineLatLngs: L.LatLngExpression[] = hasRoadRoute ? route!.geometry! : latlngs;
+
+      // White casing keeps the blue road line readable over busy tiles.
+      if (hasRoadRoute) {
+        L.polyline(lineLatLngs, {
+          color: "#ffffff",
+          weight: 8,
+          opacity: 0.75,
+          lineCap: "round",
+          lineJoin: "round",
+          interactive: false,
+        }).addTo(markerLayer);
+      }
       lineRef.current = L.polyline(lineLatLngs, {
-        color: "#F43F5E",
+        color: hasRoadRoute ? "#2563EB" : "#F43F5E",
         weight: hasRoadRoute ? 4 : 3,
         dashArray: hasRoadRoute ? undefined : "12 12",
-        opacity: hasRoadRoute ? 0.8 : 0.7,
+        opacity: hasRoadRoute ? 0.95 : 0.7,
         className: hasRoadRoute ? undefined : "leaflet-connecting-line",
         interactive: false,
       }).addTo(markerLayer);
 
       const mid = L.latLngBounds(lineLatLngs).getCenter();
-      const distMeters = haversineMeters(
+      const straightMeters = haversineMeters(
         { latitude: pins[0].point.lat, longitude: pins[0].point.lng },
         { latitude: pins[1].point.lat, longitude: pins[1].point.lng },
       );
-      const distLabel = formatDistance(distMeters);
+      const distLabel = formatDistance(effectiveDistance(route, straightMeters));
       distanceLabelRef.current = L.marker(mid, {
         icon: L.divIcon({
           className: "",
@@ -995,11 +1008,11 @@ export default function PartnerMap({
   return (
     <div
       className={`
-        relative w-full rounded-2xl border border-border overflow-hidden
+        isolate relative z-0 w-full max-w-full scroll-mt-20 rounded-2xl border border-border overflow-hidden
         ${
           isFullscreen
-            ? "fixed inset-0 z-[9999] rounded-none border-0"
-            : "h-[60vh] min-h-[280px] sm:h-[560px]"
+            ? "fixed inset-0 z-[9999] rounded-none border-0 bg-background"
+            : "h-[46vh] min-h-[320px] sm:h-[420px] md:h-[480px] lg:h-[540px] xl:h-[560px]"
         }
         transition-[border,border-radius] duration-300
       `}
@@ -1036,8 +1049,8 @@ export default function PartnerMap({
       {/* Bottom info bar. right-16 clears the 44px Leaflet control column
           (.leaflet-bar a is forced to 44px + 10px corner margin); bottom-10
           clears the scale control at bottom-left. */}
-      <div className="absolute bottom-10 left-2 right-16 z-[1001]">
-        <div className="mx-auto w-fit max-w-[calc(100%-1rem)] flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 rounded-full bg-background/95 px-4 py-1.5 text-center shadow-md backdrop-blur-sm text-xs text-muted-foreground">
+      <div className="absolute bottom-12 left-1.5 right-12 z-[1001] sm:bottom-10 sm:left-2 sm:right-16">
+        <div className="mx-auto flex w-fit max-w-[calc(100%-0.5rem)] flex-wrap items-center justify-center gap-x-2 gap-y-0.5 rounded-full bg-background/95 px-3 py-1.5 text-center text-[10px] shadow-md backdrop-blur-sm sm:px-4 sm:text-xs text-muted-foreground">
           {self?.point && (
             <>
               <span className="flex items-center gap-1">
@@ -1070,18 +1083,26 @@ export default function PartnerMap({
               <span className="flex items-center gap-1">
                 <Ruler className="h-3 w-3" aria-hidden="true" />{" "}
                 {formatDistance(
-                  haversineMeters(
-                    {
-                      latitude: self.point.lat,
-                      longitude: self.point.lng,
-                    },
-                    {
-                      latitude: partner.point.lat,
-                      longitude: partner.point.lng,
-                    },
+                  effectiveDistance(
+                    route,
+                    haversineMeters(
+                      {
+                        latitude: self.point.lat,
+                        longitude: self.point.lng,
+                      },
+                      {
+                        latitude: partner.point.lat,
+                        longitude: partner.point.lng,
+                      },
+                    ),
                   ),
                 )}
               </span>
+              {route?.geometry && (
+                <span className="hidden sm:inline rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400">
+                  via jalan
+                </span>
+              )}
             </>
           )}
           {self?.point?.accuracy && (

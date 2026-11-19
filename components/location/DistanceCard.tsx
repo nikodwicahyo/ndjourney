@@ -30,6 +30,7 @@ import {
   type TravelMode,
 } from "@/lib/geo";
 import type { LocationState } from "@/hooks/useLocation";
+import { effectiveDistance, type RoadRoute } from "@/lib/routing";
 import DeviceBadge from "./DeviceBadge";
 
 const MODES: { mode: TravelMode; icon: typeof Footprints; label: string }[] = [
@@ -121,7 +122,7 @@ export default function DistanceCard({
   previousDistance?: number | null;
   travelMode?: TravelMode;
   onTravelModeChange?: (mode: TravelMode) => void;
-  roadRoute?: { distanceMeters: number; durationSeconds: number | null } | null;
+  roadRoute?: RoadRoute | null;
 }) {
   const { self, partner } = state;
   const bothSharing = self.isSharing && partner.isSharing;
@@ -130,7 +131,10 @@ export default function DistanceCard({
   const activeMode = travelMode ?? localMode;
   const setActiveMode = onTravelModeChange ?? setLocalMode;
 
-  const trend = distance !== null ? distanceTrend(distance, previousDistance) : null;
+  // The number, ETA and map line must all follow the same source: real road
+  // distance when snapping is active, straight-line otherwise.
+  const displayDistance = distance !== null ? effectiveDistance(roadRoute, distance) : null;
+  const trend = displayDistance !== null ? distanceTrend(displayDistance, previousDistance) : null;
 
   let bearingDeg: number | null = null;
   let bearingId = "";
@@ -151,13 +155,13 @@ export default function DistanceCard({
   }
 
   const [showSparkle, setShowSparkle] = useState(false);
-  const [prevDistance, setPrevDistance] = useState<number | null>(distance);
+  const [prevDistance, setPrevDistance] = useState<number | null>(displayDistance);
   // Track distance changes during render (React-endorsed adjustment) and let
   // the timeout effect below hide the sparkle — no synchronous setState in
   // an effect, so no cascading render.
-  if (distance !== prevDistance) {
-    setPrevDistance(distance);
-    if (distance !== null && prevDistance !== null) setShowSparkle(true);
+  if (displayDistance !== prevDistance) {
+    setPrevDistance(displayDistance);
+    if (displayDistance !== null && prevDistance !== null) setShowSparkle(true);
   }
   useEffect(() => {
     if (!showSparkle) return;
@@ -181,8 +185,10 @@ export default function DistanceCard({
           <MapPin className="h-5 w-5 shrink-0 text-pink-500" aria-hidden="true" />
           <div className="min-w-0">
             <p className="text-sm font-semibold text-foreground">Jarak Antar Kita</p>
-            {distance !== null && bothSharing ? (
-              <p className="text-xs text-muted-foreground">{formatDistanceCategory(distance)}</p>
+            {displayDistance !== null && bothSharing ? (
+              <p className="text-xs text-muted-foreground">
+                {roadRoute ? "Jarak tempuh via jalan" : formatDistanceCategory(displayDistance)}
+              </p>
             ) : (
               <p className="text-xs text-muted-foreground">
                 {self.isSharing && !partner.isSharing
@@ -220,13 +226,13 @@ export default function DistanceCard({
               )}
             </AnimatePresence>
             <motion.div
-              key={distance ?? "empty"}
+              key={displayDistance ?? "empty"}
               initial={{ scale: 1 }}
               animate={showSparkle ? { scale: [1, 1.08, 1] } : { scale: 1 }}
               transition={{ duration: 0.4 }}
               className="font-heading text-xl font-bold text-foreground tabular-nums"
             >
-              {distance !== null ? <AnimatedNumber value={distance} /> : "—"}
+              {displayDistance !== null ? <AnimatedNumber value={displayDistance} /> : "—"}
             </motion.div>
             <div className="flex items-center gap-1.5 mt-0.5">
               {bothLive && trend === "closing" && (

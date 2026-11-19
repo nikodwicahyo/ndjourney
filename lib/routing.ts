@@ -97,6 +97,14 @@ export function shouldUseRoadRoute(
   return null;
 }
 
+/** Distance the UI should show: road distance when snapping is actually active. */
+export function effectiveDistance(
+  roadRoute: RoadRoute | null | undefined,
+  straightMeters: number,
+): number {
+  return roadRoute?.source === "osrm" ? roadRoute.distanceMeters : straightMeters;
+}
+
 /** Reverse-geocode a point via our own API. Never throws; caches null too. */
 export async function reverseGeocodeName(
   lat: number,

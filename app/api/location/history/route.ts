@@ -2,10 +2,11 @@ import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { getUserCoupleId } from "@/lib/couple";
+import { getJakartaParts } from "@/lib/date";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request?: Request) {
   try {
     const session = await auth();
     if (!session?.user) {
@@ -19,6 +20,44 @@ export async function GET() {
         { error: "Pasangan belum ditemukan" },
         { status: 404 },
       );
+    }
+
+    // Optional duration range filter: "today" | "24h" | "3d" | "7d" | "all"
+    let range: string | null = null;
+    let since: Date | null = null;
+
+    if (request?.url) {
+      try {
+        const url = new URL(request.url);
+        const qRange = url.searchParams.get("range");
+        if (qRange && ["today", "24h", "3d", "7d", "all"].includes(qRange)) {
+          range = qRange;
+        }
+      } catch {
+        // ignore parse error
+      }
+    }
+
+    if (range) {
+      const now = new Date();
+      if (range === "today") {
+        const parts = getJakartaParts(now);
+        if (parts) {
+          since = new Date(Date.UTC(parts.year, parts.month - 1, parts.day) - 7 * 60 * 60 * 1000);
+        } else {
+          const d = new Date(now);
+          d.setHours(0, 0, 0, 0);
+          since = d;
+        }
+      } else if (range === "24h") {
+        since = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      } else if (range === "3d") {
+        since = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+      } else if (range === "7d") {
+        since = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      } else if (range === "all") {
+        since = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      }
     }
 
     // share-gated — opted-out users' trails stay private.
@@ -37,10 +76,21 @@ export async function GET() {
       visibleIds = visibleIds.filter((v) => !hidden.has(v));
     }
 
+    const whereClause: {
+      userId: { in: string[] };
+      createdAt?: { gte: Date };
+    } = {
+      userId: { in: visibleIds },
+    };
+    if (since) {
+      whereClause.createdAt = { gte: since };
+    }
+
+    const HISTORY_LIMIT = 2000;
     const history = await prisma.userLocationHistory.findMany({
-      where: { userId: { in: visibleIds } },
+      where: whereClause,
       orderBy: { createdAt: "desc" },
-      take: 100,
+      take: HISTORY_LIMIT,
       select: {
         userId: true,
         latitude: true,
@@ -53,8 +103,12 @@ export async function GET() {
       },
     });
 
+    // Hitting the cap means older fixes inside the chosen range were dropped.
+    // Report it so the UI can ask for a narrower range instead of silently
+    // showing an incomplete trail.
+    const truncated = history.length >= HISTORY_LIMIT;
     return NextResponse.json(
-      { data: history },
+      { data: history, range: range ?? "all", count: history.length, truncated },
       { headers: { "Cache-Control": "private, no-cache" } },
     );
   } catch (error) {

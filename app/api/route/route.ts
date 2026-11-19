@@ -146,10 +146,16 @@ export async function GET(request?: Request) {
       payload = straightFallback(from, to);
     }
 
-    remember(key, payload);
+    // Only cache successful road routes. A fallback must be retried on the
+    // next request so the app recovers as soon as OSRM comes back.
+    if (payload.source === "osrm") remember(key, payload);
     return NextResponse.json(
       { data: payload },
-      { headers: { "Cache-Control": "private, max-age=60" } },
+      {
+        headers: {
+          "Cache-Control": payload.source === "osrm" ? "private, max-age=60" : "private, no-store",
+        },
+      },
     );
   } catch (error) {
     console.error("[api/route] unexpected error:", error);

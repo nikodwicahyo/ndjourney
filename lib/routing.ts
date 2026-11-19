@@ -80,7 +80,9 @@ export async function fetchRoadRoute(
         : null,
       source: json.data.source === "osrm" ? "osrm" : "fallback",
     };
-    remember(ROUTE_CACHE, MAX_ROUTE_CACHE, key, result);
+    // A failed upstream is a snapshot, not a fact — never cache it, or a
+    // recovered OSRM would stay invisible until a full page reload.
+    if (result.source === "osrm") remember(ROUTE_CACHE, MAX_ROUTE_CACHE, key, result);
     return result;
   } catch {
     return straightFallback(from, to);

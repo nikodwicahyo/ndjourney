@@ -1,26 +1,52 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
-import { estimateArrivalFromRoadDistance } from "@/lib/geo";
+import { describe, it, expect } from "vitest";
+import {
+  estimateRoadArrivalSeconds,
+  WALKING_SPEED_MS,
+  CYCLING_SPEED_MS,
+  DRIVING_SPEED_MS,
+} from "@/lib/geo";
 
-afterEach(() => vi.useRealTimers());
+const route = (durationSeconds: number | null = 900) => ({
+  distanceMeters: 10000,
+  durationSeconds,
+});
 
-describe("estimateArrivalFromRoadDistance", () => {
-  it("walks at WALKING_SPEED_MS", () => {
-    expect(estimateArrivalFromRoadDistance(5000, "walking")).toBe(Math.round(5000 / 1.4));
+describe("estimateRoadArrivalSeconds (road-only)", () => {
+  it("uses OSRM driving duration for a car when available", () => {
+    expect(estimateRoadArrivalSeconds(route(1234), "driving")).toBe(1234);
   });
 
-  it("cycles at CYCLING_SPEED_MS", () => {
-    expect(estimateArrivalFromRoadDistance(5000, "cycling")).toBe(Math.round(5000 / 8.3));
+  it("scales the same road distance by walking / motor speed", () => {
+    expect(estimateRoadArrivalSeconds(route(), "walking")).toBe(
+      Math.round(10000 / WALKING_SPEED_MS),
+    );
+    expect(estimateRoadArrivalSeconds(route(), "cycling")).toBe(
+      Math.round(10000 / CYCLING_SPEED_MS),
+    );
   });
 
-  it("applies the traffic multiplier for driving", () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-11-20T02:00:00Z")); // 09:00 Jakarta -> 0.85
-    expect(estimateArrivalFromRoadDistance(10000, "driving")).toBe(Math.round(10000 / (11.1 * 0.85)));
+  it("gives clearly different ETAs per mode from the same road route", () => {
+    const r = route();
+    const walk = estimateRoadArrivalSeconds(r, "walking");
+    const motor = estimateRoadArrivalSeconds(r, "cycling");
+    const car = estimateRoadArrivalSeconds(r, "driving");
+    expect(walk).toBeGreaterThan(motor);
+    expect(motor).toBeGreaterThan(car);
   });
 
-  it("returns 0 for zero or invalid input", () => {
-    expect(estimateArrivalFromRoadDistance(0)).toBe(0);
-    expect(estimateArrivalFromRoadDistance(Number.NaN)).toBe(0);
-    expect(estimateArrivalFromRoadDistance(-5)).toBe(0);
+  it("falls back to road distance / driving speed when duration is missing", () => {
+    expect(estimateRoadArrivalSeconds(route(null), "driving")).toBe(
+      Math.round(10000 / DRIVING_SPEED_MS),
+    );
+  });
+
+  it("returns 0 for a missing or invalid route", () => {
+    expect(estimateRoadArrivalSeconds(null)).toBe(0);
+    expect(estimateRoadArrivalSeconds(undefined, "driving")).toBe(0);
+    expect(estimateRoadArrivalSeconds({ distanceMeters: 0, durationSeconds: 5 })).toBe(0);
+    expect(
+      estimateRoadArrivalSeconds({ distanceMeters: Number.NaN, durationSeconds: 5 }),
+    ).toBe(0);
+    expect(estimateRoadArrivalSeconds({ distanceMeters: -5, durationSeconds: 5 })).toBe(0);
   });
 });

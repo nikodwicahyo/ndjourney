@@ -50,6 +50,16 @@ describe("GET /api/route", () => {
     expect(json.data.source).toBe("fallback");
   });
 
+  it("does not cache a fallback, so OSRM is retried on the next call", async () => {
+    const fetchMock = vi.fn(async () => { throw new Error("down"); });
+    vi.stubGlobal("fetch", fetchMock);
+    const url = "/api/route?from=-6.4,106.9&to=-6.41,106.91";
+    const first = await route.GET(req(url));
+    expect(first.headers.get("Cache-Control")).toBe("private, no-store");
+    await route.GET(req(url));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("rejects invalid coordinates with 400", async () => {
     const res = await route.GET(req("/api/route?from=999,106.8&to=-6.2,106.8"));
     expect(res.status).toBe(400);

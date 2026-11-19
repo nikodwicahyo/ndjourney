@@ -124,10 +124,12 @@ export default function LocationManager() {
   const [selectedStop, setSelectedStop] = useState<VisitedStop | null>(null);
   const [showHistory, setShowHistory] = useState(false);
 
-  const { data: historyData, isLoading: isHistoryLoading } = useLocationHistory(
+  const { data: historyResult, isLoading: isHistoryLoading } = useLocationHistory(
     historyRange,
     { enabled: showHistory },
   );
+  const historyData = useMemo(() => historyResult?.points ?? [], [historyResult]);
+  const historyTruncated = historyResult?.truncated ?? false;
 
   // Purely memoized stops: prevents any setState re-render cycle
   const detectedStops: { self: VisitedStop[]; partner: VisitedStop[] } = useMemo(() => {
@@ -186,23 +188,33 @@ export default function LocationManager() {
     };
   }, [data?.partner]);
 
+  // The road route is always fetched when both people share — the distance
+  // card is road-only and must not depend on the map-view toggle.
   const routeQuery = useRoadRoute(
     selfPin?.point ?? null,
     partnerPin?.point ?? null,
-    snapToRoads && !!selfPin && !!partnerPin,
+    !!selfPin && !!partnerPin,
   );
 
-  // One gated route object for the map line, the distance label and the ETA.
   // A failed/fallback OSRM call must not be presented as a road route.
-  const roadRoute = shouldUseRoadRoute(
-    snapToRoads ? routeQuery.data ?? null : null,
-  );
+  const cardRoute = shouldUseRoadRoute(routeQuery.data ?? null);
+  // The toggle only decides what the MAP draws: road polyline or straight line.
+  const mapRoute = snapToRoads ? cardRoute : null;
 
   const allStops = useMemo(
     () => [...detectedStops.self, ...detectedStops.partner],
     [detectedStops],
   );
   const stopAddresses = usePlaceNames(allStops);
+
+  // Record count follows the same filter as the drawn trail, so the legend
+  // never claims more points than the map actually shows.
+  const selfId = session?.user?.id;
+  const visibleRecordCount = !selfId
+    ? 0
+    : historyData.filter((h) =>
+        filterUser === "all" ? true : filterUser === "self" ? h.userId === selfId : h.userId !== selfId,
+      ).length;
 
   if (sessionStatus === "unauthenticated") {
     return (
@@ -295,7 +307,7 @@ export default function LocationManager() {
               stops={detectedStops}
               filterUser={filterUser}
               snapToRoads={snapToRoads}
-              route={roadRoute}
+              route={mapRoute}
               stopAddresses={stopAddresses}
             />
             {!self.isSharing && !partner.isSharing && (
@@ -347,9 +359,9 @@ export default function LocationManager() {
                   </button>
                 </div>
 
-                {snapToRoads && bothSharing && !roadRoute && (
+                {snapToRoads && bothSharing && !mapRoute && !routeQuery.isLoading && (
                   <p className="text-[11px] text-amber-600 dark:text-amber-400" role="status">
-                    Rute jalan belum tersedia — sementara menampilkan garis lurus.
+                    Rute jalan belum tersedia di peta — menampilkan garis lurus sementara.
                   </p>
                 )}
 
@@ -428,19 +440,20 @@ export default function LocationManager() {
                           <span className="h-2 w-2 rounded-full bg-rose-500" />
                           {partner.name} · {filterUser === "self" ? 0 : detectedStops.partner.length} singgah
                         </span>
-                        <span className="flex items-center gap-1.5">
-                          <span className={`h-0.5 w-4 rounded-full ${roadRoute ? "bg-blue-600" : "bg-rose-500"}`} />
-                          {roadRoute ? "Rute jalan (biru)" : "Garis lurus (merah)"}
-                        </span>
                       </div>
                       <span className="text-[10px] opacity-75">
                         {isHistoryLoading
                           ? "Memuat jejak…"
-                          : historyData?.length
-                            ? `${historyData.length} titik jejak · klik singgah untuk fokus`
-                            : "Belum ada jejak pada rentang ini"}
+                          : visibleRecordCount > 0
+                            ? `${visibleRecordCount} rekaman ditampilkan sebagai garis · klik singgah untuk fokus`
+                            : "Belum ada rekaman pada rentang ini"}
                       </span>
                     </div>
+                    {historyTruncated && (
+                      <p className="text-[10px] text-amber-600 dark:text-amber-400" role="status">
+                        Riwayat terpotong (batas 2000 rekaman) — persempit rentang untuk melihat sisanya.
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -555,7 +568,8 @@ export default function LocationManager() {
             state={data}
             distance={distance}
             previousDistance={previousDistance ?? null}
-            roadRoute={roadRoute}
+            roadRoute={cardRoute}
+            routeLoading={routeQuery.isLoading}
           />
 
           {meeting && bothSharing && <NearbySuggestion />}

@@ -222,6 +222,30 @@ describe("location API contracts", () => {
     expect(prismaMock.userLocationHistory.findMany).not.toHaveBeenCalled();
   });
 
+  it("LOC history: range filters by createdAt and flags a capped result set", async () => {
+    prismaMock.coupleMember.findFirst.mockResolvedValue({ userId: PARTNER });
+    const rows = Array.from({ length: 2000 }, () => ({ userId: ME }));
+    prismaMock.userLocationHistory.findMany.mockResolvedValueOnce(rows as never);
+
+    const res = await history.GET(new Request("http://localhost/api/location/history?range=7d"));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.range).toBe("7d");
+    expect(body.count).toBe(2000);
+    expect(body.truncated).toBe(true);
+    const query = prismaMock.userLocationHistory.findMany.mock.calls.at(-1)?.[0] as {
+      where: { createdAt?: { gte: Date } };
+      take: number;
+    };
+    expect(query.take).toBe(2000);
+    expect(query.where.createdAt?.gte).toBeInstanceOf(Date);
+
+    prismaMock.userLocationHistory.findMany.mockResolvedValueOnce([{ userId: ME }] as never);
+    const small = await (await history.GET(new Request("http://localhost/api/location/history?range=24h"))).json();
+    expect(small.range).toBe("24h");
+    expect(small.truncated).toBe(false);
+  });
+
   it("LOC-04/05: history GET 200 ordered, heart POST 200", async () => {
     prismaMock.coupleMember.findFirst.mockResolvedValue({ userId: PARTNER });
     prismaMock.userLocationHistory.findMany.mockResolvedValue([]);

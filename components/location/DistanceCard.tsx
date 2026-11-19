@@ -19,18 +19,16 @@ import {
 import { Avatar, AvatarImage, AvatarFallback, Card, CardContent } from "@/components/ui";
 import {
   formatDistance,
-  formatDistanceCategory,
   bearing,
   formatBearingId,
   distanceTrend,
-  estimateArrivalSeconds,
-  estimateArrivalFromRoadDistance,
+  estimateRoadArrivalSeconds,
   formatArrivalTime,
   type DistanceTrend as TrendType,
   type TravelMode,
 } from "@/lib/geo";
 import type { LocationState } from "@/hooks/useLocation";
-import { effectiveDistance, type RoadRoute } from "@/lib/routing";
+import { shouldUseRoadRoute, type RoadRoute } from "@/lib/routing";
 import DeviceBadge from "./DeviceBadge";
 
 const MODES: { mode: TravelMode; icon: typeof Footprints; label: string }[] = [
@@ -116,6 +114,7 @@ export default function DistanceCard({
   travelMode,
   onTravelModeChange,
   roadRoute = null,
+  routeLoading = false,
 }: {
   state: LocationState;
   distance: number | null;
@@ -123,6 +122,7 @@ export default function DistanceCard({
   travelMode?: TravelMode;
   onTravelModeChange?: (mode: TravelMode) => void;
   roadRoute?: RoadRoute | null;
+  routeLoading?: boolean;
 }) {
   const { self, partner } = state;
   const bothSharing = self.isSharing && partner.isSharing;
@@ -131,14 +131,23 @@ export default function DistanceCard({
   const activeMode = travelMode ?? localMode;
   const setActiveMode = onTravelModeChange ?? setLocalMode;
 
-  // The number, ETA and map line must all follow the same source: real road
-  // distance when snapping is active, straight-line otherwise.
-  const displayDistance = distance !== null ? effectiveDistance(roadRoute, distance) : null;
-  const trend = displayDistance !== null ? distanceTrend(displayDistance, previousDistance) : null;
+  // Only a real OSRM route may drive the number and ETA. A failed/fallback
+  // proxy response is never shown as a road distance or turned into an ETA.
+  const activeRoute = shouldUseRoadRoute(roadRoute);
+  const displayDistance = activeRoute?.distanceMeters ?? null;
+  // "Closer / further apart" is about physical proximity, so the trend keeps
+  // using the straight-line distance; the displayed number stays road-only.
+  const trend = distance !== null ? distanceTrend(distance, previousDistance) : null;
 
   let bearingDeg: number | null = null;
   let bearingId = "";
-  let etaStr = "";
+  let etaStr = "—";
+
+  if (activeRoute) {
+    etaStr = formatArrivalTime(estimateRoadArrivalSeconds(activeRoute, activeMode));
+  } else if (routeLoading) {
+    etaStr = "…";
+  }
 
   if (self.location && partner.location) {
     bearingDeg = bearing(
@@ -146,12 +155,6 @@ export default function DistanceCard({
       { latitude: partner.location.lat, longitude: partner.location.lng },
     );
     bearingId = formatBearingId(bearingDeg);
-    const etaSeconds = roadRoute
-      ? estimateArrivalFromRoadDistance(roadRoute.distanceMeters, activeMode)
-      : distance !== null && distance > 10
-        ? estimateArrivalSeconds(distance, activeMode)
-        : 0;
-    etaStr = formatArrivalTime(etaSeconds);
   }
 
   const [showSparkle, setShowSparkle] = useState(false);
@@ -185,9 +188,13 @@ export default function DistanceCard({
           <MapPin className="h-5 w-5 shrink-0 text-pink-500" aria-hidden="true" />
           <div className="min-w-0">
             <p className="text-sm font-semibold text-foreground">Jarak Antar Kita</p>
-            {displayDistance !== null && bothSharing ? (
+            {bothSharing && partnerHasLoc ? (
               <p className="text-xs text-muted-foreground">
-                {roadRoute ? "Jarak tempuh via jalan" : formatDistanceCategory(displayDistance)}
+                {activeRoute
+                  ? "Jarak tempuh via jalan"
+                  : routeLoading
+                    ? "Memuat rute jalan…"
+                    : "Rute jalan tidak tersedia"}
               </p>
             ) : (
               <p className="text-xs text-muted-foreground">
@@ -312,7 +319,7 @@ export default function DistanceCard({
                 >
                   {etaStr}
                 </motion.span>
-                {roadRoute && (
+                {activeRoute && (
                   <span className="text-[10px] text-muted-foreground/70">· via rute jalan</span>
                 )}
               </div>
@@ -345,10 +352,10 @@ export default function DistanceCard({
                     ? (() => {
                         const dest = `${partner.location.lat},${partner.location.lng}`;
                         const origin = `${self.location.lat},${self.location.lng}`;
+                        // Google Maps has no motorcycle profile — driving is
+                        // the closest road route for a motorbike.
                         const mode =
-                          activeMode === "walking" ? "walking" :
-                          activeMode === "cycling" ? "two%20wheeler" :
-                          "driving";
+                          activeMode === "walking" ? "walking" : "driving";
                         return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}&travelmode=${mode}`;
                       })()
                     : `https://www.google.com/maps/dir/?api=1&destination=${partner.location?.lat ?? ""},${partner.location?.lng ?? ""}`

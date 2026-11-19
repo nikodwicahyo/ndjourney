@@ -86,6 +86,13 @@ export function useLocationSettings() {
   });
 }
 
+export type LocationHistoryResult = {
+  points: LocationHistoryPoint[];
+  range: string;
+  count: number;
+  truncated: boolean;
+};
+
 export function useLocationHistory(
   range: string = "24h",
   options: { enabled?: boolean } = {},
@@ -93,12 +100,18 @@ export function useLocationHistory(
   return useQuery({
     queryKey: [...queryKeys.location.all, "history", range],
     enabled: options.enabled ?? true,
-    queryFn: async ({ signal }) => {
+    queryFn: async ({ signal }): Promise<LocationHistoryResult> => {
       const url = range ? `/api/location/history?range=${encodeURIComponent(range)}` : "/api/location/history";
       const res = await fetch(url, { cache: "no-store", signal });
       if (!res.ok) throw new Error("Gagal memuat riwayat lokasi");
       const json = await res.json();
-      return json.data as LocationHistoryPoint[];
+      const points = (Array.isArray(json.data) ? json.data : []) as LocationHistoryPoint[];
+      return {
+        points,
+        range: json.range ?? range,
+        count: json.count ?? points.length,
+        truncated: json.truncated === true,
+      };
     },
     staleTime: 30_000,
     refetchInterval: 60_000,

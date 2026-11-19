@@ -41,6 +41,19 @@ describe("fetchRoadRoute", () => {
     expect(res.distanceMeters).toBeCloseTo(hav(c, d), 3);
   });
 
+  it("does not cache a fallback, so a recovered upstream is retried", async () => {
+    const mock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ data: { distanceMeters: 500, durationSeconds: null, geometry: null, source: "fallback" } }),
+    }));
+    vi.stubGlobal("fetch", mock);
+    const p = { lat: -6.7, lng: 106.7 };
+    const q = { lat: -6.71, lng: 106.71 };
+    await fetchRoadRoute(p, q);
+    await fetchRoadRoute(p, q);
+    expect(mock).toHaveBeenCalledTimes(2);
+  });
+
   it("does not call the API for identical points", async () => {
     const mock = vi.fn(async () => ({}));
     vi.stubGlobal("fetch", mock);

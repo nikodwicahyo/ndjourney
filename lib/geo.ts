@@ -1,5 +1,3 @@
-import { getJakartaParts } from "./date";
-
 export const MEET_THRESHOLD_METERS = 100;
 
 /**
@@ -9,24 +7,6 @@ export const MEET_THRESHOLD_METERS = 100;
  */
 export const LOCATION_STALE_AFTER_SECONDS = 60;
 
-// distance-based road factor, shorter routes have more turns
-function roadFactor(meters: number): number {
-  if (meters < 1000) return 1.6;
-  if (meters < 5000) return 1.5;
-  if (meters < 20000) return 1.4;
-  if (meters < 50000) return 1.3;
-  return 1.2;
-}
-
-// time-of-day traffic adjustment, driving only
-function trafficMultiplier(): number {
-  const h = getJakartaParts(new Date())?.hour ?? new Date().getHours();
-  if (h >= 22 || h < 5) return 1.3;
-  if (h >= 5 && h < 7) return 1.1;
-  if (h >= 7 && h < 9) return 0.65;
-  if (h >= 17 && h < 20) return 0.6;
-  return 0.85;
-}
 export const WALKING_SPEED_MS = 1.4;
 export const CYCLING_SPEED_MS = 8.3;
 export const DRIVING_SPEED_MS = 11.1;
@@ -121,34 +101,30 @@ export function isMeeting(distanceMeters: number): boolean {
 
 export type TravelMode = "walking" | "cycling" | "driving";
 
-function travelTimeSeconds(
-  distanceMeters: number,
-  mode: TravelMode,
-  applyRoadFactor: boolean,
+/**
+ * Road-only ETA. The distance always comes from a real road route — never from
+ * a straight line — so the toggle that changes the map view cannot change ETA.
+ * Car uses OSRM's own driving duration when available; the other modes scale
+ * the same road distance by their realistic speed.
+ */
+export function estimateRoadArrivalSeconds(
+  route: { distanceMeters: number; durationSeconds: number | null } | null | undefined,
+  mode: TravelMode = "walking",
 ): number {
-  if (!Number.isFinite(distanceMeters) || distanceMeters <= 0) return 0;
-  const rd = applyRoadFactor ? distanceMeters * roadFactor(distanceMeters) : distanceMeters;
-  const base =
+  if (!route) return 0;
+  const distance = route.distanceMeters;
+  if (!Number.isFinite(distance) || distance <= 0) return 0;
+  if (mode === "driving") {
+    const duration = route.durationSeconds;
+    if (typeof duration === "number" && Number.isFinite(duration) && duration > 0) {
+      return Math.round(duration);
+    }
+  }
+  const speed =
     mode === "cycling" ? CYCLING_SPEED_MS
     : mode === "driving" ? DRIVING_SPEED_MS
     : WALKING_SPEED_MS;
-  const speed = mode === "driving" ? base * trafficMultiplier() : base;
-  return Math.round(rd / speed);
-}
-
-export function estimateArrivalSeconds(
-  distanceMeters: number,
-  mode: TravelMode = "walking",
-): number {
-  return travelTimeSeconds(distanceMeters, mode, true);
-}
-
-/** ETA from an OSRM road distance — the road factor must not be applied twice. */
-export function estimateArrivalFromRoadDistance(
-  roadDistanceMeters: number,
-  mode: TravelMode = "walking",
-): number {
-  return travelTimeSeconds(roadDistanceMeters, mode, false);
+  return Math.round(distance / speed);
 }
 
 export function formatArrivalTime(seconds: number): string {

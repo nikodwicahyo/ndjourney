@@ -24,6 +24,7 @@ import {
   formatBearingId,
   distanceTrend,
   estimateArrivalSeconds,
+  estimateArrivalFromRoadDistance,
   formatArrivalTime,
   type DistanceTrend as TrendType,
   type TravelMode,
@@ -113,12 +114,14 @@ export default function DistanceCard({
   previousDistance = null,
   travelMode,
   onTravelModeChange,
+  roadRoute = null,
 }: {
   state: LocationState;
   distance: number | null;
   previousDistance?: number | null;
   travelMode?: TravelMode;
   onTravelModeChange?: (mode: TravelMode) => void;
+  roadRoute?: { distanceMeters: number; durationSeconds: number | null } | null;
 }) {
   const { self, partner } = state;
   const bothSharing = self.isSharing && partner.isSharing;
@@ -139,9 +142,12 @@ export default function DistanceCard({
       { latitude: partner.location.lat, longitude: partner.location.lng },
     );
     bearingId = formatBearingId(bearingDeg);
-    if (distance !== null && distance > 10) {
-      etaStr = formatArrivalTime(estimateArrivalSeconds(distance, activeMode));
-    }
+    const etaSeconds = roadRoute
+      ? estimateArrivalFromRoadDistance(roadRoute.distanceMeters, activeMode)
+      : distance !== null && distance > 10
+        ? estimateArrivalSeconds(distance, activeMode)
+        : 0;
+    etaStr = formatArrivalTime(etaSeconds);
   }
 
   const [showSparkle, setShowSparkle] = useState(false);
@@ -300,6 +306,9 @@ export default function DistanceCard({
                 >
                   {etaStr}
                 </motion.span>
+                {roadRoute && (
+                  <span className="text-[10px] text-muted-foreground/70">· via rute jalan</span>
+                )}
               </div>
               <div className="flex items-center justify-center gap-1.5 flex-wrap">
                 {MODES.map(({ mode, icon: Icon, label }) => (

@@ -531,6 +531,7 @@ export default function LocationManager() {
             state={data}
             distance={distance}
             previousDistance={previousDistance ?? null}
+            roadRoute={snapToRoads ? routeQuery.data ?? null : null}
           />
 
           {meeting && bothSharing && <NearbySuggestion />}

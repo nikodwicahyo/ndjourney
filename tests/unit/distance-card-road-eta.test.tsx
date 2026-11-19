@@ -33,7 +33,8 @@ describe("DistanceCard road-only ETA", () => {
   it("uses the road route and gives a distinct ETA per mode", () => {
     render(<DistanceCard state={state} distance={8200} roadRoute={road} />);
 
-    expect(screen.getByText("Jarak tempuh via jalan")).toBeTruthy();
+    // Road distance 10 km falls into the "Satu kota" category.
+    expect(screen.getByText("Satu kota")).toBeTruthy();
     // Walking is the default mode: same road distance, walking speed.
     expect(screen.getByText("1 jam 59 menit")).toBeTruthy();
 
@@ -53,8 +54,7 @@ describe("DistanceCard road-only ETA", () => {
         roadRoute={{ ...road, source: "fallback", geometry: null, durationSeconds: null }}
       />,
     );
-    expect(screen.queryByText("Jarak tempuh via jalan")).toBeNull();
-    expect(screen.queryByText("via rute jalan")).toBeNull();
+    expect(screen.queryByText("Satu kota")).toBeNull();
     expect(screen.getByText("Rute jalan tidak tersedia")).toBeTruthy();
   });
 

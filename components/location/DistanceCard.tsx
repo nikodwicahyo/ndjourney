@@ -19,6 +19,7 @@ import {
 import { Avatar, AvatarImage, AvatarFallback, Card, CardContent } from "@/components/ui";
 import {
   formatDistance,
+  formatDistanceCategory,
   bearing,
   formatBearingId,
   distanceTrend,
@@ -191,7 +192,7 @@ export default function DistanceCard({
             {bothSharing && partnerHasLoc ? (
               <p className="text-xs text-muted-foreground">
                 {activeRoute
-                  ? "Jarak tempuh via jalan"
+                  ? formatDistanceCategory(activeRoute.distanceMeters)
                   : routeLoading
                     ? "Memuat rute jalan…"
                     : "Rute jalan tidak tersedia"}
@@ -319,9 +320,6 @@ export default function DistanceCard({
                 >
                   {etaStr}
                 </motion.span>
-                {activeRoute && (
-                  <span className="text-[10px] text-muted-foreground/70">· via rute jalan</span>
-                )}
               </div>
               <div className="flex items-center justify-center gap-1.5 flex-wrap">
                 {MODES.map(({ mode, icon: Icon, label }) => (

@@ -10,10 +10,9 @@ import {
   bearing,
   formatBearing,
   formatBearingId,
-  haversineMeters,
 } from "@/lib/geo";
 import { safeAvatarSrc } from "@/lib/format";
-import { effectiveDistance, reverseGeocodeName, type RoadRoute } from "@/lib/routing";
+import { reverseGeocodeName, shouldUseRoadRoute, type RoadRoute } from "@/lib/routing";
 import { escapeHtml } from "@/lib/escape-html";
 
 import type { LocationPoint, LocationHistoryPoint } from "@/hooks/useLocation";
@@ -167,7 +166,7 @@ function buildAvatarPopup(
 
   const stopStatus = currentStop
     ? `<div style="margin-top:6px;padding:4px 8px;border-radius:6px;background:${p.isSelf ? "#3b82f618" : "#F43F5E18"};color:${p.isSelf ? "#2563eb" : "#e11d48"};font-size:11px;font-weight:600;">
-        📍 Sedang singgah di sini · ${formatDurationId(currentStop.durationMinutes)}
+        📍 Sedang di sini · ${formatDurationId(currentStop.durationMinutes)}
        </div>`
     : "";
 
@@ -210,7 +209,9 @@ export default function PartnerMap({
   filterUser = "all",
   snapToRoads = true,
   route = null,
+  distanceRoute = null,
   stopAddresses,
+  selfId: selfIdProp,
 }: {
   self: Pin | null;
   partner: Pin | null;
@@ -220,9 +221,16 @@ export default function PartnerMap({
   stops?: { self: VisitedStop[]; partner: VisitedStop[] };
   filterUser?: "all" | "partner" | "self";
   snapToRoads?: boolean;
+  /** Geometry drawn on the map (follows the view toggle). */
   route?: RoadRoute | null;
+  /** Canonical road route for distance labels — always road when available. */
+  distanceRoute?: RoadRoute | null;
   stopAddresses?: Record<string, string | null>;
+  /** Passed explicitly so history rendering doesn't depend on session timing. */
+  selfId?: string;
 }) {
+  const { data: session } = useSession();
+  const selfId = selfIdProp ?? session?.user?.id;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const stopMarkersRef = useRef<Map<string, L.Marker>>(new Map());
   const mapRef = useRef<L.Map | null>(null);
@@ -260,7 +268,6 @@ export default function PartnerMap({
   const stopAddressesRef = useRef(stopAddresses);
   stopAddressesRef.current = stopAddresses;
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const { data: session } = useSession();
 
   useEffect(() => {
     [selfRef.current, partnerRef.current].forEach((p) => {
@@ -577,7 +584,7 @@ export default function PartnerMap({
 
     if (selectedStop.isCurrent) {
       // Focus on the live avatar marker and open its popup
-      const isSelf = selectedStop.userId === session?.user?.id;
+      const isSelf = selectedStop.userId === selfId;
       const targetMarker = isSelf ? selfMarkerRef.current : partnerMarkerRef.current;
       if (targetMarker) {
         setTimeout(() => {
@@ -593,7 +600,7 @@ export default function PartnerMap({
         }, reduceAnim ? 50 : 600);
       }
     }
-  }, [selectedStop, session?.user?.id]);
+  }, [selectedStop, selfId]);
 
   // Highlight the stop chosen from the list. Stable callback so re-selecting
   // never rebuilds the history layer.
@@ -615,14 +622,24 @@ export default function PartnerMap({
   // every time, which would otherwise rebuild the whole trail layer each poll.
   const selfKey = self ? `${self.point.lat.toFixed(4)},${self.point.lng.toFixed(4)}` : "none";
   const partnerKey = partner ? `${partner.point.lat.toFixed(4)},${partner.point.lng.toFixed(4)}` : "none";
+  const historyDrawRef = useRef(0);
   useEffect(() => {
     const map = mapRef.current;
     const hLayerUntyped = historyLayerRef.current;
     if (!map || !hLayerUntyped) return;
     const hLayer: L.LayerGroup = hLayerUntyped;
 
+    // Token guards async road-snapping: a stale response must not touch a
+    // layer that has already been cleared for a newer render.
+    historyDrawRef.current += 1;
+    const drawToken = historyDrawRef.current;
+
     hLayer.clearLayers();
     stopMarkersRef.current.clear();
+
+    // Refitting once per meaningful history view keeps the trail in frame
+    // without fighting user pans on every 15s presence poll.
+    historyFittedRef.current = false;
 
     const pins = [selfRef.current, partnerRef.current].filter(Boolean) as Pin[];
     const markerLatLngs = pins.map(
@@ -646,17 +663,13 @@ export default function PartnerMap({
     };
 
     if (!showHistory) {
-      historyFittedRef.current = false;
       fitMarkerBounds();
       return;
     }
-    if (!history || history.length === 0) {
+    if (!history || history.length === 0 || !selfId) {
       fitMarkerBounds();
       return;
     }
-
-    const selfId = session?.user?.id;
-    if (!selfId) { fitMarkerBounds(); return; }
 
     const sorted = [...history].sort(
       (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
@@ -695,7 +708,8 @@ export default function PartnerMap({
       if (snapToRoads && points.length >= 2) {
         const waypoints = points.map((p) => ({ lat: p.latitude, lng: p.longitude }));
         fetchRoadSnappedRoute(waypoints).then((roadCoords) => {
-          if (!mapRef.current) return;
+          if (historyDrawRef.current !== drawToken) return;
+          if (!mapRef.current || !hLayer.hasLayer(polyline)) return;
           if (roadCoords && roadCoords.length >= 2) {
             polyline.setLatLngs(roadCoords);
           }
@@ -794,7 +808,7 @@ export default function PartnerMap({
       map.fitBounds(bounds, { padding: [80, 80], maxZoom: 16, animate: !prefersReducedMotion() });
       historyFittedRef.current = true;
     }
-  }, [history, showHistory, session?.user?.id, selfKey, partnerKey, partner?.label, filterUser, snapToRoads, stops, applyStopHighlight]);
+  }, [history, showHistory, selfId, selfKey, partnerKey, partner?.label, filterUser, snapToRoads, stops, applyStopHighlight]);
 
   // Update markers (animated)
   useEffect(() => {
@@ -930,11 +944,8 @@ export default function PartnerMap({
       }).addTo(markerLayer);
 
       const mid = L.latLngBounds(lineLatLngs).getCenter();
-      const straightMeters = haversineMeters(
-        { latitude: pins[0].point.lat, longitude: pins[0].point.lng },
-        { latitude: pins[1].point.lat, longitude: pins[1].point.lng },
-      );
-      const distLabel = formatDistance(effectiveDistance(route, straightMeters));
+      const canonicalRoute = shouldUseRoadRoute(distanceRoute ?? route);
+      const distLabel = canonicalRoute ? formatDistance(canonicalRoute.distanceMeters) : "—";
       distanceLabelRef.current = L.marker(mid, {
         icon: L.divIcon({
           className: "",
@@ -961,7 +972,7 @@ export default function PartnerMap({
       // No pins, show default view (once)
       map.setView([-6.2, 106.816], 14, { animate: !prefersReducedMotion() });
     }
-  }, [self, partner, stops, route]);
+  }, [self, partner, stops, route, distanceRoute]);
 
   const toggleFullscreen = useCallback(() => {
     const el = containerRef.current;
@@ -1077,34 +1088,23 @@ export default function PartnerMap({
               )}
             </>
           )}
-          {self?.point && partner?.point && (
-            <>
-              <span className="text-muted-foreground/40">·</span>
-              <span className="flex items-center gap-1">
-                <Ruler className="h-3 w-3" aria-hidden="true" />{" "}
-                {formatDistance(
-                  effectiveDistance(
-                    route,
-                    haversineMeters(
-                      {
-                        latitude: self.point.lat,
-                        longitude: self.point.lng,
-                      },
-                      {
-                        latitude: partner.point.lat,
-                        longitude: partner.point.lng,
-                      },
-                    ),
-                  ),
-                )}
-              </span>
-              {route?.geometry && (
-                <span className="hidden sm:inline rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400">
-                  via jalan
+          {self?.point && partner?.point && (() => {
+            const canonical = shouldUseRoadRoute(distanceRoute ?? route);
+            return (
+              <>
+                <span className="text-muted-foreground/40">·</span>
+                <span className="flex items-center gap-1">
+                  <Ruler className="h-3 w-3" aria-hidden="true" />{" "}
+                  {canonical ? formatDistance(canonical.distanceMeters) : "—"}
                 </span>
-              )}
-            </>
-          )}
+                {canonical && (
+                  <span className="hidden sm:inline rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400">
+                    via jalan
+                  </span>
+                )}
+              </>
+            );
+          })()}
           {self?.point?.accuracy && (
             <>
               <span className="text-muted-foreground/40">·</span>

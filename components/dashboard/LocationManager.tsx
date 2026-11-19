@@ -308,7 +308,9 @@ export default function LocationManager() {
               filterUser={filterUser}
               snapToRoads={snapToRoads}
               route={mapRoute}
+              distanceRoute={cardRoute}
               stopAddresses={stopAddresses}
+              selfId={session?.user?.id}
             />
             {!self.isSharing && !partner.isSharing && (
               <div className="absolute inset-0 z-[1002] flex flex-col items-center justify-center gap-3 rounded-2xl bg-background/60 p-6 text-center text-sm text-muted-foreground backdrop-blur-sm">
@@ -445,8 +447,8 @@ export default function LocationManager() {
                         {isHistoryLoading
                           ? "Memuat jejak…"
                           : visibleRecordCount > 0
-                            ? `${visibleRecordCount} rekaman ditampilkan sebagai garis · klik singgah untuk fokus`
-                            : "Belum ada rekaman pada rentang ini"}
+                            ? `${visibleRecordCount} rekaman (${historyRange}) digambar sebagai garis jejak · klik singgah untuk fokus`
+                            : `Belum ada rekaman pada rentang ${historyRange}`}
                       </span>
                     </div>
                     {historyTruncated && (

@@ -121,18 +121,34 @@ export function isMeeting(distanceMeters: number): boolean {
 
 export type TravelMode = "walking" | "cycling" | "driving";
 
-export function estimateArrivalSeconds(
+function travelTimeSeconds(
   distanceMeters: number,
-  mode: TravelMode = "walking",
+  mode: TravelMode,
+  applyRoadFactor: boolean,
 ): number {
   if (!Number.isFinite(distanceMeters) || distanceMeters <= 0) return 0;
-  const rd = distanceMeters * roadFactor(distanceMeters);
+  const rd = applyRoadFactor ? distanceMeters * roadFactor(distanceMeters) : distanceMeters;
   const base =
     mode === "cycling" ? CYCLING_SPEED_MS
     : mode === "driving" ? DRIVING_SPEED_MS
     : WALKING_SPEED_MS;
   const speed = mode === "driving" ? base * trafficMultiplier() : base;
   return Math.round(rd / speed);
+}
+
+export function estimateArrivalSeconds(
+  distanceMeters: number,
+  mode: TravelMode = "walking",
+): number {
+  return travelTimeSeconds(distanceMeters, mode, true);
+}
+
+/** ETA from an OSRM road distance — the road factor must not be applied twice. */
+export function estimateArrivalFromRoadDistance(
+  roadDistanceMeters: number,
+  mode: TravelMode = "walking",
+): number {
+  return travelTimeSeconds(roadDistanceMeters, mode, false);
 }
 
 export function formatArrivalTime(seconds: number): string {

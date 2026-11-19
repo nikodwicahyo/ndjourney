@@ -11,7 +11,7 @@ export const CSP_DIRECTIVES = [
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
-  "connect-src 'self' https://res.cloudinary.com https://api.cloudinary.com https://fonts.googleapis.com https://fonts.gstatic.com https://*.upstash.io https://api.resend.com wss://*.pusher.com https://*.pusher.com https://tiles.openfreemap.org https://tile.openstreetmap.org https://*.tile.openstreetmap.org https://nominatim.openstreetmap.org",
+  "connect-src 'self' https://res.cloudinary.com https://api.cloudinary.com https://fonts.googleapis.com https://fonts.gstatic.com https://*.upstash.io https://api.resend.com wss://*.pusher.com https://*.pusher.com https://tiles.openfreemap.org https://tile.openstreetmap.org https://*.tile.openstreetmap.org",
   "worker-src 'self' blob:",
   "report-uri /api/csp-violation",
 ];

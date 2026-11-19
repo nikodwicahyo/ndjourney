@@ -1,0 +1,135 @@
+import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import { haversineMeters } from "@/lib/geo";
+
+export const dynamic = "force-dynamic";
+
+type RoutePayload = {
+  distanceMeters: number;
+  durationSeconds: number | null;
+  geometry: Array<[number, number]> | null;
+  source: "osrm" | "fallback";
+};
+
+const ROUTE_CACHE = new Map<string, RoutePayload>();
+const MAX_ROUTE_CACHE = 200;
+
+function parsePair(raw: string | null): { lat: number; lng: number } | null {
+  if (!raw) return null;
+  const parts = raw.split(",");
+  if (parts.length !== 2) return null;
+  const lat = Number(parts[0]);
+  const lng = Number(parts[1]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  return { lat, lng };
+}
+
+function cacheKey(from: { lat: number; lng: number }, to: { lat: number; lng: number }): string {
+  return `${from.lat.toFixed(4)},${from.lng.toFixed(4)}|${to.lat.toFixed(4)},${to.lng.toFixed(4)}`;
+}
+
+function remember(key: string, payload: RoutePayload): void {
+  if (ROUTE_CACHE.size >= MAX_ROUTE_CACHE) {
+    const oldest = ROUTE_CACHE.keys().next().value;
+    if (oldest) ROUTE_CACHE.delete(oldest);
+  }
+  ROUTE_CACHE.set(key, payload);
+}
+
+function straightFallback(
+  from: { lat: number; lng: number },
+  to: { lat: number; lng: number },
+): RoutePayload {
+  return {
+    distanceMeters: haversineMeters(
+      { latitude: from.lat, longitude: from.lng },
+      { latitude: to.lat, longitude: to.lng },
+    ),
+    durationSeconds: null,
+    geometry: null,
+    source: "fallback",
+  };
+}
+
+export async function GET(request?: Request) {
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    let from: { lat: number; lng: number } | null = null;
+    let to: { lat: number; lng: number } | null = null;
+    try {
+      const params = new URL(request?.url ?? "http://localhost").searchParams;
+      from = parsePair(params.get("from"));
+      to = parsePair(params.get("to"));
+    } catch {
+      return NextResponse.json({ error: "Parameter tidak valid" }, { status: 400 });
+    }
+    if (!from || !to) {
+      return NextResponse.json({ error: "Parameter tidak valid" }, { status: 400 });
+    }
+
+    const key = cacheKey(from, to);
+    const cached = ROUTE_CACHE.get(key);
+    if (cached) {
+      return NextResponse.json(
+        { data: cached },
+        { headers: { "Cache-Control": "private, max-age=60" } },
+      );
+    }
+
+    let payload: RoutePayload;
+    try {
+      const url =
+        `https://router.project-osrm.org/route/v1/driving/` +
+        `${from.lng.toFixed(6)},${from.lat.toFixed(6)};` +
+        `${to.lng.toFixed(6)},${to.lat.toFixed(6)}` +
+        `?overview=full&geometries=geojson`;
+      const res = await fetch(url, {
+        signal: AbortSignal.timeout(4000),
+        headers: { Accept: "application/json" },
+      });
+      if (!res.ok) throw new Error(`OSRM ${res.status}`);
+
+      const data = (await res.json()) as {
+        code?: string;
+        routes?: Array<{
+          distance?: number;
+          duration?: number;
+          geometry?: { coordinates?: [number, number][] };
+        }>;
+      };
+      const route = data?.code === "Ok" ? data.routes?.[0] : undefined;
+      const coords = route?.geometry?.coordinates;
+      if (!coords || !Array.isArray(coords) || coords.length < 2) {
+        throw new Error("OSRM returned no geometry");
+      }
+
+      const geometry = coords.map((c) => [c[1], c[0]] as [number, number]);
+      payload = {
+        distanceMeters: route.distance ?? 0,
+        durationSeconds: route.duration ?? null,
+        geometry,
+        source: "osrm",
+      };
+    } catch (error) {
+      console.warn("[api/route] OSRM unavailable, using straight line:", error);
+      payload = straightFallback(from, to);
+    }
+
+    remember(key, payload);
+    return NextResponse.json(
+      { data: payload },
+      { headers: { "Cache-Control": "private, max-age=60" } },
+    );
+  } catch (error) {
+    console.error("[api/route] unexpected error:", error);
+    return NextResponse.json(
+      { error: "Terjadi kesalahan pada server." },
+      { status: 500 },
+    );
+  }
+}

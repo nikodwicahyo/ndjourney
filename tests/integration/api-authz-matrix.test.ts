@@ -84,6 +84,8 @@ const location = await import("@/app/api/location/route");
 const locationHistory = await import("@/app/api/location/history/route");
 const locationShare = await import("@/app/api/location/share/route");
 const locationHeart = await import("@/app/api/location/heart/route");
+const routeProxy = await import("@/app/api/route/route");
+const geocodeProxy = await import("@/app/api/geocode/reverse/route");
 const dashboardStats = await import("@/app/api/dashboard/stats/route");
 const dashboardActivity = await import("@/app/api/dashboard/activity/route");
 const partner = await import("@/app/api/partner/route");
@@ -140,6 +142,8 @@ const cases: Array<[string, () => Promise<Response>]> = [
   ["GET /api/location/history", () => locationHistory.GET()],
   ["PUT /api/location/share", () => locationShare.PUT(req("/api/location/share", "PUT"))],
   ["POST /api/location/heart", () => locationHeart.POST(req("/api/location/heart", "POST"))],
+  ["GET /api/route", () => routeProxy.GET(req("/api/route?from=-6.2,106.8&to=-6.21,106.81"))],
+  ["GET /api/geocode/reverse", () => geocodeProxy.GET(req("/api/geocode/reverse?lat=-6.2&lng=106.8"))],
 
   ["GET /api/dashboard/stats", () => dashboardStats.GET()],
   ["GET /api/dashboard/activity", () => dashboardActivity.GET()],

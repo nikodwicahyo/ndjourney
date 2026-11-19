@@ -63,6 +63,24 @@ function median(values: number[]): number {
   return sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
+/** True only when at least one person actually moved within their own trace. */
+export function hasTrackMovement(points: LocationHistoryPoint[]): boolean {
+  const firstByUser = new Map<string, { latitude: number; longitude: number }>();
+  return points.some((p) => {
+    const first = firstByUser.get(p.userId);
+    if (!first) {
+      firstByUser.set(p.userId, { latitude: p.latitude, longitude: p.longitude });
+      return false;
+    }
+    return (
+      haversineMeters(first, {
+        latitude: p.latitude,
+        longitude: p.longitude,
+      }) > 50
+    );
+  });
+}
+
 /**
  * Detect visited places from a chronological sequence of location points.
  *

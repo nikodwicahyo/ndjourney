@@ -29,11 +29,16 @@ import {
   formatDurationId,
   formatTimeOnly,
   detectStopPoints,
+  hasTrackMovement,
   type VisitedStop,
 } from "@/lib/location-history";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query-keys";
-import { shouldUseRoadRoute } from "@/lib/routing";
+import {
+  shouldUseRoadRoute,
+  ROAD_ROUTE_COLOR,
+  STRAIGHT_ROUTE_COLOR,
+} from "@/lib/routing";
 import {
   retrySharing,
   useBackgroundLocationStatus,
@@ -45,6 +50,16 @@ import MeetBanner from "@/components/location/MeetBanner";
 import DeviceBadge from "@/components/location/DeviceBadge";
 import FloatingHeart from "@/components/location/FloatingHeart";
 import NearbySuggestion from "@/components/location/NearbySuggestion";
+
+const HISTORY_RANGES = [
+  { key: "today", label: "Hari ini" },
+  { key: "24h", label: "24 Jam" },
+  { key: "3d", label: "3 Hari" },
+  { key: "7d", label: "7 Hari" },
+] as const;
+
+const historyRangeLabel = (range: string) =>
+  HISTORY_RANGES.find((r) => r.key === range)?.label ?? range;
 
 const PartnerMap = dynamic(() => import("@/components/location/PartnerMap").catch((err) => {
   console.error("[LocationManager] PartnerMap dynamic import failed:", err);
@@ -210,11 +225,22 @@ export default function LocationManager() {
   // Record count follows the same filter as the drawn trail, so the legend
   // never claims more points than the map actually shows.
   const selfId = session?.user?.id;
-  const visibleRecordCount = !selfId
-    ? 0
-    : historyData.filter((h) =>
-        filterUser === "all" ? true : filterUser === "self" ? h.userId === selfId : h.userId !== selfId,
-      ).length;
+  const visibleHistory = useMemo(
+    () =>
+      selfId
+        ? historyData.filter((h) =>
+            filterUser === "all"
+              ? true
+              : filterUser === "self"
+                ? h.userId === selfId
+                : h.userId !== selfId,
+          )
+        : [],
+    [historyData, filterUser, selfId],
+  );
+  const visibleRecordCount = visibleHistory.length;
+
+  const historyHasMovement = hasTrackMovement(visibleHistory);
 
   if (sessionStatus === "unauthenticated") {
     return (
@@ -308,7 +334,6 @@ export default function LocationManager() {
               filterUser={filterUser}
               snapToRoads={snapToRoads}
               route={mapRoute}
-              distanceRoute={cardRoute}
               stopAddresses={stopAddresses}
               selfId={session?.user?.id}
             />
@@ -349,11 +374,11 @@ export default function LocationManager() {
                     type="button"
                     onClick={() => setSnapToRoads((v) => !v)}
                     aria-pressed={snapToRoads}
-                    className={`inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium border transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
-                      snapToRoads
-                        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                        : "border-border bg-background text-muted-foreground"
-                    }`}
+                    className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                    style={(() => {
+                      const c = snapToRoads ? ROAD_ROUTE_COLOR : STRAIGHT_ROUTE_COLOR;
+                      return { color: c, borderColor: `${c}55`, backgroundColor: `${c}14` };
+                    })()}
                     title={snapToRoads ? "Rute mengikuti jalan asli (OSRM)" : "Garis lurus langsung"}
                   >
                     <Route className="h-3.5 w-3.5" />
@@ -377,14 +402,7 @@ export default function LocationManager() {
                           <Calendar className="h-3 w-3" />
                           Durasi:
                         </span>
-                        {(
-                          [
-                            { key: "today", label: "Hari ini" },
-                            { key: "24h", label: "24 Jam" },
-                            { key: "3d", label: "3 Hari" },
-                            { key: "7d", label: "7 Hari" },
-                          ] as const
-                        ).map(({ key, label }) => (
+                        {HISTORY_RANGES.map(({ key, label }) => (
                           <button
                             key={key}
                             type="button"
@@ -447,8 +465,8 @@ export default function LocationManager() {
                         {isHistoryLoading
                           ? "Memuat jejak…"
                           : visibleRecordCount > 0
-                            ? `${visibleRecordCount} rekaman (${historyRange}) digambar sebagai garis jejak · klik singgah untuk fokus`
-                            : `Belum ada rekaman pada rentang ${historyRange}`}
+                            ? `${visibleRecordCount} rekaman (${historyRangeLabel(historyRange)}) · ${historyHasMovement ? "jejak perjalanan dan titik singgah sudah terlihat di peta" : "lokasi tidak banyak berubah, jadi ditandai lingkaran di peta"} · ketuk titik untuk detail`
+                            : `Belum ada rekaman pada rentang ${historyRangeLabel(historyRange)}`}
                       </span>
                     </div>
                     {historyTruncated && (

@@ -51,7 +51,10 @@ function timeAgo(seconds: number | null): string {
 
 function AnimatedNumber({ value }: { value: number }) {
   const spring = useSpring(value, { stiffness: 60, damping: 12, mass: 0.3 });
-  const display = useTransform(spring, (v) => formatDistance(Math.round(v)));
+  // formatDistance already rounds km. Pre-rounding here double-rounds the
+  // value (11499.8m -> 11500 -> "12 km" instead of "11 km") and desynced the
+  // card from the map.
+  const display = useTransform(spring, (v) => formatDistance(v));
   return <motion.span className="tabular-nums">{display}</motion.span>;
 }
 

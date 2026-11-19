@@ -1,5 +1,9 @@
 import { haversineMeters } from "./geo";
 
+/** One source of truth for map/toggle colours: blue = road, red = straight. */
+export const ROAD_ROUTE_COLOR = "#2563EB";
+export const STRAIGHT_ROUTE_COLOR = "#F43F5E";
+
 export type LatLng = { lat: number; lng: number };
 
 export type RoadRoute = {

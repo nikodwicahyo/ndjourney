@@ -46,6 +46,14 @@ describe("DistanceCard road-only ETA", () => {
     expect(screen.getByText("15 menit")).toBeTruthy();
   });
 
+  it("does not double-round a 11.5 km road distance into 12 km", () => {
+    // Regression: AnimatedNumber used to round metres first, so 11499.8m
+    // became 11500m and the card showed 12 km while the map showed 11 km.
+    render(<DistanceCard state={state} distance={8200} roadRoute={{ ...road, distanceMeters: 11499.8 }} />);
+    expect(screen.getByText("11 km")).toBeTruthy();
+    expect(screen.queryByText("12 km")).toBeNull();
+  });
+
   it("never turns a fallback route into a road ETA", () => {
     render(
       <DistanceCard

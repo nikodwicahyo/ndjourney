@@ -5,12 +5,34 @@ import {
   formatTimeOnly,
   downsampleWaypoints,
   fetchRoadSnappedRoute,
+  hasTrackMovement,
 } from "@/lib/location-history";
 import type { LocationHistoryPoint } from "@/hooks/useLocation";
 
 describe("location-history utility", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+  });
+
+  describe("hasTrackMovement", () => {
+    const point = (userId: string, latitude: number, longitude: number): LocationHistoryPoint => ({
+      userId, latitude, longitude,
+      accuracy: 10, heading: null, speed: null,
+      createdAt: "2026-11-20T08:30:00Z", deviceType: "mobile",
+    });
+
+    it("is false for stationary traces even when two people are far apart", () => {
+      expect(hasTrackMovement([
+        point("a", -6.4491, 106.8266), point("a", -6.4492, 106.8265),
+        point("b", -6.3758, 106.8161), point("b", -6.3757, 106.8162),
+      ])).toBe(false);
+    });
+
+    it("is true when one person actually moves", () => {
+      expect(hasTrackMovement([
+        point("a", -6.4491, 106.8266), point("a", -6.4400, 106.8266),
+      ])).toBe(true);
+    });
   });
 
   describe("formatDurationId", () => {

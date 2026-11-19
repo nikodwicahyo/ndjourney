@@ -7,12 +7,20 @@ import { useSession } from "next-auth/react";
 import { Heart, MapPin, Ruler } from "lucide-react";
 import {
   formatDistance,
+  haversineMeters,
   bearing,
   formatBearing,
   formatBearingId,
 } from "@/lib/geo";
 import { safeAvatarSrc } from "@/lib/format";
-import { reverseGeocodeName, shouldUseRoadRoute, type RoadRoute } from "@/lib/routing";
+import {
+  reverseGeocodeName,
+  effectiveDistance,
+  shouldUseRoadRoute,
+  ROAD_ROUTE_COLOR,
+  STRAIGHT_ROUTE_COLOR,
+  type RoadRoute,
+} from "@/lib/routing";
 import { escapeHtml } from "@/lib/escape-html";
 
 import type { LocationPoint, LocationHistoryPoint } from "@/hooks/useLocation";
@@ -209,7 +217,6 @@ export default function PartnerMap({
   filterUser = "all",
   snapToRoads = true,
   route = null,
-  distanceRoute = null,
   stopAddresses,
   selfId: selfIdProp,
 }: {
@@ -221,10 +228,9 @@ export default function PartnerMap({
   stops?: { self: VisitedStop[]; partner: VisitedStop[] };
   filterUser?: "all" | "partner" | "self";
   snapToRoads?: boolean;
-  /** Geometry drawn on the map (follows the view toggle). */
+  /** Geometry drawn on the map (follows the view toggle). The distance label
+   * follows the same toggle: road km when snapped, straight km otherwise. */
   route?: RoadRoute | null;
-  /** Canonical road route for distance labels — always road when available. */
-  distanceRoute?: RoadRoute | null;
   stopAddresses?: Record<string, string | null>;
   /** Passed explicitly so history rendering doesn't depend on session timing. */
   selfId?: string;
@@ -379,8 +385,9 @@ export default function PartnerMap({
 @keyframes leaflet-pulse{0%{transform:scale(1);opacity:.2}50%{transform:scale(2);opacity:0}100%{transform:scale(1);opacity:.2}}
 @keyframes leaflet-pulse-calm{0%,100%{opacity:.15}50%{opacity:.45}}
 /* Reduced motion keeps the pulse (it marks a live partner) but drops the
-   scale travel, and stops the marching dashed connector. */
-@media (prefers-reduced-motion: reduce){.leaflet-connecting-line{animation:none!important}div[style*="leaflet-pulse"]{animation:leaflet-pulse-calm 2.5s ease-in-out infinite!important}}
+   scale travel. The dashed connector is the only cue for straight-line mode,
+   so slow it down instead of freezing it — the line still reads as active. */
+@media (prefers-reduced-motion: reduce){.leaflet-connecting-line{animation-duration:6s}div[style*="leaflet-pulse"]{animation:leaflet-pulse-calm 2.5s ease-in-out infinite!important}}
 .visited-stop-marker{cursor:pointer;transition:transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)}
 .visited-stop-marker:hover{transform:scale(1.25);z-index:1000!important}
 .stop-selected .visited-stop-marker{transform:scale(1.35);box-shadow:0 0 0 4px rgba(244,63,94,.25)}
@@ -738,6 +745,28 @@ export default function PartnerMap({
         }
       });
 
+      // A stationary GPS trace is sub-pixel when the map fits two people 8km
+      // apart. Mark every visited place with a PIXEL-radius circle so a history
+      // view is always visible, even when nobody moved. The numbered pin below
+      // stays for past stops; the live avatar covers the current one.
+      userStops.forEach((stop) => {
+        L.circleMarker([stop.latitude, stop.longitude], {
+          radius: stop.isCurrent ? 42 : 22,
+          color,
+          weight: stop.isCurrent ? 2 : 1.5,
+          fillColor: color,
+          fillOpacity: stop.isCurrent ? 0.06 : 0.12,
+          dashArray: stop.isCurrent ? "5 5" : undefined,
+        })
+          .addTo(layer)
+          .bindTooltip(
+            stop.isCurrent
+              ? `${escapeHtml(userLabel)}: sedang di sini · ${formatDurationId(stop.durationMinutes)}`
+              : `${escapeHtml(userLabel)}: singgah ${formatDurationId(stop.durationMinutes)}`,
+            { direction: "top", offset: [0, -4] },
+          );
+      });
+
       // Render Visited Stop Markers: ONLY past stops!
       // The current stop is represented by the live avatar marker to avoid overlap and click blocking.
       const pastStops = userStops.filter((s) => !s.isCurrent);
@@ -934,8 +963,9 @@ export default function PartnerMap({
           interactive: false,
         }).addTo(markerLayer);
       }
+      const routeColor = hasRoadRoute ? ROAD_ROUTE_COLOR : STRAIGHT_ROUTE_COLOR;
       lineRef.current = L.polyline(lineLatLngs, {
-        color: hasRoadRoute ? "#2563EB" : "#F43F5E",
+        color: routeColor,
         weight: hasRoadRoute ? 4 : 3,
         dashArray: hasRoadRoute ? undefined : "12 12",
         opacity: hasRoadRoute ? 0.95 : 0.7,
@@ -944,12 +974,19 @@ export default function PartnerMap({
       }).addTo(markerLayer);
 
       const mid = L.latLngBounds(lineLatLngs).getCenter();
-      const canonicalRoute = shouldUseRoadRoute(distanceRoute ?? route);
-      const distLabel = canonicalRoute ? formatDistance(canonicalRoute.distanceMeters) : "—";
+      const straightMeters = haversineMeters(
+        { latitude: pins[0].point.lat, longitude: pins[0].point.lng },
+        { latitude: pins[1].point.lat, longitude: pins[1].point.lng },
+      );
+      // The map's number follows the same toggle as its line: road km for the
+      // snapped route, straight km for the line. The card stays road-only.
+      const distLabel = formatDistance(
+        effectiveDistance(shouldUseRoadRoute(route), straightMeters),
+      );
       distanceLabelRef.current = L.marker(mid, {
         icon: L.divIcon({
           className: "",
-          html: `<div style="color:#be185d;font-size:18px;font-weight:800;white-space:nowrap;display:flex;align-items:center;gap:6px;text-shadow:0 1px 4px rgba(255,255,255,0.9),0 1px 6px rgba(244,63,94,0.15);"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#F43F5E" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg><span>${distLabel}</span></div>`,
+          html: `<div style="color:${routeColor};font-size:18px;font-weight:800;white-space:nowrap;display:flex;align-items:center;gap:6px;text-shadow:0 1px 4px rgba(255,255,255,0.95),0 0 8px rgba(255,255,255,0.85);"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="${routeColor}" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg><span>${distLabel}</span></div>`,
           iconSize: [0, 0],
           iconAnchor: [0, 0],
         }),
@@ -972,7 +1009,7 @@ export default function PartnerMap({
       // No pins, show default view (once)
       map.setView([-6.2, 106.816], 14, { animate: !prefersReducedMotion() });
     }
-  }, [self, partner, stops, route, distanceRoute]);
+  }, [self, partner, stops, route]);
 
   const toggleFullscreen = useCallback(() => {
     const el = containerRef.current;
@@ -1089,19 +1126,19 @@ export default function PartnerMap({
             </>
           )}
           {self?.point && partner?.point && (() => {
-            const canonical = shouldUseRoadRoute(distanceRoute ?? route);
+            const roadRoute = shouldUseRoadRoute(route);
+            const modeColor = roadRoute ? ROAD_ROUTE_COLOR : STRAIGHT_ROUTE_COLOR;
+            const straightMeters = haversineMeters(
+              { latitude: self.point.lat, longitude: self.point.lng },
+              { latitude: partner.point.lat, longitude: partner.point.lng },
+            );
             return (
               <>
                 <span className="text-muted-foreground/40">·</span>
-                <span className="flex items-center gap-1">
+                <span className="flex items-center gap-1 font-medium" style={{ color: modeColor }}>
                   <Ruler className="h-3 w-3" aria-hidden="true" />{" "}
-                  {canonical ? formatDistance(canonical.distanceMeters) : "—"}
+                  {formatDistance(effectiveDistance(roadRoute, straightMeters))}
                 </span>
-                {canonical && (
-                  <span className="hidden sm:inline rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400">
-                    via jalan
-                  </span>
-                )}
               </>
             );
           })()}

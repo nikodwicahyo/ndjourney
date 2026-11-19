@@ -13,8 +13,17 @@ import {
   haversineMeters,
 } from "@/lib/geo";
 import { safeAvatarSrc } from "@/lib/format";
+import { reverseGeocodeName, type RoadRoute } from "@/lib/routing";
+import { escapeHtml } from "@/lib/escape-html";
 
 import type { LocationPoint, LocationHistoryPoint } from "@/hooks/useLocation";
+import {
+  detectStopPoints,
+  fetchRoadSnappedRoute,
+  formatDurationId,
+  formatTimeOnly,
+  type VisitedStop,
+} from "@/lib/location-history";
 
 type Pin = {
   id: string;
@@ -30,50 +39,12 @@ const TILE_URL =
 const TILE_ATTR =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 
-const NOMINATIM_CACHE = new Map<string, string>();
-const NOMINATIM_CACHE_MAX = 50;
-
 function prefersReducedMotion(): boolean {
   return (
     typeof window !== "undefined" &&
     typeof window.matchMedia === "function" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches
   );
-}
-
-async function reverseGeocode(
-  lat: number,
-  lng: number,
-): Promise<string | null> {
-  const key = `${lat.toFixed(4)},${lng.toFixed(4)}`;
-  const cached = NOMINATIM_CACHE.get(key);
-  if (cached) return cached;
-
-  try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=16&accept-language=id`,
-      { headers: { "User-Agent": "NdJourney/1.0" } },
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    const display =
-      data?.address?.road ||
-      data?.address?.suburb ||
-      data?.address?.quarter ||
-      data?.address?.city_district ||
-      data?.display_name?.split(",")?.[0] ||
-      null;
-    if (display) {
-      if (NOMINATIM_CACHE.size >= NOMINATIM_CACHE_MAX) {
-        const firstKey = NOMINATIM_CACHE.keys().next().value;
-        if (firstKey) NOMINATIM_CACHE.delete(firstKey);
-      }
-      NOMINATIM_CACHE.set(key, display);
-    }
-    return display;
-  } catch {
-    return null;
-  }
 }
 
 function timeAgo(iso: string): string {
@@ -98,17 +69,24 @@ function accuracyLabel(meters: number | null): string {
 function createAvatarIcon(
   image: string | null,
   isSelf: boolean,
+  isStationary: boolean = false,
 ): L.DivIcon {
   const ring = isSelf ? "#3b82f6" : "#F43F5E";
   const bg = "var(--card, #fff)";
   const fg = "var(--foreground, #0f172a)";
-  const shadow = "0 2px 6px rgba(0,0,0,.35)";
+  const shadow = "0 2px 8px rgba(0,0,0,.35)";
   const heart = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="${ring}" stroke="${ring}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>`;
 
   const safeImage = safeAvatarSrc(image);
-  const inner = safeImage
-    ? `<img src="${safeImage}" alt="" style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:3px solid ${ring};box-shadow:${shadow};background:${bg};transition:transform 0.3s ease;" />`
+  const avatarContent = safeImage
+    ? `<img src="${safeImage}" alt="" style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:3px solid ${ring};box-shadow:${shadow};background:${bg};display:block;" />`
     : `<div style="width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:${bg};border:3px solid ${ring};box-shadow:${shadow};color:${fg};">${heart}</div>`;
+
+  const statusBadge = isStationary
+    ? `<div style="pointer-events:none;position:absolute;bottom:-1px;right:-1px;width:17px;height:17px;border-radius:50%;background:${ring};color:#fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.35);" title="Sedang singgah">📍</div>`
+    : "";
+
+  const inner = `<div class="avatar-marker-pin" style="position:relative;width:44px;height:44px;cursor:pointer;">${avatarContent}${statusBadge}</div>`;
 
   return L.divIcon({
     className: "",
@@ -123,7 +101,7 @@ function createPulseIcon(isSelf: boolean): L.DivIcon {
   const color = isSelf ? "#3b82f6" : "#F43F5E";
   return L.divIcon({
     className: "",
-    html: `<div style="width:24px;height:24px;border-radius:50%;background:${color};opacity:0.2;animation:leaflet-pulse 1.5s ease-in-out infinite;" />`,
+    html: `<div style="pointer-events:none;width:24px;height:24px;border-radius:50%;background:${color};opacity:0.2;animation:leaflet-pulse 1.5s ease-in-out infinite;" />`,
     iconSize: [24, 24],
     iconAnchor: [12, 12],
   });
@@ -133,10 +111,93 @@ function createBearingArrow(heading: number, isSelf: boolean): L.DivIcon {
   const color = isSelf ? "#3b82f6" : "#F43F5E";
   return L.divIcon({
     className: "",
-    html: `<div style="width:14px;height:14px;transform:rotate(${heading}deg);font-size:14px;line-height:1;opacity:0.7;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.4));">${isSelf ? "▲" : "△"}</div>`,
+    html: `<div style="pointer-events:none;width:14px;height:14px;transform:rotate(${heading}deg);font-size:14px;line-height:1;opacity:0.7;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.4));">${isSelf ? "▲" : "△"}</div>`,
     iconSize: [14, 14],
     iconAnchor: [7, 14],
   });
+}
+
+function createStopIcon(
+  index: number,
+  color: string,
+  label: string,
+): L.DivIcon {
+  const bg = "var(--card, #fff)";
+  const fg = color;
+  const shadow = `0 2px 6px rgba(0,0,0,0.25)`;
+
+  const inner = `<div class="visited-stop-marker" style="width:26px;height:26px;border-radius:50%;background:${bg};color:${fg};border:2px solid ${color};box-shadow:${shadow};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;font-family:system-ui,sans-serif;" aria-label="${escapeHtml(label)}">${index + 1}</div>`;
+
+  return L.divIcon({
+    className: "",
+    html: inner,
+    iconSize: [26, 26],
+    iconAnchor: [13, 13],
+    popupAnchor: [0, -15],
+  });
+}
+
+function buildAvatarPopup(
+  p: Pin,
+  address: string | null,
+  currentStop?: VisitedStop | null,
+): string {
+  const safeImg = safeAvatarSrc(p.image);
+
+  const deviceInfo = p.deviceType
+    ? `<span style="font-size:11px;opacity:0.75;">${escapeHtml(p.deviceType)}</span>`
+    : "";
+  const accuracyInfo = p.point.accuracy
+    ? `<div style="font-size:12px;margin-top:2px;color:var(--foreground,#111827);">±${Math.round(p.point.accuracy)}m · ${accuracyLabel(p.point.accuracy)}</div>`
+    : "";
+  const timeInfo = p.point.updatedAt
+    ? `<div style="font-size:12px;opacity:0.6;margin-top:2px;">🕒 Diperbarui ${timeAgo(p.point.updatedAt)}</div>`
+    : "";
+  const addressInfo = address
+    ? `<div style="font-size:12px;margin-top:3px;font-weight:500;color:var(--foreground,#111827);">${escapeHtml(address)}</div>`
+    : `<div style="font-size:12px;margin-top:3px;color:var(--muted-foreground,#64748b);">Memuat alamat…</div>`;
+  const headingInfo =
+    p.point.heading !== null && p.point.heading >= 0
+      ? `<div style="font-size:12px;margin-top:2px;opacity:0.6;">Arah: ${formatBearing(p.point.heading)}</div>`
+      : "";
+  const speedInfo =
+    p.point.speed !== null && p.point.speed >= 0
+      ? `<div style="font-size:12px;margin-top:2px;opacity:0.6;">Kecepatan: ${(p.point.speed * 3.6).toFixed(1)} km/j</div>`
+      : "";
+
+  const stopStatus = currentStop
+    ? `<div style="margin-top:6px;padding:4px 8px;border-radius:6px;background:${p.isSelf ? "#3b82f618" : "#F43F5E18"};color:${p.isSelf ? "#2563eb" : "#e11d48"};font-size:11px;font-weight:600;">
+        📍 Sedang singgah di sini · ${formatDurationId(currentStop.durationMinutes)}
+       </div>`
+    : "";
+
+  const heartSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="${p.isSelf ? "#3b82f6" : "#F43F5E"}" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>`;
+  const avatarHtml = safeImg
+    ? `<img src="${safeImg}" style="width:34px;height:34px;border-radius:50%;object-fit:cover;border:2px solid ${p.isSelf ? "#3b82f6" : "#F43F5E"};" />`
+    : `<div style="width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--muted,#f1f5f9);border:2px solid ${p.isSelf ? "#3b82f6" : "#F43F5E"};">${heartSvg}</div>`;
+
+  return `
+    <div style="min-width:190px;font-family:system-ui,-apple-system,sans-serif;color:var(--foreground,#111827);padding:2px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+        ${avatarHtml}
+        <div>
+          <div style="font-weight:700;font-size:14px;color:var(--foreground,#111827);">${escapeHtml(p.label)}</div>
+          ${deviceInfo}
+        </div>
+      </div>
+      ${addressInfo}
+      ${stopStatus}
+      <div style="margin-top:5px;border-top:1px solid #e2e8f0;padding-top:4px;">
+        ${accuracyInfo}
+        ${speedInfo}
+        ${headingInfo}
+        ${timeInfo}
+      </div>
+      <div style="font-size:10px;opacity:0.4;margin-top:3px;">
+        ${p.point.lat.toFixed(6)}, ${p.point.lng.toFixed(6)}
+      </div>
+    </div>
+  `;
 }
 
 export default function PartnerMap({
@@ -144,13 +205,26 @@ export default function PartnerMap({
   partner,
   history,
   showHistory = false,
+  selectedStop = null,
+  stops,
+  filterUser = "all",
+  snapToRoads = true,
+  route = null,
+  stopAddresses,
 }: {
   self: Pin | null;
   partner: Pin | null;
   history?: LocationHistoryPoint[];
   showHistory?: boolean;
+  selectedStop?: VisitedStop | null;
+  stops?: { self: VisitedStop[]; partner: VisitedStop[] };
+  filterUser?: "all" | "partner" | "self";
+  snapToRoads?: boolean;
+  route?: RoadRoute | null;
+  stopAddresses?: Record<string, string | null>;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const stopMarkersRef = useRef<Map<string, L.Marker>>(new Map());
   const mapRef = useRef<L.Map | null>(null);
   const tileLayerRef = useRef<L.TileLayer | null>(null);
   const markerLayerRef = useRef<L.LayerGroup | null>(null);
@@ -191,7 +265,7 @@ export default function PartnerMap({
       if (!p?.point) return;
       const key = `${p.point.lat.toFixed(4)},${p.point.lng.toFixed(4)}`;
       if (!(key in addressCacheRef.current)) {
-        reverseGeocode(p.point.lat, p.point.lng).then((addr) => {
+        reverseGeocodeName(p.point.lat, p.point.lng).then((addr) => {
           if (addr)
             setAddressCache((prev) => ({ ...prev, [key]: addr }));
         });
@@ -297,6 +371,11 @@ export default function PartnerMap({
 /* Reduced motion keeps the pulse (it marks a live partner) but drops the
    scale travel, and stops the marching dashed connector. */
 @media (prefers-reduced-motion: reduce){.leaflet-connecting-line{animation:none!important}div[style*="leaflet-pulse"]{animation:leaflet-pulse-calm 2.5s ease-in-out infinite!important}}
+.visited-stop-marker{cursor:pointer;transition:transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)}
+.visited-stop-marker:hover{transform:scale(1.25);z-index:1000!important}
+.stop-selected .visited-stop-marker{transform:scale(1.35);box-shadow:0 0 0 4px rgba(244,63,94,.25)}
+.avatar-marker-pin{cursor:pointer;transition:transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)}
+.avatar-marker-pin:hover{transform:scale(1.12);z-index:3000!important}
 `;
     containerRef.current?.appendChild(scaleStyle);
 
@@ -484,8 +563,51 @@ export default function PartnerMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Fly to selected stop when requested
+  useEffect(() => {
+    if (!selectedStop || !mapRef.current) return;
+    const reduceAnim = prefersReducedMotion();
+    mapRef.current.flyTo([selectedStop.latitude, selectedStop.longitude], 17, {
+      duration: reduceAnim ? 0 : 1.0,
+      easeLinearity: 0.3,
+    });
+
+    if (selectedStop.isCurrent) {
+      // Focus on the live avatar marker and open its popup
+      const isSelf = selectedStop.userId === session?.user?.id;
+      const targetMarker = isSelf ? selfMarkerRef.current : partnerMarkerRef.current;
+      if (targetMarker) {
+        setTimeout(() => {
+          targetMarker.openPopup();
+        }, reduceAnim ? 50 : 600);
+      }
+    } else {
+      // Focus on the past stop pin marker
+      const marker = stopMarkersRef.current.get(selectedStop.id);
+      if (marker) {
+        setTimeout(() => {
+          marker.openPopup();
+        }, reduceAnim ? 50 : 600);
+      }
+    }
+  }, [selectedStop, session?.user?.id]);
+
+  // Highlight the stop chosen from the list.
+  useEffect(() => {
+    stopMarkersRef.current.forEach((marker, id) => {
+      marker.getElement()?.classList.toggle(
+        "stop-selected",
+        !!selectedStop && selectedStop.id === id,
+      );
+    });
+  }, [selectedStop]);
+
   // Update history trail — with fitBounds to show trail + markers when ON,
-  // and re-fit to markers when OFF
+  // and re-fit to markers when OFF.
+  // Keyed by rounded coordinates: the 15s presence poll creates new pin objects
+  // every time, which would otherwise rebuild the whole trail layer each poll.
+  const selfKey = self ? `${self.point.lat.toFixed(4)},${self.point.lng.toFixed(4)}` : "none";
+  const partnerKey = partner ? `${partner.point.lat.toFixed(4)},${partner.point.lng.toFixed(4)}` : "none";
   useEffect(() => {
     const map = mapRef.current;
     const hLayerUntyped = historyLayerRef.current;
@@ -493,8 +615,9 @@ export default function PartnerMap({
     const hLayer: L.LayerGroup = hLayerUntyped;
 
     hLayer.clearLayers();
+    stopMarkersRef.current.clear();
 
-    const pins = [self, partner].filter(Boolean) as Pin[];
+    const pins = [selfRef.current, partnerRef.current].filter(Boolean) as Pin[];
     const markerLatLngs = pins.map(
       (p) => [p.point.lat, p.point.lng] as L.LatLngExpression,
     );
@@ -534,43 +657,126 @@ export default function PartnerMap({
     const selfHistory = sorted.filter((h) => h.userId === selfId);
     const partnerHistory = sorted.filter((h) => h.userId !== selfId);
 
+    const userSelfStops = stops?.self ?? (selfHistory.length ? detectStopPoints(selfHistory) : []);
+    const userPartnerStops = stops?.partner ?? (partnerHistory.length ? detectStopPoints(partnerHistory) : []);
+
     const allTrailLatLngs: L.LatLngExpression[] = [];
 
-    function addTrail(
+    function renderUserTrail(
       points: LocationHistoryPoint[],
+      userStops: VisitedStop[],
       color: string,
+      userLabel: string,
       layer: L.LayerGroup,
     ) {
       if (points.length === 0) return;
       const latlngs = points.map(
-        (p) => [p.latitude, p.longitude] as L.LatLngExpression,
+        (p) => [p.latitude, p.longitude] as L.LatLngTuple,
       );
       allTrailLatLngs.push(...latlngs);
 
-      if (points.length >= 2) {
-        L.polyline(latlngs, {
-          color,
-          weight: 4,
-          opacity: 0.6,
-        }).addTo(layer);
+      // Base polyline (instant render)
+      const polyline = L.polyline(latlngs, {
+        color,
+        weight: 4,
+        opacity: 0.65,
+        lineCap: "round",
+        lineJoin: "round",
+      }).addTo(layer);
+
+      // Snap to road network via OSRM
+      if (snapToRoads && points.length >= 2) {
+        const waypoints = points.map((p) => ({ lat: p.latitude, lng: p.longitude }));
+        fetchRoadSnappedRoute(waypoints).then((roadCoords) => {
+          if (!mapRef.current) return;
+          if (roadCoords && roadCoords.length >= 2) {
+            polyline.setLatLngs(roadCoords);
+          }
+        });
       }
 
+      // Render subtle route waypoints
       points.forEach((p, i) => {
         const isLast = i === points.length - 1;
-        L.circleMarker([p.latitude, p.longitude] as L.LatLngTuple, {
-          radius: isLast ? 14 : 9,
-          color,
-          fillColor: color,
-          fillOpacity: 0.4,
-          weight: 2.5,
-          opacity: 0.7,
-          interactive: false,
+        if (!isLast) {
+          const ptMarker = L.circleMarker([p.latitude, p.longitude], {
+            radius: 3.5,
+            color,
+            fillColor: color,
+            fillOpacity: 0.5,
+            weight: 1,
+            opacity: 0.6,
+          }).addTo(layer);
+
+          const timeStr = formatTimeOnly(p.createdAt);
+          const speedStr = p.speed !== null && p.speed > 0 ? ` • ${(p.speed * 3.6).toFixed(0)} km/j` : "";
+          ptMarker.bindTooltip(`${escapeHtml(userLabel)}: ${timeStr}${speedStr}`, {
+            direction: "top",
+            offset: [0, -4],
+          });
+        }
+      });
+
+      // Render Visited Stop Markers: ONLY past stops!
+      // The current stop is represented by the live avatar marker to avoid overlap and click blocking.
+      const pastStops = userStops.filter((s) => !s.isCurrent);
+      pastStops.forEach((stop, idx) => {
+        const stopIcon = createStopIcon(idx, color, `${userLabel} - Tempat #${idx + 1}`);
+        const marker = L.marker([stop.latitude, stop.longitude], {
+          icon: stopIcon,
+          zIndexOffset: 300,
         }).addTo(layer);
+
+        stopMarkersRef.current.set(stop.id, marker);
+
+        const stopKey = `${stop.latitude.toFixed(4)},${stop.longitude.toFixed(4)}`;
+        const cachedAddr = addressCacheRef.current[stopKey];
+        if (!cachedAddr) {
+          reverseGeocodeName(stop.latitude, stop.longitude).then((addr) => {
+            if (addr) {
+              addressCacheRef.current[stopKey] = addr;
+            }
+          });
+        }
+
+        const durationStr = `Singgah ${formatDurationId(stop.durationMinutes)}`;
+        const timeRangeStr = `${formatTimeOnly(stop.arrivedAt)} – ${formatTimeOnly(stop.departedAt)}`;
+        const displayAddr = stopAddresses?.[stop.id] || cachedAddr || "Menunggu nama lokasi…";
+
+        marker.bindPopup(`
+          <div style="min-width:180px;font-family:system-ui,-apple-system,sans-serif;padding:2px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:6px;">
+              <span style="font-size:11px;font-weight:700;color:${color};text-transform:uppercase;">
+                Tempat Kunjungan #${idx + 1}
+              </span>
+              <span style="font-size:11px;font-weight:600;color:var(--foreground,#111827);background:${color}15;padding:1px 6px;border-radius:999px;">
+                ${durationStr}
+              </span>
+            </div>
+            <div style="font-weight:600;font-size:13px;color:var(--foreground,#111827);margin-bottom:3px;">
+              ${escapeHtml(displayAddr)}
+            </div>
+            <div style="font-size:11px;color:var(--muted-foreground,#64748b);">
+              🕒 ${timeRangeStr}
+            </div>
+            <div style="font-size:10px;color:var(--muted-foreground,#94a3b8);margin-top:2px;">
+              ${escapeHtml(userLabel)} · ${stop.pointCount} titik pantau
+            </div>
+          </div>
+        `, {
+          autoPan: true,
+          closeButton: true,
+          offset: [0, -10],
+        });
       });
     }
 
-    addTrail(selfHistory, "#3b82f6", hLayer);
-    addTrail(partnerHistory, "#F43F5E", hLayer);
+    if (filterUser === "all" || filterUser === "self") {
+      renderUserTrail(selfHistory, userSelfStops, "#3b82f6", "Kamu", hLayer);
+    }
+    if (filterUser === "all" || filterUser === "partner") {
+      renderUserTrail(partnerHistory, userPartnerStops, "#F43F5E", partner?.label ?? "Pasangan", hLayer);
+    }
 
     if (allTrailLatLngs.length === 0) {
       fitMarkerBounds();
@@ -585,7 +791,7 @@ export default function PartnerMap({
       map.fitBounds(bounds, { padding: [80, 80], maxZoom: 16, animate: !prefersReducedMotion() });
       historyFittedRef.current = true;
     }
-  }, [history, showHistory, session?.user?.id, self, partner]);
+  }, [history, showHistory, session?.user?.id, selfKey, partnerKey, partner?.label, filterUser, snapToRoads, stops, stopAddresses]);
 
   // Update markers (animated)
   useEffect(() => {
@@ -629,13 +835,25 @@ export default function PartnerMap({
         keyboard: false,
       }).addTo(markerLayer);
 
-      // Main avatar marker
+      // Check if user is currently stopped at a place
+      const currentStop = p.isSelf
+        ? (stops?.self.find((s) => s.isCurrent) ?? null)
+        : (stops?.partner.find((s) => s.isCurrent) ?? null);
+
+      // Main avatar marker with high z-index and explicit click handler
       const marker = L.marker(latlng, {
-        icon: createAvatarIcon(p.image, p.isSelf),
+        icon: createAvatarIcon(p.image, p.isSelf, !!currentStop),
+        zIndexOffset: 2000,
+        riseOnHover: true,
       }).addTo(markerLayer);
-      // Leaflet renders markers as role="button"; without a name screen
-      // readers get "button" and axe flags aria-command-name.
+
       marker.getElement()?.setAttribute("aria-label", `Lokasi ${p.label}`);
+
+      if (p.isSelf) {
+        selfMarkerRef.current = marker;
+      } else {
+        partnerMarkerRef.current = marker;
+      }
 
       // Bearing/heading arrow
       if (p.point.heading !== null && p.point.heading >= 0) {
@@ -643,7 +861,7 @@ export default function PartnerMap({
           icon: createBearingArrow(p.point.heading, p.isSelf),
           interactive: false,
           keyboard: false,
-          zIndexOffset: 1000,
+          zIndexOffset: 1500,
         })
           .addTo(headingLayer)
           .setLatLng([
@@ -653,60 +871,30 @@ export default function PartnerMap({
       }
 
       const addrKey = `${p.point.lat.toFixed(4)},${p.point.lng.toFixed(4)}`;
-      const address = addressCache[addrKey];
 
-      // SEC: popup is innerHTML — escape every interpolated string (names, device, geocode).
-      const esc = (s: string) =>
-        s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
-      const safeImg = safeAvatarSrc(p.image);
+      // Dynamic popup binding on avatar: opens fresh without layer re-creation
+      marker.bindPopup(() => {
+        const cached = addressCacheRef.current[addrKey];
+        if (!cached) {
+          reverseGeocodeName(p.point.lat, p.point.lng).then((addr) => {
+            if (addr) {
+              addressCacheRef.current[addrKey] = addr;
+              if (marker.isPopupOpen()) {
+                marker.setPopupContent(buildAvatarPopup(p, addr, currentStop));
+              }
+            }
+          });
+        }
+        return buildAvatarPopup(p, cached ?? null, currentStop);
+      }, {
+        autoPan: true,
+        closeButton: true,
+        offset: [0, -15],
+      });
 
-      const deviceInfo = p.deviceType
-        ? `<span style="font-size:12px;opacity:0.7;">${esc(p.deviceType)}</span>`
-        : "";
-      const accuracyInfo = p.point.accuracy
-        ? `<div style="font-size:12px;margin-top:2px;color:var(--foreground,#111827);">±${Math.round(p.point.accuracy)}m · ${accuracyLabel(p.point.accuracy)}</div>`
-        : "";
-      const timeInfo = p.point.updatedAt
-        ? `<div style="font-size:12px;opacity:0.6;margin-top:2px;">${timeAgo(p.point.updatedAt)}</div>`
-        : "";
-      const addressInfo = address
-        ? `<div style="font-size:12px;margin-top:2px;color:var(--muted-foreground,#64748b);">${esc(address)}</div>`
-        : "";
-      const headingInfo =
-        p.point.heading !== null && p.point.heading >= 0
-          ? `<div style="font-size:12px;margin-top:2px;opacity:0.6;">${formatBearing(p.point.heading)}</div>`
-          : "";
-      const speedInfo =
-        p.point.speed !== null && p.point.speed >= 0
-          ? `<div style="font-size:12px;margin-top:2px;opacity:0.6;">${(p.point.speed * 3.6).toFixed(1)} km/j</div>`
-          : "";
-
-      const heartSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="${p.isSelf ? "#3b82f6" : "#F43F5E"}" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>`;
-      const avatarHtml = safeImg
-        ? `<img src="${safeImg}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;" />`
-        : `<div style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--muted,#f1f5f9);">${heartSvg}</div>`;
-
-      marker.bindPopup(
-        `
-        <div style="min-width:180px;font-family:system-ui,sans-serif;background:var(--popover,var(--card,#fff));color:var(--popover-foreground,var(--foreground,#111827));border-radius:8px;">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-            ${avatarHtml}
-            <div>
-              <div style="font-weight:600;font-size:14px;">${esc(p.label)}</div>
-              ${deviceInfo}
-            </div>
-          </div>
-          ${addressInfo}
-          ${accuracyInfo}
-          ${headingInfo}
-          ${speedInfo}
-          ${timeInfo}
-          <div style="font-size:12px;opacity:0.4;margin-top:4px;border-top:1px solid var(--border,#e2e8f0);padding-top:4px;">
-            ${p.point.lat.toFixed(6)}, ${p.point.lng.toFixed(6)}
-          </div>
-        </div>
-      `,
-      );
+      marker.on("click", () => {
+        marker.openPopup();
+      });
     });
 
     // Connecting line + distance + ETA
@@ -715,24 +903,23 @@ export default function PartnerMap({
     }
 
     if (pins.length === 2) {
-      lineRef.current = L.polyline(latlngs, {
+      const hasRoadRoute = !!route?.geometry && route.geometry.length >= 2;
+      const lineLatLngs: L.LatLngExpression[] = hasRoadRoute ? route!.geometry! : latlngs;
+      lineRef.current = L.polyline(lineLatLngs, {
         color: "#F43F5E",
-        weight: 3,
-        dashArray: "12 12",
-        opacity: 0.7,
-        className: "leaflet-connecting-line",
+        weight: hasRoadRoute ? 4 : 3,
+        dashArray: hasRoadRoute ? undefined : "12 12",
+        opacity: hasRoadRoute ? 0.8 : 0.7,
+        className: hasRoadRoute ? undefined : "leaflet-connecting-line",
+        interactive: false,
       }).addTo(markerLayer);
 
-      const mid = L.latLngBounds(latlngs).getCenter();
+      const mid = L.latLngBounds(lineLatLngs).getCenter();
       const distMeters = haversineMeters(
         { latitude: pins[0].point.lat, longitude: pins[0].point.lng },
         { latitude: pins[1].point.lat, longitude: pins[1].point.lng },
       );
       const distLabel = formatDistance(distMeters);
-      const bearingDeg = bearing(
-        { latitude: pins[0].point.lat, longitude: pins[0].point.lng },
-        { latitude: pins[1].point.lat, longitude: pins[1].point.lng },
-      );
       distanceLabelRef.current = L.marker(mid, {
         icon: L.divIcon({
           className: "",
@@ -743,8 +930,6 @@ export default function PartnerMap({
         interactive: false,
         keyboard: false,
       }).addTo(markerLayer);
-
-      const bearingId = bearingDeg !== null ? formatBearingId(bearingDeg) : "";
 
       if (!markersFittedRef.current) {
         map.fitBounds(L.latLngBounds(latlngs), { padding: [80, 80], maxZoom: 16, animate: !prefersReducedMotion() });
@@ -761,7 +946,7 @@ export default function PartnerMap({
       // No pins, show default view (once)
       map.setView([-6.2, 106.816], 14, { animate: !prefersReducedMotion() });
     }
-  }, [self, partner, addressCache]);
+  }, [self, partner, stops, route]);
 
   const toggleFullscreen = useCallback(() => {
     const el = containerRef.current;

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { fetchRoadRoute, reverseGeocodeName } from "@/lib/routing";
+import { fetchRoadRoute, reverseGeocodeName, shouldUseRoadRoute } from "@/lib/routing";
 import { haversineMeters } from "@/lib/geo";
 
 const a = { lat: -6.2, lng: 106.81 };
@@ -48,6 +48,17 @@ describe("fetchRoadRoute", () => {
     expect(mock).not.toHaveBeenCalled();
     expect(res.distanceMeters).toBe(0);
     expect(res.geometry).toEqual([[a.lat, a.lng]]);
+  });
+});
+
+describe("shouldUseRoadRoute", () => {
+  it("rejects fallback routes so the ETA is not labelled as road-based", () => {
+    expect(shouldUseRoadRoute({ distanceMeters: 100, durationSeconds: null, geometry: null, source: "fallback" })).toBeNull();
+  });
+
+  it("accepts a real OSRM route", () => {
+    const route = { distanceMeters: 100, durationSeconds: 30, geometry: [[-6.2, 106.8], [-6.21, 106.81]] as Array<[number, number]>, source: "osrm" as const };
+    expect(shouldUseRoadRoute(route)).toBe(route);
   });
 });
 

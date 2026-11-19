@@ -54,11 +54,36 @@ describe("GET /api/route", () => {
     const res = await route.GET(req("/api/route?from=999,106.8&to=-6.2,106.8"));
     expect(res.status).toBe(400);
   });
+
+  it("routes through via waypoints in a single OSRM call", async () => {
+    const fetchMock = vi.fn(async (_url: string) => ({
+      ok: true,
+      json: async () => ({
+        code: "Ok",
+        routes: [{
+          distance: 2000,
+          duration: 300,
+          geometry: { coordinates: [[107, -7], [107.01, -7.01], [107.02, -7.02], [107.03, -7.03]] },
+        }],
+      }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await route.GET(req("/api/route?from=-7,107&to=-7.03,107.03&via=-7.01,107.01;-7.02,107.02"));
+    expect(res.status).toBe(200);
+    expect((await res.json()).data.geometry).toHaveLength(4);
+    const url = String(fetchMock.mock.calls[0][0]);
+    expect(url).toContain("107.010000,-7.010000");
+    expect(url).toContain("107.020000,-7.020000");
+  });
 });
 
 describe("GET /api/geocode/reverse", () => {
   beforeEach(() => vi.restoreAllMocks());
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
 
   it("returns the best address name", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => ({
@@ -78,5 +103,33 @@ describe("GET /api/geocode/reverse", () => {
     const res = await geocode.GET(req("/api/geocode/reverse?lat=-6.21&lng=106.82"));
     expect(res.status).toBe(200);
     expect((await res.json()).data.name).toBeNull();
+  });
+
+  it("does not cache an upstream failure as a permanent null name", async () => {
+    const fetchMock = vi.fn(async () => { throw new Error("429"); });
+    vi.stubGlobal("fetch", fetchMock);
+    await geocode.GET(req("/api/geocode/reverse?lat=-7.4&lng=107.4"));
+    await geocode.GET(req("/api/geocode/reverse?lat=-7.4&lng=107.4"));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("spaces concurrent Nominatim calls at least one second apart", async () => {
+    vi.useFakeTimers();
+    const callTimes: number[] = [];
+    const fetchMock = vi.fn(async () => {
+      callTimes.push(Date.now());
+      return { ok: true, json: async () => ({ data: { name: "Jalan" } }) };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const first = geocode.GET(req("/api/geocode/reverse?lat=-7.5&lng=107.5"));
+    const second = geocode.GET(req("/api/geocode/reverse?lat=-7.6&lng=107.6"));
+    await vi.advanceTimersByTimeAsync(0); // let the handlers reach the pace queue
+    await vi.advanceTimersByTimeAsync(1200);
+    await vi.advanceTimersByTimeAsync(1200);
+    await Promise.all([first, second]);
+    expect(callTimes).toHaveLength(2);
+    expect(callTimes[1] - callTimes[0]).toBeGreaterThanOrEqual(1000);
+    vi.useRealTimers();
   });
 });

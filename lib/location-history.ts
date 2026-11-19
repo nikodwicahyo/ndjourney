@@ -231,8 +231,12 @@ export async function fetchRoadSnappedRoute(
 ): Promise<Array<[number, number]>> {
   if (points.length < 2) return points.map((p) => [p.lat, p.lng]);
 
-  const route = await fetchRoadRoute(points[0], points[points.length - 1], {
+  const waypoints = downsampleWaypoints(points);
+  if (waypoints.length < 2) return points.map((p) => [p.lat, p.lng]);
+
+  const route = await fetchRoadRoute(waypoints[0], waypoints[waypoints.length - 1], {
     signal: options.signal,
+    via: waypoints.slice(1, -1),
   });
   if (route.geometry && route.geometry.length >= 2) return route.geometry;
   return downsampleWaypoints(points).map((p) => [p.lat, p.lng]);

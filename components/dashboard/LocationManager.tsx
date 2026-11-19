@@ -33,6 +33,7 @@ import {
 } from "@/lib/location-history";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query-keys";
+import { shouldUseRoadRoute } from "@/lib/routing";
 import {
   retrySharing,
   useBackgroundLocationStatus,
@@ -191,10 +192,11 @@ export default function LocationManager() {
     snapToRoads && !!selfPin && !!partnerPin,
   );
 
-  const stopAddresses = usePlaceNames([
-    ...detectedStops.self,
-    ...detectedStops.partner,
-  ]);
+  const allStops = useMemo(
+    () => [...detectedStops.self, ...detectedStops.partner],
+    [detectedStops],
+  );
+  const stopAddresses = usePlaceNames(allStops);
 
   if (sessionStatus === "unauthenticated") {
     return (
@@ -531,7 +533,7 @@ export default function LocationManager() {
             state={data}
             distance={distance}
             previousDistance={previousDistance ?? null}
-            roadRoute={snapToRoads ? routeQuery.data ?? null : null}
+            roadRoute={shouldUseRoadRoute(snapToRoads ? routeQuery.data ?? null : null)}
           />
 
           {meeting && bothSharing && <NearbySuggestion />}

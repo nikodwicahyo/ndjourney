@@ -209,6 +209,21 @@ describe("location-history utility", () => {
       expect(res).toEqual([[-6.25, 106.85], [-6.26, 106.86]]);
     });
 
+    it("sends intermediate waypoints as via points, not just first-to-last", async () => {
+      const fetchMock = vi.fn(async (_url: string) => ({
+        ok: true,
+        json: async () => ({ data: { distanceMeters: 5000, durationSeconds: 600, geometry: [[-8, 108], [-8.01, 108.01]], source: "osrm" } }),
+      }));
+      vi.spyOn(globalThis, "fetch").mockImplementation(fetchMock as never);
+      await fetchRoadSnappedRoute([
+        { lat: -8, lng: 108 },
+        { lat: -8.01, lng: 108.01 },
+        { lat: -8.02, lng: 108.02 },
+      ]);
+      expect(String(fetchMock.mock.calls[0][0])).toContain("via=");
+      expect(String(fetchMock.mock.calls[0][0])).toContain("-8.01");
+    });
+
     it("maps the proxy payload to Leaflet coordinates", async () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
         ok: true,

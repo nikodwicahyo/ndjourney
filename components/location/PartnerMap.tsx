@@ -257,6 +257,8 @@ export default function PartnerMap({
   >({});
   const addressCacheRef = useRef(addressCache);
   addressCacheRef.current = addressCache;
+  const stopAddressesRef = useRef(stopAddresses);
+  stopAddressesRef.current = stopAddresses;
   const [isFullscreen, setIsFullscreen] = useState(false);
   const { data: session } = useSession();
 
@@ -592,15 +594,19 @@ export default function PartnerMap({
     }
   }, [selectedStop, session?.user?.id]);
 
-  // Highlight the stop chosen from the list.
-  useEffect(() => {
+  // Highlight the stop chosen from the list. Stable callback so re-selecting
+  // never rebuilds the history layer.
+  const selectedStopRef = useRef(selectedStop);
+  selectedStopRef.current = selectedStop;
+  const applyStopHighlight = useCallback(() => {
     stopMarkersRef.current.forEach((marker, id) => {
       marker.getElement()?.classList.toggle(
         "stop-selected",
-        !!selectedStop && selectedStop.id === id,
+        !!selectedStopRef.current && selectedStopRef.current.id === id,
       );
     });
-  }, [selectedStop]);
+  }, []);
+  useEffect(() => { applyStopHighlight(); }, [selectedStop, applyStopHighlight]);
 
   // Update history trail — with fitBounds to show trail + markers when ON,
   // and re-fit to markers when OFF.
@@ -729,21 +735,14 @@ export default function PartnerMap({
 
         stopMarkersRef.current.set(stop.id, marker);
 
-        const stopKey = `${stop.latitude.toFixed(4)},${stop.longitude.toFixed(4)}`;
-        const cachedAddr = addressCacheRef.current[stopKey];
-        if (!cachedAddr) {
-          reverseGeocodeName(stop.latitude, stop.longitude).then((addr) => {
-            if (addr) {
-              addressCacheRef.current[stopKey] = addr;
-            }
-          });
-        }
-
         const durationStr = `Singgah ${formatDurationId(stop.durationMinutes)}`;
         const timeRangeStr = `${formatTimeOnly(stop.arrivedAt)} – ${formatTimeOnly(stop.departedAt)}`;
-        const displayAddr = stopAddresses?.[stop.id] || cachedAddr || "Menunggu nama lokasi…";
 
-        marker.bindPopup(`
+        // Dynamic content reads the latest place name at popup-open time.
+        // A name arriving later must not rebuild the whole history layer.
+        marker.bindPopup(() => {
+          const displayAddr = stopAddressesRef.current?.[stop.id] || "Menunggu nama lokasi…";
+          return `
           <div style="min-width:180px;font-family:system-ui,-apple-system,sans-serif;padding:2px;">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:6px;">
               <span style="font-size:11px;font-weight:700;color:${color};text-transform:uppercase;">
@@ -763,7 +762,8 @@ export default function PartnerMap({
               ${escapeHtml(userLabel)} · ${stop.pointCount} titik pantau
             </div>
           </div>
-        `, {
+        `;
+        }, {
           autoPan: true,
           closeButton: true,
           offset: [0, -10],
@@ -778,6 +778,8 @@ export default function PartnerMap({
       renderUserTrail(partnerHistory, userPartnerStops, "#F43F5E", partner?.label ?? "Pasangan", hLayer);
     }
 
+    applyStopHighlight();
+
     if (allTrailLatLngs.length === 0) {
       fitMarkerBounds();
       historyFittedRef.current = false;
@@ -791,7 +793,7 @@ export default function PartnerMap({
       map.fitBounds(bounds, { padding: [80, 80], maxZoom: 16, animate: !prefersReducedMotion() });
       historyFittedRef.current = true;
     }
-  }, [history, showHistory, session?.user?.id, selfKey, partnerKey, partner?.label, filterUser, snapToRoads, stops, stopAddresses]);
+  }, [history, showHistory, session?.user?.id, selfKey, partnerKey, partner?.label, filterUser, snapToRoads, stops, applyStopHighlight]);
 
   // Update markers (animated)
   useEffect(() => {

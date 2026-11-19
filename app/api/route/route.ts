@@ -25,8 +25,28 @@ function parsePair(raw: string | null): { lat: number; lng: number } | null {
   return { lat, lng };
 }
 
-function cacheKey(from: { lat: number; lng: number }, to: { lat: number; lng: number }): string {
-  return `${from.lat.toFixed(4)},${from.lng.toFixed(4)}|${to.lat.toFixed(4)},${to.lng.toFixed(4)}`;
+function parseVia(raw: string | null | undefined): Array<{ lat: number; lng: number }> {
+  if (!raw) return [];
+  const pairs = raw.split(";").filter(Boolean);
+  if (pairs.length > 38) throw new Error("Too many via points");
+  const points = pairs.map((pair) => {
+    const parts = pair.split(",");
+    if (parts.length !== 2) throw new Error("Bad via point");
+    return parsePair(pair);
+  });
+  if (points.some((p) => p === null)) throw new Error("Bad via point");
+  return points as Array<{ lat: number; lng: number }>;
+}
+
+function cacheKey(
+  from: { lat: number; lng: number },
+  to: { lat: number; lng: number },
+  via: Array<{ lat: number; lng: number }>,
+): string {
+  const base = `${from.lat.toFixed(4)},${from.lng.toFixed(4)}|${to.lat.toFixed(4)},${to.lng.toFixed(4)}`;
+  return via.length
+    ? `${base}|${via.map((p) => `${p.lat.toFixed(4)},${p.lng.toFixed(4)}`).join(";")}`
+    : base;
 }
 
 function remember(key: string, payload: RoutePayload): void {
@@ -61,10 +81,12 @@ export async function GET(request?: Request) {
   try {
     let from: { lat: number; lng: number } | null = null;
     let to: { lat: number; lng: number } | null = null;
+    let via: Array<{ lat: number; lng: number }> = [];
     try {
       const params = new URL(request?.url ?? "http://localhost").searchParams;
       from = parsePair(params.get("from"));
       to = parsePair(params.get("to"));
+      via = parseVia(params.get("via"));
     } catch {
       return NextResponse.json({ error: "Parameter tidak valid" }, { status: 400 });
     }
@@ -72,7 +94,7 @@ export async function GET(request?: Request) {
       return NextResponse.json({ error: "Parameter tidak valid" }, { status: 400 });
     }
 
-    const key = cacheKey(from, to);
+    const key = cacheKey(from, to, via);
     const cached = ROUTE_CACHE.get(key);
     if (cached) {
       return NextResponse.json(
@@ -83,10 +105,14 @@ export async function GET(request?: Request) {
 
     let payload: RoutePayload;
     try {
+      const coordinates = [
+        `${from.lng.toFixed(6)},${from.lat.toFixed(6)}`,
+        ...via.map((p) => `${p.lng.toFixed(6)},${p.lat.toFixed(6)}`),
+        `${to.lng.toFixed(6)},${to.lat.toFixed(6)}`,
+      ];
       const url =
         `https://router.project-osrm.org/route/v1/driving/` +
-        `${from.lng.toFixed(6)},${from.lat.toFixed(6)};` +
-        `${to.lng.toFixed(6)},${to.lat.toFixed(6)}` +
+        coordinates.join(";") +
         `?overview=full&geometries=geojson`;
       const res = await fetch(url, {
         signal: AbortSignal.timeout(4000),

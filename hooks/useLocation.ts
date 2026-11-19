@@ -128,27 +128,31 @@ export function usePlaceNames(stops: VisitedStop[]) {
   const fetchedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    const pending = stops.filter((s) => !fetchedRef.current.has(s.id));
-    if (pending.length === 0) return;
     let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const controller = new AbortController();
 
-    void (async () => {
-      for (const s of pending) {
-        if (cancelled) return;
-        fetchedRef.current.add(s.id);
-        const name = await reverseGeocodeName(s.latitude, s.longitude, {
-          signal: controller.signal,
-        }).catch(() => null);
-        if (cancelled) return;
-        setNames((prev) => ({ ...prev, [s.id]: name }));
-        await new Promise((resolve) => setTimeout(resolve, 1100));
-      }
-    })();
+    const pump = async (): Promise<void> => {
+      if (cancelled) return;
+      const pending = stops.filter((s) => !fetchedRef.current.has(s.id));
+      if (pending.length === 0) return;
+      const next = pending[0];
+      const name = await reverseGeocodeName(next.latitude, next.longitude, {
+        signal: controller.signal,
+      }).catch(() => null);
+      if (cancelled) return;
+      // Mark only after the response lands: a re-render mid-flight must retry
+      // the abandoned stop instead of leaving it permanently unnamed.
+      fetchedRef.current.add(next.id);
+      setNames((prev) => ({ ...prev, [next.id]: name }));
+      timer = setTimeout(() => void pump(), 1100);
+    };
 
+    void pump();
     return () => {
       cancelled = true;
       controller.abort();
+      if (timer) clearTimeout(timer);
     };
   }, [stops]);
 

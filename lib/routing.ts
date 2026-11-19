@@ -42,9 +42,11 @@ function straightFallback(from: LatLng, to: LatLng): RoadRoute {
 export async function fetchRoadRoute(
   from: LatLng,
   to: LatLng,
-  opts: { signal?: AbortSignal } = {},
+  opts: { signal?: AbortSignal; via?: LatLng[] } = {},
 ): Promise<RoadRoute> {
+  const via = opts.via ?? [];
   if (
+    via.length === 0 &&
     haversineMeters(
       { latitude: from.lat, longitude: from.lng },
       { latitude: to.lat, longitude: to.lng },
@@ -53,13 +55,18 @@ export async function fetchRoadRoute(
     return { distanceMeters: 0, durationSeconds: 0, geometry: [[from.lat, from.lng]], source: "fallback" };
   }
 
-  const key = routeKey(from, to);
+  const key = via.length
+    ? `${routeKey(from, to)}|${via.map((p) => `${p.lat.toFixed(4)},${p.lng.toFixed(4)}`).join(";")}`
+    : routeKey(from, to);
   const cached = ROUTE_CACHE.get(key);
   if (cached) return cached;
 
   try {
+    const viaParam = via.length
+      ? `&via=${encodeURIComponent(via.map((p) => `${p.lat},${p.lng}`).join(";"))}`
+      : "";
     const res = await fetch(
-      `/api/route?from=${from.lat},${from.lng}&to=${to.lat},${to.lng}`,
+      `/api/route?from=${from.lat},${from.lng}&to=${to.lat},${to.lng}${viaParam}`,
       { signal: opts.signal },
     );
     if (!res.ok) throw new Error(`route API ${res.status}`);
@@ -78,6 +85,16 @@ export async function fetchRoadRoute(
   } catch {
     return straightFallback(from, to);
   }
+}
+
+/** Only a real OSRM geometry may be presented as a road route. */
+export function shouldUseRoadRoute(
+  route: RoadRoute | null | undefined,
+): RoadRoute | null {
+  if (route?.source === "osrm" && route.geometry && route.geometry.length >= 2) {
+    return route;
+  }
+  return null;
 }
 
 /** Reverse-geocode a point via our own API. Never throws; caches null too. */

@@ -6,6 +6,13 @@ import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/query-keys";
 import { haversineMeters, isMeeting, MEET_THRESHOLD_METERS } from "@/lib/geo";
+import {
+  fetchRoadRoute,
+  reverseGeocodeName,
+  type LatLng,
+  type RoadRoute,
+} from "@/lib/routing";
+import type { VisitedStop } from "@/lib/location-history";
 import { initBackgroundLocation, useBackgroundLocationStatus, useBackgroundLocationCleanup } from "./useBackgroundLocation";
 
 export type LocationPoint = {
@@ -79,11 +86,16 @@ export function useLocationSettings() {
   });
 }
 
-export function useLocationHistory() {
+export function useLocationHistory(
+  range: string = "24h",
+  options: { enabled?: boolean } = {},
+) {
   return useQuery({
-    queryKey: [...queryKeys.location.all, "history"],
+    queryKey: [...queryKeys.location.all, "history", range],
+    enabled: options.enabled ?? true,
     queryFn: async ({ signal }) => {
-      const res = await fetch("/api/location/history", { cache: "no-store", signal });
+      const url = range ? `/api/location/history?range=${encodeURIComponent(range)}` : "/api/location/history";
+      const res = await fetch(url, { cache: "no-store", signal });
       if (!res.ok) throw new Error("Gagal memuat riwayat lokasi");
       const json = await res.json();
       return json.data as LocationHistoryPoint[];
@@ -93,6 +105,54 @@ export function useLocationHistory() {
     // history barely moves — never poll it from background tabs.
     refetchIntervalInBackground: false,
   });
+}
+
+/** Road geometry for the live partner line. Keyed by 4-dp coords (~11m), so
+ * small GPS jitter does not trigger a new request every poll. */
+export function useRoadRoute(from: LatLng | null, to: LatLng | null, enabled: boolean) {
+  const fromKey = from ? `${from.lat.toFixed(4)},${from.lng.toFixed(4)}` : "";
+  const toKey = to ? `${to.lat.toFixed(4)},${to.lng.toFixed(4)}` : "";
+  return useQuery({
+    queryKey: [...queryKeys.location.all, "route", fromKey, toKey],
+    queryFn: ({ signal }) => fetchRoadRoute(from as LatLng, to as LatLng, { signal }),
+    enabled: enabled && !!from && !!to,
+    staleTime: 60_000,
+    retry: false,
+    refetchInterval: false,
+  });
+}
+
+/** Place names for visited stops, fetched at Nominatim's ~1 req/s pace. */
+export function usePlaceNames(stops: VisitedStop[]) {
+  const [names, setNames] = useState<Record<string, string | null>>({});
+  const fetchedRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const pending = stops.filter((s) => !fetchedRef.current.has(s.id));
+    if (pending.length === 0) return;
+    let cancelled = false;
+    const controller = new AbortController();
+
+    void (async () => {
+      for (const s of pending) {
+        if (cancelled) return;
+        fetchedRef.current.add(s.id);
+        const name = await reverseGeocodeName(s.latitude, s.longitude, {
+          signal: controller.signal,
+        }).catch(() => null);
+        if (cancelled) return;
+        setNames((prev) => ({ ...prev, [s.id]: name }));
+        await new Promise((resolve) => setTimeout(resolve, 1100));
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [stops]);
+
+  return names;
 }
 
 export function useDistance(state: LocationState | undefined): number | null {

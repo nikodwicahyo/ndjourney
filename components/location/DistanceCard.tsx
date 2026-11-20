@@ -72,9 +72,9 @@ function PersonAvatar({
   accuracy: number | null;
 }) {
   return (
-    <div className="flex flex-col items-center gap-1.5">
+    <div className="flex min-w-0 flex-1 flex-col items-center gap-1.5">
       <div className="relative">
-        <Avatar className="h-10 w-10 ring-2 ring-primary/20 shadow-sm">
+        <Avatar className="h-10 w-10 shadow-sm ring-2 ring-primary/20 sm:h-12 sm:w-12">
           <AvatarImage src={image ?? undefined} />
           <AvatarFallback className="text-sm font-medium">{fallback}</AvatarFallback>
         </Avatar>
@@ -84,19 +84,29 @@ function PersonAvatar({
           }`}
         />
       </div>
-      <div className="flex flex-col items-center gap-0.5">
-        <p className="text-xs font-medium text-foreground leading-tight truncate max-w-[72px]">{name}</p>
-        <div className="flex items-center gap-1">
+      <div className="flex w-full min-w-0 flex-col items-center gap-0.5">
+        <p className="w-full max-w-[96px] truncate text-center text-[11px] font-medium leading-tight text-foreground sm:max-w-[120px] sm:text-xs">
+          {name}
+        </p>
+        <div className="flex flex-wrap items-center justify-center gap-1">
           {deviceType && <DeviceBadge deviceType={deviceType} />}
-          <span className={`text-xs ${isLive ? "text-emerald-500" : "text-muted-foreground"}`}>
+          <span
+            className={`text-[11px] sm:text-xs ${
+              isLive ? "text-emerald-500" : "text-muted-foreground"
+            }`}
+          >
             {statusText}
           </span>
         </div>
         {isSharing && detail && (
-          <span className="text-center text-xs text-muted-foreground">{detail}</span>
+          <span className="w-full text-center text-[11px] leading-snug text-muted-foreground sm:text-xs">
+            {detail}
+          </span>
         )}
         {accuracy !== null && (
-          <span className="text-xs text-muted-foreground">±{Math.round(accuracy)}m</span>
+          <span className="text-[11px] text-muted-foreground sm:text-xs">
+            ±{Math.round(accuracy)}m
+          </span>
         )}
       </div>
     </div>
@@ -212,7 +222,7 @@ export default function DistanceCard({
           </div>
         </div>
 
-        <div className="flex items-center justify-around py-2">
+        <div className="flex items-start justify-between gap-2 py-2 sm:gap-4">
           <PersonAvatar
             name={self.name ?? "Kamu"}
             image={self.image}
@@ -224,7 +234,7 @@ export default function DistanceCard({
             detail={selfStatus.isLive ? timeAgoId(selfStatus.ageSeconds) : selfStatus.detail}
             accuracy={self.location?.accuracy ?? null}
           />
-          <div className="relative flex flex-col items-center px-2">
+          <div className="relative flex shrink-0 flex-col items-center px-1 sm:px-2">
             <AnimatePresence>
               {showSparkle && (
                 <motion.div
@@ -243,11 +253,11 @@ export default function DistanceCard({
               initial={{ scale: 1 }}
               animate={showSparkle ? { scale: [1, 1.08, 1] } : { scale: 1 }}
               transition={{ duration: 0.4 }}
-              className="font-heading text-xl font-bold text-foreground tabular-nums"
+              className="font-heading text-lg font-bold text-foreground tabular-nums sm:text-xl"
             >
               {displayDistance !== null ? <AnimatedNumber value={displayDistance} /> : "—"}
             </motion.div>
-            <div className="flex items-center gap-1.5 mt-0.5">
+            <div className="mt-0.5 flex flex-wrap items-center justify-center gap-1">
               {bothLive && trend === "closing" && (
                 <span className="inline-flex items-center gap-1 text-xs text-emerald-500">
                   <TrendingDown className="h-3 w-3" aria-hidden="true" />Semakin dekat

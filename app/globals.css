@@ -177,6 +177,12 @@
 
 :root {
   color-scheme: light;
+  /* Capacitor 8 reports Android system-bar insets as CSS variables on older
+     WebViews, where env() is 0. Use whichever source actually has a value. */
+  --app-safe-top: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
+  --app-safe-right: max(env(safe-area-inset-right, 0px), var(--safe-area-inset-right, 0px));
+  --app-safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
+  --app-safe-left: max(env(safe-area-inset-left, 0px), var(--safe-area-inset-left, 0px));
   --background: oklch(0.99 0.004 0);
   --foreground: oklch(0.15 0.01 0);
   --card: oklch(0.98 0.006 0);
@@ -263,10 +269,10 @@
     @apply font-body text-foreground;
     background: var(--body-bg);
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
-    padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
-    padding-left: env(safe-area-inset-left);
-    padding-right: env(safe-area-inset-right);
+    padding-top: var(--app-safe-top);
+    padding-bottom: var(--app-safe-bottom);
+    padding-left: var(--app-safe-left);
+    padding-right: var(--app-safe-right);
   }
 
   /* Smooth theme transition on theme-sensitive elements */

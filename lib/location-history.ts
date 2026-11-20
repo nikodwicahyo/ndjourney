@@ -13,6 +13,8 @@ export type VisitedStop = {
   durationMinutes: number;
   pointCount: number;
   isCurrent: boolean;
+  /** Cluster tolerance in metres; lets the map match waypoints to the right stop. */
+  radiusMeters?: number;
   address?: string | null;
 };
 
@@ -85,7 +87,19 @@ export function findStopAtPoint(
     if (stop.userId !== point.userId) return false;
     const from = new Date(stop.arrivedAt).getTime();
     const to = new Date(stop.departedAt).getTime();
-    return Number.isFinite(from) && Number.isFinite(to) && time >= from && time <= to;
+    if (!Number.isFinite(from) || !Number.isFinite(to) || time < from || time > to) {
+      return false;
+    }
+    // A time-window match alone tags a brief drive-out as "sedang di sini".
+    // Require the fix to actually be at the visited place. Cap the fix's own
+    // reported accuracy so one wild fix cannot claim every nearby stop.
+    const tolerance = Math.max(stop.radiusMeters ?? 50, Math.min(point.accuracy ?? 0, 150));
+    return (
+      haversineMeters(stop, {
+        latitude: point.latitude,
+        longitude: point.longitude,
+      }) <= tolerance
+    );
   });
   return index === -1 ? null : { stop: stops[index], index };
 }
@@ -228,6 +242,7 @@ export function detectStopPoints(
       durationMinutes: Math.max(1, Math.round(dwellMinutes)),
       pointCount: cluster.length,
       isCurrent,
+      radiusMeters: toleranceFor(cluster),
     });
   });
 
@@ -254,6 +269,7 @@ export function detectStopPoints(
           durationMinutes: Math.max(1, Math.round((departed - arrived) / 60_000)),
           pointCount: total,
           isCurrent: stop.isCurrent,
+          radiusMeters: Math.max(previous.radiusMeters ?? 50, stop.radiusMeters ?? 50),
         };
         continue;
       }

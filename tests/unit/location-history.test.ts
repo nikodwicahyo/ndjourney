@@ -217,6 +217,16 @@ describe("location-history utility", () => {
       expect(stops[0].durationMinutes).toBe(4);
     });
 
+    it("records the cluster radius so map waypoints can be matched spatially", () => {
+      const stops = detectStopPoints([
+        at(0, -6.2, 106.816, 120, null),
+        at(2, -6.2002, 106.8162, 130, null),
+        at(4, -6.2001, 106.8161, 125, null),
+      ]);
+      expect(stops[0].radiusMeters).toBeGreaterThanOrEqual(50);
+      expect(stops[0].radiusMeters).toBeLessThanOrEqual(150);
+    });
+
     it("splits a cluster across a long silence once the person has moved", () => {
       const points = [
         at(0, -6.2, 106.816, 10, 0.1),
@@ -328,12 +338,38 @@ describe("location-history utility", () => {
 
     it("attributes a raw waypoint to the stop whose time window contains it", () => {
       expect(findStopAtPoint(point("u1", "2026-11-20T10:03:00Z"), stops)?.stop.id).toBe("s1");
-      expect(findStopAtPoint(point("u1", "2026-11-20T11:05:00Z"), stops)?.index).toBe(1);
+      const atSecondStop: LocationHistoryPoint = {
+        ...point("u1", "2026-11-20T11:05:00Z"),
+        latitude: -6.3,
+        longitude: 106.9,
+      };
+      expect(findStopAtPoint(atSecondStop, stops)?.index).toBe(1);
     });
 
     it("returns null for transit fixes and for another user's stop", () => {
       expect(findStopAtPoint(point("u1", "2026-11-20T10:30:00Z"), stops)).toBeNull();
       expect(findStopAtPoint(point("u2", "2026-11-20T10:03:00Z"), stops)).toBeNull();
+    });
+
+    it("does not tag a far-away waypoint even inside the stop's time window", () => {
+      const excursion: LocationHistoryPoint = {
+        ...point("u1", "2026-11-20T10:03:00Z"),
+        // ~370m from the stop centre: a brief drive-out, not a visit.
+        latitude: -6.1967,
+        longitude: 106.8033,
+        accuracy: 7,
+      };
+      expect(findStopAtPoint(excursion, stops)).toBeNull();
+    });
+
+    it("keeps a near waypoint inside the window attributed", () => {
+      const nearby: LocationHistoryPoint = {
+        ...point("u1", "2026-11-20T10:03:00Z"),
+        latitude: -6.2002,
+        longitude: 106.8002,
+        accuracy: 10,
+      };
+      expect(findStopAtPoint(nearby, stops)?.stop.id).toBe("s1");
     });
   });
 

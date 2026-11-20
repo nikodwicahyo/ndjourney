@@ -8,6 +8,11 @@ export const STRAIGHT_ROUTE_COLOR = "#F43F5E";
 export const HISTORY_SELF_COLOR = "#16a34a";
 export const HISTORY_PARTNER_COLOR = "#0d9488";
 
+/** History sits in its own pane above the road line, with a dash pattern so
+ * the two remain distinguishable by shape even where they share a corridor. */
+export const HISTORY_PANE = "historyPane";
+export const HISTORY_TRAIL_DASH_ARRAY = "10 7";
+
 export type LatLng = { lat: number; lng: number };
 
 export type RoadRoute = {

@@ -69,7 +69,7 @@ export function deriveStatus(input: {
       reason: "denied",
       ageSeconds: fixAge,
       label: "Izin dicabut",
-      detail: "Izin lokasi dicabut. Aktifkan lagi untuk melanjutkan berbagi.",
+      detail: "Aktifkan izin lagi",
       isLive: false,
     };
   }
@@ -84,7 +84,7 @@ export function deriveStatus(input: {
       reason: null,
       ageSeconds: fixAge,
       label: "Di background",
-      detail: "Aplikasi berjalan di background.",
+      detail: "Aplikasi berjalan",
       isLive: false,
     };
   }
@@ -95,7 +95,7 @@ export function deriveStatus(input: {
       reason: "waiting",
       ageSeconds: null,
       label: "Menunggu sinyal",
-      detail: "Belum ada titik lokasi yang terkirim.",
+      detail: "Belum ada titik lokasi",
       isLive: false,
     };
   }
@@ -106,7 +106,7 @@ export function deriveStatus(input: {
       reason: "gps-off",
       ageSeconds: fixAge,
       label: "GPS belum dapat",
-      detail: "Aplikasi terbuka, tetapi belum ada titik GPS baru.",
+      detail: "Aplikasi terbuka",
       isLive: false,
     };
   }
@@ -117,7 +117,7 @@ export function deriveStatus(input: {
       reason: null,
       ageSeconds: fixAge,
       label: "Di background",
-      detail: "Aplikasi masih berjalan, sinyal GPS tertunda.",
+      detail: "Sinyal GPS tertunda",
       isLive: false,
     };
   }
@@ -128,7 +128,7 @@ export function deriveStatus(input: {
       reason: null,
       ageSeconds: fixAge,
       label: timeAgoId(fixAge),
-      detail: "Aplikasi ditutup.",
+      detail: "Aplikasi ditutup",
       isLive: false,
     };
   }
@@ -138,7 +138,7 @@ export function deriveStatus(input: {
     reason: "waiting",
     ageSeconds: null,
     label: "Menunggu sinyal",
-    detail: "Belum ada titik lokasi yang terkirim.",
+    detail: "Belum ada titik lokasi",
     isLive: false,
   };
 }

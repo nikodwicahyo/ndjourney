@@ -587,6 +587,16 @@ export default function LocationManager() {
                             {partner.name} · {visibleStops.partner.length}x singgah
                           </span>
                         </div>
+                        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-border/50 pt-2">
+                          <span className="flex items-center gap-1.5">
+                            <span className="inline-block w-5 border-t-2 border-dashed" style={{ borderColor: HISTORY_SELF_COLOR }} aria-hidden="true" />
+                            Jejak riwayat (putus-putus, di atas rute)
+                          </span>
+                          <span className="flex items-center gap-1.5">
+                            <span className="inline-block w-5 border-t-2" style={{ borderColor: ROAD_ROUTE_COLOR }} aria-hidden="true" />
+                            Rute jalan
+                          </span>
+                        </div>
                         <p className="mt-1.5 leading-relaxed">
                           {isHistoryLoading
                             ? "Memuat tempat singgah…"

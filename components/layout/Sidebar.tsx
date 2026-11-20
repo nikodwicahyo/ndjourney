@@ -123,7 +123,7 @@ export function SidebarContent() {
 export default function Sidebar() {
   return (
     <aside className="hidden w-64 shrink-0 lg:block">
-      <div className="fixed top-16 bottom-0 left-0 z-30 w-64 border-r border-border bg-background">
+      <div className="fixed top-[calc(4rem+var(--app-safe-top))] bottom-0 left-0 z-30 w-64 border-r border-border bg-background">
         <SidebarContent />
       </div>
     </aside>

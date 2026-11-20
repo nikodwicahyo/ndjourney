@@ -26,9 +26,9 @@ export default async function PrivateLayout({
     <MotionRoot>
       <RealtimeSyncClient coupleId={membership?.coupleId ?? undefined} />
       <Navbar />
-      <div className="flex min-h-screen pt-16 overflow-x-hidden">
+      <div className="flex min-h-screen pt-[calc(4rem+var(--app-safe-top))] overflow-x-hidden">
         <Sidebar />
-        <main className="flex-1 w-0 min-w-0 px-4 py-6 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] sm:px-6 lg:px-8 lg:pb-6 xl:px-10">
+        <main className="flex-1 w-0 min-w-0 px-4 py-6 pb-[calc(6rem+var(--app-safe-bottom))] sm:px-6 lg:px-8 lg:pb-6 xl:px-10">
           <LayoutTransition>{children}</LayoutTransition>
         </main>
       </div>

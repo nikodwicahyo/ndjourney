@@ -40,7 +40,7 @@ export default function BottomNav() {
     <nav aria-label="Navigasi utama" className="fixed bottom-0 right-0 left-0 z-40 lg:hidden">
       <div
         className="relative border-t border-border bg-background/95 backdrop-blur-xl"
-        style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+        style={{ paddingBottom: "var(--app-safe-bottom)" }}
       >
         <div
           ref={scrollRef}

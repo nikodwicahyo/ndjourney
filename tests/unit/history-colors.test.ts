@@ -4,6 +4,8 @@ import {
   HISTORY_PARTNER_COLOR,
   ROAD_ROUTE_COLOR,
   STRAIGHT_ROUTE_COLOR,
+  HISTORY_PANE,
+  HISTORY_TRAIL_DASH_ARRAY,
 } from "@/lib/routing";
 
 describe("history colours", () => {
@@ -15,5 +17,10 @@ describe("history colours", () => {
     expect(HISTORY_PARTNER_COLOR).not.toBe(ROAD_ROUTE_COLOR);
     expect(HISTORY_SELF_COLOR).not.toBe(STRAIGHT_ROUTE_COLOR);
     expect(HISTORY_PARTNER_COLOR).not.toBe(STRAIGHT_ROUTE_COLOR);
+  });
+
+  it("renders history above the road with a dash pattern, not colour alone", () => {
+    expect(HISTORY_PANE).toBe("historyPane");
+    expect(HISTORY_TRAIL_DASH_ARRAY).toBe("10 7");
   });
 });

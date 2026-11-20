@@ -20,6 +20,8 @@ import {
   STRAIGHT_ROUTE_COLOR,
   HISTORY_SELF_COLOR,
   HISTORY_PARTNER_COLOR,
+  HISTORY_PANE,
+  HISTORY_TRAIL_DASH_ARRAY,
   type RoadRoute,
 } from "@/lib/routing";
 import { escapeHtml } from "@/lib/escape-html";
@@ -358,6 +360,12 @@ export default function PartnerMap({
       container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#666;font-size:14px;">Peta gagal dimuat</div>';
       return;
     }
+
+    // The road line is added later in the default overlay pane and would paint
+    // over an identical history trail. A dedicated pane above it keeps both
+    // visible: blue road below, dashed green history on top.
+    const historyPane = map.createPane(HISTORY_PANE);
+    historyPane.style.zIndex = "450";
 
     let tile: L.TileLayer;
     try {
@@ -755,6 +763,7 @@ export default function PartnerMap({
 
         if (latlngs.length === 1) {
           L.circleMarker(latlngs[0], {
+            pane: HISTORY_PANE,
             radius: 4,
             color,
             fillColor: color,
@@ -766,9 +775,11 @@ export default function PartnerMap({
 
         // Base polyline (instant render)
         const polyline = L.polyline(latlngs, {
+          pane: HISTORY_PANE,
           color,
           weight: 4,
-          opacity: 0.65,
+          opacity: 0.85,
+          dashArray: HISTORY_TRAIL_DASH_ARRAY,
           lineCap: "round",
           lineJoin: "round",
         }).addTo(layer);
@@ -792,6 +803,7 @@ export default function PartnerMap({
         const isLast = i === points.length - 1;
         if (!isLast) {
           const ptMarker = L.circleMarker([p.latitude, p.longitude], {
+            pane: HISTORY_PANE,
             radius: 3.5,
             color,
             fillColor: color,
@@ -823,6 +835,7 @@ export default function PartnerMap({
       // stays for past stops; the live avatar covers the current one.
       userStops.forEach((stop) => {
         L.circleMarker([stop.latitude, stop.longitude], {
+          pane: HISTORY_PANE,
           radius: stop.isCurrent ? 42 : 22,
           color,
           weight: stop.isCurrent ? 2 : 1.5,

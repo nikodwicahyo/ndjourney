@@ -22,7 +22,7 @@ picked up on the next app launch — only plugin/native changes need a new binar
 
 | Platform | Required |
 |---|---|
-| Android | JDK 17+ (21 recommended), Android SDK platform 36 + build-tools |
+| Android | JDK 21 (required by Capacitor 8), Android SDK platform 36 + build-tools |
 | iOS | macOS, Xcode, Apple ID (free = 7-day signing) |
 
 ## Build

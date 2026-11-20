@@ -75,10 +75,30 @@ jobs:
           KEYSTORE="$RUNNER_TEMP/ndjourney-release.jks"
 
           # Kept outside the checkout so it can never be committed or packaged.
-          printf '%s' "$KEYSTORE_B64" | tr -d ' \r\n' | base64 --decode > "$KEYSTORE"
+          if ! printf '%s' "$KEYSTORE_B64" | tr -d ' \r\n' | base64 --decode > "$KEYSTORE" 2>/dev/null; then
+            echo "::error::ANDROID_RELEASE_KEYSTORE_BASE64 is not valid base64. Re-encode the .jks and re-save the secret."
+            exit 1
+          fi
 
+          # Separate the three possible causes so the failing secret is unambiguous.
+          if ! KEYSTORE_LIST="$(keytool -list -v -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" 2>&1)"; then
+            echo "::error::Cannot open keystore: $KEYSTORE_LIST"
+            echo "::error::ANDROID_RELEASE_KEYSTORE_BASE64 is wrong/corrupt, or ANDROID_RELEASE_STORE_PASSWORD is wrong."
+            exit 1
+          fi
+          # PKCS12 aliases come from the certificate friendly name, which tools
+          # other than keytool may set differently — use what is actually there.
+          DETECTED_ALIAS="$(printf '%s' "$KEYSTORE_LIST" | awk '/Alias name:/ {sub(/^.*Alias name:[[:space:]]*/, ""); print; exit}')"
+          if [ -z "$DETECTED_ALIAS" ]; then
+            echo "::error::Keystore has no PrivateKeyEntry alias. Regenerate the signing keystore."
+            exit 1
+          fi
+          if [ "$KEY_ALIAS" != "$DETECTED_ALIAS" ]; then
+            echo "::warning::ANDROID_RELEASE_KEY_ALIAS does not match the keystore ($DETECTED_ALIAS); using the keystore alias."
+          fi
+          KEY_ALIAS="$DETECTED_ALIAS"
           if ! KEYTOOL_INFO="$(keytool -list -v -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" 2>&1)"; then
-            echo "::error::Keystore/store password/alias mismatch. Check ANDROID_RELEASE_KEYSTORE_BASE64, ANDROID_RELEASE_STORE_PASSWORD and ANDROID_RELEASE_KEY_ALIAS."
+            echo "::error::$KEYTOOL_INFO"
             exit 1
           fi
 

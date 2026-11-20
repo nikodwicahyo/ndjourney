@@ -82,6 +82,25 @@ web-only pushes never waste an APK build.
    base64 -w 0 ndjourney-release.jks   # macOS: base64 -i ndjourney-release.jks | tr -d '\n'
    ```
 
+   No JDK on Windows? PowerShell can make the same PKCS12 keystore without
+   installing anything (save the `.pfx` offline — it is the signing identity):
+
+   ```powershell
+   $pass = 'REPLACE_WITH_A_LONG_RANDOM_PASSWORD'
+   $rsa  = [System.Security.Cryptography.RSA]::Create(2048)
+   $req  = [System.Security.Cryptography.X509Certificates.CertificateRequest]::new(
+     'CN=NdJourney,O=NdJourney,C=ID', $rsa,
+     [System.Security.Cryptography.HashAlgorithmName]::SHA256,
+     [System.Security.Cryptography.RSASignaturePadding]::Pkcs1)
+   $cert = $req.CreateSelfSigned([DateTimeOffset]::UtcNow.AddDays(-1),
+                                 [DateTimeOffset]::UtcNow.AddYears(10))
+   $cert.FriendlyName = 'ndjourney'
+   [IO.File]::WriteAllBytes('ndjourney-release.pfx',
+     $cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Pfx, $pass))
+   [IO.File]::WriteAllText('base64.txt',
+     [Convert]::ToBase64String([IO.File]::ReadAllBytes('ndjourney-release.pfx')))
+   ```
+
    With `gh` installed locally you can set all four without printing secrets:
 
    ```bash

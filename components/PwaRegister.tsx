@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { Workbox } from "workbox-window";
 import { toast } from "sonner";
 import { useAppVersion } from "@/hooks/useAppVersion";
+import { isNativePlatform } from "@/lib/location/platform";
 
 export default function PwaRegister() {
   const wbRef = useRef<Workbox | null>(null);
@@ -12,7 +13,9 @@ export default function PwaRegister() {
   useAppVersion();
 
   useEffect(() => {
-    if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
+    // The APK/IPA loads the deployed UI directly. A service worker there can
+    // serve a stale shell and fight the web deploy's version check.
+    if (isNativePlatform() || typeof window === "undefined" || !("serviceWorker" in navigator)) {
       return;
     }
 

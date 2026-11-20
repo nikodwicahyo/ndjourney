@@ -9,22 +9,13 @@ import {
   useIsMeeting,
   useFloatingHearts,
   useRoadRoute,
+  useStatusClock,
 } from "@/hooks/useLocation";
 import { shouldUseRoadRoute } from "@/lib/routing";
+import { deriveStatus, timeAgoId } from "@/lib/location/status";
 import DeviceBadge from "./DeviceBadge";
 import FloatingHeart from "./FloatingHeart";
 import { formatDistance, formatDistanceCategory } from "@/lib/geo";
-
-function timeAgo(seconds: number | null): string {
-  if (seconds === null) return "—";
-  if (seconds < 30) return "baru saja";
-  if (seconds < 120) return `${seconds} detik lalu`;
-  const mins = Math.floor(seconds / 60);
-  if (mins < 60) return `${mins} mnt lalu`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs} jam lalu`;
-  return `${Math.floor(hrs / 24)} hari lalu`;
-}
 
 export default function LocationWidget() {
   const { status: sessionStatus } = useSession();
@@ -51,6 +42,7 @@ function LocationWidgetContent() {
     bothSharing,
   );
   const roadRoute = shouldUseRoadRoute(routeQuery.data ?? null);
+  const now = useStatusClock();
 
   if (isLoading) {
     return (
@@ -81,8 +73,20 @@ function LocationWidgetContent() {
     );
   }
 
-  const selfLive = self.isSharing && !self.isStale;
-  const partnerLive = partner.isSharing && !partner.isStale;
+  const selfStatus = deriveStatus({
+    isSharing: self.isSharing,
+    lastFixAt: self.lastFixAt,
+    lastSeenAt: self.lastSeenAt,
+    trackingState: self.trackingState,
+    now,
+  });
+  const partnerStatus = deriveStatus({
+    isSharing: partner.isSharing,
+    lastFixAt: partner.lastFixAt,
+    lastSeenAt: partner.lastSeenAt,
+    trackingState: partner.trackingState,
+    now,
+  });
   const selfInitial = (self.name ?? "K").charAt(0).toUpperCase();
   const partnerInitial = partner.name.charAt(0).toUpperCase();
 
@@ -106,8 +110,8 @@ function LocationWidgetContent() {
           : roadRoute
             ? formatDistanceCategory(roadRoute.distanceMeters)
             : routeQuery.isLoading
-              ? "Memuat rute jalan…"
-              : "Rute jalan tidak tersedia"}
+              ? "Memuat jarak…"
+              : "Jarak tidak tersedia"}
       </p>
 
       {/* Person avatars row */}
@@ -121,7 +125,7 @@ function LocationWidgetContent() {
             </Avatar>
             <span
               className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-background ${
-                selfLive ? "bg-emerald-500" : "bg-muted-foreground/50"
+                selfStatus.isLive ? "bg-emerald-500" : "bg-muted-foreground/50"
               }`}
             />
           </div>
@@ -133,15 +137,16 @@ function LocationWidgetContent() {
               {self.deviceType && <DeviceBadge deviceType={self.deviceType} />}
               <span
                 className={`text-xs ${
-                  selfLive ? "text-emerald-500" : "text-muted-foreground"
+                  selfStatus.isLive ? "text-emerald-500" : "text-muted-foreground"
                 }`}
+                title={selfStatus.detail ?? undefined}
               >
-                {selfLive ? "Live" : self.isSharing ? "Offline" : "Off"}
+                {selfStatus.label}
               </span>
             </div>
             {self.isSharing && (
               <span className="text-xs text-muted-foreground">
-                {timeAgo(self.locationAgeSeconds)}
+                {selfStatus.isLive ? timeAgoId(selfStatus.ageSeconds) : selfStatus.detail}
               </span>
             )}
           </div>
@@ -153,7 +158,7 @@ function LocationWidgetContent() {
             {roadRoute ? formatDistance(roadRoute.distanceMeters) : "—"}
           </span>
           {bothSharing && (
-            selfLive && partnerLive ? (
+            selfStatus.isLive && partnerStatus.isLive ? (
               <span className="flex items-center gap-1 text-xs text-emerald-500">
                 <span className="h-1 w-1 animate-pulse rounded-full bg-emerald-500" aria-hidden="true" />
                 live
@@ -176,7 +181,7 @@ function LocationWidgetContent() {
             </Avatar>
             <span
               className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-background ${
-                partnerLive ? "bg-emerald-500" : "bg-muted-foreground/50"
+                partnerStatus.isLive ? "bg-emerald-500" : "bg-muted-foreground/50"
               }`}
             />
           </div>
@@ -188,15 +193,16 @@ function LocationWidgetContent() {
               {partner.deviceType && <DeviceBadge deviceType={partner.deviceType} />}
               <span
                 className={`text-xs ${
-                  partnerLive ? "text-emerald-500" : "text-muted-foreground"
+                  partnerStatus.isLive ? "text-emerald-500" : "text-muted-foreground"
                 }`}
+                title={partnerStatus.detail ?? undefined}
               >
-                {partnerLive ? "Live" : partner.isSharing ? "Offline" : "Off"}
+                {partnerStatus.label}
               </span>
             </div>
             {partner.isSharing && (
               <span className="text-xs text-muted-foreground">
-                {timeAgo(partner.locationAgeSeconds)}
+                {partnerStatus.isLive ? timeAgoId(partnerStatus.ageSeconds) : partnerStatus.detail}
               </span>
             )}
           </div>

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { rateLimitConfigs, withRateLimit } from "@/lib/rate-limit";
 import { haversineMeters } from "@/lib/geo";
 import { pacedFetch } from "@/lib/paced-fetch";
 
@@ -81,10 +81,12 @@ function straightFallback(
 }
 
 export async function GET(request?: Request) {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  // Auth + throttle before any OSRM fan-out.
+  const gate = await withRateLimit(
+    request ?? new Request("http://localhost/api/route"),
+    rateLimitConfigs.route,
+  );
+  if (!gate.allowed) return gate.response;
 
   try {
     let from: { lat: number; lng: number } | null = null;

@@ -4,6 +4,10 @@ import { haversineMeters } from "./geo";
 export const ROAD_ROUTE_COLOR = "#2563EB";
 export const STRAIGHT_ROUTE_COLOR = "#F43F5E";
 
+/** History trails are green so they never read as the blue road route. */
+export const HISTORY_SELF_COLOR = "#16a34a";
+export const HISTORY_PARTNER_COLOR = "#0d9488";
+
 export type LatLng = { lat: number; lng: number };
 
 export type RoadRoute = {

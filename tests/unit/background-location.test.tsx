@@ -22,11 +22,11 @@ const TIMEOUT_ERR = {
 
 const DENIED_ERR = { ...TIMEOUT_ERR, code: 1 } as unknown as GeolocationPositionError;
 
-function position(accuracy = 10): GeolocationPosition {
+function position(accuracy = 10, latitude = -6.2, longitude = 106.8): GeolocationPosition {
   return {
     coords: {
-      latitude: -6.2,
-      longitude: 106.8,
+      latitude,
+      longitude,
       accuracy,
       heading: null,
       speed: null,
@@ -147,6 +147,50 @@ describe("background location GPS failure escalation", () => {
     expect(result.current).toBe("denied");
     await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
     expect(result.current).toBe("denied");
+  });
+
+  it("posts on movement even when GPS accuracy is unchanged", async () => {
+    // Regression: the old accuracy-only gate froze the position of a walking
+    // phone, because accuracy rarely improves while moving.
+    act(() => initBackgroundLocation(true, qc));
+    geoMock.gets.shift(); // initial fix attempt, not under test
+
+    const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
+    act(() => geoMock.watch?.success(position(10)));
+    await act(async () => {});
+    fetchMock.mockClear();
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(9_000); });
+    act(() => geoMock.watch?.success(position(10, -6.20005))); // ~5.6 m north
+    await act(async () => {});
+
+    const posted = fetchMock.mock.calls.find((c) => c[0] === "/api/location");
+    expect(posted).toBeTruthy();
+    const body = JSON.parse(String((posted?.[1] as RequestInit).body));
+    expect(body.latitude).toBeCloseTo(-6.20005, 6);
+  });
+
+  it("sends a coordinate-free heartbeat instead of re-posting the last fix", async () => {
+    // Regression: keepAlive re-posted the previous payload, refreshing
+    // updatedAt while the coordinates were stale — the UI then said "Live" at
+    // an old spot.
+    act(() => initBackgroundLocation(true, qc));
+    geoMock.gets.shift();
+
+    const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
+    act(() => geoMock.watch?.success(position(10)));
+    await act(async () => {});
+    fetchMock.mockClear();
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(31_000); });
+
+    const posts = fetchMock.mock.calls.filter((c) => c[0] === "/api/location");
+    const beats = fetchMock.mock.calls.filter((c) => c[0] === "/api/location/status");
+    expect(posts).toHaveLength(0);
+    expect(beats.length).toBeGreaterThanOrEqual(1);
+    const body = JSON.parse(String((beats[0]?.[1] as RequestInit).body));
+    expect(body).not.toHaveProperty("latitude");
+    expect(body.trackingState).toBeTruthy();
   });
 
   it("forces an immediate GPS ping when the tab becomes visible or the network returns", async () => {

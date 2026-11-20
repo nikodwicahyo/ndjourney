@@ -46,10 +46,19 @@
     "test:e2e": "playwright test",
     "test:coverage": "vitest run --coverage",
     "test:all": "npm run test:unit && npm run test:integration && npm run test:e2e",
-    "seed:location": "node --env-file=.env --import tsx prisma/seed-location.ts"
+    "seed:location": "node --env-file=.env --import tsx prisma/seed-location.ts",
+    "native:add": "cap add android && cap add ios",
+    "native:sync": "cap sync",
+    "native:android": "cap sync android && cap open android",
+    "native:ios": "cap sync ios && cap open ios"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.2",
+    "@capacitor-community/background-geolocation": "^1.3.1",
+    "@capacitor/android": "^8.6.2",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "^8.6.2",
+    "@capacitor/ios": "^8.6.2",
     "@neondatabase/serverless": "^1.1.0",
     "@prisma/adapter-neon": "7.10.1",
     "@prisma/client": "7.10.1",
@@ -60,6 +69,8 @@
     "@tiptap/starter-kit": "^3.31.3",
     "@upstash/redis": "^1.37.0",
     "bcryptjs": "^3.0.3",
+    "capacitor-native-settings": "^8.2.0",
+    "capacitor-secure-storage-plugin": "^0.14.2",
     "class-variance-authority": "^0.7.1",
     "cloudinary": "^2.9.0",
     "clsx": "^2.1.1",
@@ -87,6 +98,7 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.6.2",
     "@next/bundle-analyzer": "16.4.2",
     "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
@@ -106,6 +118,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.8",
     "eslint-plugin-react-hooks": "7.0.1",
+    "fake-indexeddb": "^6.2.8",
     "jsdom": "^30.0.1",
     "prettier": "^3",
     "prettier-plugin-tailwindcss": "^0.6",

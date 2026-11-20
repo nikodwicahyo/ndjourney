@@ -8,10 +8,10 @@ import { triggerCoupleEvent } from "@/lib/pusher-server";
 import { detectDeviceType } from "@/lib/device";
 import { MEET_THRESHOLD_METERS, LOCATION_STALE_AFTER_SECONDS, haversineMeters } from "@/lib/geo";
 import { notifyLocationReonline } from "@/lib/activity";
+import { checkActiveShare, isPlausibleFix, parseJsonBody, shareError } from "@/lib/location/server";
+import type { TrackingState } from "@/lib/location/types";
 
 export const dynamic = "force-dynamic";
-
-class SharingDisabledError extends Error {}
 
 export type LocationPayload = {
   lat: number;
@@ -22,6 +22,20 @@ export type LocationPayload = {
   altitude: number | null;
   updatedAt: string;
 } | null;
+
+type ShareView = {
+  isSharing: boolean;
+  expiresAt: Date | null;
+  lastSeenAt: Date | null;
+  trackingState: string | null;
+} | null;
+
+function isShareActive(share: ShareView, now: number): boolean {
+  return (
+    share?.isSharing === true &&
+    !(share.expiresAt !== null && share.expiresAt.getTime() <= now)
+  );
+}
 
 function toLocationPayload(row: {
   latitude: number;
@@ -64,7 +78,7 @@ export async function GET() {
     const [selfShare, partnerMember, selfLocation] = await Promise.all([
       prisma.locationShare.findUnique({
         where: { userId },
-        select: { isSharing: true },
+        select: { isSharing: true, expiresAt: true, lastSeenAt: true, trackingState: true },
       }),
       prisma.coupleMember.findFirst({
         where: { coupleId, userId: { not: userId } },
@@ -88,7 +102,6 @@ export async function GET() {
         },
       }),
     ]);
-    const selfImage = { image: session.user.image ?? null };
 
     const partner = partnerMember?.user ?? null;
     if (!partner) {
@@ -101,7 +114,7 @@ export async function GET() {
     const [partnerShare, partnerLocation] = await Promise.all([
       prisma.locationShare.findUnique({
         where: { userId: partner.id },
-        select: { isSharing: true },
+        select: { isSharing: true, expiresAt: true, lastSeenAt: true, trackingState: true },
       }),
       prisma.userLocation.findUnique({
         where: { userId: partner.id },
@@ -125,8 +138,10 @@ export async function GET() {
     const partnerAge = partnerLocation
       ? Math.round((now - partnerLocation.updatedAt.getTime()) / 1000)
       : null;
-    // Read-side gate: a surviving row must never be disclosed after opt-out.
-    const partnerSharing = partnerShare?.isSharing === true;
+    // Read-side gate: a surviving row must never be disclosed after opt-out or
+    // after a time-bounded share expires. The lazy DB opt-out is only cleanup.
+    const selfSharing = isShareActive(selfShare, now);
+    const partnerSharing = isShareActive(partnerShare, now);
 
     const data = {
       meetThresholdMeters: MEET_THRESHOLD_METERS,
@@ -134,12 +149,16 @@ export async function GET() {
       self: {
         userId,
         name: session.user.name ?? null,
-        image: selfImage?.image ?? null,
-        isSharing: selfShare?.isSharing ?? false,
+        image: session.user.image ?? null,
+        isSharing: selfSharing,
         deviceType: selfLocation?.deviceType ?? detectDeviceType(),
         location: toLocationPayload(selfLocation),
         locationAgeSeconds: selfAge,
         isStale: selfAge !== null && selfAge > LOCATION_STALE_AFTER_SECONDS,
+        lastSeenAt: selfShare?.lastSeenAt?.toISOString() ?? null,
+        lastFixAt: selfLocation?.updatedAt.toISOString() ?? null,
+        trackingState: (selfShare?.trackingState as TrackingState | null) ?? null,
+        shareExpiresAt: selfShare?.expiresAt?.toISOString() ?? null,
       },
       partner: {
         userId: partner.id,
@@ -150,6 +169,12 @@ export async function GET() {
         location: partnerSharing ? toLocationPayload(partnerLocation) : null,
         locationAgeSeconds: partnerSharing ? partnerAge : null,
         isStale: partnerSharing && partnerAge !== null && partnerAge > LOCATION_STALE_AFTER_SECONDS,
+        lastSeenAt: partnerSharing ? (partnerShare?.lastSeenAt?.toISOString() ?? null) : null,
+        lastFixAt: partnerSharing ? (partnerLocation?.updatedAt.toISOString() ?? null) : null,
+        trackingState: partnerSharing
+          ? ((partnerShare?.trackingState as TrackingState | null) ?? null)
+          : null,
+        shareExpiresAt: partnerSharing ? (partnerShare?.expiresAt?.toISOString() ?? null) : null,
       },
     };
 
@@ -174,27 +199,8 @@ export async function POST(request: Request) {
     }
 
     const userId = rateCheck.session.user.id;
-    const coupleId = await getUserCoupleId(userId);
-    if (!coupleId) {
-      return NextResponse.json(
-        { error: "Pasangan belum ditemukan" },
-        { status: 404 },
-      );
-    }
 
-    const share = await prisma.locationShare.findUnique({
-      where: { userId },
-      select: { isSharing: true },
-    });
-
-    if (!share?.isSharing) {
-      return NextResponse.json(
-        { error: "Kamu belum mengaktifkan berbagi lokasi" },
-        { status: 403 },
-      );
-    }
-
-    const body = await request.json().catch(() => null);
+    const body = await parseJsonBody(request);
     if (body == null) return NextResponse.json({ error: "Body JSON tidak valid" }, { status: 400 });
     const parsed = updateLocationSchema.safeParse(body);
     if (!parsed.success) {
@@ -204,37 +210,39 @@ export async function POST(request: Request) {
       );
     }
 
-    const { latitude, longitude, accuracy, heading, speed, altitude, deviceType } = parsed.data;
+    const {
+      latitude,
+      longitude,
+      accuracy,
+      heading,
+      speed,
+      altitude,
+      deviceType,
+      clientId,
+      recordedAt,
+      trackingState,
+    } = parsed.data;
 
     const now = new Date();
+    const fixAt = recordedAt ? new Date(recordedAt) : now;
 
-    // P-11: current position + history in ONE transaction — a history-trim rollback
-    // used to leave the current row advanced past the trail.
-    const { previousUpdatedAt } = await prisma.$transaction(async (tx) => {
-      // Re-check inside the write transaction so an opt-out that committed
-      // after the fast pre-check above aborts this write. The GET read gate
-      // remains authoritative if a row survives an overlapping commit.
-      const currentShare = await tx.locationShare.findUnique({
-        where: { userId },
-        select: { isSharing: true },
-      });
-      if (!currentShare?.isSharing) throw new SharingDisabledError();
+    const result = await prisma.$transaction(async (tx) => {
+      const shareCheck = await checkActiveShare(tx, userId, now);
+      if (!shareCheck.ok) return { ok: false as const, code: shareCheck.code, coupleId: "" };
 
-      // The previous fix's age is the only honest "was GPS offline?" signal:
-      // the location card calls the same 60 s gap "Offline". Read inside the
-      // write transaction so the value matches the row being advanced.
       const existing = await tx.userLocation.findUnique({
         where: { userId },
-        select: { updatedAt: true },
+        select: { updatedAt: true, latitude: true, longitude: true },
       });
       const previousUpdatedAt = existing?.updatedAt ?? null;
 
-      // Upsert current location
+      // Current position always advances the live pin — even an implausible
+      // jump is better than freezing. Only the persistent trail is filtered.
       await tx.userLocation.upsert({
         where: { userId },
         create: {
           userId,
-          coupleId,
+          coupleId: shareCheck.coupleId,
           latitude,
           longitude,
           accuracy: accuracy ?? null,
@@ -254,33 +262,41 @@ export async function POST(request: Request) {
         },
       });
 
-      // Write to location history (throttled):
-      // If user moved >= 15 meters, record after 30 seconds.
-      // If stationary (< 15 meters), record every 5 minutes to confirm dwell without database spamming.
+      await tx.locationShare.update({
+        where: { userId },
+        data: { lastSeenAt: now, trackingState: trackingState ?? "foreground" },
+      });
+
+      if (existing && !isPlausibleFix(existing, { latitude, longitude }, fixAt)) {
+        return { ok: true as const, coupleId: shareCheck.coupleId, previousUpdatedAt, duplicate: false };
+      }
+
+      // Trail throttle: 15 m / 30 s while moving, 5 min while stationary.
       const lastHistory = await tx.userLocationHistory.findFirst({
         where: { userId },
         orderBy: { createdAt: "desc" },
         select: { createdAt: true, latitude: true, longitude: true },
       });
-
       if (lastHistory) {
-        const elapsedMs = now.getTime() - lastHistory.createdAt.getTime();
+        const elapsedMs = fixAt.getTime() - lastHistory.createdAt.getTime();
         const movedMeters = haversineMeters(
           { latitude, longitude },
           { latitude: lastHistory.latitude, longitude: lastHistory.longitude },
         );
-        if (movedMeters < 15 && elapsedMs < 300000) {
-          return { previousUpdatedAt };
+        if (movedMeters < 15 && elapsedMs < 300_000) {
+          return { ok: true as const, coupleId: shareCheck.coupleId, previousUpdatedAt, duplicate: false };
         }
-        if (movedMeters >= 15 && elapsedMs < 30000) {
-          return { previousUpdatedAt };
+        if (movedMeters >= 15 && elapsedMs < 30_000) {
+          return { ok: true as const, coupleId: shareCheck.coupleId, previousUpdatedAt, duplicate: false };
         }
       }
 
-      await tx.userLocationHistory.create({
-        data: {
+      // createMany + skipDuplicates is idempotent without raising P2002, which
+      // would abort the whole Postgres transaction.
+      const inserted = await tx.userLocationHistory.createMany({
+        data: [{
           userId,
-          coupleId,
+          coupleId: shareCheck.coupleId,
           latitude,
           longitude,
           accuracy: accuracy ?? null,
@@ -288,55 +304,48 @@ export async function POST(request: Request) {
           speed: speed ?? null,
           altitude: altitude ?? null,
           deviceType,
-        },
+          createdAt: fixAt,
+          clientId: clientId ?? null,
+          recordedAt: clientId ? fixAt : null,
+        }],
+        skipDuplicates: true,
       });
 
-      // No time-based pruning: the All filter must really reach every stored fix.
-      // Only a count cap keeps the table bounded; users can erase their own
-      // trail explicitly via DELETE /api/location/history.
-      const maxPoints = 2000;
-      const oldestAllowed = await tx.userLocationHistory.findMany({
-        where: { userId },
-        orderBy: { createdAt: "desc" },
-        skip: maxPoints,
-        take: 1,
-        select: { createdAt: true },
-      });
-      if (oldestAllowed.length > 0) {
-        await tx.userLocationHistory.deleteMany({
-          where: { userId, createdAt: { lte: oldestAllowed[0].createdAt } },
-        });
-      }
-
-      return { previousUpdatedAt };
+      // No time-based pruning here: it used to run a skip-2000 query on every
+      // single fix. A daily cron keeps the table bounded instead.
+      return {
+        ok: true as const,
+        coupleId: shareCheck.coupleId,
+        previousUpdatedAt,
+        duplicate: inserted.count === 0,
+      };
     });
 
-    triggerCoupleEvent(coupleId, "LOCATION");
+    if (!result.ok) {
+      const error = shareError(result.code);
+      return NextResponse.json(error.body, { status: error.status });
+    }
 
-    // A normal 8–30 s ping stays silent. Only a fix that ended a real offline
-    // gap is a "partner is back online" moment worth the bell + push. Gated
-    // here so the cooldown query runs only on a recovery, not every ping.
+    triggerCoupleEvent(result.coupleId, "LOCATION");
+
     if (
-      previousUpdatedAt === null ||
-      now.getTime() - previousUpdatedAt.getTime() >=
+      result.previousUpdatedAt === null ||
+      now.getTime() - result.previousUpdatedAt.getTime() >=
         LOCATION_STALE_AFTER_SECONDS * 1000
     ) {
       await notifyLocationReonline(
-        coupleId,
+        result.coupleId,
         userId,
         rateCheck.session.user.name ?? null,
-        previousUpdatedAt,
+        result.previousUpdatedAt,
       );
     }
 
-    return NextResponse.json({ data: { ok: true } }, { status: 200 });
+    return NextResponse.json(
+      { data: { ok: true, duplicate: result.duplicate } },
+      { status: 200 },
+    );
   } catch (error) {
-    if (error instanceof SharingDisabledError) {
-      return NextResponse.json(
-        { error: "Kamu belum mengaktifkan berbagi lokasi" },
-        { status: 403 },
-      );
-    }
     console.error("Error updating location:", error);
     return NextResponse.json(
       { error: "Terjadi kesalahan pada server. Coba lagi nanti." },

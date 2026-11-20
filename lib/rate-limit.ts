@@ -157,4 +157,11 @@ export const rateLimitConfigs = {
   auth: { maxRequests: 10, windowSeconds: 900, keyPrefix: "auth" },
   score: { maxRequests: 200, windowSeconds: 3600, keyPrefix: "score" },
   location: { maxRequests: 600, windowSeconds: 3600, keyPrefix: "location" },
+  locationBatch: { maxRequests: 60, windowSeconds: 3600, keyPrefix: "location:batch" },
+  locationStatus: { maxRequests: 240, windowSeconds: 3600, keyPrefix: "location:status" },
+  // Heavy authenticated reads: history pulls up to 2000 GPS points, route
+  // fans out to OSRM. Both are polled by the UI, so leave headroom above the
+  // 60s history refresh but stop scripted scraping / upstream amplification.
+  locationHistory: { maxRequests: 240, windowSeconds: 3600, keyPrefix: "location:history" },
+  route: { maxRequests: 600, windowSeconds: 3600, keyPrefix: "location:route" },
 } as const;

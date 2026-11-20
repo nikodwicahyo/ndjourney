@@ -13,7 +13,12 @@ import {
   type RoadRoute,
 } from "@/lib/routing";
 import type { VisitedStop } from "@/lib/location-history";
-import { initBackgroundLocation, useBackgroundLocationStatus, useBackgroundLocationCleanup } from "./useBackgroundLocation";
+import type { TrackingState } from "@/lib/location/types";
+import {
+  clearQueuedFixes,
+  initBackgroundLocation,
+  useBackgroundLocationStatus,
+} from "./useBackgroundLocation";
 
 export type LocationPoint = {
   lat: number;
@@ -33,6 +38,12 @@ export type PersonLocationInfo = {
   location: LocationPoint | null;
   locationAgeSeconds: number | null;
   isStale: boolean;
+  /** When the app last proved it was running (heartbeat). */
+  lastSeenAt: string | null;
+  /** When the newest GPS fix arrived. Older than lastSeenAt means "no GPS". */
+  lastFixAt: string | null;
+  trackingState: TrackingState | null;
+  shareExpiresAt: string | null;
 };
 
 export type LocationState = {
@@ -78,6 +89,9 @@ export function useLocationSettings() {
     refetchInterval: POLL_INTERVAL_MS,
     // no background-tab polling — Pusher LOCATION covers live updates.
     refetchIntervalInBackground: false,
+    // A laptop that wakes from sleep or regains Wi-Fi must catch up at once.
+    refetchOnReconnect: true,
+    refetchOnWindowFocus: true,
     retry: (count, err) => {
       // don't loop 401s on every poll.
       if (err instanceof Error && /401|403|404/.test(err.message)) return false;
@@ -176,8 +190,20 @@ export function usePlaceNames(stops: VisitedStop[]) {
   return names;
 }
 
-export function useDistance(state: LocationState | undefined): number | null {
-  if (!state?.self.location || !state?.partner.location) return null;
+/**
+ * Re-renders every `intervalMs` so relative labels ("5 mnt lalu") stay honest
+ * without refetching anything.
+ */
+export function useStatusClock(intervalMs = 30_000): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), intervalMs);
+    return () => clearInterval(timer);
+  }, [intervalMs]);
+  return now;
+}
+
+export function useDistance(state: LocationState | undefined): number | null {  if (!state?.self.location || !state?.partner.location) return null;
   return haversineMeters(
     { latitude: state.self.location.lat, longitude: state.self.location.lng },
     { latitude: state.partner.location.lat, longitude: state.partner.location.lng },
@@ -225,6 +251,8 @@ export function useToggleShare() {
       toast.success(
         data.isSharing ? "Berbagi lokasi diaktifkan" : "Berbagi lokasi dimatikan",
       );
+      // Queued coordinates must not outlive an opt-out.
+      if (!data.isSharing) void clearQueuedFixes();
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: queryKeys.location.all, refetchType: "all" });
@@ -291,8 +319,6 @@ export function useFloatingHearts(coupleId: string | undefined) {
 
 export function useShareLocation(enabled: boolean) {
   const qc = useQueryClient();
-
-  useBackgroundLocationCleanup();
 
   useEffect(() => {
     initBackgroundLocation(enabled, qc);

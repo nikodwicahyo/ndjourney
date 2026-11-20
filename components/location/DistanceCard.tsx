@@ -30,6 +30,8 @@ import {
   type TravelMode,
 } from "@/lib/geo";
 import type { LocationState } from "@/hooks/useLocation";
+import { useStatusClock } from "@/hooks/useLocation";
+import { deriveStatus, timeAgoId } from "@/lib/location/status";
 import { shouldUseRoadRoute, type RoadRoute } from "@/lib/routing";
 import DeviceBadge from "./DeviceBadge";
 
@@ -38,17 +40,6 @@ const MODES: { mode: TravelMode; icon: typeof Footprints; label: string }[] = [
   { mode: "cycling", icon: Bike, label: "Motor" },
   { mode: "driving", icon: Car, label: "Mobil" },
 ];
-
-function timeAgo(seconds: number | null): string {
-  if (seconds === null) return "—";
-  if (seconds < 30) return "baru saja";
-  if (seconds < 120) return `${seconds} detik lalu`;
-  const mins = Math.floor(seconds / 60);
-  if (mins < 60) return `${mins} mnt lalu`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs} jam lalu`;
-  return `${Math.floor(hrs / 24)} hari lalu`;
-}
 
 function AnimatedNumber({ value }: { value: number }) {
   const spring = useSpring(value, { stiffness: 60, damping: 12, mass: 0.3 });
@@ -67,7 +58,7 @@ function PersonAvatar({
   isSharing,
   statusText,
   deviceType,
-  ageSeconds,
+  detail,
   accuracy,
 }: {
   name: string;
@@ -77,7 +68,7 @@ function PersonAvatar({
   isSharing: boolean;
   statusText: string;
   deviceType: string | null;
-  ageSeconds: number | null;
+  detail: string | null;
   accuracy: number | null;
 }) {
   return (
@@ -101,8 +92,8 @@ function PersonAvatar({
             {statusText}
           </span>
         </div>
-        {isSharing && (
-          <span className="text-xs text-muted-foreground">{timeAgo(ageSeconds)}</span>
+        {isSharing && detail && (
+          <span className="text-center text-xs text-muted-foreground">{detail}</span>
         )}
         {accuracy !== null && (
           <span className="text-xs text-muted-foreground">±{Math.round(accuracy)}m</span>
@@ -177,9 +168,22 @@ export default function DistanceCard({
   const selfInitial = (self.name ?? "K").charAt(0).toUpperCase();
   const partnerInitial = (partner.name ?? "P").charAt(0).toUpperCase();
 
-  const selfLive = self.isSharing && !self.isStale;
-  const partnerLive = partner.isSharing && !partner.isStale;
-  const bothLive = selfLive && partnerLive;
+  const now = useStatusClock();
+  const selfStatus = deriveStatus({
+    isSharing: self.isSharing,
+    lastFixAt: self.lastFixAt,
+    lastSeenAt: self.lastSeenAt,
+    trackingState: self.trackingState,
+    now,
+  });
+  const partnerStatus = deriveStatus({
+    isSharing: partner.isSharing,
+    lastFixAt: partner.lastFixAt,
+    lastSeenAt: partner.lastSeenAt,
+    trackingState: partner.trackingState,
+    now,
+  });
+  const bothLive = selfStatus.isLive && partnerStatus.isLive;
 
   return (
     <Card className="relative overflow-hidden border-primary/10">
@@ -195,8 +199,8 @@ export default function DistanceCard({
                 {activeRoute
                   ? formatDistanceCategory(activeRoute.distanceMeters)
                   : routeLoading
-                    ? "Memuat rute jalan…"
-                    : "Rute jalan tidak tersedia"}
+                    ? "Memuat jarak…"
+                    : "Jarak tidak tersedia"}
               </p>
             ) : (
               <p className="text-xs text-muted-foreground">
@@ -213,11 +217,11 @@ export default function DistanceCard({
             name={self.name ?? "Kamu"}
             image={self.image}
             fallback={selfInitial}
-            isLive={selfLive}
+            isLive={selfStatus.isLive}
             isSharing={self.isSharing}
-            statusText={selfLive ? "Live" : self.isSharing ? "Offline" : "Off"}
+            statusText={selfStatus.label}
             deviceType={self.deviceType}
-            ageSeconds={self.locationAgeSeconds}
+            detail={selfStatus.isLive ? timeAgoId(selfStatus.ageSeconds) : selfStatus.detail}
             accuracy={self.location?.accuracy ?? null}
           />
           <div className="relative flex flex-col items-center px-2">
@@ -271,11 +275,11 @@ export default function DistanceCard({
             name={partner.name}
             image={partner.image}
             fallback={partnerInitial}
-            isLive={partnerLive}
+            isLive={partnerStatus.isLive}
             isSharing={partner.isSharing}
-            statusText={partnerLive ? "Live" : partner.isSharing ? "Offline" : "Off"}
+            statusText={partnerStatus.label}
             deviceType={partner.deviceType}
-            ageSeconds={partner.locationAgeSeconds}
+            detail={partnerStatus.isLive ? timeAgoId(partnerStatus.ageSeconds) : partnerStatus.detail}
             accuracy={partner.location?.accuracy ?? null}
           />
         </div>

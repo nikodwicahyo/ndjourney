@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query-keys";
 import { useShareLocation } from "@/hooks/useLocation";
+import { clearQueuedFixes } from "@/hooks/useBackgroundLocation";
 
 /**
  * The app-wide owner of the background GPS watcher.
@@ -16,7 +18,7 @@ import { useShareLocation } from "@/hooks/useLocation";
  * is on while the server says off would burn battery on 403s.
  */
 export function LocationPresenceTracker() {
-  const { data } = useQuery({
+  const shareQuery = useQuery({
     queryKey: queryKeys.location.shareStatus(),
     queryFn: async ({ signal }) => {
       const res = await fetch("/api/location/share", {
@@ -27,12 +29,26 @@ export function LocationPresenceTracker() {
       const json = await res.json();
       return json.data as { isSharing: boolean };
     },
-    // The toggle mutation invalidates queryKeys.location.all, so this refetches
-    // right after the button flips; it has no reason to poll otherwise.
+    // A cold launch on a flaky network used to leave this query failed forever,
+    // which meant the watcher never started. Poll slowly and retry.
     staleTime: 60_000,
+    refetchInterval: 60_000,
+    refetchOnReconnect: true,
+    refetchOnWindowFocus: true,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 30_000),
   });
 
-  useShareLocation(data?.isSharing === true);
+  const isSharing = shareQuery.data?.isSharing === true;
+  useShareLocation(isSharing);
+
+  // Queued coordinates must not outlive an opt-out — including an opt-out made
+  // on another device.
+  useEffect(() => {
+    if (shareQuery.isSuccess && shareQuery.data?.isSharing === false) {
+      void clearQueuedFixes();
+    }
+  }, [shareQuery.isSuccess, shareQuery.data?.isSharing]);
 
   return null;
 }

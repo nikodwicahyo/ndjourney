@@ -1,9 +1,13 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, waitFor, configure } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement, type ReactNode } from "react";
 import type { NotificationItem, NotificationsResponse } from "@/types";
+
+// Under a 100-worker suite the default 1s query timeout can expire before the
+// first fetch resolves. This is a timing guard, not a behaviour change.
+configure({ asyncUtilTimeout: 3000 });
 
 const nav = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock("next/navigation", () => ({

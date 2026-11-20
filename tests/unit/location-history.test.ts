@@ -1,12 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   detectStopPoints,
+  findStopAtPoint,
   formatDurationId,
   formatStopTimeLabel,
   formatTimeOnly,
   downsampleWaypoints,
   fetchRoadSnappedRoute,
   hasTrackMovement,
+  splitTrailSegments,
 } from "@/lib/location-history";
 import type { LocationHistoryPoint } from "@/hooks/useLocation";
 
@@ -201,6 +203,20 @@ describe("location-history utility", () => {
       expect(stops[0].pointCount).toBe(2); // drift point excluded
     });
 
+    it("keeps a 3-ping/3-minute stay whose GPS accuracy is merely poor", () => {
+      const points = [
+        at(0, -6.2, 106.816, 120, null),
+        at(2, -6.2002, 106.8162, 130, null),
+        at(4, -6.2001, 106.8161, 125, null),
+        at(30, -6.23, 106.84, 10, 0.1),
+        at(40, -6.2301, 106.8401, 10, 0),
+      ];
+      const stops = detectStopPoints(points);
+      expect(stops).toHaveLength(2);
+      expect(stops[0].pointCount).toBe(3);
+      expect(stops[0].durationMinutes).toBe(4);
+    });
+
     it("splits a cluster across a long silence once the person has moved", () => {
       const points = [
         at(0, -6.2, 106.816, 10, 0.1),
@@ -291,6 +307,36 @@ describe("location-history utility", () => {
     });
   });
 
+  describe("findStopAtPoint", () => {
+    const stops = [
+      {
+        id: "s1", userId: "u1", latitude: -6.2, longitude: 106.8,
+        arrivedAt: "2026-11-20T10:00:00Z", departedAt: "2026-11-20T10:05:00Z",
+        durationMinutes: 5, pointCount: 3, isCurrent: false,
+      },
+      {
+        id: "s2", userId: "u1", latitude: -6.3, longitude: 106.9,
+        arrivedAt: "2026-11-20T11:00:00Z", departedAt: "2026-11-20T11:10:00Z",
+        durationMinutes: 10, pointCount: 3, isCurrent: true,
+      },
+    ];
+    const point = (userId: string, at: string): LocationHistoryPoint => ({
+      userId, latitude: -6.2, longitude: 106.8,
+      accuracy: 10, heading: null, speed: null,
+      createdAt: at, deviceType: "mobile",
+    });
+
+    it("attributes a raw waypoint to the stop whose time window contains it", () => {
+      expect(findStopAtPoint(point("u1", "2026-11-20T10:03:00Z"), stops)?.stop.id).toBe("s1");
+      expect(findStopAtPoint(point("u1", "2026-11-20T11:05:00Z"), stops)?.index).toBe(1);
+    });
+
+    it("returns null for transit fixes and for another user's stop", () => {
+      expect(findStopAtPoint(point("u1", "2026-11-20T10:30:00Z"), stops)).toBeNull();
+      expect(findStopAtPoint(point("u2", "2026-11-20T10:03:00Z"), stops)).toBeNull();
+    });
+  });
+
   describe("fetchRoadSnappedRoute", () => {
     it("falls back to waypoints on fetch error", async () => {
       vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(new Error("Network fail"));
@@ -324,6 +370,30 @@ describe("location-history utility", () => {
       const pts = [{ lat: -6.2, lng: 106.81 }, { lat: -6.21, lng: 106.82 }];
       const res = await fetchRoadSnappedRoute(pts);
       expect(res).toEqual([[-6.2, 106.81], [-6.205, 106.815], [-6.21, 106.82]]);
+    });
+  });
+
+  describe("splitTrailSegments", () => {
+    const at = (minutes: number) => ({
+      createdAt: new Date(Date.UTC(2026, 10, 20, 8, 0, 0) + minutes * 60_000).toISOString(),
+    });
+
+    it("keeps a continuous trace as one segment", () => {
+      const segments = splitTrailSegments([at(0), at(1), at(2)]);
+      expect(segments).toHaveLength(1);
+      expect(segments[0]).toHaveLength(3);
+    });
+
+    it("breaks the line where the data has a hole", () => {
+      // 9 hours without a fix must not be drawn as a straight line across town.
+      const segments = splitTrailSegments([at(0), at(1), at(541), at(542)]);
+      expect(segments).toHaveLength(2);
+      expect(segments[0]).toHaveLength(2);
+      expect(segments[1]).toHaveLength(2);
+    });
+
+    it("returns nothing for an empty trail", () => {
+      expect(splitTrailSegments([])).toEqual([]);
     });
   });
 });

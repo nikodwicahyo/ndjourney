@@ -8,6 +8,7 @@ import { prisma } from "./prisma";
 import type { Prisma } from "./generated/prisma";
 import { getCached, setCached, redis, withRedisTimeout } from "./redis";
 import { safeTokenEqual } from "./api-body";
+import { consumeDeviceCode, revokeDeviceLinks } from "./device-link";
 
 function normalizeEmail(email: string): string {
   return email.toLowerCase().trim();
@@ -342,6 +343,15 @@ export async function authorizeCredentials(credentials: {
   };
 }
 
+/** Native WebView login: a one-time 6-digit code minted on the PWA side. */
+export async function authorizeDeviceLink(credentials: {
+  code?: unknown;
+  deviceId?: unknown;
+} | undefined) {
+  if (!credentials?.code) return null;
+  return consumeDeviceCode(credentials.code, credentials.deviceId);
+}
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   adapter: prismaAdapter,
   secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
@@ -371,6 +381,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       },
       async authorize(credentials) {
         return authorizeCredentials(credentials);
+      },
+    }),
+    Credentials({
+      id: "device-link",
+      name: "Kode perangkat",
+      credentials: {
+        code: { label: "Kode", type: "text" },
+        deviceId: { label: "Perangkat", type: "text" },
+      },
+      async authorize(credentials) {
+        return authorizeDeviceLink(credentials);
       },
     }),
   ],
@@ -496,6 +517,19 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           (token as { role?: string }).role || "PARTNER";
       }
       return session;
+    },
+  },
+  events: {
+    // JWT sessions cannot be revoked server-side; revoking outstanding
+    // device-link codes at least closes the short-lived native login path.
+    async signOut(message) {
+      const sub = "token" in message ? (message.token?.sub as string | undefined) : undefined;
+      if (!sub) return;
+      try {
+        await revokeDeviceLinks(sub);
+      } catch (e) {
+        console.error("device-link revoke on signOut failed:", e);
+      }
     },
   },
 });

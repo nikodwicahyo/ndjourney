@@ -2,6 +2,7 @@ import { Navbar, BottomNav } from "@/components/layout";
 import LayoutTransition from "@/components/LayoutTransition";
 import PublicMusicPlayer from "@/components/layout/PublicMusicPlayer";
 import { RealtimeSyncClient } from "@/components/RealtimeSyncClient";
+import SmartInstallBanner from "@/components/native/SmartInstallBanner";
 import { prisma } from "@/lib/prisma";
 
 // The public segment must not read cookies: auth() here forced EVERY public
@@ -35,6 +36,7 @@ export default async function PublicLayout({
       </main>
       <BottomNav />
       <PublicMusicPlayer />
+      <SmartInstallBanner />
     </>
   );
 }

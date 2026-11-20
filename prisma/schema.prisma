@@ -36,6 +36,7 @@ model User {
   albums          Album[]
   wishes          WishItem[]
   sessions        Session[]
+  deviceLinkCodes DeviceLinkCode[]
 
   @@index([role])
 }
@@ -72,6 +73,24 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+// One-time 6-digit codes used to sign in from the native WebView, where Google
+// OAuth is unavailable. `codeHash` is the slow verifier; `lookupHash` is a
+// secret-keyed HMAC so a code can be found in O(1) without storing it in clear.
+model DeviceLinkCode {
+  id         String    @id @default(cuid())
+  userId     String
+  codeHash   String
+  lookupHash String    @unique
+  attempts   Int       @default(0)
+  usedAt     DateTime?
+  expiresAt  DateTime
+  deviceId   String?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Couple {
@@ -399,11 +418,17 @@ model LocationShare {
   userId    String   @unique
   coupleId  String
   isSharing Boolean  @default(false)
+  startedAt DateTime?
+  expiresAt DateTime?
+  // Heartbeat (app alive) is separate from UserLocation.updatedAt (GPS fix).
+  lastSeenAt    DateTime?
+  trackingState String?
   updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   couple    Couple   @relation(fields: [coupleId], references: [id], onDelete: Cascade)
 
   @@index([coupleId])
+  @@index([expiresAt])
 }
 
 model UserLocation {
@@ -436,10 +461,16 @@ model UserLocationHistory {
   altitude  Float?
   deviceType String
   createdAt DateTime @default(now())
+  // Idempotency key from the device. Nullable so legacy rows stay valid;
+  // Postgres treats NULLs as distinct in a unique constraint.
+  clientId   String?
+  recordedAt DateTime?
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   couple    Couple   @relation(fields: [coupleId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, clientId])
   @@index([userId, createdAt])
+  @@index([userId, recordedAt])
   @@index([coupleId])
 }
 

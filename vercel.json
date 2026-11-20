@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/time-capsule",
       "schedule": "0 17 * * *"
+    },
+    {
+      "path": "/api/cron/location-maintenance",
+      "schedule": "0 18 * * *"
     }
   ],
   "headers": [

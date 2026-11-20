@@ -1,9 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query-keys";
 import { detectDeviceType } from "@/lib/device";
+import { haversineMeters } from "@/lib/geo";
+import { shouldPost } from "@/lib/location/gate";
+import { flushOutbox, postFix, beaconFix } from "@/lib/location/sender";
+import { outbox } from "@/lib/location/outbox";
+import { newClientId } from "@/lib/location/client-id";
+import { isNativePlatform } from "@/lib/location/platform";
+import type { LocationFix, TrackingState } from "@/lib/location/types";
 
 export type ShareStatus =
   | "idle"
@@ -14,42 +21,48 @@ export type ShareStatus =
   | "recovering"
   | "gps-error";
 
-const POST_THROTTLE_MS = 8000;
-const KEEPALIVE_INTERVAL_MS = 30000;
-const MIN_MOVE_METERS = 5;
+/** Fast recovery while there is no fix at all. */
+const GPS_PING_INTERVAL = 12_000;
+/** While the phone is clearly moving. */
+const GPS_PING_MOVING = 10_000;
+/** Stationary, or a hidden tab (the browser throttles timers anyway). */
+const GPS_PING_IDLE = 60_000;
+/** How long after real movement we keep the fast cadence. */
+const MOVING_WINDOW_MS = 120_000;
+/** Never post faster than this, even while walking. */
+const MIN_POST_INTERVAL_MS = 8_000;
+const HEARTBEAT_INTERVAL_MS = 30_000;
 const MAX_RETRIES = 3;
-const GPS_PING_INTERVAL = 12000;
+const GPS_ERROR_THRESHOLD = 3;
+const MOVE_THRESHOLD_METERS = 5;
 
-type LocationPostPayload = {
-  latitude: number;
-  longitude: number;
-  accuracy: number | null;
-  heading: number | null;
-  speed: number | null;
-  altitude: number | null;
-  deviceType: string;
-};
+type QueryClient = ReturnType<typeof useQueryClient>;
 
 let globalWatchId: number | null = null;
-let globalStatusListeners: Set<(status: ShareStatus) => void> = new Set();
+const globalStatusListeners: Set<(status: ShareStatus) => void> = new Set();
 let globalStatus: ShareStatus = "idle";
-let globalLastPostPayload: LocationPostPayload | null = null;
-let globalLastPostTime = 0;
+let globalLastFix: LocationFix | null = null;
+let globalLastPostAt = 0;
+let globalLastMoveAt = 0;
 let globalRetryCount = 0;
 let globalPingTimer: ReturnType<typeof setTimeout> | null = null;
-let globalKeepAliveTimer: ReturnType<typeof setTimeout> | null = null;
-// Consecutive GPS acquisition failures (timeout/unavailable — never permission,
-// which has its own terminal "denied" state). Past the threshold the UI
-// escalates "recovering" to an actionable "gps-error" instead of spinning
-// forever: desktop browsers without GPS hardware fail every ping while POSTs
-// stay green, so "no connection" would be a lie. Any successful fix resets.
+let globalHeartbeatTimer: ReturnType<typeof setTimeout> | null = null;
 let globalGpsFailCount = 0;
-const GPS_ERROR_THRESHOLD = 3;
-// track retry timers so stopWatching() actually stops posting.
 let globalRetryTimers: Set<ReturnType<typeof setTimeout>> = new Set();
-// wake listeners are owned by the watch: they must die with it, or a stopped
-// tracker keeps pinging after the user turns sharing off.
-let globalWakeHandlers: { wake: () => void; online: () => void } | null = null;
+let globalWakeHandlers: {
+  visibility: () => void;
+  online: () => void;
+  pageHide: () => void;
+  pageShow: () => void;
+  freeze: () => void;
+  resume: () => void;
+} | null = null;
+let globalBatteryLow = false;
+let globalPermissionStatus: PermissionStatus | null = null;
+let globalPermissionHandler: (() => void) | null = null;
+/** `-1` marks a native watcher; web watch ids are non-negative. */
+let globalEngineGeneration = 0;
+let globalNativeState: TrackingState | null = null;
 
 function setGlobalStatus(status: ShareStatus) {
   if (globalStatus === status) return;
@@ -57,23 +70,14 @@ function setGlobalStatus(status: ShareStatus) {
   globalStatusListeners.forEach((fn) => fn(status));
 }
 
-// Any live position proves GPS works — clear the failure streak. Terminal
-// "denied"/"unsupported" are left alone (they need user action, not a fix).
 function noteGpsSuccess() {
   globalGpsFailCount = 0;
 }
 
-// Non-permission GPS failure (timeout/unavailable). First failures show the
-// transient "recovering"; a sustained streak escalates to "gps-error" so the
-// UI can offer a retry instead of spinning forever. Watch + pings keep
-// running, so a returning signal auto-recovers via the success paths.
 function noteGpsError() {
   globalGpsFailCount++;
-  if (globalGpsFailCount >= GPS_ERROR_THRESHOLD) {
-    setGlobalStatus("gps-error");
-  } else {
-    setGlobalStatus("recovering");
-  }
+  if (globalGpsFailCount >= GPS_ERROR_THRESHOLD) setGlobalStatus("gps-error");
+  else setGlobalStatus("recovering");
 }
 
 function scheduleRetry(fn: () => void, ms: number) {
@@ -89,63 +93,20 @@ function clearRetries() {
   globalRetryTimers.clear();
 }
 
-async function postLocation(
-  payload: LocationPostPayload,
-  qc: ReturnType<typeof useQueryClient>,
-  force = false,
-) {
-  const now = Date.now();
-  const last = globalLastPostPayload;
-
-  if (!force && last) {
-    const age = now - globalLastPostTime;
-    const dLat = (payload.latitude - last.latitude) * 111320;
-    const dLng = (payload.longitude - last.longitude) * 111320 * Math.cos((last.latitude * Math.PI) / 180);
-    const moved = Math.sqrt(dLat * dLat + dLng * dLng);
-    const withinWindow = age < POST_THROTTLE_MS;
-    if (withinWindow && moved < MIN_MOVE_METERS) return;
+function currentTrackingState(): TrackingState {
+  // In the native shell the OS app state is the truth: the WebView document
+  // can still report "visible" while the app is in the background.
+  if (globalNativeState) return globalNativeState;
+  if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+    return "hidden";
   }
-
-  try {
-    const res = await fetch("/api/location", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (res.ok) {
-      globalLastPostPayload = payload;
-      globalLastPostTime = now;
-      globalRetryCount = 0;
-      setGlobalStatus("sharing");
-      qc.invalidateQueries({ queryKey: queryKeys.location.all });
-      if (navigator.serviceWorker?.controller) {
-        navigator.serviceWorker.controller.postMessage({
-          type: "SET_LAST_POSITION",
-          payload: { ...payload, timestamp: Date.now() },
-        });
-      }
-    } else if (res.status === 403) {
-      setGlobalStatus("idle");
-    } else if (globalRetryCount < MAX_RETRIES) {
-      globalRetryCount++;
-      scheduleRetry(() => void postLocation(payload, qc, force), 1000 * globalRetryCount);
-      setGlobalStatus("recovering");
-    } else {
-      setGlobalStatus("recovering");
-    }
-  } catch {
-    if (globalRetryCount < MAX_RETRIES) {
-      globalRetryCount++;
-      scheduleRetry(() => void postLocation(payload, qc, force), 1000 * globalRetryCount);
-      setGlobalStatus("recovering");
-    } else {
-      setGlobalStatus("recovering");
-    }
-  }
+  if (globalBatteryLow) return "battery-saver";
+  return "foreground";
 }
 
-function makePayload(pos: GeolocationPosition): LocationPostPayload {
+function makeFix(pos: GeolocationPosition): LocationFix {
   return {
+    clientId: newClientId(),
     latitude: pos.coords.latitude,
     longitude: pos.coords.longitude,
     accuracy: pos.coords.accuracy ?? null,
@@ -153,41 +114,108 @@ function makePayload(pos: GeolocationPosition): LocationPostPayload {
     speed: pos.coords.speed ?? null,
     altitude: pos.coords.altitude ?? null,
     deviceType: detectDeviceType(),
+    recordedAt: new Date(pos.timestamp || Date.now()).toISOString(),
+    trackingState: currentTrackingState(),
+    source: "web",
   };
 }
 
-function postIfBetter(
-  payload: LocationPostPayload,
-  qc: ReturnType<typeof useQueryClient>,
-) {
-  const accuracy = payload.accuracy;
-  if (accuracy === null) return false;
-
-  const lastAcc = globalLastPostPayload?.accuracy ?? Infinity;
-  const improvement = lastAcc === Infinity || accuracy < lastAcc * 0.85;
-
-  if (improvement) {
-    setGlobalStatus("sharing");
-    void postLocation(payload, qc);
-    return true;
-  }
-  return false;
+function movedEnough(prev: LocationFix | null, next: LocationFix): boolean {
+  if (!prev) return true;
+  return (
+    haversineMeters(
+      { latitude: prev.latitude, longitude: prev.longitude },
+      { latitude: next.latitude, longitude: next.longitude },
+    ) >= MOVE_THRESHOLD_METERS
+  );
 }
 
-function pingGps(qc: ReturnType<typeof useQueryClient>, force = false) {
-  if (!navigator.geolocation) return;
+/**
+ * Heartbeat without coordinates. This is what lets the partner's UI say
+ * "app is open but GPS has no fix" instead of a generic "Offline".
+ */
+function sendHeartbeat(state: TrackingState = currentTrackingState()) {
+  void fetch("/api/location/status", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ trackingState: state }),
+    keepalive: true,
+    credentials: "same-origin",
+  })
+    .then((res) => {
+      if (res.status === 403) setGlobalStatus("idle");
+    })
+    .catch(() => {
+      /* a missed heartbeat is harmless: the next one is 30 s away */
+    });
+}
 
+function scheduleHeartbeat() {
+  if (globalHeartbeatTimer) clearTimeout(globalHeartbeatTimer);
+  globalHeartbeatTimer = setTimeout(() => {
+    sendHeartbeat();
+    scheduleHeartbeat();
+  }, HEARTBEAT_INTERVAL_MS);
+}
+
+function nextPingDelay(): number {
+  if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+    return GPS_PING_IDLE;
+  }
+  if (!globalLastFix) return GPS_PING_INTERVAL;
+  if (Date.now() - globalLastMoveAt < MOVING_WINDOW_MS) return GPS_PING_MOVING;
+  return GPS_PING_IDLE;
+}
+
+function scheduleGpsPing(qc: QueryClient) {
+  if (globalPingTimer) clearTimeout(globalPingTimer);
+  globalPingTimer = setTimeout(() => {
+    pingGps(qc);
+    scheduleGpsPing(qc);
+  }, nextPingDelay());
+}
+
+function handleFix(pos: GeolocationPosition, qc: QueryClient, force = false) {
+  handleExternalFix(makeFix(pos), qc, force);
+}
+
+/** Shared post path for web and native fixes: gate, outbox, status, retry. */
+export function handleExternalFix(fix: LocationFix, qc: QueryClient, force = false) {
+  noteGpsSuccess();
+
+  if (movedEnough(globalLastFix, fix)) globalLastMoveAt = Date.now();
+
+  const now = Date.now();
+  const withinMinInterval = now - globalLastPostAt < MIN_POST_INTERVAL_MS;
+  if (!force && withinMinInterval) return;
+  if (!force && !shouldPost(globalLastFix, fix, now)) return;
+
+  globalLastFix = fix;
+  globalLastPostAt = now;
+  setGlobalStatus("sharing");
+
+  void postFix(fix).then((result) => {
+    if (result === "ok") {
+      globalRetryCount = 0;
+      qc.invalidateQueries({ queryKey: queryKeys.location.all });
+    } else if (result === "drop") {
+      // The server refuses this fix (sharing off / expired): stop pretending.
+      setGlobalStatus("idle");
+    } else if (globalRetryCount < MAX_RETRIES) {
+      globalRetryCount++;
+      scheduleRetry(() => void flushOutbox(), 1000 * globalRetryCount);
+      setGlobalStatus("recovering");
+    } else {
+      setGlobalStatus("recovering");
+    }
+  });
+}
+
+function pingGps(qc: QueryClient, force = false) {
+  if (typeof navigator === "undefined" || !navigator.geolocation) return;
   navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      const payload = makePayload(pos);
-      noteGpsSuccess();
-      // A wake-up must post even when the fix is not "better" — the server
-      // needs a fresh updatedAt to know the GPS is back.
-      if (force) void postLocation(payload, qc, true);
-      else postIfBetter(payload, qc);
-    },
+    (pos) => handleFix(pos, qc, force),
     (err) => {
-      // surface geolocation failures instead of silent ()=>{}.
       if (err.code === err.PERMISSION_DENIED) setGlobalStatus("denied");
       else noteGpsError();
     },
@@ -195,29 +223,85 @@ function pingGps(qc: ReturnType<typeof useQueryClient>, force = false) {
   );
 }
 
-function scheduleGpsPing(qc: ReturnType<typeof useQueryClient>) {
-  if (globalPingTimer) clearTimeout(globalPingTimer);
-  globalPingTimer = setTimeout(() => {
-    pingGps(qc);
-    scheduleGpsPing(qc);
-  }, GPS_PING_INTERVAL);
+async function watchBattery() {
+  const nav = navigator as Navigator & {
+    getBattery?: () => Promise<{ level: number; charging: boolean; addEventListener: (t: string, fn: () => void) => void }>;
+  };
+  if (typeof nav.getBattery !== "function") return;
+  try {
+    const battery = await nav.getBattery();
+    const update = () => {
+      globalBatteryLow = battery.level < 0.2 && !battery.charging;
+    };
+    update();
+    battery.addEventListener("levelchange", update);
+    battery.addEventListener("chargingchange", update);
+  } catch {
+    /* battery API is best-effort */
+  }
 }
 
-function keepAlive(qc: ReturnType<typeof useQueryClient>) {
-  if (!globalLastPostPayload) return;
-  void postLocation(globalLastPostPayload, qc, true);
+async function watchPermission() {
+  if (typeof navigator === "undefined" || !navigator.permissions?.query) return;
+  try {
+    const status = await navigator.permissions.query({ name: "geolocation" as PermissionName });
+    globalPermissionStatus = status;
+    const handler = () => {
+      if (status.state === "denied") setGlobalStatus("denied");
+      else if (status.state === "granted" && globalStatus === "denied") {
+        setGlobalStatus(globalLastFix ? "sharing" : "locating");
+      }
+    };
+    globalPermissionHandler = handler;
+    status.addEventListener("change", handler);
+  } catch {
+    /* Safari < 16 has no geolocation permission query */
+  }
 }
 
-function scheduleKeepAlive(qc: ReturnType<typeof useQueryClient>) {
-  if (globalKeepAliveTimer) clearTimeout(globalKeepAliveTimer);
-  globalKeepAliveTimer = setTimeout(() => {
-    keepAlive(qc);
-    scheduleKeepAlive(qc);
-  }, KEEPALIVE_INTERVAL_MS);
+/** OS-level engine state -> the status the partner UI can explain. */
+export function handleNativeState(state: TrackingState | "gps-error") {
+  globalNativeState = state === "gps-error" || state === "stopped" ? null : state;
+  if (state === "denied") setGlobalStatus("denied");
+  else if (state === "gps-error") setGlobalStatus("gps-error");
+  else if (state === "stopped") setGlobalStatus("idle");
+  else if (
+    globalStatus === "idle" ||
+    globalStatus === "denied" ||
+    globalStatus === "recovering" ||
+    globalStatus === "gps-error"
+  ) {
+    setGlobalStatus("locating");
+  }
 }
 
-function startWatching(qc: ReturnType<typeof useQueryClient>) {
+function startNativeWatching(qc: QueryClient) {
+  const generation = globalEngineGeneration;
+  globalWatchId = -1;
+  setGlobalStatus("locating");
+
+  void import("@/lib/location/engine-native")
+    .then(({ startNativeEngine }) => {
+      // A stop (or a second start) may have happened while the chunk loaded.
+      if (generation !== globalEngineGeneration) return;
+      return startNativeEngine({
+        onFix: (fix) => handleExternalFix(fix, qc),
+        onState: handleNativeState,
+      });
+    })
+    .catch(() => setGlobalStatus("unsupported"));
+
+  // Coordinate-free heartbeats keep `lastSeenAt` honest when GPS is quiet.
+  scheduleHeartbeat();
+}
+
+function startWatching(qc: QueryClient) {
   if (globalWatchId !== null) return;
+  globalEngineGeneration++;
+  if (isNativePlatform()) {
+    startNativeWatching(qc);
+    return;
+  }
   if (typeof navigator === "undefined" || !navigator.geolocation) {
     setGlobalStatus("unsupported");
     return;
@@ -226,12 +310,7 @@ function startWatching(qc: ReturnType<typeof useQueryClient>) {
   setGlobalStatus("locating");
 
   navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      const payload = makePayload(pos);
-      noteGpsSuccess();
-      setGlobalStatus("sharing");
-      void postLocation(payload, qc);
-    },
+    (pos) => handleFix(pos, qc),
     (err) => {
       if (err.code === err.PERMISSION_DENIED) setGlobalStatus("denied");
       else noteGpsError();
@@ -240,11 +319,7 @@ function startWatching(qc: ReturnType<typeof useQueryClient>) {
   );
 
   globalWatchId = navigator.geolocation.watchPosition(
-    (pos) => {
-      const payload = makePayload(pos);
-      noteGpsSuccess();
-      postIfBetter(payload, qc);
-    },
+    (pos) => handleFix(pos, qc),
     (err) => {
       if (err.code === err.PERMISSION_DENIED) {
         setGlobalStatus("denied");
@@ -252,32 +327,72 @@ function startWatching(qc: ReturnType<typeof useQueryClient>) {
       }
       noteGpsError();
     },
-    {
-      enableHighAccuracy: true,
-      maximumAge: 0,
-      timeout: 10000,
-    },
+    { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 },
   );
 
   scheduleGpsPing(qc);
-  scheduleKeepAlive(qc);
+  scheduleHeartbeat();
+  void watchBattery();
+  void watchPermission();
 
-  // Returning to the tab (or regaining the network) must not wait up to 12 s
-  // for the next scheduled ping: force one fix so a GPS that came back while
-  // backgrounded is detected immediately and the partner's notification is
-  // prompt instead of arriving on the next timer tick.
-  const wake = () => {
-    if (document.visibilityState !== "visible") return;
+  const visibility = () => {
+    if (document.visibilityState === "visible") {
+      // Returning to the tab: prove the GPS is back now, not on the next tick.
+      pingGps(qc, true);
+      void flushOutbox();
+      scheduleGpsPing(qc);
+      scheduleHeartbeat();
+    } else {
+      // Going hidden: the tab may be frozen at any moment. Persist what we
+      // have and tell the partner the app is still alive.
+      sendHeartbeat("hidden");
+      void flushOutbox();
+    }
+  };
+
+  const online = () => {
+    void flushOutbox();
     pingGps(qc, true);
   };
-  const online = () => pingGps(qc, true);
-  document.addEventListener("visibilitychange", wake);
+
+  const pageHide = () => {
+    if (globalLastFix) beaconFix(globalLastFix);
+    void flushOutbox();
+  };
+
+  const pageShow = () => {
+    void flushOutbox();
+    pingGps(qc, true);
+  };
+
+  const freeze = () => {
+    sendHeartbeat("hidden");
+    void flushOutbox();
+  };
+
+  const resume = () => {
+    void flushOutbox();
+    pingGps(qc, true);
+  };
+
+  document.addEventListener("visibilitychange", visibility);
   window.addEventListener("online", online);
-  globalWakeHandlers = { wake, online };
+  window.addEventListener("pagehide", pageHide);
+  window.addEventListener("pageshow", pageShow);
+  // Chrome-only Page Lifecycle events; harmless everywhere else.
+  document.addEventListener("freeze", freeze);
+  document.addEventListener("resume", resume);
+
+  globalWakeHandlers = { visibility, online, pageHide, pageShow, freeze, resume };
 }
 
 function stopWatching() {
-  if (globalWatchId !== null && navigator.geolocation) {
+  globalEngineGeneration++;
+  if (globalWatchId === -1) {
+    globalWatchId = null;
+    globalNativeState = null;
+    void import("@/lib/location/engine-native").then((m) => m.stopNativeEngine());
+  } else if (globalWatchId !== null && typeof navigator !== "undefined" && navigator.geolocation) {
     navigator.geolocation.clearWatch(globalWatchId);
     globalWatchId = null;
   }
@@ -285,58 +400,110 @@ function stopWatching() {
     clearTimeout(globalPingTimer);
     globalPingTimer = null;
   }
-  if (globalKeepAliveTimer) {
-    clearTimeout(globalKeepAliveTimer);
-    globalKeepAliveTimer = null;
+  if (globalHeartbeatTimer) {
+    clearTimeout(globalHeartbeatTimer);
+    globalHeartbeatTimer = null;
   }
   if (globalWakeHandlers) {
-    document.removeEventListener("visibilitychange", globalWakeHandlers.wake);
+    document.removeEventListener("visibilitychange", globalWakeHandlers.visibility);
     window.removeEventListener("online", globalWakeHandlers.online);
+    window.removeEventListener("pagehide", globalWakeHandlers.pageHide);
+    window.removeEventListener("pageshow", globalWakeHandlers.pageShow);
+    document.removeEventListener("freeze", globalWakeHandlers.freeze);
+    document.removeEventListener("resume", globalWakeHandlers.resume);
     globalWakeHandlers = null;
+  }
+  if (globalPermissionStatus && globalPermissionHandler) {
+    globalPermissionStatus.removeEventListener("change", globalPermissionHandler);
+    globalPermissionStatus = null;
+    globalPermissionHandler = null;
   }
   clearRetries();
   globalRetryCount = 0;
   globalGpsFailCount = 0;
-  globalLastPostPayload = null;
-  globalLastPostTime = 0;
+  globalLastFix = null;
+  globalLastPostAt = 0;
+  globalLastMoveAt = 0;
   setGlobalStatus("idle");
 }
 
-export function initBackgroundLocation(
-  enabled: boolean,
-  qc: ReturnType<typeof useQueryClient>,
-) {
+export function initBackgroundLocation(enabled: boolean, qc: QueryClient) {
   if (enabled) startWatching(qc);
   else stopWatching();
 }
 
-// Manual retry for the "gps-error" state: clear the streak and acquire
-// immediately instead of waiting for the next 12s ping. A returning signal
-// clears the error on its own; this is just the impatient path.
-export function retrySharing(qc: ReturnType<typeof useQueryClient>) {
+/** Manual retry for the "gps-error" state. */
+export function retrySharing(qc: QueryClient) {
   globalGpsFailCount = 0;
   setGlobalStatus("locating");
-  pingGps(qc);
-}
-
-export function useBackgroundLocationStatus() {
-  const [status, setStatus] = useState<ShareStatus>(globalStatus);
-  useEffect(() => {
-    globalStatusListeners.add(setStatus);
-    return () => { globalStatusListeners.delete(setStatus); };
-  }, []);
-  return status;
-}
-
-export function useBackgroundLocationCleanup() {
-  useEffect(() => {
-    const handler = () => {
-      if (globalWatchId !== null && navigator.geolocation) {
-        navigator.geolocation.clearWatch(globalWatchId);
+  if (isNativePlatform()) {
+    const generation = ++globalEngineGeneration;
+    void import("@/lib/location/engine-native")
+      .then(async (m) => {
+        if (generation !== globalEngineGeneration) return;
+        await m.stopNativeEngine();
+        if (generation !== globalEngineGeneration) return;
         globalWatchId = null;
-      }
+        startNativeWatching(qc);
+      })
+      .catch(() => setGlobalStatus("unsupported"));
+    return;
+  }
+  pingGps(qc, true);
+}
+
+function subscribeStatus(listener: () => void) {
+  globalStatusListeners.add(listener);
+  return () => {
+    globalStatusListeners.delete(listener);
+  };
+}
+
+function getStatusSnapshot() {
+  return globalStatus;
+}
+
+// Server/hydration value: no watcher exists until a client effect starts one,
+// so "idle" is the truthful snapshot. Without it React throws during SSR.
+function getServerStatusSnapshot(): ShareStatus {
+  return "idle";
+}
+
+export function useBackgroundLocationStatus(): ShareStatus {
+  return useSyncExternalStore(subscribeStatus, getStatusSnapshot, getServerStatusSnapshot);
+}
+
+/** Number of fixes waiting for the network, for the "N titik menunggu" chip. */
+export function useQueuedFixCount(pollMs = 10_000) {
+  const [count, setCount] = useState(0);
+  const mounted = useRef(true);
+
+  useEffect(() => {
+    mounted.current = true;
+    const read = () => {
+      void outbox
+        .count()
+        .then((n) => {
+          if (mounted.current) setCount(n);
+        })
+        .catch(() => {});
     };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
-  }, []);
+    read();
+    const timer = setInterval(read, pollMs);
+    return () => {
+      mounted.current = false;
+      clearInterval(timer);
+    };
+  }, [pollMs]);
+
+  return count;
+}
+
+/** Drop queued coordinates when sharing is turned off or the user logs out. */
+export async function clearQueuedFixes(): Promise<void> {
+  try {
+    await outbox.clear();
+  } catch {
+    /* nothing to clear */
+  }
 }

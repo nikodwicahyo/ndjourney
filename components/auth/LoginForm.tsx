@@ -5,7 +5,8 @@ import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui";
 import { useMounted } from "@/hooks/useMounted";
-import { Loader2, Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { isNativePlatform } from "@/lib/location/platform";
+import { Loader2, Mail, Lock, Eye, EyeOff, Smartphone } from "lucide-react";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -24,6 +25,9 @@ export default function LoginForm() {
   // query, no session) — keep every submitter inert until handlers exist.
   const mounted = useMounted();
   const submitDisabled = loading || !mounted;
+  // Google OAuth cannot complete inside the WebView (allowNavigation is empty,
+  // so accounts.google.com opens in the system browser and never returns).
+  const native = mounted && isNativePlatform();
 
   async function handleGoogleSignIn() {
     setError("");
@@ -96,6 +100,18 @@ export default function LoginForm() {
 
   return (
     <div className="w-full space-y-6">
+      {native ? (
+        <Button
+          variant="secondary"
+          size="lg"
+          className="w-full"
+          onClick={() => router.push("/native-login")}
+        >
+          <Smartphone className="mr-2 h-4 w-4" />
+          Hubungkan perangkat dengan kode
+        </Button>
+      ) : (
+      <>
       <Button
         variant="outline"
         size="lg"
@@ -138,6 +154,8 @@ export default function LoginForm() {
           </span>
         </div>
       </div>
+      </>
+      )}
 
       <form onSubmit={handleCredentialsSignIn} className="space-y-4">
         <div className="space-y-2">

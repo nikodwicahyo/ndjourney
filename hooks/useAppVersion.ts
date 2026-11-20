@@ -16,6 +16,8 @@ const UPDATED_FLAG = 'ndj:app-prev-version';
  * page load fetches everything fresh from the network.
  */
 async function clearServiceWorkerCaches(): Promise<void> {
+  // The native WebView has no service worker; `ready` would never resolve.
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
   try {
     const reg = await navigator.serviceWorker.ready;
     reg.active?.postMessage({ type: 'CLEAR_CACHES' });

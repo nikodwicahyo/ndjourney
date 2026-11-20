@@ -38,10 +38,13 @@ import {
   shouldUseRoadRoute,
   ROAD_ROUTE_COLOR,
   STRAIGHT_ROUTE_COLOR,
+  HISTORY_SELF_COLOR,
+  HISTORY_PARTNER_COLOR,
 } from "@/lib/routing";
 import {
   retrySharing,
   useBackgroundLocationStatus,
+  useQueuedFixCount,
   type ShareStatus,
 } from "@/hooks/useBackgroundLocation";
 import LocationToggle from "@/components/location/LocationToggle";
@@ -187,18 +190,19 @@ function StopGroup({
   onSelect: (stop: VisitedStop) => void;
   accent: "blue" | "rose";
 }) {
+  // Same palette as the history trail: green = self, teal = partner.
   const tone = accent === "blue"
     ? {
-        dot: "bg-blue-500",
-        header: "text-blue-600 dark:text-blue-400",
-        badge: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
-        selected: "border-blue-500/50 bg-blue-500/5",
+        dot: "bg-green-600",
+        header: "text-green-600 dark:text-green-400",
+        badge: "bg-green-600/10 text-green-600 dark:text-green-400",
+        selected: "border-green-600/50 bg-green-600/5",
       }
     : {
-        dot: "bg-rose-500",
-        header: "text-rose-600 dark:text-rose-400",
-        badge: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
-        selected: "border-rose-500/50 bg-rose-500/5",
+        dot: "bg-teal-600",
+        header: "text-teal-600 dark:text-teal-400",
+        badge: "bg-teal-600/10 text-teal-600 dark:text-teal-400",
+        selected: "border-teal-600/50 bg-teal-600/5",
       };
 
   return (
@@ -303,6 +307,7 @@ export default function LocationManager() {
   // The global tracker (LocationPresenceTracker) owns the watcher now; this
   // component only subscribes to its status.
   const shareStatus = useBackgroundLocationStatus();
+  const queuedCount = useQueuedFixCount();
 
   // Update previous distance ref after render
   if (distance !== null && distance !== previousDistance) {
@@ -434,6 +439,14 @@ export default function LocationManager() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {queuedCount > 0 && (
+            <span
+              className="rounded-full bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-600"
+              title="Titik lokasi tersimpan di perangkat dan akan terkirim saat koneksi kembali."
+            >
+              {queuedCount} titik menunggu
+            </span>
+          )}
           <StatusIndicator status={shareStatus} />
           <LocationToggle isSharing={self.isSharing} />
         </div>
@@ -470,7 +483,7 @@ export default function LocationManager() {
               history={historyData}
               showHistory={showHistory}
               selectedStop={selectedStop}
-              stops={detectedStops}
+              stops={visibleStops}
               filterUser={filterUser}
               snapToRoads={snapToRoads}
               route={mapRoute}
@@ -566,11 +579,11 @@ export default function LocationManager() {
                       <div className="rounded-xl bg-muted/40 p-2.5 text-[11px] text-muted-foreground">
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
                           <span className="flex items-center gap-1.5">
-                            <span className="h-2 w-2 rounded-full bg-blue-500" aria-hidden="true" />
+                            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: HISTORY_SELF_COLOR }} aria-hidden="true" />
                             Kamu · {visibleStops.self.length}x singgah
                           </span>
                           <span className="flex items-center gap-1.5">
-                            <span className="h-2 w-2 rounded-full bg-rose-500" aria-hidden="true" />
+                            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: HISTORY_PARTNER_COLOR }} aria-hidden="true" />
                             {partner.name} · {visibleStops.partner.length}x singgah
                           </span>
                         </div>

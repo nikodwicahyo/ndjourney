@@ -1,6 +1,6 @@
-const CACHE_NAME = "ndjourney-v13";
-const API_CACHE_NAME = "ndjourney-api-v13";
-const IMAGE_CACHE_NAME = "ndjourney-images-v13";
+const CACHE_NAME = "ndjourney-v15";
+const API_CACHE_NAME = "ndjourney-api-v15";
+const IMAGE_CACHE_NAME = "ndjourney-images-v15";
 
 const PRECACHE_URLS = [
   "/",
@@ -22,7 +22,6 @@ const PRECACHE_URLS = [
 const STATIC_EXT = /\.(png|jpg|jpeg|gif|svg|webp|ico|css|js|woff2?)$/i;
 const CLOUDINARY_RE = /res\.cloudinary\.com/;
 const IMAGE_EXT = /\.(png|jpg|jpeg|gif|svg|webp|avif|ico)$/i;
-const LOCATION_API_RE = /\/api\/location$/;
 const TILE_CDN_RE = /(^|\.)basemaps\.cartocdn\.com$|(^|\.)tile\.openstreetmap\.org$|^tiles\.openfreemap\.org$/i;
 
 const PUBLIC_API_PATHS = [
@@ -44,86 +43,6 @@ const PUBLIC_PAGE_PATHS = new Set([
 ]);
 
 const MAX_IMAGE_CACHE = 100;
-
-// IndexedDB for location persistence
-const DB_NAME = "ndjourney-location";
-const DB_VERSION = 1;
-
-function openDB() {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
-    request.onupgradeneeded = (event) => {
-      const db = event.target.result;
-      if (!db.objectStoreNames.contains("lastPosition")) {
-        db.createObjectStore("lastPosition", { keyPath: "id" });
-      }
-    };
-  });
-}
-
-async function saveLastPosition(payload) {
-  try {
-    const db = await openDB();
-    const tx = db.transaction("lastPosition", "readwrite");
-    const store = tx.objectStore("lastPosition");
-    store.put({ id: "current", ...payload });
-    return new Promise((resolve, reject) => {
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
-  } catch (e) {
-    console.warn("[SW] IndexedDB save failed:", e);
-  }
-}
-
-async function getLastPosition() {
-  try {
-    const db = await openDB();
-    const tx = db.transaction("lastPosition", "readonly");
-    const store = tx.objectStore("lastPosition");
-    return new Promise((resolve, reject) => {
-      const req = store.get("current");
-      req.onsuccess = () => resolve(req.result || null);
-      req.onerror = () => reject(req.error);
-    });
-  } catch {
-    return null;
-  }
-}
-
-// Queue for failed location POSTs
-let locationQueue = [];
-
-async function processLocationQueue() {
-  if (locationQueue.length === 0) return;
-  const queue = [...locationQueue];
-  locationQueue = [];
-
-  for (const payload of queue) {
-    try {
-      const res = await fetch("/api/location", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        // Re-queue only if not 403 (not sharing)
-        if (res.status !== 403) {
-          locationQueue.push(payload);
-        }
-      }
-    } catch {
-      locationQueue.push(payload);
-    }
-  }
-
-  // If still queued items, retry in 30s
-  if (locationQueue.length > 0) {
-    setTimeout(processLocationQueue, 30000);
-  }
-}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -168,10 +87,6 @@ self.addEventListener("message", (event) => {
   if (data?.type === "SKIP_WAITING") {
     self.skipWaiting();
   }
-
-  if (data?.type === "SET_LAST_POSITION" && data.payload) {
-    saveLastPosition(data.payload);
-  }
 });
 
 self.addEventListener("fetch", (event) => {
@@ -184,34 +99,9 @@ self.addEventListener("fetch", (event) => {
   // Skip map tile CDN requests — loaded as <img> under img-src, bypass SW connect-src CSP
   if (TILE_CDN_RE.test(url.hostname)) return;
 
+  // Mutations are never intercepted: a failed POST must fail, not be faked as
+  // a success. Location fixes have their own durable outbox in the page.
   if (request.method !== "GET") {
-    // For POST to /api/location, attempt to queue if offline
-    if (
-      request.method === "POST" &&
-      url.origin === location.origin &&
-      LOCATION_API_RE.test(url.pathname)
-    ) {
-      event.respondWith(
-        (async () => {
-          try {
-            // Try network first
-            const response = await fetch(request);
-            return response;
-          } catch {
-            // Queue for retry and return a placeholder response
-            request.clone().json().then((body) => {
-              locationQueue.push(body);
-              setTimeout(processLocationQueue, 5000);
-            }).catch(() => {});
-            return new Response(
-              JSON.stringify({ data: { ok: true } }),
-              { status: 200, headers: { "Content-Type": "application/json" } },
-            );
-          }
-        })(),
-      );
-      return;
-    }
     return;
   }
 

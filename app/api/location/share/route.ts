@@ -21,11 +21,15 @@ export async function GET() {
 
     const share = await prisma.locationShare.findUnique({
       where: { userId: session.user.id },
-      select: { isSharing: true },
+      select: { isSharing: true, expiresAt: true },
     });
+    const expiresAt = share?.expiresAt?.toISOString() ?? null;
+    const isSharing =
+      share?.isSharing === true &&
+      !(share.expiresAt !== null && share.expiresAt.getTime() <= Date.now());
 
     return NextResponse.json(
-      { data: { isSharing: share?.isSharing ?? false } },
+      { data: { isSharing, expiresAt } },
       { headers: { "Cache-Control": "private, no-cache" } },
     );
   } catch (error) {
@@ -63,19 +67,38 @@ export async function PUT(request: Request) {
       );
     }
 
-    const isSharing = parsed.data.isSharing;
+    const { isSharing, durationMinutes } = parsed.data;
     const previous = await prisma.locationShare.findUnique({
       where: { userId },
       select: { isSharing: true },
     });
+
+    const now = new Date();
+    const expiresAt = isSharing && durationMinutes
+      ? new Date(now.getTime() + durationMinutes * 60_000)
+      : null;
 
     // Flag change and row deletion are one unit: a failed delete rolls back
     // the opt-out instead of leaving a stale location behind the flag.
     await prisma.$transaction(async (tx) => {
       await tx.locationShare.upsert({
         where: { userId },
-        create: { userId, coupleId, isSharing },
-        update: { isSharing },
+        create: {
+          userId,
+          coupleId,
+          isSharing,
+          startedAt: isSharing ? now : null,
+          expiresAt,
+          lastSeenAt: isSharing ? now : null,
+          trackingState: isSharing ? "foreground" : "stopped",
+        },
+        update: {
+          isSharing,
+          startedAt: isSharing ? now : null,
+          expiresAt,
+          lastSeenAt: isSharing ? now : null,
+          trackingState: isSharing ? "foreground" : "stopped",
+        },
       });
 
       if (!isSharing) {
@@ -99,7 +122,10 @@ export async function PUT(request: Request) {
       triggerCoupleEvent(coupleId, "LOCATION");
     }
 
-    return NextResponse.json({ data: { isSharing } }, { status: 200 });
+    return NextResponse.json(
+      { data: { isSharing, expiresAt: expiresAt?.toISOString() ?? null } },
+      { status: 200 },
+    );
   } catch (error) {
     console.error("Error updating share setting:", error);
     return NextResponse.json(

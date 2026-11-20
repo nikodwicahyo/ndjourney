@@ -18,6 +18,8 @@ import {
   shouldUseRoadRoute,
   ROAD_ROUTE_COLOR,
   STRAIGHT_ROUTE_COLOR,
+  HISTORY_SELF_COLOR,
+  HISTORY_PARTNER_COLOR,
   type RoadRoute,
 } from "@/lib/routing";
 import { escapeHtml } from "@/lib/escape-html";
@@ -26,9 +28,11 @@ import type { LocationPoint, LocationHistoryPoint } from "@/hooks/useLocation";
 import {
   detectStopPoints,
   fetchRoadSnappedRoute,
+  findStopAtPoint,
   formatDurationId,
   formatStopTimeLabel,
   formatTimeOnly,
+  splitTrailSegments,
   type VisitedStop,
 } from "@/lib/location-history";
 
@@ -741,30 +745,46 @@ export default function PartnerMap({
       layer: L.LayerGroup,
     ) {
       if (points.length === 0) return;
-      const latlngs = points.map(
-        (p) => [p.latitude, p.longitude] as L.LatLngTuple,
-      );
-      allTrailLatLngs.push(...latlngs);
 
-      // Base polyline (instant render)
-      const polyline = L.polyline(latlngs, {
-        color,
-        weight: 4,
-        opacity: 0.65,
-        lineCap: "round",
-        lineJoin: "round",
-      }).addTo(layer);
+      // One line per continuous segment: a hole in the data stays a hole.
+      for (const segment of splitTrailSegments(points)) {
+        const latlngs = segment.map(
+          (p) => [p.latitude, p.longitude] as L.LatLngTuple,
+        );
+        allTrailLatLngs.push(...latlngs);
 
-      // Snap to road network via OSRM
-      if (snapToRoads && points.length >= 2) {
-        const waypoints = points.map((p) => ({ lat: p.latitude, lng: p.longitude }));
-        fetchRoadSnappedRoute(waypoints).then((roadCoords) => {
-          if (historyDrawRef.current !== drawToken) return;
-          if (!mapRef.current || !hLayer.hasLayer(polyline)) return;
-          if (roadCoords && roadCoords.length >= 2) {
-            polyline.setLatLngs(roadCoords);
-          }
-        });
+        if (latlngs.length === 1) {
+          L.circleMarker(latlngs[0], {
+            radius: 4,
+            color,
+            fillColor: color,
+            fillOpacity: 0.9,
+            weight: 1,
+          }).addTo(layer);
+          continue;
+        }
+
+        // Base polyline (instant render)
+        const polyline = L.polyline(latlngs, {
+          color,
+          weight: 4,
+          opacity: 0.65,
+          lineCap: "round",
+          lineJoin: "round",
+        }).addTo(layer);
+
+        // Snap to road network via OSRM — per segment, so a gap is never
+        // routed through as if it were continuous movement.
+        if (snapToRoads) {
+          const waypoints = segment.map((p) => ({ lat: p.latitude, lng: p.longitude }));
+          fetchRoadSnappedRoute(waypoints).then((roadCoords) => {
+            if (historyDrawRef.current !== drawToken) return;
+            if (!mapRef.current || !hLayer.hasLayer(polyline)) return;
+            if (roadCoords && roadCoords.length >= 2) {
+              polyline.setLatLngs(roadCoords);
+            }
+          });
+        }
       }
 
       // Render subtle route waypoints
@@ -782,7 +802,15 @@ export default function PartnerMap({
 
           const timeStr = formatTimeOnly(p.createdAt);
           const speedStr = p.speed !== null && p.speed > 0 ? ` • ${(p.speed * 3.6).toFixed(0)} km/j` : "";
-          ptMarker.bindTooltip(`${escapeHtml(userLabel)}: ${timeStr}${speedStr}`, {
+          // The timestamp marker stays, but when this fix is part of a recorded
+          // stay it names the matching card row. Transit fixes stay unlabelled.
+          const visit = findStopAtPoint(p, userStops);
+          const visitTag = visit
+            ? visit.stop.isCurrent
+              ? " · sedang di sini"
+              : ` · Kunjungan #${visit.index + 1}`
+            : "";
+          ptMarker.bindTooltip(`${escapeHtml(userLabel)}: ${timeStr}${speedStr}${visitTag}`, {
             direction: "top",
             offset: [0, -4],
           });
@@ -813,9 +841,13 @@ export default function PartnerMap({
 
       // Render Visited Stop Markers: ONLY past stops!
       // The current stop is represented by the live avatar marker to avoid overlap and click blocking.
-      const pastStops = userStops.filter((s) => !s.isCurrent);
-      pastStops.forEach((stop, idx) => {
-        const stopIcon = createStopIcon(idx, color, `${userLabel} - Tempat #${idx + 1}`);
+      // Keep the card's numbering, including the current visit, so
+      // "Kunjungan #n" means the same row in both layers.
+      const pastStops = userStops
+        .map((stop, index) => ({ stop, index }))
+        .filter(({ stop }) => !stop.isCurrent);
+      pastStops.forEach(({ stop, index }) => {
+        const stopIcon = createStopIcon(index, color, `${userLabel} - Tempat #${index + 1}`);
         const marker = L.marker([stop.latitude, stop.longitude], {
           icon: stopIcon,
           zIndexOffset: 300,
@@ -834,7 +866,7 @@ export default function PartnerMap({
           <div style="min-width:180px;font-family:system-ui,-apple-system,sans-serif;padding:2px;">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:6px;">
               <span style="font-size:11px;font-weight:700;color:${color};text-transform:uppercase;">
-                Tempat Kunjungan #${idx + 1}
+                Tempat Kunjungan #${index + 1}
               </span>
               <span style="font-size:11px;font-weight:600;color:var(--foreground,#111827);background:${color}15;padding:1px 6px;border-radius:999px;">
                 ${durationStr}
@@ -860,10 +892,10 @@ export default function PartnerMap({
     }
 
     if (filterUser === "all" || filterUser === "self") {
-      renderUserTrail(selfHistory, userSelfStops, "#3b82f6", "Kamu", hLayer);
+      renderUserTrail(selfHistory, userSelfStops, HISTORY_SELF_COLOR, "Kamu", hLayer);
     }
     if (filterUser === "all" || filterUser === "partner") {
-      renderUserTrail(partnerHistory, userPartnerStops, "#F43F5E", partner?.label ?? "Pasangan", hLayer);
+      renderUserTrail(partnerHistory, userPartnerStops, HISTORY_PARTNER_COLOR, partner?.label ?? "Pasangan", hLayer);
     }
 
     applyStopHighlight();

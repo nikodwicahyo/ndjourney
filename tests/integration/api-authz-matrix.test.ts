@@ -81,9 +81,12 @@ const letters = await import("@/app/api/letters/route");
 const letterById = await import("@/app/api/letters/[id]/route");
 const letterOpen = await import("@/app/api/letters/[id]/open/route");
 const location = await import("@/app/api/location/route");
+const locationBatch = await import("@/app/api/location/batch/route");
+const locationStatus = await import("@/app/api/location/status/route");
 const locationHistory = await import("@/app/api/location/history/route");
 const locationShare = await import("@/app/api/location/share/route");
 const locationHeart = await import("@/app/api/location/heart/route");
+const deviceLink = await import("@/app/api/auth/device-link/route");
 const routeProxy = await import("@/app/api/route/route");
 const geocodeProxy = await import("@/app/api/geocode/reverse/route");
 const dashboardStats = await import("@/app/api/dashboard/stats/route");
@@ -139,6 +142,8 @@ const cases: Array<[string, () => Promise<Response>]> = [
 
   ["GET /api/location", () => location.GET()],
   ["POST /api/location", () => location.POST(req("/api/location", "POST"))],
+  ["POST /api/location/batch", () => locationBatch.POST(req("/api/location/batch", "POST"))],
+  ["POST /api/location/status", () => locationStatus.POST(req("/api/location/status", "POST"))],
   ["GET /api/location/history", () => locationHistory.GET()],
   ["PUT /api/location/share", () => locationShare.PUT(req("/api/location/share", "PUT"))],
   ["POST /api/location/heart", () => locationHeart.POST(req("/api/location/heart", "POST"))],
@@ -164,6 +169,8 @@ const cases: Array<[string, () => Promise<Response>]> = [
   ["DELETE /api/upload/[publicId]", () => uploadDelete.DELETE(req("/api/upload/a", "DELETE"), { params: Promise.resolve({ publicId: "a" }) })],
 
   ["POST /api/pusher/auth", () => pusherAuth.POST(req("/api/pusher/auth", "POST"))],
+  ["POST /api/auth/device-link", () => deviceLink.POST(req("/api/auth/device-link", "POST"))],
+  ["DELETE /api/auth/device-link", () => deviceLink.DELETE(req("/api/auth/device-link", "DELETE"))],
 ];
 
 describe("API authorization matrix: anonymous denial", () => {

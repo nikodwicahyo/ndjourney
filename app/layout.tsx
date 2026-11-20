@@ -6,6 +6,7 @@ import QueryProvider from "@/components/QueryProvider";
 import SessionProvider from "@/components/SessionProvider";
 import DeferredRuntime from "@/components/DeferredRuntime";
 import InstallPrompt from "@/components/InstallPrompt";
+import NativeUpdateBanner from "@/components/native/NativeUpdateBanner";
 import DeferredBackground from "@/components/DeferredBackground";
 import { APP_NAME, DEFAULT_TAGLINE } from "@/lib/couple-display";
 import "./globals.css";
@@ -99,6 +100,7 @@ export default function RootLayout({
             {children}
             <DeferredRuntime />
             <InstallPrompt />
+            <NativeUpdateBanner />
             </SessionProvider>
             <Toaster
               position="top-center"

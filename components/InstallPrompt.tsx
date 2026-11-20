@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import { usePathname } from "next/navigation";
 import { X, Heart, Download, Share2, Smartphone, Monitor, Globe } from "lucide-react";
 
 type BeforeInstallPromptEvent = Event & {
@@ -163,6 +164,7 @@ function shouldShowPrompt(method: InstallMethod, dismissCount: number): boolean 
 }
 
 export default function InstallPrompt() {
+  const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
@@ -193,6 +195,9 @@ export default function InstallPrompt() {
   // Mount-once install-method resolution (same SSR constraint; doneRef guard
   // prevents re-runs): one extra render, no loop.
   useEffect(() => {
+    // /get-app owns the single-use beforeinstallprompt event — don't even
+    // register a competing listener there.
+    if (pathname === "/get-app") return;
     if (doneRef.current) return;
 
     // eslint-disable-next-line react-hooks/set-state-in-effect -- mount-only init, doneRef-guarded, non-looping
@@ -248,7 +253,7 @@ export default function InstallPrompt() {
     doneRef.current = true;
 
     return () => {};
-  }, [checkAndUpdateStandalone, dismissCount]);
+  }, [checkAndUpdateStandalone, dismissCount, pathname]);
 
   useEffect(() => {
     const handleAppInstalled = () => {
@@ -288,6 +293,9 @@ export default function InstallPrompt() {
     setShowPrompt(false);
   }, []);
 
+  // /get-app owns the explicit install button. Two beforeinstallprompt owners
+  // would race over the same single-use event.
+  if (pathname === "/get-app") return null;
   if (!mounted || installed || isStandaloneMode || !showPrompt) return null;
   if (!shouldShowPrompt(installMethod, dismissCount)) return null;
 

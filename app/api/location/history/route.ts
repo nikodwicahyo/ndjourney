@@ -1,19 +1,21 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { getUserCoupleId } from "@/lib/couple";
 import { getJakartaParts } from "@/lib/date";
+import { rateLimitConfigs, withRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request?: Request) {
   try {
-    const session = await auth();
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    // Auth + throttle in one gate; denies before any DB read.
+    const gate = await withRateLimit(
+      request ?? new Request("http://localhost/api/location/history"),
+      rateLimitConfigs.locationHistory,
+    );
+    if (!gate.allowed) return gate.response;
 
-    const userId = session.user.id;
+    const userId = gate.session.user.id;
     const coupleId = await getUserCoupleId(userId);
     if (!coupleId) {
       return NextResponse.json(
@@ -61,17 +63,29 @@ export async function GET(request?: Request) {
     }
 
     // share-gated — opted-out users' trails stay private.
-    // Missing share rows = legacy sharing (visible); explicit false hides.
+    // Missing share rows = legacy sharing (visible); explicit false or an
+    // expired timed share hides. The live-pin route uses the same read-side
+    // expiry rule; the DB flag is only cleaned lazily by writes/cron, so it
+    // cannot be trusted on its own here.
     const partnerId = await getPartnerId(userId, coupleId);
     let visibleIds = [userId, partnerId].filter((v): v is string => !!v);
     // Fail closed: if share state cannot be read, return 500 (outer catch)
     // instead of falling back to disclosing the opted-out partner's trail.
     const shares = await prisma.locationShare.findMany({
       where: { userId: { in: visibleIds } },
-      select: { userId: true, isSharing: true },
+      select: { userId: true, isSharing: true, expiresAt: true },
     });
     if (Array.isArray(shares) && shares.length > 0) {
-      const hidden = new Set(shares.filter((s) => s.isSharing === false).map((s) => s.userId));
+      const now = Date.now();
+      const hidden = new Set(
+        shares
+          .filter(
+            (s) =>
+              s.isSharing === false ||
+              (s.expiresAt instanceof Date && s.expiresAt.getTime() <= now),
+          )
+          .map((s) => s.userId),
+      );
       hidden.delete(userId);
       visibleIds = visibleIds.filter((v) => !hidden.has(v));
     }

@@ -5,9 +5,9 @@ const PARTNER = "cjld2cjxh0000qz8n0p3q4w5e2";
 const COUPLE = "couple-1";
 
 const txMock = vi.hoisted(() => ({
-  userLocationHistory: { findFirst: vi.fn(async () => null), create: vi.fn(async () => ({})), findMany: vi.fn(async () => []), deleteMany: vi.fn(async () => ({})) },
-  userLocation: { findUnique: vi.fn(async (): Promise<{ updatedAt: Date } | null> => null), upsert: vi.fn(async () => ({})), deleteMany: vi.fn(async () => ({ count: 1 })) },
-  locationShare: { findUnique: vi.fn(async () => ({ isSharing: true })), upsert: vi.fn(async () => ({})) },
+  userLocationHistory: { findFirst: vi.fn(async () => null), create: vi.fn(async () => ({})), createMany: vi.fn(async () => ({ count: 1 })), findMany: vi.fn(async () => []), deleteMany: vi.fn(async () => ({})) },
+  userLocation: { findUnique: vi.fn(async (): Promise<{ updatedAt: Date; latitude: number; longitude: number } | null> => null), upsert: vi.fn(async () => ({})), deleteMany: vi.fn(async () => ({ count: 1 })) },
+  locationShare: { findUnique: vi.fn(async (): Promise<{ isSharing: boolean; coupleId?: string; expiresAt?: Date | null; trackingState?: string | null } | null> => ({ isSharing: true })), update: vi.fn(async () => ({})), upsert: vi.fn(async () => ({})) },
 }));
 const prismaMock = vi.hoisted(() => ({
   $queryRaw: vi.fn(),
@@ -24,7 +24,7 @@ vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
 vi.mock("@/lib/auth", () => ({ auth: vi.fn() }));
 vi.mock("@/lib/rate-limit", () => ({
   withRateLimit: vi.fn(),
-  rateLimitConfigs: { write: {}, location: {}, score: {} },
+  rateLimitConfigs: { write: {}, location: {}, score: {}, locationHistory: {}, route: {} },
 }));
 vi.mock("@/lib/redis", () => ({
   getCached: vi.fn(async () => null),
@@ -62,14 +62,21 @@ function allow(userId: string = ME) {
 }
 const point = { latitude: -6.2, longitude: 106.8, accuracy: 10, heading: 90, speed: 0, altitude: null, updatedAt: new Date(), deviceType: "mobile" };
 
+const ACTIVE_SHARE = { isSharing: true, expiresAt: null, lastSeenAt: null, trackingState: null };
+const TX_SHARE = { isSharing: true, coupleId: COUPLE, expiresAt: null, trackingState: null };
+
 describe("location API contracts", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     allow();
+    prismaMock.locationShare.findUnique.mockResolvedValue(ACTIVE_SHARE);
+    txMock.locationShare.findUnique.mockResolvedValue(TX_SHARE);
+    txMock.locationShare.update.mockResolvedValue({});
+    txMock.userLocationHistory.createMany.mockResolvedValue({ count: 1 });
   });
 
   it("LOC: GET 200 pair payload, 401 anon, 404 solo", async () => {
-    prismaMock.locationShare.findUnique.mockResolvedValue({ isSharing: true });
+    prismaMock.locationShare.findUnique.mockResolvedValue(ACTIVE_SHARE);
     prismaMock.coupleMember.findFirst.mockResolvedValue({ user: { id: PARTNER, name: "B", image: null } });
     prismaMock.userLocation.findUnique.mockResolvedValue(point);
     const ok = await loc.GET();
@@ -91,6 +98,9 @@ describe("location API contracts", () => {
     prismaMock.userLocation.findUnique.mockResolvedValue(point);
     prismaMock.locationShare.findUnique.mockImplementation(async ({ where }: { where: { userId: string } }) => ({
       isSharing: where.userId !== PARTNER,
+      expiresAt: null,
+      lastSeenAt: null,
+      trackingState: null,
     }));
     const res = await loc.GET();
     expect(res.status).toBe(200);
@@ -101,41 +111,40 @@ describe("location API contracts", () => {
     expect(body.data.partner.isStale).toBe(false);
 
     // Control: sharing enabled returns the row.
-    prismaMock.locationShare.findUnique.mockResolvedValue({ isSharing: true });
+    prismaMock.locationShare.findUnique.mockResolvedValue(ACTIVE_SHARE);
     const on = await (await loc.GET()).json();
     expect(on.data.partner.location).toMatchObject({ lat: point.latitude, lng: point.longitude });
   });
 
   it("LOC-01/02/03: POST 200, 403 sharing-off, 400 invalid, 404 no-couple", async () => {
-    prismaMock.locationShare.findUnique.mockResolvedValue({ isSharing: true });
+    prismaMock.locationShare.findUnique.mockResolvedValue(ACTIVE_SHARE);
     prismaMock.userLocation.upsert.mockResolvedValue({});
     const ok = await loc.POST(new Request("http://localhost/api/location", {
       method: "POST", body: JSON.stringify({ ...point, altitude: undefined, deviceType: "mobile" }),
     }));
     expect(ok.status).toBe(200);
 
-    prismaMock.locationShare.findUnique.mockResolvedValue({ isSharing: false });
+    txMock.locationShare.findUnique.mockResolvedValueOnce({ isSharing: false });
     expect((await loc.POST(new Request("http://localhost/api/location", {
       method: "POST", body: JSON.stringify({ latitude: -6.2, longitude: 106.8, deviceType: "mobile" }),
     }))).status).toBe(403);
 
-    prismaMock.locationShare.findUnique.mockResolvedValue({ isSharing: true });
     expect((await loc.POST(new Request("http://localhost/api/location", {
       method: "POST", body: JSON.stringify({ latitude: 200, longitude: 0, deviceType: "mobile" }),
     }))).status).toBe(400);
 
-    const { getUserCoupleId } = await import("@/lib/couple");
-    vi.mocked(getUserCoupleId).mockResolvedValueOnce(null);
+    // A share row that is missing entirely is the same fail-closed 403.
+    txMock.locationShare.findUnique.mockResolvedValueOnce(null);
     expect((await loc.POST(new Request("http://localhost/api/location", {
       method: "POST", body: JSON.stringify({ latitude: -6.2, longitude: 106.8, deviceType: "mobile" }),
-    }))).status).toBe(404);
+    }))).status).toBe(403);
   });
 
   it("LOC-06: a stale previous fix notifies the partner that GPS is back online", async () => {
     const { notifyLocationReonline } = await import("@/lib/activity");
-    prismaMock.locationShare.findUnique.mockResolvedValue({ isSharing: true });
+    prismaMock.locationShare.findUnique.mockResolvedValue(ACTIVE_SHARE);
     const stale = new Date(Date.now() - 120_000);
-    txMock.userLocation.findUnique.mockResolvedValueOnce({ updatedAt: stale });
+    txMock.userLocation.findUnique.mockResolvedValueOnce({ updatedAt: stale, latitude: -6.2, longitude: 106.8 });
 
     const res = await loc.POST(new Request("http://localhost/api/location", {
       method: "POST",
@@ -148,8 +157,8 @@ describe("location API contracts", () => {
 
   it("LOC-06b: a fresh previous fix stays silent", async () => {
     const { notifyLocationReonline } = await import("@/lib/activity");
-    prismaMock.locationShare.findUnique.mockResolvedValue({ isSharing: true });
-    txMock.userLocation.findUnique.mockResolvedValueOnce({ updatedAt: new Date() });
+    prismaMock.locationShare.findUnique.mockResolvedValue(ACTIVE_SHARE);
+    txMock.userLocation.findUnique.mockResolvedValueOnce({ updatedAt: new Date(), latitude: -6.2, longitude: 106.8 });
 
     const res = await loc.POST(new Request("http://localhost/api/location", {
       method: "POST",
@@ -161,7 +170,7 @@ describe("location API contracts", () => {
   });
 
   it("LOC retention: a new ping keeps old history instead of wiping older days", async () => {
-    prismaMock.locationShare.findUnique.mockResolvedValue({ isSharing: true });
+    prismaMock.locationShare.findUnique.mockResolvedValue(ACTIVE_SHARE);
     const res = await loc.POST(new Request("http://localhost/api/location", {
       method: "POST",
       body: JSON.stringify({ latitude: -6.2, longitude: 106.8, deviceType: "mobile" }),
@@ -171,14 +180,14 @@ describe("location API contracts", () => {
   });
 
   it("LOC-07: GET /api/location/share reports the caller's own status; 401 anon", async () => {
-    prismaMock.locationShare.findUnique.mockResolvedValue({ isSharing: true });
+    prismaMock.locationShare.findUnique.mockResolvedValue(ACTIVE_SHARE);
 
     const res = await share.GET();
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ data: { isSharing: true } });
+    expect(await res.json()).toMatchObject({ data: { isSharing: true, expiresAt: null } });
 
     prismaMock.locationShare.findUnique.mockResolvedValue(null);
-    expect(await (await share.GET()).json()).toEqual({ data: { isSharing: false } });
+    expect(await (await share.GET()).json()).toMatchObject({ data: { isSharing: false } });
 
     vi.mocked(auth).mockResolvedValue(null as never);
     expect((await share.GET()).status).toBe(401);
@@ -203,7 +212,7 @@ describe("location API contracts", () => {
     // OFF→ON emits exactly once...
     expect(emitActivity).toHaveBeenCalledTimes(1);
     // ...and a repeated ON (already sharing) emits nothing new.
-    prismaMock.locationShare.findUnique.mockResolvedValue({ isSharing: true });
+    prismaMock.locationShare.findUnique.mockResolvedValue(ACTIVE_SHARE);
     expect((await share.PUT(new Request("http://localhost/api/location/share", {
       method: "PUT", body: JSON.stringify({ isSharing: true }),
     }))).status).toBe(200);
@@ -214,7 +223,7 @@ describe("location API contracts", () => {
   });
 
   it("LOC consent: a POST that loses the opt-out race is rejected", async () => {
-    prismaMock.locationShare.findUnique.mockResolvedValue({ isSharing: true });
+    prismaMock.locationShare.findUnique.mockResolvedValue(ACTIVE_SHARE);
     txMock.locationShare.findUnique.mockResolvedValueOnce({ isSharing: false });
     const res = await loc.POST(new Request("http://localhost/api/location", {
       method: "POST",
@@ -286,6 +295,16 @@ describe("location API contracts", () => {
     ] as never);
     const gated = await history.GET();
     expect(gated.status).toBe(200);
+    expect(prismaMock.userLocationHistory.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { userId: { in: [ME] } } }),
+    );
+    // A timed share that has expired is still isSharing=true in the DB until a
+    // write/cron cleans it. The read must hide it just like the live pin does.
+    prismaMock.locationShare.findMany.mockResolvedValueOnce([
+      { userId: ME, isSharing: true, expiresAt: null },
+      { userId: PARTNER, isSharing: true, expiresAt: new Date(Date.now() - 60_000) },
+    ] as never);
+    await history.GET();
     expect(prismaMock.userLocationHistory.findMany).toHaveBeenLastCalledWith(
       expect.objectContaining({ where: { userId: { in: [ME] } } }),
     );

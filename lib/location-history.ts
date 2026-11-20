@@ -71,6 +71,25 @@ export function formatStopTimeLabel(stop: VisitedStop): string {
   return `${time} · ${date}`;
 }
 
+/**
+ * Link a raw map waypoint to the stop row it belongs to. Both layers read the
+ * same filtered stop array, so the index is also the card's "Kunjungan #n".
+ */
+export function findStopAtPoint(
+  point: LocationHistoryPoint,
+  stops: VisitedStop[],
+): { stop: VisitedStop; index: number } | null {
+  const time = new Date(point.createdAt).getTime();
+  if (!Number.isFinite(time)) return null;
+  const index = stops.findIndex((stop) => {
+    if (stop.userId !== point.userId) return false;
+    const from = new Date(stop.arrivedAt).getTime();
+    const to = new Date(stop.departedAt).getTime();
+    return Number.isFinite(from) && Number.isFinite(to) && time >= from && time <= to;
+  });
+  return index === -1 ? null : { stop: stops[index], index };
+}
+
 function median(values: number[]): number {
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
@@ -118,7 +137,10 @@ export function detectStopPoints(
 
   const clusterRadius = options.clusterRadiusMeters ?? 50;
   const minDwellMinutes = options.minDwellMinutes ?? 3;
-  const maxAccuracy = options.maxAccuracyMeters ?? 80;
+  // Indoor/city GPS routinely reports 100-150m accuracy. Dropping those fixes
+  // left a real stay visible as raw map waypoints but absent from the stop card.
+  // Wild drift (>150m) is still discarded; see the accuracy tests.
+  const maxAccuracy = options.maxAccuracyMeters ?? 150;
   const minStationary = options.minStationaryPings ?? 3;
   const maxGapMs = (options.maxGapMinutes ?? 15) * 60_000;
   const mergeRadius = options.mergeRadiusMeters ?? 50;
@@ -128,6 +150,19 @@ export function detectStopPoints(
   // the place (and the elapsed time) is identical.
   const sparseRadius = 25;
   const maxSparseGapMs = 6 * 60 * 60_000;
+
+  // A stationary phone with poor GPS scatters fixes tens of metres apart. Scale
+  // the cluster tolerance to the median reported accuracy so one stay is not
+  // split into sub-clusters too small to become a card entry.
+  const toleranceFor = (cluster: LocationHistoryPoint[]) => {
+    const accuracies = cluster
+      .map((p) => p.accuracy)
+      .filter((a): a is number => a !== null && Number.isFinite(a));
+    return Math.min(
+      150,
+      Math.max(clusterRadius, accuracies.length ? median(accuracies) : clusterRadius),
+    );
+  };
 
   const points = [...rawPoints]
     .filter((p) => p.accuracy === null || p.accuracy <= maxAccuracy)
@@ -150,10 +185,12 @@ export function detectStopPoints(
     const sameDay =
       getJakartaDateOnly(new Date(pt.createdAt)) ===
       getJakartaDateOnly(new Date(last.createdAt));
+    const tolerance = toleranceFor(current);
+    const sparseTolerance = Math.min(tolerance, Math.max(sparseRadius, tolerance / 2));
     if (
-      dist <= clusterRadius &&
+      dist <= tolerance &&
       (gap <= maxGapMs ||
-        (dist <= sparseRadius && gap <= maxSparseGapMs && sameDay))
+        (dist <= sparseTolerance && gap <= maxSparseGapMs && sameDay))
     ) {
       current.push(pt);
     } else {
@@ -170,8 +207,9 @@ export function detectStopPoints(
     const startTime = new Date(first.createdAt).getTime();
     const endTime = new Date(last.createdAt).getTime();
     const dwellMinutes = (endTime - startTime) / 60_000;
+    // A null speed is "unknown", not "moving" — many devices omit it entirely.
     const stationaryPings = cluster.filter(
-      (p) => p.speed !== null && p.speed < 1.0,
+      (p) => p.speed === null || p.speed < 1.0,
     ).length;
     const isCurrent = index === clusters.length - 1;
 
@@ -226,8 +264,40 @@ export function detectStopPoints(
   return merged;
 }
 
-/** Downsample waypoints so the routing URL stays concise and performant. */
-export function downsampleWaypoints(
+/**
+ * Split a trail where the data has a hole.
+ *
+ * A single polyline across a 9-hour gap draws a straight line through the city
+ * as if the person teleported. Rendering one line per segment leaves the hole
+ * visible, which is the truth.
+ */
+export const TRAIL_GAP_MS = 10 * 60_000;
+
+export function splitTrailSegments<T extends { createdAt: string }>(
+  points: T[],
+  maxGapMs = TRAIL_GAP_MS,
+): T[][] {
+  if (!points || points.length === 0) return [];
+  const segments: T[][] = [];
+  let current: T[] = [points[0]];
+
+  for (let i = 1; i < points.length; i++) {
+    const previous = new Date(points[i - 1].createdAt).getTime();
+    const next = new Date(points[i].createdAt).getTime();
+    const gap = next - previous;
+    if (Number.isFinite(gap) && gap > maxGapMs) {
+      segments.push(current);
+      current = [points[i]];
+    } else {
+      current.push(points[i]);
+    }
+  }
+
+  segments.push(current);
+  return segments;
+}
+
+/** Downsample waypoints so the routing URL stays concise and performant. */export function downsampleWaypoints(
   points: Array<{ lat: number; lng: number }>,
   minDistanceMeters = 35,
   maxPoints = 40,

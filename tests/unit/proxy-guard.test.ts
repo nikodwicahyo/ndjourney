@@ -37,7 +37,14 @@ describe("proxy route guards", () => {
     expect(isAuthPath("/login")).toBe(true);
     expect(isAuthPath("/invite/xyz")).toBe(true);
     expect(isAuthPath("/auth-error")).toBe(true);
+    // Native device-link screen is signed-out only; gating it loops to /login.
+    expect(isAuthPath("/native-login")).toBe(true);
     expect(isAuthPath("/dashboard")).toBe(false);
+  });
+
+  it("keeps the install guide public for signed-out visitors", () => {
+    expect(isPublicPath("/get-app")).toBe(true);
+    expect(isPublicPath("/get-app/android")).toBe(true);
   });
 
   it("implementation matches proxy.ts source (no drift)", () => {

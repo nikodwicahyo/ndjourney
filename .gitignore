@@ -58,3 +58,9 @@ Desktop.ini
 *.tsbuildinfo
 tsconfig.tsbuildinfo
 
+# signing material — never commit a keystore
+*.jks
+*.keystore
+android/app/*.jks
+android/app/*.keystore
+

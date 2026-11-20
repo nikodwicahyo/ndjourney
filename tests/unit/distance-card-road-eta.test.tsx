@@ -14,11 +14,15 @@ const state: LocationState = {
     userId: "u1", image: null, isSharing: true, deviceType: "mobile",
     location: { lat: -6.2, lng: 106.8, accuracy: 10, heading: null, speed: null, altitude: null, updatedAt: new Date().toISOString() },
     locationAgeSeconds: 1, isStale: false, name: "Kamu",
+    lastSeenAt: new Date().toISOString(), lastFixAt: new Date().toISOString(),
+    trackingState: "foreground", shareExpiresAt: null,
   },
   partner: {
     userId: "u2", image: null, isSharing: true, deviceType: "mobile",
     location: { lat: -6.26, lng: 106.85, accuracy: 10, heading: null, speed: null, altitude: null, updatedAt: new Date().toISOString() },
     locationAgeSeconds: 1, isStale: false, name: "Dzikria",
+    lastSeenAt: new Date().toISOString(), lastFixAt: new Date().toISOString(),
+    trackingState: "foreground", shareExpiresAt: null,
   },
 };
 
@@ -73,11 +77,11 @@ describe("DistanceCard road-only ETA", () => {
       />,
     );
     expect(screen.queryByText("Satu kota")).toBeNull();
-    expect(screen.getByText("Rute jalan tidak tersedia")).toBeTruthy();
+    expect(screen.getByText("Jarak tidak tersedia")).toBeTruthy();
   });
 
   it("shows a loading hint while the road route is pending", () => {
     render(<DistanceCard state={state} distance={8200} roadRoute={null} routeLoading />);
-    expect(screen.getByText("Memuat rute jalan…")).toBeTruthy();
+    expect(screen.getByText("Memuat jarak…")).toBeTruthy();
   });
 });

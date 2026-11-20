@@ -18,7 +18,8 @@
   "overrides": {
     "next-auth": {
       "nodemailer": "10.2.1"
-    }
+    },
+    "effect": "3.22.5"
   },
   "scripts": {
     "dev": "next dev",

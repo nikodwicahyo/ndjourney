@@ -67,7 +67,7 @@ web-only pushes never waste an APK build.
    | `ANDROID_RELEASE_KEYSTORE_BASE64` | base64 of the keystore file |
    | `ANDROID_RELEASE_STORE_PASSWORD` | store password |
    | `ANDROID_RELEASE_KEY_ALIAS` | key alias |
-   | `ANDROID_RELEASE_KEY_PASSWORD` | key password |
+   | `ANDROID_RELEASE_KEY_PASSWORD` | key password (use the **store password** for a PKCS12 keystore — see below) |
 
    Generate the keystore **once** (requires a JDK), then back it up offline —
    losing it means no future APK can upgrade an existing install:
@@ -88,13 +88,26 @@ web-only pushes never waste an APK build.
    gh secret set ANDROID_RELEASE_KEYSTORE_BASE64 < base64.txt
    gh secret set ANDROID_RELEASE_STORE_PASSWORD --body '<store-password>'
    gh secret set ANDROID_RELEASE_KEY_ALIAS --body 'ndjourney'
-   gh secret set ANDROID_RELEASE_KEY_PASSWORD --body '<key-password>'
+   gh secret set ANDROID_RELEASE_KEY_PASSWORD --body '<store-password>' # PKCS12 (default)
+   ```
+
+   JDK 9+ makes `keytool` create **PKCS12** keystores by default, even when the
+   file is named `.jks`. PKCS12 does not support a separate key password — the
+   key password *is* the store password, so set `ANDROID_RELEASE_KEY_PASSWORD`
+   to the same value as `ANDROID_RELEASE_STORE_PASSWORD` (the workflow also
+   falls back to this automatically). To keep distinct passwords instead,
+   generate with `-storetype JKS`. Verify what you actually have locally:
+
+   ```bash
+   keytool -list -v -keystore ndjourney-release.jks -storepass '<store-password>' -alias ndjourney
    ```
 
    The workflow decodes the keystore into `$RUNNER_TEMP` (never inside the
-   checkout, so it cannot be committed or packaged) and signs via
-   `assembleRelease`. **The job fails fast if any secret is missing** — a
-   broken or unsigned release can never be published. `ANDROID_DEBUG_KEYSTORE_BASE64`
+   checkout, so it cannot be committed or packaged), verifies the store
+   password, alias and key password with `keytool` **before** the build, and
+   signs via `assembleRelease`. **The job fails fast if any secret is missing or
+   the keystore cannot be read** — a broken or unsigned release can never be
+   published. `ANDROID_DEBUG_KEYSTORE_BASE64`
    is no longer used.
 
 2. Trigger the workflow manually or push a native change. It runs lint,

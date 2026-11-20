@@ -55,20 +55,49 @@ jobs:
       - name: Tests
         run: npm run test
 
-      - name: Restore release keystore
+      - name: Restore and verify release keystore
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
           STORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_STORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
         run: |
-          if [ -z "$KEYSTORE_B64" ] || [ -z "$STORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
+          set -euo pipefail
+          if [ -z "${KEYSTORE_B64:-}" ] || [ -z "${STORE_PASSWORD:-}" ] || [ -z "${KEY_ALIAS:-}" ] || [ -z "${KEY_PASSWORD:-}" ]; then
             echo "::error::Release signing secrets are missing. See docs/native-build.md."
             exit 1
           fi
+          # Trim whitespace accidentally pasted into the secrets UI.
+          trim() { printf '%s' "$1" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'; }
+          STORE_PASSWORD="$(trim "$STORE_PASSWORD")"
+          KEY_ALIAS="$(trim "$KEY_ALIAS")"
+          KEY_PASSWORD="$(trim "$KEY_PASSWORD")"
+          KEYSTORE="$RUNNER_TEMP/ndjourney-release.jks"
+
           # Kept outside the checkout so it can never be committed or packaged.
-          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/ndjourney-release.jks"
-          echo "Restored release keystore."
+          printf '%s' "$KEYSTORE_B64" | tr -d ' \r\n' | base64 --decode > "$KEYSTORE"
+
+          if ! KEYTOOL_INFO="$(keytool -list -v -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" 2>&1)"; then
+            echo "::error::Keystore/store password/alias mismatch. Check ANDROID_RELEASE_KEYSTORE_BASE64, ANDROID_RELEASE_STORE_PASSWORD and ANDROID_RELEASE_KEY_ALIAS."
+            exit 1
+          fi
+
+          # PKCS12 (keytool default on JDK 9+) has no separate key password —
+          # the key is protected by the store password. Detect it instead of
+          # trusting -keypass, which keytool silently ignores for PKCS12.
+          if printf '%s' "$KEYTOOL_INFO" | grep -qi 'Keystore type: *PKCS12'; then
+            RESOLVED_KEY_PASSWORD="$STORE_PASSWORD"
+          elif keytool -certreq -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" -keypass "$KEY_PASSWORD" -file /dev/null >/dev/null 2>&1; then
+            RESOLVED_KEY_PASSWORD="$KEY_PASSWORD"
+          else
+            echo "::error::Cannot read the signing key. Check ANDROID_RELEASE_KEY_PASSWORD and ANDROID_RELEASE_KEY_ALIAS."
+            exit 1
+          fi
+
+          echo "ANDROID_RELEASE_STORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "ANDROID_RELEASE_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "ANDROID_RELEASE_KEY_PASSWORD=$RESOLVED_KEY_PASSWORD" >> "$GITHUB_ENV"
+          echo "Restored and verified release keystore."
 
       - name: Sync Capacitor
         run: npx cap sync android
@@ -76,9 +105,6 @@ jobs:
       - name: Build signed release APK
         env:
           ANDROID_RELEASE_KEYSTORE: ${{ runner.temp }}/ndjourney-release.jks
-          ANDROID_RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_STORE_PASSWORD }}
-          ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
-          ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
         run: chmod +x ./gradlew && ./gradlew assembleRelease --no-daemon
         working-directory: android
 

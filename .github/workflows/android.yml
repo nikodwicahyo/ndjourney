@@ -59,18 +59,16 @@ jobs:
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
           STORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_STORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          if [ -z "${KEYSTORE_B64:-}" ] || [ -z "${STORE_PASSWORD:-}" ] || [ -z "${KEY_ALIAS:-}" ] || [ -z "${KEY_PASSWORD:-}" ]; then
+          if [ -z "${KEYSTORE_B64:-}" ] || [ -z "${STORE_PASSWORD:-}" ] || [ -z "${KEY_PASSWORD:-}" ]; then
             echo "::error::Release signing secrets are missing. See docs/native-build.md."
             exit 1
           fi
           # Trim whitespace accidentally pasted into the secrets UI.
           trim() { printf '%s' "$1" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'; }
           STORE_PASSWORD="$(trim "$STORE_PASSWORD")"
-          KEY_ALIAS="$(trim "$KEY_ALIAS")"
           KEY_PASSWORD="$(trim "$KEY_PASSWORD")"
           KEYSTORE="$RUNNER_TEMP/ndjourney-release.jks"
 
@@ -86,17 +84,13 @@ jobs:
             echo "::error::ANDROID_RELEASE_KEYSTORE_BASE64 is wrong/corrupt, or ANDROID_RELEASE_STORE_PASSWORD is wrong."
             exit 1
           fi
-          # PKCS12 aliases come from the certificate friendly name, which tools
-          # other than keytool may set differently — use what is actually there.
-          DETECTED_ALIAS="$(printf '%s' "$KEYSTORE_LIST" | awk '/Alias name:/ {sub(/^.*Alias name:[[:space:]]*/, ""); print; exit}')"
-          if [ -z "$DETECTED_ALIAS" ]; then
+          # Read the alias from the keystore itself. PKCS12 aliases depend on how
+          # the file was generated, so a configured alias is a needless failure.
+          KEY_ALIAS="$(printf '%s' "$KEYSTORE_LIST" | awk '/Alias name:/ {sub(/^.*Alias name:[[:space:]]*/, ""); print; exit}')"
+          if [ -z "$KEY_ALIAS" ]; then
             echo "::error::Keystore has no PrivateKeyEntry alias. Regenerate the signing keystore."
             exit 1
           fi
-          if [ "$KEY_ALIAS" != "$DETECTED_ALIAS" ]; then
-            echo "::warning::ANDROID_RELEASE_KEY_ALIAS does not match the keystore ($DETECTED_ALIAS); using the keystore alias."
-          fi
-          KEY_ALIAS="$DETECTED_ALIAS"
           if ! KEYTOOL_INFO="$(keytool -list -v -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" 2>&1)"; then
             echo "::error::$KEYTOOL_INFO"
             exit 1

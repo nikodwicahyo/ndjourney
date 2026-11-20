@@ -60,14 +60,15 @@ publishes it as a GitHub Release asset. It only runs when native inputs change
 (`capacitor.config.ts`, `android/**`, `package*.json`) or on manual dispatch —
 web-only pushes never waste an APK build.
 
-1. In **Settings → Secrets and variables → Actions**, add four secrets:
+1. In **Settings → Secrets and variables → Actions**, add three secrets:
 
    | Secret | Value |
    |---|---|
    | `ANDROID_RELEASE_KEYSTORE_BASE64` | base64 of the keystore file |
    | `ANDROID_RELEASE_STORE_PASSWORD` | store password |
-   | `ANDROID_RELEASE_KEY_ALIAS` | key alias |
    | `ANDROID_RELEASE_KEY_PASSWORD` | key password (use the **store password** for a PKCS12 keystore — see below) |
+
+   The alias is read from the keystore in CI — no alias secret is needed.
 
    Generate the keystore **once** (requires a JDK), then back it up offline —
    losing it means no future APK can upgrade an existing install:
@@ -101,12 +102,11 @@ web-only pushes never waste an APK build.
      [Convert]::ToBase64String([IO.File]::ReadAllBytes('ndjourney-release.pfx')))
    ```
 
-   With `gh` installed locally you can set all four without printing secrets:
+   With `gh` installed locally you can set all three without printing secrets:
 
    ```bash
    gh secret set ANDROID_RELEASE_KEYSTORE_BASE64 < base64.txt
    gh secret set ANDROID_RELEASE_STORE_PASSWORD --body '<store-password>'
-   gh secret set ANDROID_RELEASE_KEY_ALIAS --body 'ndjourney'
    gh secret set ANDROID_RELEASE_KEY_PASSWORD --body '<store-password>' # PKCS12 (default)
    ```
 
@@ -118,7 +118,7 @@ web-only pushes never waste an APK build.
    generate with `-storetype JKS`. Verify what you actually have locally:
 
    ```bash
-   keytool -list -v -keystore ndjourney-release.jks -storepass '<store-password>' -alias ndjourney
+   keytool -list -v -keystore ndjourney-release.jks -storepass '<store-password>'
    ```
 
    The workflow decodes the keystore into `$RUNNER_TEMP` (never inside the

@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useMemo } from "react";
+import { useSession } from "next-auth/react";
 import CountdownTimer from "./CountdownTimer";
 import BirthdayCountdown from "./BirthdayCountdown";
 import QuoteOfTheDay from "./QuoteOfTheDay";
@@ -49,6 +50,11 @@ export default function HomeBelowFold({
 }: HomeBelowFoldProps) {
   // Jakarta calendar days, recomputed when the day flips at 00:00 WIB.
   const today = useJakartaToday();
+  // Location is an authed-only widget. Gate the whole section — not just its
+  // content — so guests don't get an empty reserved slot (a ~220px dead gap)
+  // where the card would be. Mirrors LocationWidget's own session gate.
+  const { status: sessionStatus } = useSession();
+  const showLocation = sessionStatus === "authenticated";
   // Reserved section heights follow the viewport: small screens get the mobile
   // floor, `md` and up the desktop one — otherwise the gallery slot held a
   // desktop-only gap above the Love Meter card on phones.
@@ -70,11 +76,13 @@ export default function HomeBelowFold({
   return (
     <MotionRoot>
       <div className="space-y-16 md:space-y-24">
-      <Reveal minHeight={heightFor("location")}>
-        <Suspense fallback={<div className="h-24 animate-pulse rounded-2xl bg-muted" />}>
-          <LocationWidget />
-        </Suspense>
-      </Reveal>
+      {showLocation ? (
+        <Reveal minHeight={heightFor("location")}>
+          <Suspense fallback={<div className="h-24 animate-pulse rounded-2xl bg-muted" />}>
+            <LocationWidget />
+          </Suspense>
+        </Reveal>
+      ) : null}
 
       {coupleConfig?.anniversaryDate ? (
         <Reveal minHeight={heightFor("countdown")}>

@@ -111,7 +111,7 @@ export function effectiveDistance(
   return roadRoute?.source === "osrm" ? roadRoute.distanceMeters : straightMeters;
 }
 
-/** Reverse-geocode a point via our own API. Never throws; caches null too. */
+/** Reverse-geocode a point via our own API. Never throws; only real names are cached. */
 export async function reverseGeocodeName(
   lat: number,
   lng: number,
@@ -127,7 +127,9 @@ export async function reverseGeocodeName(
     if (!res.ok) throw new Error(`geocode API ${res.status}`);
     const json = (await res.json()) as { data?: { name?: string | null } };
     const name = json?.data?.name ?? null;
-    remember(GEOCODE_CACHE, MAX_GEOCODE_CACHE, key, name);
+    // A null can mean a transient upstream failure (the server answers no-store
+    // in that case). Caching it would pin an unnamed stop until a full reload.
+    if (name) remember(GEOCODE_CACHE, MAX_GEOCODE_CACHE, key, name);
     return name;
   } catch {
     return null;

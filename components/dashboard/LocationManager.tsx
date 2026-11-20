@@ -2,7 +2,7 @@
 
 import "leaflet/dist/leaflet.css";
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
 import {
   AlertTriangle,
@@ -15,7 +15,7 @@ import {
   Clock,
   Eye,
 } from "lucide-react";
-import { Skeleton, Button, Badge, Card } from "@/components/ui";
+import { Skeleton, Button } from "@/components/ui";
 import {
   useLocationSettings,
   useDistance,
@@ -27,7 +27,7 @@ import {
 } from "@/hooks/useLocation";
 import {
   formatDurationId,
-  formatTimeOnly,
+  formatStopTimeLabel,
   detectStopPoints,
   hasTrackMovement,
   type VisitedStop,
@@ -52,10 +52,10 @@ import FloatingHeart from "@/components/location/FloatingHeart";
 import NearbySuggestion from "@/components/location/NearbySuggestion";
 
 const HISTORY_RANGES = [
-  { key: "today", label: "Hari ini" },
   { key: "24h", label: "24 Jam" },
   { key: "3d", label: "3 Hari" },
   { key: "7d", label: "7 Hari" },
+  { key: "all", label: "Semua" },
 ] as const;
 
 const historyRangeLabel = (range: string) =>
@@ -130,10 +130,140 @@ function StatusIndicator({ status }: { status: ShareStatus }) {
   }
 }
 
+/** One chip row reused by both history filters — keeps both groups identical. */
+function FilterRow<K extends string>({
+  label,
+  icon,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  icon?: ReactNode;
+  options: readonly { key: K; label: string }[];
+  value: K;
+  onChange: (value: K) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
+      <span className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
+        {icon}
+        {label}
+      </span>
+      <div className="flex flex-wrap gap-1" role="group" aria-label={label}>
+        {options.map((option) => (
+          <button
+            key={option.key}
+            type="button"
+            onClick={() => onChange(option.key)}
+            aria-pressed={value === option.key}
+            className={`min-h-7 rounded-md px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary ${
+              value === option.key
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
+            }`}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Flat stop group — no nested card, so both people read as one list. */
+function StopGroup({
+  title,
+  stops,
+  addresses,
+  selectedStop,
+  onSelect,
+  accent,
+}: {
+  title: string;
+  stops: VisitedStop[];
+  addresses: Record<string, string | null | undefined>;
+  selectedStop: VisitedStop | null;
+  onSelect: (stop: VisitedStop) => void;
+  accent: "blue" | "rose";
+}) {
+  const tone = accent === "blue"
+    ? {
+        dot: "bg-blue-500",
+        header: "text-blue-600 dark:text-blue-400",
+        badge: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+        selected: "border-blue-500/50 bg-blue-500/5",
+      }
+    : {
+        dot: "bg-rose-500",
+        header: "text-rose-600 dark:text-rose-400",
+        badge: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
+        selected: "border-rose-500/50 bg-rose-500/5",
+      };
+
+  return (
+    <section className="rounded-xl border border-border/70 bg-background/50 p-2.5 sm:p-3">
+      <header className="mb-2 flex items-center justify-between gap-2">
+        <h4 className={`flex min-w-0 items-center gap-1.5 text-xs font-semibold ${tone.header}`}>
+          <span className={`h-2 w-2 shrink-0 rounded-full ${tone.dot}`} aria-hidden="true" />
+          <span className="truncate">{title}</span>
+        </h4>
+        <span className="shrink-0 text-[11px] text-muted-foreground">
+          {stops.length} lokasi
+        </span>
+      </header>
+      <ul className="max-h-56 space-y-1.5 overflow-y-auto pr-1" role="list">
+        {stops.map((stop, i) => {
+          const selected = selectedStop?.id === stop.id;
+          const timeLabel = formatStopTimeLabel(stop);
+          return (
+            <li key={stop.id}>
+              <button
+                type="button"
+                onClick={() => onSelect(stop)}
+                aria-current={selected ? "true" : undefined}
+                className={`grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-2 rounded-lg border p-2 text-left text-xs transition-colors hover:bg-muted/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary ${
+                  selected ? tone.selected : "border-border/60 bg-card/70"
+                }`}
+              >
+                <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white ${tone.dot}`} aria-hidden="true">
+                  {stop.isCurrent ? <MapPin className="h-3 w-3" aria-hidden="true" /> : i + 1}
+                </span>
+                <span className="min-w-0 space-y-0.5">
+                  <span className="block truncate font-medium text-foreground">
+                    {stop.isCurrent ? "Lokasi Saat Ini" : `Kunjungan #${i + 1}`}
+                  </span>
+                  <span className="block truncate text-[10px] text-muted-foreground" title={timeLabel}>
+                    {timeLabel}
+                  </span>
+                  {addresses[stop.id] && (
+                    <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                      <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
+                      <span className="truncate" title={addresses[stop.id] ?? undefined}>
+                        {addresses[stop.id]}
+                      </span>
+                    </span>
+                  )}
+                </span>
+                <span className="flex shrink-0 items-center justify-end gap-1.5">
+                  <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold ${tone.badge}`}>
+                    {stop.isCurrent ? "Sedang di sini" : formatDurationId(stop.durationMinutes)}
+                  </span>
+                  <Eye className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 export default function LocationManager() {
   const { data: session, status: sessionStatus } = useSession();
   const { data, isLoading, error, refetch } = useLocationSettings();
-  const [historyRange, setHistoryRange] = useState<"today" | "24h" | "3d" | "7d">("24h");
+  const [historyRange, setHistoryRange] = useState<"24h" | "3d" | "7d" | "all">("24h");
   const [filterUser, setFilterUser] = useState<"all" | "partner" | "self">("all");
   const [snapToRoads, setSnapToRoads] = useState<boolean>(true);
   const [selectedStop, setSelectedStop] = useState<VisitedStop | null>(null);
@@ -146,21 +276,23 @@ export default function LocationManager() {
   const historyData = useMemo(() => historyResult?.points ?? [], [historyResult]);
   const historyTruncated = historyResult?.truncated ?? false;
 
+  const selfId = session?.user?.id;
+
   // Purely memoized stops: prevents any setState re-render cycle
   const detectedStops: { self: VisitedStop[]; partner: VisitedStop[] } = useMemo(() => {
-    if (!historyData || historyData.length === 0 || !session?.user?.id) {
+    if (!historyData || historyData.length === 0 || !selfId) {
       return { self: [], partner: [] };
     }
-    const selfId = session.user.id;
     const selfHistory = historyData.filter((h) => h.userId === selfId);
     const partnerHistory = historyData.filter((h) => h.userId !== selfId);
     return {
       self: detectStopPoints(selfHistory),
       partner: detectStopPoints(partnerHistory),
     };
-  }, [historyData, session?.user?.id]);
+  }, [historyData, selfId]);
 
   const qc = useQueryClient();
+
   // Previous non-null distance for trend display — tracked in state during
   // render (React-endorsed adjustment) instead of a ref read during render.
   const [previousDistance, setPreviousDistance] = useState<number | null>(null);
@@ -224,7 +356,6 @@ export default function LocationManager() {
 
   // Record count follows the same filter as the drawn trail, so the legend
   // never claims more points than the map actually shows.
-  const selfId = session?.user?.id;
   const visibleHistory = useMemo(
     () =>
       selfId
@@ -238,9 +369,18 @@ export default function LocationManager() {
         : [],
     [historyData, filterUser, selfId],
   );
-  const visibleRecordCount = visibleHistory.length;
-
   const historyHasMovement = hasTrackMovement(visibleHistory);
+
+  // The stop list follows the same "Tampilkan" filter as the map trail.
+  const visibleStops = useMemo(
+    () => ({
+      self: filterUser === "partner" ? [] : detectedStops.self,
+      partner: filterUser === "self" ? [] : detectedStops.partner,
+    }),
+    [detectedStops, filterUser],
+  );
+  const visibleStopCount = visibleStops.self.length + visibleStops.partner.length;
+  const hasVisibleStops = visibleStopCount > 0;
 
   if (sessionStatus === "unauthenticated") {
     return (
@@ -374,15 +514,17 @@ export default function LocationManager() {
                     type="button"
                     onClick={() => setSnapToRoads((v) => !v)}
                     aria-pressed={snapToRoads}
-                    className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                    style={(() => {
-                      const c = snapToRoads ? ROAD_ROUTE_COLOR : STRAIGHT_ROUTE_COLOR;
-                      return { color: c, borderColor: `${c}55`, backgroundColor: `${c}14` };
-                    })()}
+                    className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border bg-background px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                    style={{
+                      borderColor: snapToRoads ? ROAD_ROUTE_COLOR : STRAIGHT_ROUTE_COLOR,
+                    }}
                     title={snapToRoads ? "Rute mengikuti jalan asli (OSRM)" : "Garis lurus langsung"}
                   >
-                    <Route className="h-3.5 w-3.5" />
-                    <span>{snapToRoads ? "Rute: Mengikuti Jalan" : "Rute: Garis Lurus"}</span>
+                    <Route
+                      className="h-3.5 w-3.5"
+                      style={{ color: snapToRoads ? ROAD_ROUTE_COLOR : STRAIGHT_ROUTE_COLOR }}
+                    />
+                    <span>{snapToRoads ? "Rute: Road" : "Rute: Line"}</span>
                   </button>
                 </div>
 
@@ -392,191 +534,98 @@ export default function LocationManager() {
                   </p>
                 )}
 
-                {/* History duration and filter toolbar */}
+                {/* One card: filters, summary and visited places */}
                 {showHistory && (
-                  <div className="rounded-xl border border-border bg-card/80 p-3 space-y-2.5 backdrop-blur-sm">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      {/* Duration selector */}
-                      <div className="flex items-center gap-1">
-                        <span className="text-[11px] font-medium text-muted-foreground mr-1 flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          Durasi:
-                        </span>
-                        {HISTORY_RANGES.map(({ key, label }) => (
-                          <button
-                            key={key}
-                            type="button"
-                            onClick={() => {
-                              setHistoryRange(key);
-                              qc.invalidateQueries({
-                                queryKey: [...queryKeys.location.all, "history", key],
-                              });
-                            }}
-                            className={`rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${
-                              historyRange === key
-                                ? "bg-primary text-primary-foreground shadow-sm"
-                                : "text-muted-foreground hover:bg-muted"
-                            }`}
-                          >
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* Partner filter */}
-                      <div className="flex items-center gap-1">
-                        <span className="text-[11px] font-medium text-muted-foreground mr-1">Tampilkan:</span>
-                        {(
-                          [
+                  <section className="overflow-hidden rounded-2xl border border-border bg-card/90 shadow-sm backdrop-blur-sm">
+                    <div className="space-y-3 p-3 sm:p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                        <FilterRow
+                          label="Durasi"
+                          icon={<Calendar className="h-3 w-3" />}
+                          options={HISTORY_RANGES}
+                          value={historyRange}
+                          onChange={(key) => {
+                            setHistoryRange(key);
+                            qc.invalidateQueries({
+                              queryKey: [...queryKeys.location.all, "history", key],
+                            });
+                          }}
+                        />
+                        <FilterRow
+                          label="Tampilkan"
+                          options={[
                             { key: "all", label: "Semua" },
                             { key: "partner", label: partner.name },
                             { key: "self", label: "Kamu" },
-                          ] as const
-                        ).map(({ key, label }) => (
-                          <button
-                            key={key}
-                            type="button"
-                            onClick={() => setFilterUser(key)}
-                            className={`rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${
-                              filterUser === key
-                                ? "bg-secondary text-secondary-foreground shadow-sm font-semibold"
-                                : "text-muted-foreground hover:bg-muted"
-                            }`}
-                          >
-                            {label}
-                          </button>
-                        ))}
+                          ] as const}
+                          value={filterUser}
+                          onChange={setFilterUser}
+                        />
+                      </div>
+
+                      <div className="rounded-xl bg-muted/40 p-2.5 text-[11px] text-muted-foreground">
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                          <span className="flex items-center gap-1.5">
+                            <span className="h-2 w-2 rounded-full bg-blue-500" aria-hidden="true" />
+                            Kamu · {visibleStops.self.length}x singgah
+                          </span>
+                          <span className="flex items-center gap-1.5">
+                            <span className="h-2 w-2 rounded-full bg-rose-500" aria-hidden="true" />
+                            {partner.name} · {visibleStops.partner.length}x singgah
+                          </span>
+                        </div>
+                        <p className="mt-1.5 leading-relaxed">
+                          {isHistoryLoading
+                            ? "Memuat tempat singgah…"
+                            : visibleStopCount > 0
+                              ? `${historyHasMovement ? "jejak perjalanan dan titik singgah sudah terlihat di peta" : "lokasi tidak banyak berubah, jadi ditandai lingkaran di peta"} · ketuk titik untuk detail`
+                              : `Belum ada tempat singgah pada rentang ${historyRangeLabel(historyRange)}`}
+                        </p>
+                        {historyTruncated && (
+                          <p className="mt-1 text-amber-600 dark:text-amber-400" role="status">
+                            Batas 2000 titik per orang — data lebih lama tidak ditampilkan. Persempit rentang untuk melihatnya.
+                          </p>
+                        )}
                       </div>
                     </div>
 
-                    {/* Legend: explains the colours and what the map draws. */}
-                    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-border/50 pt-2 text-[11px] text-muted-foreground">
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                        <span className="flex items-center gap-1.5">
-                          <span className="h-2 w-2 rounded-full bg-blue-500" />
-                          Kamu · {filterUser === "partner" ? 0 : detectedStops.self.length} singgah
-                        </span>
-                        <span className="flex items-center gap-1.5">
-                          <span className="h-2 w-2 rounded-full bg-rose-500" />
-                          {partner.name} · {filterUser === "self" ? 0 : detectedStops.partner.length} singgah
-                        </span>
-                      </div>
-                      <span className="text-[10px] opacity-75">
-                        {isHistoryLoading
-                          ? "Memuat jejak…"
-                          : visibleRecordCount > 0
-                            ? `${visibleRecordCount} rekaman (${historyRangeLabel(historyRange)}) · ${historyHasMovement ? "jejak perjalanan dan titik singgah sudah terlihat di peta" : "lokasi tidak banyak berubah, jadi ditandai lingkaran di peta"} · ketuk titik untuk detail`
-                            : `Belum ada rekaman pada rentang ${historyRangeLabel(historyRange)}`}
-                      </span>
+                    <div className="border-t border-border/60 p-3 sm:p-4">
+                      <h3 className="mb-2.5 flex items-center gap-1.5 font-heading text-sm font-semibold">
+                        <MapPin className="h-4 w-4 text-primary" aria-hidden="true" />
+                        Tempat yang Dikunjungi
+                      </h3>
+                      {hasVisibleStops ? (
+                        <div className="grid gap-2.5 md:grid-cols-2 md:gap-3">
+                          {visibleStops.partner.length > 0 && (
+                            <StopGroup
+                              title={`Tempat Singgah ${partner.name}`}
+                              stops={visibleStops.partner}
+                              addresses={stopAddresses}
+                              selectedStop={selectedStop}
+                              onSelect={setSelectedStop}
+                              accent="rose"
+                            />
+                          )}
+                          {visibleStops.self.length > 0 && (
+                            <StopGroup
+                              title="Tempat Singgah Kamu"
+                              stops={visibleStops.self}
+                              addresses={stopAddresses}
+                              selectedStop={selectedStop}
+                              onSelect={setSelectedStop}
+                              accent="blue"
+                            />
+                          )}
+                        </div>
+                      ) : (
+                        <p className="rounded-xl border border-dashed border-border/70 p-3 text-center text-[11px] text-muted-foreground" role="status">
+                          {isHistoryLoading
+                            ? "Mencari tempat singgah…"
+                            : "Belum ada tempat singgah pada rentang ini."}
+                        </p>
+                      )}
                     </div>
-                    {historyTruncated && (
-                      <p className="text-[10px] text-amber-600 dark:text-amber-400" role="status">
-                        Riwayat terpotong (batas 2000 rekaman) — persempit rentang untuk melihat sisanya.
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {/* Visited stops list */}
-                {showHistory && (
-                  <div className="space-y-3 pt-2">
-                    <h3 className="font-heading text-sm font-semibold flex items-center gap-1.5">
-                      <MapPin className="h-4 w-4 text-primary" />
-                      Daftar Tempat yang Dikunjungi
-                    </h3>
-
-                    {/* Partner stops */}
-                    {(filterUser === "all" || filterUser === "partner") && detectedStops.partner.length > 0 && (
-                      <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-3 space-y-2">
-                        <div className="flex items-center justify-between text-xs font-semibold text-rose-600 dark:text-rose-400">
-                          <span>Tempat Singgah {partner.name}</span>
-                          <span className="text-[11px] font-normal">{detectedStops.partner.length} lokasi</span>
-                        </div>
-                        <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
-                          {detectedStops.partner.map((stop, i) => (
-                            <button
-                              key={stop.id}
-                              type="button"
-                              onClick={() => setSelectedStop(stop)}
-                              aria-current={selectedStop?.id === stop.id ? "true" : undefined}
-                              className={`w-full flex items-center justify-between gap-2 rounded-lg bg-card/80 p-2 text-left text-xs hover:bg-card border transition-colors shadow-xs ${
-                                selectedStop?.id === stop.id ? "border-primary bg-primary/5" : "border-border/60"
-                              }`}
-                            >
-                              <div className="flex items-center gap-2 min-w-0">
-                                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white">
-                                  {stop.isCurrent ? "📍" : i + 1}
-                                </span>
-                                <div className="truncate">
-                                  <p className="font-medium text-foreground truncate">
-                                    {stop.isCurrent ? "Lokasi Saat Ini" : `Kunjungan #${i + 1}`}
-                                  </p>
-                                  <p className="text-[10px] text-muted-foreground">
-                                    {formatTimeOnly(stop.arrivedAt)} {stop.isCurrent ? "– sekarang" : `– ${formatTimeOnly(stop.departedAt)}`}
-                                  </p>
-                                  {stopAddresses[stop.id] && (
-                                    <p className="truncate text-[10px] text-muted-foreground">📍 {stopAddresses[stop.id]}</p>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                <span className="rounded-full bg-rose-500/10 px-2 py-0.5 text-[10px] font-semibold text-rose-600 dark:text-rose-400">
-                                  {stop.isCurrent ? "Sedang di sini" : formatDurationId(stop.durationMinutes)}
-                                </span>
-                                <Eye className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Self stops */}
-                    {(filterUser === "all" || filterUser === "self") && detectedStops.self.length > 0 && (
-                      <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-3 space-y-2">
-                        <div className="flex items-center justify-between text-xs font-semibold text-blue-600 dark:text-blue-400">
-                          <span>Tempat Singgah Kamu</span>
-                          <span className="text-[11px] font-normal">{detectedStops.self.length} lokasi</span>
-                        </div>
-                        <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
-                          {detectedStops.self.map((stop, i) => (
-                            <button
-                              key={stop.id}
-                              type="button"
-                              onClick={() => setSelectedStop(stop)}
-                              aria-current={selectedStop?.id === stop.id ? "true" : undefined}
-                              className={`w-full flex items-center justify-between gap-2 rounded-lg bg-card/80 p-2 text-left text-xs hover:bg-card border transition-colors shadow-xs ${
-                                selectedStop?.id === stop.id ? "border-primary bg-primary/5" : "border-border/60"
-                              }`}
-                            >
-                              <div className="flex items-center gap-2 min-w-0">
-                                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-500 text-[10px] font-bold text-white">
-                                  {stop.isCurrent ? "📍" : i + 1}
-                                </span>
-                                <div className="truncate">
-                                  <p className="font-medium text-foreground truncate">
-                                    {stop.isCurrent ? "Lokasi Saat Ini" : `Kunjungan #${i + 1}`}
-                                  </p>
-                                  <p className="text-[10px] text-muted-foreground">
-                                    {formatTimeOnly(stop.arrivedAt)} {stop.isCurrent ? "– sekarang" : `– ${formatTimeOnly(stop.departedAt)}`}
-                                  </p>
-                                  {stopAddresses[stop.id] && (
-                                    <p className="truncate text-[10px] text-muted-foreground">📍 {stopAddresses[stop.id]}</p>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400">
-                                  {stop.isCurrent ? "Sedang di sini" : formatDurationId(stop.durationMinutes)}
-                                </span>
-                                <Eye className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  </section>
                 )}
               </div>
             )}

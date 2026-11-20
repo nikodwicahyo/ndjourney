@@ -1,4 +1,5 @@
 import { haversineMeters } from "./geo";
+import { formatInJakarta, formatJakartaTime, getJakartaDateOnly } from "./date";
 import { fetchRoadRoute } from "./routing";
 import type { LocationHistoryPoint } from "@/hooks/useLocation";
 
@@ -57,6 +58,19 @@ export function formatTimeOnly(iso: string): string {
   }
 }
 
+/** One canonical "time range . date" label, shared by the stop list and map popup. */
+export function formatStopTimeLabel(stop: VisitedStop): string {
+  // Always the real first/last ping: that is exactly the span `durationMinutes`
+  // is computed from. "sekarang" would disagree with it for stale fixes.
+  const time = `${formatJakartaTime(stop.arrivedAt)} - ${formatJakartaTime(stop.departedAt)}`;
+  const date = formatInJakarta(stop.arrivedAt, {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+  return `${time} · ${date}`;
+}
+
 function median(values: number[]): number {
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
@@ -108,9 +122,12 @@ export function detectStopPoints(
   const minStationary = options.minStationaryPings ?? 3;
   const maxGapMs = (options.maxGapMinutes ?? 15) * 60_000;
   const mergeRadius = options.mergeRadiusMeters ?? 50;
-  // A long silence at nearly the same spot is sparse GPS while staying put,
-  // not evidence the person left. Only a real move makes a gap split the cluster.
+  // A silence at nearly the same spot is usually sparse GPS, not a new visit.
+  // Bound it in BOTH directions: a long same-day sleep at one place stays one
+  // visit, while fixes on different Jakarta days are separate visits even when
+  // the place (and the elapsed time) is identical.
   const sparseRadius = 25;
+  const maxSparseGapMs = 6 * 60 * 60_000;
 
   const points = [...rawPoints]
     .filter((p) => p.accuracy === null || p.accuracy <= maxAccuracy)
@@ -129,7 +146,15 @@ export function detectStopPoints(
     };
     const dist = haversineMeters(center, { latitude: pt.latitude, longitude: pt.longitude });
     const gap = new Date(pt.createdAt).getTime() - new Date(current[current.length - 1].createdAt).getTime();
-    if (dist <= clusterRadius && (gap <= maxGapMs || dist <= sparseRadius)) {
+    const last = current[current.length - 1];
+    const sameDay =
+      getJakartaDateOnly(new Date(pt.createdAt)) ===
+      getJakartaDateOnly(new Date(last.createdAt));
+    if (
+      dist <= clusterRadius &&
+      (gap <= maxGapMs ||
+        (dist <= sparseRadius && gap <= maxSparseGapMs && sameDay))
+    ) {
       current.push(pt);
     } else {
       clusters.push(current);

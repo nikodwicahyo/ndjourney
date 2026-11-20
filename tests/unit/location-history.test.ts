@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   detectStopPoints,
   formatDurationId,
+  formatStopTimeLabel,
   formatTimeOnly,
   downsampleWaypoints,
   fetchRoadSnappedRoute,
@@ -54,6 +55,22 @@ describe("location-history utility", () => {
 
     it("handles invalid string gracefully", () => {
       expect(formatTimeOnly("invalid")).toBe("—");
+    });
+  });
+
+  describe("formatStopTimeLabel", () => {
+    const stop = (isCurrent = false) => ({
+      id: "s1", userId: "u1", latitude: -6.2, longitude: 106.8,
+      arrivedAt: "2026-11-12T17:30:00Z", departedAt: "2026-11-12T17:54:00Z",
+      durationMinutes: 24, pointCount: 22, isCurrent,
+    });
+
+    it("renders 'time range . date' for a past stop", () => {
+      expect(formatStopTimeLabel(stop())).toBe("00:30 - 00:54 · 13/11/2026");
+    });
+
+    it("uses the real last-ping time for the current stop too", () => {
+      expect(formatStopTimeLabel(stop(true))).toBe("00:30 - 00:54 · 13/11/2026");
     });
   });
 
@@ -195,6 +212,57 @@ describe("location-history utility", () => {
       ];
       const stops = detectStopPoints(points);
       expect(stops).toHaveLength(2);
+    });
+
+    it("splits same-place pings separated by days into separate visits", () => {
+      const day = 24 * 60;
+      const points = [
+        at(0, -6.2, 106.816, 10, 0.1),
+        at(10, -6.20005, 106.81605, 10, 0),
+        at(20, -6.2, 106.816, 10, 0),
+        at(day, -6.2, 106.816, 10, 0.1),
+        at(day + 10, -6.20005, 106.81605, 10, 0),
+        at(day + 20, -6.2, 106.816, 10, 0),
+      ];
+      const stops = detectStopPoints(points);
+      expect(stops).toHaveLength(2);
+      expect(stops[1].isCurrent).toBe(true);
+    });
+
+    it("keeps one stop across a short sparse gap at the same place", () => {
+      const points = [
+        at(0, -6.2, 106.816, 10, 0.1),
+        at(35, -6.20002, 106.81602, 10, 0),
+        at(45, -6.2, 106.816, 10, 0),
+      ];
+      const stops = detectStopPoints(points);
+      expect(stops).toHaveLength(1);
+      expect(stops[0].pointCount).toBe(3);
+    });
+
+    it("keeps one stop across a long same-day silence at the same place", () => {
+      const points = [
+        at(0, -6.2, 106.816, 10, 0.1),
+        at(240, -6.20002, 106.81602, 10, 0), // 4h: phone asleep, not a new place
+        at(250, -6.2, 106.816, 10, 0),
+      ];
+      const stops = detectStopPoints(points);
+      expect(stops).toHaveLength(1);
+      expect(stops[0].pointCount).toBe(3);
+    });
+
+    it("splits a same-place silence that crosses Jakarta midnight", () => {
+      const nightBase = new Date("2026-11-20T15:30:00Z").getTime(); // 22:30 WIB
+      const atNight = (mins: number) => ({
+        userId: "u1", latitude: -6.2, longitude: 106.816,
+        accuracy: 10, heading: null, speed: 0.1,
+        createdAt: new Date(nightBase + mins * 60000).toISOString(), deviceType: "mobile",
+      });
+      const stops = detectStopPoints([
+        atNight(0), atNight(10), atNight(120), atNight(130), // 00:30 WIB next day
+      ]);
+      expect(stops).toHaveLength(2);
+      expect(stops[1].isCurrent).toBe(true);
     });
 
     it("does not create a stop for a brief drive-through", () => {

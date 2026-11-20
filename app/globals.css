@@ -765,6 +765,9 @@ html [data-sonner-toaster][data-sonner-theme="light"] {
 
 .leaflet-popup-content {
   margin: 10px 14px !important;
+  /* Reserve the top-right corner for Leaflet's close button so popup rows
+     (title + duration badge) never sit under it. */
+  padding-right: 20px;
   font-size: 13px;
   line-height: 1.5;
 }

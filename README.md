@@ -204,9 +204,14 @@ types/                # Shared TypeScript types
 | `INVITE_TOKEN` | ✅ | — | Invite-only registration token |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | ❌ | — | VAPID public key for web push; run `npx web-push generate-vapid-keys`, real value in `.env` (not committed) / Vercel env vars |
 | `VAPID_PRIVATE_KEY` | ❌ | — | VAPID private key for web push; run `npx web-push generate-vapid-keys`, real value in `.env` (not committed) / Vercel env vars |
+| `OSRM_BASE_URL` | ❌ | `https://router.project-osrm.org` | OSRM route API; public demo needs no key (non-commercial, 1 req/s, no uptime guarantee). Override for a self-hosted/provider instance |
+| `NOMINATIM_URL` | ❌ | `https://nominatim.openstreetmap.org/reverse` | Reverse geocode; public endpoint needs no key (1 req/s). Override to switch provider without a code change (on Vercel: edit env + redeploy) |
+| `NOMINATIM_USER_AGENT` | ❌ | `NdJourney/1.0 (https://ndjourney.vercel.app)` | Identifies this app to Nominatim, as its usage policy requires |
 
 > ✅ Required — app will not start without these.  
-> ❌ Optional — falls back gracefully.
+> ❌ Optional — works with the official public endpoints, no signup needed.
+>
+> Both upstreams are called only from `/api/route` and `/api/geocode/reverse`, which cache results and cap traffic at 1 req/s. OpenStreetMap attribution is shown on the map. Sources: [OSRM demo policy](https://github.com/Project-OSRM/osrm-backend/wiki/Demo-server), [Nominatim usage policy](https://operations.osmfoundation.org/policies/nominatim/).
 
 See [SETUP.md](./SETUP.md) for detailed setup instructions for each service.
 

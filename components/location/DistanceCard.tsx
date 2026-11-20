@@ -14,13 +14,14 @@ import {
   Heart,
   Sparkles,
   Navigation,
+  Navigation2,
   Crosshair,
 } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback, Card, CardContent } from "@/components/ui";
 import {
   formatDistance,
   formatDistanceCategory,
-  bearing,
+  reliableBearing,
   formatBearingId,
   distanceTrend,
   estimateRoadArrivalSeconds,
@@ -154,11 +155,8 @@ export default function DistanceCard({
   }
 
   if (self.location && partner.location) {
-    bearingDeg = bearing(
-      { latitude: self.location.lat, longitude: self.location.lng },
-      { latitude: partner.location.lat, longitude: partner.location.lng },
-    );
-    bearingId = formatBearingId(bearingDeg);
+    bearingDeg = reliableBearing(self.location, partner.location);
+    bearingId = bearingDeg === null ? "" : formatBearingId(bearingDeg);
   }
 
   const [showSparkle, setShowSparkle] = useState(false);
@@ -292,14 +290,16 @@ export default function DistanceCard({
               >
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Navigation className="h-3 w-3" aria-hidden="true" />
-                  <span>Ke Arah:</span>
+                  <span>Arah ke {partner.name}:</span>
                 </div>
                 <span
                   className="inline-flex items-center"
                   role="img"
                   aria-label={`Arah ${bearingId}`}
                 >
-                  <Navigation
+                  {/* Navigation2 points north by default; plain Navigation points
+                      north-east, which would offset the arrow by 45°. */}
+                  <Navigation2
                     className="h-5 w-5 text-foreground"
                     aria-hidden="true"
                     style={{ transform: `rotate(${bearingDeg ?? 0}deg)` }}

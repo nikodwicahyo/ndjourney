@@ -47,8 +47,9 @@ export default function LoginForm() {
     }
 
     if (result?.url) {
-      router.push(result.url);
-      router.refresh();
+      // External OAuth URL — a hard navigation is required. router.push would
+      // try to fetch an RSC payload from accounts.google.com and fail.
+      window.location.href = result.url;
     }
   }
 

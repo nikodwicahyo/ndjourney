@@ -1,8 +1,16 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { haversineMeters } from "@/lib/geo";
+import { pacedFetch } from "@/lib/paced-fetch";
 
 export const dynamic = "force-dynamic";
+
+// The official demo needs no key/signup and works with zero config. The env
+// override exists so ops can switch instances without a software update.
+// Demo policy: reasonable non-commercial use, <=1 req/s, no uptime guarantee.
+// Source: https://github.com/Project-OSRM/osrm-backend/wiki/Demo-server
+const OSRM_BASE_URL =
+  process.env.OSRM_BASE_URL?.replace(/\/+$/, "") || "https://router.project-osrm.org";
 
 type RoutePayload = {
   distanceMeters: number;
@@ -111,10 +119,10 @@ export async function GET(request?: Request) {
         `${to.lng.toFixed(6)},${to.lat.toFixed(6)}`,
       ];
       const url =
-        `https://router.project-osrm.org/route/v1/driving/` +
+        `${OSRM_BASE_URL}/route/v1/driving/` +
         coordinates.join(";") +
         `?overview=full&geometries=geojson`;
-      const res = await fetch(url, {
+      const res = await pacedFetch(url, {
         signal: AbortSignal.timeout(4000),
         headers: { Accept: "application/json" },
       });

@@ -6,10 +6,11 @@ import { MapPin, Loader2 } from "lucide-react";
 import { Card, Avatar, AvatarImage, AvatarFallback } from "@/components/ui";
 import {
   useLocationSettings,
-  useDistance,
   useIsMeeting,
   useFloatingHearts,
+  useRoadRoute,
 } from "@/hooks/useLocation";
+import { shouldUseRoadRoute } from "@/lib/routing";
 import DeviceBadge from "./DeviceBadge";
 import FloatingHeart from "./FloatingHeart";
 import { formatDistance, formatDistanceCategory } from "@/lib/geo";
@@ -38,9 +39,18 @@ export default function LocationWidget() {
 
 function LocationWidgetContent() {
   const { data, isLoading } = useLocationSettings();
-  const distance = useDistance(data);
   const meeting = useIsMeeting(data);
   const { heart, clearHeart } = useFloatingHearts(data?.coupleId);
+
+  // Same road-only source as DistanceCard on /location. The query is keyed by
+  // rounded coords and cached, so both surfaces share one OSRM result.
+  const bothSharing = !!data && data.self.isSharing && data.partner.isSharing;
+  const routeQuery = useRoadRoute(
+    data?.self.location ?? null,
+    bothSharing ? data?.partner.location ?? null : null,
+    bothSharing,
+  );
+  const roadRoute = shouldUseRoadRoute(routeQuery.data ?? null);
 
   if (isLoading) {
     return (
@@ -71,7 +81,6 @@ function LocationWidgetContent() {
     );
   }
 
-  const bothSharing = self.isSharing && partner.isSharing;
   const selfLive = self.isSharing && !self.isStale;
   const partnerLive = partner.isSharing && !partner.isStale;
   const selfInitial = (self.name ?? "K").charAt(0).toUpperCase();
@@ -89,12 +98,17 @@ function LocationWidgetContent() {
         </div>
       </div>
 
-      {/* Category */}
-      {distance !== null && bothSharing && (
-        <p className="mt-1 text-xs text-muted-foreground justify-center text-center">
-          {formatDistanceCategory(distance)}
-        </p>
-      )}
+      {/* Road-only status, same rules as DistanceCard: never a straight-line
+          number masquerading as a road route. */}
+      <p className="mt-1 text-center text-xs text-muted-foreground" role="status">
+        {!bothSharing
+          ? "Aktifkan berbagi lokasi"
+          : roadRoute
+            ? formatDistanceCategory(roadRoute.distanceMeters)
+            : routeQuery.isLoading
+              ? "Memuat rute jalan…"
+              : "Rute jalan tidak tersedia"}
+      </p>
 
       {/* Person avatars row */}
       <div className="mt-4 flex items-center justify-around">
@@ -136,7 +150,7 @@ function LocationWidgetContent() {
         {/* Distance */}
         <div className="flex flex-col items-center gap-0.5">
           <span className="font-heading text-xl font-bold tabular-nums text-foreground">
-            {distance !== null ? formatDistance(distance) : "—"}
+            {roadRoute ? formatDistance(roadRoute.distanceMeters) : "—"}
           </span>
           {bothSharing && (
             selfLive && partnerLive ? (

@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 vi.mock("@/lib/prisma", () => ({ prisma: {}, sql: undefined }));
 import {
   haversineMeters, formatDistance, formatDistanceCategory,
-  isMeeting, distanceTrend, formatBearingId, directionEmoji,
+  isMeeting, distanceTrend, bearing, formatBearingId, reliableBearing, directionEmoji,
 } from "@/lib/geo";
 import {
   getDaysSince, formatBytes, truncate, seededRandom, pickFromSeed,
@@ -38,7 +38,8 @@ describe("geo utils", () => {
 
   it("formatDistance/categories/trend", () => {
     expect(formatDistance(500)).toBe("500 m");
-    expect(formatDistance(1500)).toContain("km");
+    expect(formatDistance(1500)).toBe("1.5 km");
+    expect(formatDistance(11499.8)).toBe("11.5 km");
     expect(formatDistance(-1)).toBe("—");
     expect(formatDistanceCategory(5)).toBe("Bertemu");
     expect(distanceTrend(90, 100)).toBe("closing");
@@ -47,6 +48,31 @@ describe("geo utils", () => {
     expect(distanceTrend(100, null)).toBeNull();
     expect(["Utara", "Timur Laut", "Timur", "Tenggara", "Selatan", "Barat Daya", "Barat", "Barat Laut"]).toContain(formatBearingId(90));
     expect(typeof directionEmoji(0)).toBe("string");
+  });
+
+  it("bearing toward the other person is reciprocal and shared with the card", () => {
+    const self = { latitude: -6.2, longitude: 106.8 };
+    const partner = { latitude: -6.19, longitude: 106.8 };
+    expect(formatBearingId(bearing(self, partner))).toBe("Utara");
+    expect(formatBearingId(bearing(partner, self))).toBe("Selatan");
+  });
+
+  it("formatter stays total for invalid angles", () => {
+    expect(formatBearingId(NaN)).toBe("");
+    expect(formatBearingId(-50)).toBe("Barat Laut");
+    expect(formatBearingId(370)).toBe("Utara");
+  });
+
+  it("reliableBearing works on stale fixes but rejects impossible geometry", () => {
+    const self = { lat: -6.2, lng: 106.8 };
+    const partner = { lat: -6.19, lng: 106.8 };
+
+    expect(formatBearingId(reliableBearing(self, partner)!)).toBe("Utara");
+    // An old fix is still a direction to the last known point; the UI flags
+    // staleness separately instead of hiding the only direction we have.
+    expect(reliableBearing(self, partner)).not.toBeNull();
+    expect(reliableBearing(self, self)).toBeNull();
+    expect(reliableBearing(self, { ...partner, lat: NaN })).toBeNull();
   });
 });
 

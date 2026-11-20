@@ -863,8 +863,6 @@ etaStr = formatArrivalTime(etaSeconds);
 
 - [ ] **Step 2: Show which source the ETA uses**
 
-Next to the ETA value, when `roadRoute` is set, render
-`<span className="text-[10px] text-muted-foreground">· via rute jalan</span>`.
 
 - [ ] **Step 3: Pass it from the manager**
 

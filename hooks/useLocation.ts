@@ -91,6 +91,8 @@ export type LocationHistoryResult = {
   range: string;
   count: number;
   truncated: boolean;
+  oldestAt: string | null;
+  newestAt: string | null;
 };
 
 export function useLocationHistory(
@@ -111,6 +113,8 @@ export function useLocationHistory(
         range: json.range ?? range,
         count: json.count ?? points.length,
         truncated: json.truncated === true,
+        oldestAt: json.oldestAt ?? null,
+        newestAt: json.newestAt ?? null,
       };
     },
     staleTime: 30_000,

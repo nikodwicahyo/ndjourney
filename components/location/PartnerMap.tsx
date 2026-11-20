@@ -8,8 +8,7 @@ import { Heart, MapPin, Ruler } from "lucide-react";
 import {
   formatDistance,
   haversineMeters,
-  bearing,
-  formatBearing,
+  reliableBearing,
   formatBearingId,
 } from "@/lib/geo";
 import { safeAvatarSrc } from "@/lib/format";
@@ -28,6 +27,7 @@ import {
   detectStopPoints,
   fetchRoadSnappedRoute,
   formatDurationId,
+  formatStopTimeLabel,
   formatTimeOnly,
   type VisitedStop,
 } from "@/lib/location-history";
@@ -45,6 +45,21 @@ const TILE_URL =
   "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 const TILE_ATTR =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+
+// Leaflet popups/icons are raw HTML strings, so lucide paths are inlined here
+// instead of embedding platform-dependent emoji glyphs.
+const MAP_PIN_PATH =
+  '<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/>';
+const CLOCK_PATH =
+  '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>';
+const SPEED_PATH =
+  '<path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/>';
+// Points straight up (north) so rotate(bearing) is geometrically accurate.
+const NAV_PATH = '<path d="M12 2 19 21 12 17 5 21Z"/>';
+
+function inlineIcon(path: string, size: number, color = "currentColor", filled = false): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="${filled ? color : "none"}" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:inline-block;vertical-align:-2px;flex:none;">${path}</svg>`;
+}
 
 function prefersReducedMotion(): boolean {
   return (
@@ -90,7 +105,7 @@ function createAvatarIcon(
     : `<div style="width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:${bg};border:3px solid ${ring};box-shadow:${shadow};color:${fg};">${heart}</div>`;
 
   const statusBadge = isStationary
-    ? `<div style="pointer-events:none;position:absolute;bottom:-1px;right:-1px;width:17px;height:17px;border-radius:50%;background:${ring};color:#fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.35);" title="Sedang singgah">📍</div>`
+    ? `<div style="pointer-events:none;position:absolute;bottom:-1px;right:-1px;width:17px;height:17px;border-radius:50%;background:${ring};color:#fff;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.35);" title="Sedang singgah">${inlineIcon(MAP_PIN_PATH, 10, "#fff")}</div>`
     : "";
 
   const inner = `<div class="avatar-marker-pin" style="position:relative;width:44px;height:44px;cursor:pointer;">${avatarContent}${statusBadge}</div>`;
@@ -118,7 +133,7 @@ function createBearingArrow(heading: number, isSelf: boolean): L.DivIcon {
   const color = isSelf ? "#3b82f6" : "#F43F5E";
   return L.divIcon({
     className: "",
-    html: `<div style="pointer-events:none;width:14px;height:14px;transform:rotate(${heading}deg);font-size:14px;line-height:1;opacity:0.7;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.4));">${isSelf ? "▲" : "△"}</div>`,
+    html: `<div style="pointer-events:none;width:14px;height:14px;transform:rotate(${heading}deg);opacity:0.8;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.4));">${inlineIcon(NAV_PATH, 14, color, isSelf)}</div>`,
     iconSize: [14, 14],
     iconAnchor: [7, 14],
   });
@@ -148,6 +163,8 @@ function buildAvatarPopup(
   p: Pin,
   address: string | null,
   currentStop?: VisitedStop | null,
+  towardBearing?: number | null,
+  partnerName = "pasangan",
 ): string {
   const safeImg = safeAvatarSrc(p.image);
 
@@ -158,23 +175,29 @@ function buildAvatarPopup(
     ? `<div style="font-size:12px;margin-top:2px;color:var(--foreground,#111827);">±${Math.round(p.point.accuracy)}m · ${accuracyLabel(p.point.accuracy)}</div>`
     : "";
   const timeInfo = p.point.updatedAt
-    ? `<div style="font-size:12px;opacity:0.6;margin-top:2px;">🕒 Diperbarui ${timeAgo(p.point.updatedAt)}</div>`
+    ? `<div style="font-size:12px;opacity:0.6;margin-top:2px;">${inlineIcon(CLOCK_PATH, 12)} Diperbarui: ${timeAgo(p.point.updatedAt)}</div>`
     : "";
   const addressInfo = address
     ? `<div style="font-size:12px;margin-top:3px;font-weight:500;color:var(--foreground,#111827);">${escapeHtml(address)}</div>`
     : `<div style="font-size:12px;margin-top:3px;color:var(--muted-foreground,#64748b);">Memuat alamat…</div>`;
+  // Same bearing the distance card uses: from this person toward the other.
+  // The device compass is a different (often stale) value; showing both under
+  // one "Arah" label made the two views disagree.
+  const towardLabel = p.isSelf ? `Arah ke ${escapeHtml(partnerName)}` : "Arah ke kamu";
   const headingInfo =
-    p.point.heading !== null && p.point.heading >= 0
-      ? `<div style="font-size:12px;margin-top:2px;opacity:0.6;">Arah: ${formatBearing(p.point.heading)}</div>`
+    towardBearing !== null && towardBearing !== undefined
+      ? `<div style="font-size:12px;margin-top:2px;opacity:0.6;display:flex;align-items:center;gap:4px;">` +
+        `<span style="display:inline-flex;transform:rotate(${towardBearing}deg);">${inlineIcon(NAV_PATH, 12)}</span>` +
+        `<span>${towardLabel}: ${formatBearingId(towardBearing)}</span></div>`
       : "";
   const speedInfo =
     p.point.speed !== null && p.point.speed >= 0
-      ? `<div style="font-size:12px;margin-top:2px;opacity:0.6;">Kecepatan: ${(p.point.speed * 3.6).toFixed(1)} km/j</div>`
+      ? `<div style="font-size:12px;margin-top:2px;opacity:0.6;display:flex;align-items:center;gap:4px;">${inlineIcon(SPEED_PATH, 12)}<span>Kecepatan: ${(p.point.speed * 3.6).toFixed(1)} km/j</span></div>`
       : "";
 
   const stopStatus = currentStop
     ? `<div style="margin-top:6px;padding:4px 8px;border-radius:6px;background:${p.isSelf ? "#3b82f618" : "#F43F5E18"};color:${p.isSelf ? "#2563eb" : "#e11d48"};font-size:11px;font-weight:600;">
-        📍 Sedang di sini · ${formatDurationId(currentStop.durationMinutes)}
+        ${inlineIcon(MAP_PIN_PATH, 12)} Sedang di sini · ${formatDurationId(currentStop.durationMinutes)}
        </div>`
     : "";
 
@@ -370,7 +393,9 @@ export default function PartnerMap({
         position: "bottomleft",
         metric: true,
         imperial: false,
-        maxWidth: 120,
+        // Leaflet rounds the scale label from this width; 120px at the max
+        // zoom (19) rounds up to 30 m. 60px lands in the 10 m bucket.
+        maxWidth: 60,
       })
       .addTo(map);
 
@@ -533,6 +558,25 @@ export default function PartnerMap({
 
     tryInvalidate();
     map.whenReady(() => tryInvalidate());
+
+    // First visit frames both people. The later marker/history effects guard
+    // on markersFittedRef, so this one fit owns the initial view and presence
+    // polls can't shift it afterwards.
+    map.whenReady(() => {
+      if (mapRef.current !== map) return;
+      const points = [self?.point, partner?.point]
+        .filter((p): p is LocationPoint => !!p)
+        .map((p) => [p.lat, p.lng] as L.LatLngExpression);
+      if (points.length === 2) {
+        map.invalidateSize();
+        map.fitBounds(L.latLngBounds(points), {
+          padding: [80, 80],
+          maxZoom: 16,
+          animate: false,
+        });
+        markersFittedRef.current = true;
+      }
+    });
 
     const ro = new ResizeObserver(() => {
       if (mapRef.current) mapRef.current.invalidateSize({ debounceMoveend: true });
@@ -780,7 +824,7 @@ export default function PartnerMap({
         stopMarkersRef.current.set(stop.id, marker);
 
         const durationStr = `Singgah ${formatDurationId(stop.durationMinutes)}`;
-        const timeRangeStr = `${formatTimeOnly(stop.arrivedAt)} – ${formatTimeOnly(stop.departedAt)}`;
+        const timeLabel = formatStopTimeLabel(stop);
 
         // Dynamic content reads the latest place name at popup-open time.
         // A name arriving later must not rebuild the whole history layer.
@@ -800,7 +844,7 @@ export default function PartnerMap({
               ${escapeHtml(displayAddr)}
             </div>
             <div style="font-size:11px;color:var(--muted-foreground,#64748b);">
-              🕒 ${timeRangeStr}
+              ${inlineIcon(CLOCK_PATH, 12)} ${timeLabel}
             </div>
             <div style="font-size:10px;color:var(--muted-foreground,#94a3b8);margin-top:2px;">
               ${escapeHtml(userLabel)} · ${stop.pointCount} titik pantau
@@ -858,6 +902,10 @@ export default function PartnerMap({
       const latlng: L.LatLngExpression = [p.point.lat, p.point.lng];
       latlngs.push(latlng);
 
+      // Direction toward the other person — same guard and bearing as the card.
+      const other = p.isSelf ? partner : self;
+      const towardBearing = other ? reliableBearing(p.point, other.point) : null;
+
       // Accuracy circle
       if (p.point.accuracy && p.point.accuracy > 0 && p.point.accuracy < 1000) {
         const color = p.isSelf ? "#3b82f6" : "#F43F5E";
@@ -901,10 +949,10 @@ export default function PartnerMap({
         partnerMarkerRef.current = marker;
       }
 
-      // Bearing/heading arrow
-      if (p.point.heading !== null && p.point.heading >= 0) {
+      // Arrow points toward the other person, matching the popup and card.
+      if (towardBearing !== null) {
         L.marker(latlng, {
-          icon: createBearingArrow(p.point.heading, p.isSelf),
+          icon: createBearingArrow(towardBearing, p.isSelf),
           interactive: false,
           keyboard: false,
           zIndexOffset: 1500,
@@ -926,12 +974,12 @@ export default function PartnerMap({
             if (addr) {
               addressCacheRef.current[addrKey] = addr;
               if (marker.isPopupOpen()) {
-                marker.setPopupContent(buildAvatarPopup(p, addr, currentStop));
+                marker.setPopupContent(buildAvatarPopup(p, addr, currentStop, towardBearing, partner?.label));
               }
             }
           });
         }
-        return buildAvatarPopup(p, cached ?? null, currentStop);
+        return buildAvatarPopup(p, cached ?? null, currentStop, towardBearing, partner?.label);
       }, {
         autoPan: true,
         closeButton: true,

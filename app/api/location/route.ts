@@ -6,7 +6,7 @@ import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { getUserCoupleId } from "@/lib/couple";
 import { triggerCoupleEvent } from "@/lib/pusher-server";
 import { detectDeviceType } from "@/lib/device";
-import { MEET_THRESHOLD_METERS, LOCATION_STALE_AFTER_SECONDS } from "@/lib/geo";
+import { MEET_THRESHOLD_METERS, LOCATION_STALE_AFTER_SECONDS, haversineMeters } from "@/lib/geo";
 import { notifyLocationReonline } from "@/lib/activity";
 
 export const dynamic = "force-dynamic";
@@ -254,16 +254,27 @@ export async function POST(request: Request) {
         },
       });
 
-      // Write to location history (throttled: only if last history entry is >30s old or doesn't exist).
-      // single transaction — concurrent 8s polls from 2 tabs can't duplicate/over-trim.
+      // Write to location history (throttled):
+      // If user moved >= 15 meters, record after 30 seconds.
+      // If stationary (< 15 meters), record every 5 minutes to confirm dwell without database spamming.
       const lastHistory = await tx.userLocationHistory.findFirst({
         where: { userId },
         orderBy: { createdAt: "desc" },
-        select: { createdAt: true },
+        select: { createdAt: true, latitude: true, longitude: true },
       });
 
-      if (lastHistory && now.getTime() - lastHistory.createdAt.getTime() <= 30000) {
-        return { previousUpdatedAt };
+      if (lastHistory) {
+        const elapsedMs = now.getTime() - lastHistory.createdAt.getTime();
+        const movedMeters = haversineMeters(
+          { latitude, longitude },
+          { latitude: lastHistory.latitude, longitude: lastHistory.longitude },
+        );
+        if (movedMeters < 15 && elapsedMs < 300000) {
+          return { previousUpdatedAt };
+        }
+        if (movedMeters >= 15 && elapsedMs < 30000) {
+          return { previousUpdatedAt };
+        }
       }
 
       await tx.userLocationHistory.create({
@@ -280,17 +291,20 @@ export async function POST(request: Request) {
         },
       });
 
-      // Keep only last 50 history points per user: delete everything older than the 50th newest.
-      const keep = await tx.userLocationHistory.findMany({
+      // No time-based pruning: the All filter must really reach every stored fix.
+      // Only a count cap keeps the table bounded; users can erase their own
+      // trail explicitly via DELETE /api/location/history.
+      const maxPoints = 2000;
+      const oldestAllowed = await tx.userLocationHistory.findMany({
         where: { userId },
         orderBy: { createdAt: "desc" },
-        take: 50,
-        select: { id: true, createdAt: true },
+        skip: maxPoints,
+        take: 1,
+        select: { createdAt: true },
       });
-      if (keep.length === 50) {
-        const cutoff = keep[keep.length - 1].createdAt;
+      if (oldestAllowed.length > 0) {
         await tx.userLocationHistory.deleteMany({
-          where: { userId, createdAt: { lt: cutoff } },
+          where: { userId, createdAt: { lte: oldestAllowed[0].createdAt } },
         });
       }
 

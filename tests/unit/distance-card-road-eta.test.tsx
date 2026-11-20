@@ -46,12 +46,22 @@ describe("DistanceCard road-only ETA", () => {
     expect(screen.getByText("15 menit")).toBeTruthy();
   });
 
-  it("does not double-round a 11.5 km road distance into 12 km", () => {
-    // Regression: AnimatedNumber used to round metres first, so 11499.8m
-    // became 11500m and the card showed 12 km while the map showed 11 km.
+  it("shows a precise 11.5 km instead of rounding to 11 or 12 km", () => {
+    // Regression: rounding metres first produced 12 km, truncating km produced
+    // 11 km. Both the card and map now show one decimal from the same helper.
     render(<DistanceCard state={state} distance={8200} roadRoute={{ ...road, distanceMeters: 11499.8 }} />);
-    expect(screen.getByText("11 km")).toBeTruthy();
+    expect(screen.getByText("11.5 km")).toBeTruthy();
+    expect(screen.queryByText("11 km")).toBeNull();
     expect(screen.queryByText("12 km")).toBeNull();
+  });
+
+  it("rotates a north-based arrow to the partner bearing", () => {
+    // lucide's plain Navigation points north-east; using it would offset the
+    // arrow by 45° from the label. Navigation2 points true north.
+    const { container } = render(<DistanceCard state={state} distance={8200} roadRoute={road} />);
+    const arrow = container.querySelector("svg.lucide-navigation-2");
+    expect(arrow).toBeTruthy();
+    expect(arrow?.getAttribute("style")).toMatch(/rotate\([\d.]+deg\)/);
   });
 
   it("never turns a fallback route into a road ETA", () => {

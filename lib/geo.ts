@@ -60,13 +60,34 @@ export function bearing(
 }
 
 export function formatBearing(degrees: number): string {
-  const index = Math.round(degrees / 45) % 8;
+  if (!Number.isFinite(degrees)) return "";
+  const index = bearingIndex(degrees);
   return `${DIRECTION_NAMES_ID[index]} ${Math.round(degrees)}°`;
 }
 
 export function formatBearingId(degrees: number): string {
-  const index = Math.round(degrees / 45) % 8;
-  return DIRECTION_NAMES_ID[index];
+  if (!Number.isFinite(degrees)) return "";
+  return DIRECTION_NAMES_ID[bearingIndex(degrees)];
+}
+
+function bearingIndex(degrees: number): number {
+  return ((Math.round(degrees / 45) % 8) + 8) % 8;
+}
+
+type BearingPoint = { lat: number; lng: number };
+
+/**
+ * Compass bearing toward the other person, or null only when no direction
+ * exists (non-finite coordinates or identical points). Staleness is reported
+ * separately in the UI instead of silently hiding the last known direction.
+ */
+export function reliableBearing(a: BearingPoint, b: BearingPoint): number | null {
+  if (![a.lat, a.lng, b.lat, b.lng].every(Number.isFinite)) return null;
+  if (a.lat === b.lat && a.lng === b.lng) return null;
+  return bearing(
+    { latitude: a.lat, longitude: a.lng },
+    { latitude: b.lat, longitude: b.lng },
+  );
 }
 
 const DIRECTION_ARROWS = ["⬆️", "↗️", "➡️", "↘️", "⬇️", "↙️", "⬅️", "↖️"] as const;
@@ -79,8 +100,7 @@ export function directionEmoji(degrees: number): string {
 export function formatDistance(meters: number): string {
   if (!Number.isFinite(meters) || meters < 0) return "—";
   if (meters < 1000) return `${Math.round(meters)} m`;
-  if (meters < 10000) return `${(meters / 1000).toFixed(1)} km`;
-  return `${Math.round(meters / 1000)} km`;
+  return `${(meters / 1000).toFixed(1)} km`;
 }
 
 export function formatDistanceCategory(meters: number): string {

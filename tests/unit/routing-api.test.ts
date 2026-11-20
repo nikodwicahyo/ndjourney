@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
+process.env.OSRM_BASE_URL = "https://osrm.test";
+process.env.NOMINATIM_URL = "https://nominatim.test/reverse";
+process.env.NOMINATIM_USER_AGENT = "Test/1.0 (mailto:test@example.com)";
+
 vi.mock("@/lib/auth", () => ({ auth: vi.fn(async () => ({ user: { id: "u1" } })) }));
 
 const route = await import("@/app/api/route/route");

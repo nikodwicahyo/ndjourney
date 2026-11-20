@@ -160,6 +160,16 @@ describe("location API contracts", () => {
     expect(notifyLocationReonline).not.toHaveBeenCalled();
   });
 
+  it("LOC retention: a new ping keeps old history instead of wiping older days", async () => {
+    prismaMock.locationShare.findUnique.mockResolvedValue({ isSharing: true });
+    const res = await loc.POST(new Request("http://localhost/api/location", {
+      method: "POST",
+      body: JSON.stringify({ latitude: -6.2, longitude: 106.8, deviceType: "mobile" }),
+    }));
+    expect(res.status).toBe(200);
+    expect(txMock.userLocationHistory.deleteMany).not.toHaveBeenCalled();
+  });
+
   it("LOC-07: GET /api/location/share reports the caller's own status; 401 anon", async () => {
     prismaMock.locationShare.findUnique.mockResolvedValue({ isSharing: true });
 
@@ -224,7 +234,10 @@ describe("location API contracts", () => {
 
   it("LOC history: range filters by createdAt and flags a capped result set", async () => {
     prismaMock.coupleMember.findFirst.mockResolvedValue({ userId: PARTNER });
-    const rows = Array.from({ length: 2000 }, () => ({ userId: ME }));
+    const rows = Array.from({ length: 2000 }, (_, i) => ({
+      userId: ME,
+      createdAt: new Date(Date.now() - i * 60_000),
+    }));
     prismaMock.userLocationHistory.findMany.mockResolvedValueOnce(rows as never);
 
     const res = await history.GET(new Request("http://localhost/api/location/history?range=7d"));
@@ -240,10 +253,25 @@ describe("location API contracts", () => {
     expect(query.take).toBe(2000);
     expect(query.where.createdAt?.gte).toBeInstanceOf(Date);
 
-    prismaMock.userLocationHistory.findMany.mockResolvedValueOnce([{ userId: ME }] as never);
+    prismaMock.userLocationHistory.findMany.mockResolvedValueOnce([
+      { userId: ME, createdAt: new Date() },
+    ] as never);
     const small = await (await history.GET(new Request("http://localhost/api/location/history?range=24h"))).json();
     expect(small.range).toBe("24h");
     expect(small.truncated).toBe(false);
+  });
+
+  it("LOC history: reports the real stored date span, not a fixed window", async () => {
+    prismaMock.coupleMember.findFirst.mockResolvedValue({ userId: PARTNER });
+    prismaMock.userLocationHistory.findMany.mockResolvedValueOnce([
+      { userId: ME, createdAt: new Date("2026-11-19T10:00:00Z") },
+      { userId: ME, createdAt: new Date("2026-09-16T05:00:00Z") },
+    ] as never);
+
+    const res = await history.GET(new Request("http://localhost/api/location/history?range=all"));
+    const body = await res.json();
+    expect(body.newestAt).toBe("2026-11-19T10:00:00.000Z");
+    expect(body.oldestAt).toBe("2026-09-16T05:00:00.000Z");
   });
 
   it("LOC-04/05: history GET 200 ordered, heart POST 200", async () => {

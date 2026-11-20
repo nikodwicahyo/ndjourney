@@ -22,7 +22,8 @@ export async function GET(request?: Request) {
       );
     }
 
-    // Optional duration range filter: "today" | "24h" | "3d" | "7d" | "all"
+    // Optional duration range filter: "today" | "24h" | "3d" | "7d" | "all".
+    // "all" means no time cutoff (still bounded by HISTORY_LIMIT).
     let range: string | null = null;
     let since: Date | null = null;
 
@@ -55,9 +56,8 @@ export async function GET(request?: Request) {
         since = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
       } else if (range === "7d") {
         since = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      } else if (range === "all") {
-        since = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
       }
+      // "all" leaves `since` null so every stored fix can be selected.
     }
 
     // share-gated — opted-out users' trails stay private.
@@ -107,8 +107,23 @@ export async function GET(request?: Request) {
     // Report it so the UI can ask for a narrower range instead of silently
     // showing an incomplete trail.
     const truncated = history.length >= HISTORY_LIMIT;
+    // Dates come from the rows actually stored/returned — no invented window.
+    // `desc` order makes index 0 the newest and the last row the oldest.
+    const newestAt = history[0]?.createdAt
+      ? new Date(history[0].createdAt).toISOString()
+      : null;
+    const oldestAt = history.length > 0
+      ? new Date(history[history.length - 1].createdAt).toISOString()
+      : null;
     return NextResponse.json(
-      { data: history, range: range ?? "all", count: history.length, truncated },
+      {
+        data: history,
+        range: range ?? "all",
+        count: history.length,
+        truncated,
+        oldestAt,
+        newestAt,
+      },
       { headers: { "Cache-Control": "private, no-cache" } },
     );
   } catch (error) {

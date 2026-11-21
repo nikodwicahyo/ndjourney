@@ -6,6 +6,7 @@ import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { getUserCoupleId } from "@/lib/couple";
 import { emitActivity } from "@/lib/activity";
 import { triggerCoupleEvent } from "@/lib/pusher-server";
+import { lockLocationWrite } from "@/lib/location-write";
 
 export const dynamic = "force-dynamic";
 
@@ -72,6 +73,9 @@ export async function PUT(request: Request) {
     // Flag change and row deletion are one unit: a failed delete rolls back
     // the opt-out instead of leaving a stale location behind the flag.
     await prisma.$transaction(async (tx) => {
+      // Same per-user lock as the location writes: an opt-out cannot interleave
+      // between a POST's share re-check and its upsert and resurrect a row.
+      await lockLocationWrite(tx, userId);
       await tx.locationShare.upsert({
         where: { userId },
         create: { userId, coupleId, isSharing },
@@ -96,7 +100,8 @@ export async function PUT(request: Request) {
       });
     } else if (!isSharing && previous?.isSharing) {
       // Turning off still has to refresh the partner's live map (no feed row).
-      triggerCoupleEvent(coupleId, "LOCATION");
+      // Await: a fire-and-forget trigger can be killed with the invocation.
+      await triggerCoupleEvent(coupleId, "LOCATION");
     }
 
     return NextResponse.json({ data: { isSharing } }, { status: 200 });

@@ -62,6 +62,7 @@ async function main() {
         speed: null,
         altitude: null,
         deviceType: "mobile",
+        recordedAt: recent,
         updatedAt: recent,
       },
       update: {
@@ -72,6 +73,7 @@ async function main() {
         speed: null,
         altitude: null,
         deviceType: "mobile",
+        recordedAt: recent,
         updatedAt: recent,
       },
     });

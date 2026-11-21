@@ -6,8 +6,10 @@ import { withRateLimit } from '@/lib/rate-limit';
 
 export async function POST(req: Request) {
   try {
-    // SEC: channel-auth/socket enumeration must not be unthrottled.
-    const rateCheck = await withRateLimit(req, { maxRequests: 60, windowSeconds: 3600, keyPrefix: "pusher-auth" });
+    // SEC: channel-auth/socket enumeration must not be unthrottled. Every
+    // reconnect and layout remount spends one slot, so 60/h silently killed
+    // realtime after a normal day of app switches. Still per-user and bounded.
+    const rateCheck = await withRateLimit(req, { maxRequests: 300, windowSeconds: 3600, keyPrefix: "pusher-auth" });
     if (!rateCheck.allowed) {
       return rateCheck.response;
     }

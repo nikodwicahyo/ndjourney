@@ -3,8 +3,13 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { getUserCoupleId } from "@/lib/couple";
 import { getJakartaParts } from "@/lib/date";
+import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
+import { triggerCoupleEvent } from "@/lib/pusher-server";
+import { MAX_HISTORY_ACCURACY_METERS } from "@/lib/location";
 
 export const dynamic = "force-dynamic";
+
+const HISTORY_LIMIT = 2_000;
 
 export async function GET(request?: Request) {
   try {
@@ -70,27 +75,43 @@ export async function GET(request?: Request) {
       where: { userId: { in: visibleIds } },
       select: { userId: true, isSharing: true },
     });
-    if (Array.isArray(shares) && shares.length > 0) {
-      const hidden = new Set(shares.filter((s) => s.isSharing === false).map((s) => s.userId));
-      hidden.delete(userId);
-      visibleIds = visibleIds.filter((v) => !hidden.has(v));
+    if (!Array.isArray(shares) || shares.length === 0) {
+      // No consent row at all ⇒ only your own trail is yours to see.
+      visibleIds = [userId];
+    } else {
+      // Strict allow-list: a missing/false share row is not consent. This
+      // matches GET /api/location, which hides the live marker unless the
+      // share row explicitly says true.
+      const allowed = new Set(
+        shares
+          .filter((s) => s.isSharing === true && s.userId !== userId)
+          .map((s) => s.userId),
+      );
+      visibleIds = visibleIds.filter((v) => v === userId || allowed.has(v));
     }
 
     const whereClause: {
       userId: { in: string[] };
       createdAt?: { gte: Date };
+      OR?: Array<{ accuracy: null } | { accuracy: { lte: number } }>;
     } = {
       userId: { in: visibleIds },
+      // The trail contract is the same as the write path: a 500 m fix is noise,
+      // not a road. Keep null accuracy (older rows) so history is not lost.
+      OR: [
+        { accuracy: null },
+        { accuracy: { lte: MAX_HISTORY_ACCURACY_METERS } },
+      ],
     };
     if (since) {
       whereClause.createdAt = { gte: since };
     }
 
-    const HISTORY_LIMIT = 2000;
+    // One extra row tells us the cap was actually hit, so `truncated` is exact.
     const history = await prisma.userLocationHistory.findMany({
       where: whereClause,
       orderBy: { createdAt: "desc" },
-      take: HISTORY_LIMIT,
+      take: HISTORY_LIMIT + 1,
       select: {
         userId: true,
         latitude: true,
@@ -103,23 +124,22 @@ export async function GET(request?: Request) {
       },
     });
 
-    // Hitting the cap means older fixes inside the chosen range were dropped.
-    // Report it so the UI can ask for a narrower range instead of silently
-    // showing an incomplete trail.
-    const truncated = history.length >= HISTORY_LIMIT;
+    const truncated = history.length > HISTORY_LIMIT;
+    const points = truncated ? history.slice(0, HISTORY_LIMIT) : history;
+
     // Dates come from the rows actually stored/returned — no invented window.
     // `desc` order makes index 0 the newest and the last row the oldest.
-    const newestAt = history[0]?.createdAt
-      ? new Date(history[0].createdAt).toISOString()
+    const newestAt = points[0]?.createdAt
+      ? new Date(points[0].createdAt).toISOString()
       : null;
-    const oldestAt = history.length > 0
-      ? new Date(history[history.length - 1].createdAt).toISOString()
+    const oldestAt = points.length > 0
+      ? new Date(points[points.length - 1].createdAt).toISOString()
       : null;
     return NextResponse.json(
       {
-        data: history,
+        data: points,
         range: range ?? "all",
-        count: history.length,
+        count: points.length,
         truncated,
         oldestAt,
         newestAt,
@@ -128,6 +148,35 @@ export async function GET(request?: Request) {
     );
   } catch (error) {
     console.error("Error fetching location history:", error);
+    return NextResponse.json(
+      { error: "Terjadi kesalahan pada server." },
+      { status: 500 },
+    );
+  }
+}
+
+/** Erase every location datum we hold for the caller: trail, current row and
+ *  historical re-online/share notifications. The partner's data is untouched. */
+export async function DELETE(request: Request) {
+  try {
+    const rateCheck = await withRateLimit(request, rateLimitConfigs.write);
+    if (!rateCheck.allowed) return rateCheck.response;
+
+    const userId = rateCheck.session.user.id;
+    const coupleId = await getUserCoupleId(userId);
+
+    const [historyDeleted] = await Promise.all([
+      prisma.userLocationHistory.deleteMany({ where: { userId } }),
+      prisma.userLocation.deleteMany({ where: { userId } }),
+      prisma.activityEvent.deleteMany({ where: { actorId: userId, type: "location" } }),
+    ]);
+
+    // Await: a fire-and-forget trigger can be killed with the invocation.
+    if (coupleId) await triggerCoupleEvent(coupleId, "LOCATION");
+
+    return NextResponse.json({ data: { deleted: historyDeleted.count } });
+  } catch (error) {
+    console.error("Error deleting location history:", error);
     return NextResponse.json(
       { error: "Terjadi kesalahan pada server." },
       { status: 500 },

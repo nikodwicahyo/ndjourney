@@ -181,7 +181,9 @@ export function detectStopPoints(
     }
 
     stops.push({
-      id: `stop-${first.userId}-${stops.length + 1}-${startTime}`,
+      // Stable identity: never include the ordinal. When an older stop rolls
+      // out of the window, later stops keep their ids and selection survives.
+      id: `stop-${first.userId}-${startTime}`,
       userId: first.userId,
       latitude: median(cluster.map((p) => p.latitude)),
       longitude: median(cluster.map((p) => p.longitude)),
@@ -277,10 +279,24 @@ export async function fetchRoadSnappedRoute(
   const waypoints = downsampleWaypoints(points);
   if (waypoints.length < 2) return points.map((p) => [p.lat, p.lng]);
 
-  const route = await fetchRoadRoute(waypoints[0], waypoints[waypoints.length - 1], {
-    signal: options.signal,
-    via: waypoints.slice(1, -1),
-  });
-  if (route.geometry && route.geometry.length >= 2) return route.geometry;
-  return downsampleWaypoints(points).map((p) => [p.lat, p.lng]);
+  // Combine the caller's cancellation with a hard timeout. The declared
+  // timeoutMs used to be a no-op, so a hung OSRM call blocked the trail.
+  const controller = new AbortController();
+  const timer = options.timeoutMs
+    ? setTimeout(() => controller.abort(), options.timeoutMs)
+    : null;
+  const onAbort = () => controller.abort();
+  options.signal?.addEventListener("abort", onAbort, { once: true });
+
+  try {
+    const route = await fetchRoadRoute(waypoints[0], waypoints[waypoints.length - 1], {
+      signal: controller.signal,
+      via: waypoints.slice(1, -1),
+    });
+    if (route.geometry && route.geometry.length >= 2) return route.geometry;
+    return waypoints.map((p) => [p.lat, p.lng]);
+  } finally {
+    if (timer) clearTimeout(timer);
+    options.signal?.removeEventListener("abort", onAbort);
+  }
 }

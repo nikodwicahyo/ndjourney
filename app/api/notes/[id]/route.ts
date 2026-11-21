@@ -50,7 +50,7 @@ export async function DELETE(
         title: "Catatan dihapus",
         body: `${session.user.name || "Pasangan"} menghapus catatan`,
         href: `/dashboard/notes?note=${id}`,
-        level: "bell",
+        level: "both",
       });
     }
 

@@ -24,13 +24,15 @@ import { escapeHtml } from "@/lib/escape-html";
 
 import type { LocationPoint, LocationHistoryPoint } from "@/hooks/useLocation";
 import {
-  detectStopPoints,
+  downsampleWaypoints,
   fetchRoadSnappedRoute,
   formatDurationId,
   formatStopTimeLabel,
   formatTimeOnly,
   type VisitedStop,
 } from "@/lib/location-history";
+import { stopOrdinalLabel, type HistoryView } from "@/lib/history-view";
+import { HISTORY_TRAIL_STYLE, HISTORY_USER_COLORS, MAP_PANES } from "@/lib/map-panes";
 
 type Pin = {
   id: string;
@@ -45,6 +47,61 @@ const TILE_URL =
   "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 const TILE_ATTR =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+
+// Session cache for road-snapped history segments. Re-snapping every 60 s
+// history poll would hammer OSRM for geometry that has not changed.
+const historySnapCache = new Map<string, Array<[number, number]>>();
+const HISTORY_SNAP_CACHE_MAX = 40;
+
+function segmentCacheKey(segment: LocationHistoryPoint[]): string {
+  const waypoints = downsampleWaypoints(
+    segment.map((p) => ({ lat: p.latitude, lng: p.longitude })),
+    35,
+    40,
+  );
+  return waypoints.map((p) => `${p.lat.toFixed(4)},${p.lng.toFixed(4)}`).join("|");
+}
+
+/** Stable enough that a 60 s refresh or a 15 s poll does not re-fit the map,
+ *  but changes when the user switches filter/range. */
+function historySignature(view: HistoryView | null): string {
+  if (!view) return "";
+  const stops = [...view.self.stops, ...view.partner.stops].map((s) => s.id).join(",");
+  const starts = [...view.self.segments, ...view.partner.segments]
+    .filter((s) => s.length > 0)
+    .map((s) => `${s[0].latitude.toFixed(4)},${s[0].longitude.toFixed(4)}`)
+    .join(",");
+  return `${stops}#${starts}`;
+}
+
+/**
+ * Sparse breadcrumbs instead of a dot per fix: one dot per 5 min or 100 m,
+ * capped at 24. The line already shows the path; 2,000 dots hide it.
+ */
+function breadcrumbPoints(points: LocationHistoryPoint[]): LocationHistoryPoint[] {
+  const picked: LocationHistoryPoint[] = [];
+  let lastTime = 0;
+  let lastPoint: LocationHistoryPoint | null = null;
+
+  for (const point of points) {
+    const time = new Date(point.createdAt).getTime();
+    const moved = lastPoint
+      ? haversineMeters(
+          { latitude: lastPoint.latitude, longitude: lastPoint.longitude },
+          { latitude: point.latitude, longitude: point.longitude },
+        )
+      : Infinity;
+    if (!lastPoint || time - lastTime >= 5 * 60_000 || moved >= 100) {
+      picked.push(point);
+      lastPoint = point;
+      lastTime = time;
+    }
+  }
+
+  if (picked.length <= 24) return picked;
+  const step = (picked.length - 1) / 23;
+  return Array.from({ length: 24 }, (_, i) => picked[Math.round(i * step)]);
+}
 
 // Leaflet popups/icons are raw HTML strings, so lucide paths are inlined here
 // instead of embedding platform-dependent emoji glyphs.
@@ -144,11 +201,11 @@ function createStopIcon(
   color: string,
   label: string,
 ): L.DivIcon {
-  const bg = "var(--card, #fff)";
-  const fg = color;
-  const shadow = `0 2px 6px rgba(0,0,0,0.25)`;
+  // Solid person color + white text/border stays legible on light tiles, the
+  // dark trail casing, and dark mode alike.
+  const shadow = "0 2px 6px rgba(0,0,0,0.35), 0 0 0 1px rgba(15,23,42,.35)";
 
-  const inner = `<div class="visited-stop-marker" style="width:26px;height:26px;border-radius:50%;background:${bg};color:${fg};border:2px solid ${color};box-shadow:${shadow};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;font-family:system-ui,sans-serif;" aria-label="${escapeHtml(label)}">${index + 1}</div>`;
+  const inner = `<div class="visited-stop-marker" style="width:26px;height:26px;border-radius:50%;background:${color};color:#fff;border:2px solid #fff;box-shadow:${shadow};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;font-family:system-ui,sans-serif;" aria-label="${escapeHtml(label)}">${index + 1}</div>`;
 
   return L.divIcon({
     className: "",
@@ -233,11 +290,9 @@ function buildAvatarPopup(
 export default function PartnerMap({
   self,
   partner,
-  history,
+  view = null,
   showHistory = false,
   selectedStop = null,
-  stops,
-  filterUser = "all",
   snapToRoads = true,
   route = null,
   stopAddresses,
@@ -245,11 +300,10 @@ export default function PartnerMap({
 }: {
   self: Pin | null;
   partner: Pin | null;
-  history?: LocationHistoryPoint[];
+  /** One shared view model, built once by LocationManager for map + card. */
+  view?: HistoryView | null;
   showHistory?: boolean;
   selectedStop?: VisitedStop | null;
-  stops?: { self: VisitedStop[]; partner: VisitedStop[] };
-  filterUser?: "all" | "partner" | "self";
   snapToRoads?: boolean;
   /** Geometry drawn on the map (follows the view toggle). The distance label
    * follows the same toggle: road km when snapped, straight km otherwise. */
@@ -287,6 +341,8 @@ export default function PartnerMap({
   partnerRef.current = partner;
 
   const historyFittedRef = useRef(false);
+  const historySignatureRef = useRef("");
+  const userMovedRef = useRef(false);
   const markersFittedRef = useRef(false);
 
   const [addressCache, setAddressCache] = useState<
@@ -383,6 +439,15 @@ export default function PartnerMap({
       historyLayerRef.current = L.layerGroup().addTo(map);
       markerLayerRef.current = L.layerGroup().addTo(map);
       headingLayerRef.current = L.layerGroup().addTo(map);
+      // Explicit stacking: live road line (420), dashed history trail (430),
+      // avatars/stop pins (600). The dashed trail is drawn ON TOP with aligned
+      // dash casing so it stays visible where it follows the road; the gaps in
+      // the dash still let the solid live route read through underneath.
+      map.createPane("routePane").style.zIndex = String(MAP_PANES.route);
+      map.createPane("historyPane").style.zIndex = String(MAP_PANES.history);
+      // A deliberate pan/zoom wins over auto-fit until the history view itself
+      // changes (filter/range), so a refreshing trail cannot steal the camera.
+      map.on("dragstart zoomstart", () => { userMovedRef.current = true; });
     } catch (err) {
       console.error("[PartnerMap] layerGroup failed:", err);
       return;
@@ -688,9 +753,15 @@ export default function PartnerMap({
     hLayer.clearLayers();
     stopMarkersRef.current.clear();
 
-    // Refitting once per meaningful history view keeps the trail in frame
-    // without fighting user pans on every 15s presence poll.
-    historyFittedRef.current = false;
+    // Re-fit only when the trail actually changes. A 60 s refresh with the
+    // same stops/segments, or a live pin moving 11 m, must not snap the camera
+    // back and close the user's selected stop popup.
+    const signature = historySignature(view);
+    if (signature !== historySignatureRef.current) {
+      historySignatureRef.current = signature;
+      historyFittedRef.current = false;
+      userMovedRef.current = false;
+    }
 
     const pins = [selfRef.current, partnerRef.current].filter(Boolean) as Pin[];
     const markerLatLngs = pins.map(
@@ -713,81 +784,135 @@ export default function PartnerMap({
       }
     };
 
-    if (!showHistory) {
+    if (!showHistory || !view) {
       fitMarkerBounds();
       return;
     }
-    if (!history || history.length === 0 || !selfId) {
-      fitMarkerBounds();
-      return;
-    }
-
-    const sorted = [...history].sort(
-      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-    );
-    const selfHistory = sorted.filter((h) => h.userId === selfId);
-    const partnerHistory = sorted.filter((h) => h.userId !== selfId);
-
-    const userSelfStops = stops?.self ?? (selfHistory.length ? detectStopPoints(selfHistory) : []);
-    const userPartnerStops = stops?.partner ?? (partnerHistory.length ? detectStopPoints(partnerHistory) : []);
 
     const allTrailLatLngs: L.LatLngExpression[] = [];
 
     function renderUserTrail(
-      points: LocationHistoryPoint[],
-      userStops: VisitedStop[],
+      userView: HistoryView["self"],
       color: string,
       userLabel: string,
       layer: L.LayerGroup,
     ) {
-      if (points.length === 0) return;
-      const latlngs = points.map(
-        (p) => [p.latitude, p.longitude] as L.LatLngTuple,
-      );
-      allTrailLatLngs.push(...latlngs);
+      const { segments, stops: userStops } = userView;
+      if (segments.length === 0 && userStops.length === 0) return;
 
-      // Base polyline (instant render)
-      const polyline = L.polyline(latlngs, {
-        color,
-        weight: 4,
-        opacity: 0.65,
-        lineCap: "round",
-        lineJoin: "round",
-      }).addTo(layer);
+      segments.forEach((segment) => {
+        if (segment.length === 0) return;
+        const latlngs = segment.map(
+          (p) => [p.latitude, p.longitude] as L.LatLngTuple,
+        );
+        allTrailLatLngs.push(...latlngs);
 
-      // Snap to road network via OSRM
-      if (snapToRoads && points.length >= 2) {
-        const waypoints = points.map((p) => ({ lat: p.latitude, lng: p.longitude }));
-        fetchRoadSnappedRoute(waypoints).then((roadCoords) => {
-          if (historyDrawRef.current !== drawToken) return;
-          if (!mapRef.current || !hLayer.hasLayer(polyline)) return;
-          if (roadCoords && roadCoords.length >= 2) {
-            polyline.setLatLngs(roadCoords);
+        // A single high-contrast dash style is used in BOTH route modes: dark
+        // casing + white core. Mode only changes the solid live route below it.
+        const casing = L.polyline(latlngs, {
+          pane: "historyPane",
+          color: HISTORY_TRAIL_STYLE.casing,
+          weight: HISTORY_TRAIL_STYLE.casingWeight,
+          opacity: 0.9,
+          // Same dash pattern as the colored line: a solid casing would hide
+          // the road continuously, including in the gaps between dashes.
+          dashArray: HISTORY_TRAIL_STYLE.dash,
+          lineCap: "round",
+          lineJoin: "round",
+          interactive: false,
+        }).addTo(layer);
+
+        const polyline = L.polyline(latlngs, {
+          pane: "historyPane",
+          // Per-partner color; identical in road and line modes.
+          color,
+          weight: HISTORY_TRAIL_STYLE.coreWeight,
+          opacity: 0.95,
+          dashArray: HISTORY_TRAIL_STYLE.dash,
+          lineCap: "round",
+          lineJoin: "round",
+        }).addTo(layer);
+
+        // Snap each segment separately: a gap is a gap, never a fake straight
+        // line across it. Cached per segment; stale responses are token-gated.
+        if (snapToRoads && segment.length >= 2) {
+          const key = segmentCacheKey(segment);
+          const cached = historySnapCache.get(key);
+          if (cached) {
+            casing.setLatLngs(cached);
+            polyline.setLatLngs(cached);
+          } else {
+            fetchRoadSnappedRoute(
+              segment.map((p) => ({ lat: p.latitude, lng: p.longitude })),
+            ).then((roadCoords) => {
+              if (historyDrawRef.current !== drawToken) return;
+              if (!mapRef.current || !hLayer.hasLayer(polyline)) return;
+              if (roadCoords && roadCoords.length >= 2) {
+                if (historySnapCache.size >= HISTORY_SNAP_CACHE_MAX) {
+                  const oldest = historySnapCache.keys().next().value;
+                  if (oldest) historySnapCache.delete(oldest);
+                }
+                historySnapCache.set(key, roadCoords);
+                // Both layers must move together; updating only the core left
+                // the dark casing on the raw straight coordinates.
+                casing.setLatLngs(roadCoords);
+                polyline.setLatLngs(roadCoords);
+              }
+            });
           }
-        });
-      }
+        }
 
-      // Render subtle route waypoints
-      points.forEach((p, i) => {
-        const isLast = i === points.length - 1;
-        if (!isLast) {
-          const ptMarker = L.circleMarker([p.latitude, p.longitude], {
-            radius: 3.5,
-            color,
-            fillColor: color,
-            fillOpacity: 0.5,
-            weight: 1,
-            opacity: 0.6,
-          }).addTo(layer);
-
+        // Sparse breadcrumbs, not a dot per fix. Each one is clickable and
+        // opens a popup with the recorded time and speed.
+        // Skip the first point: the "Mulai" marker already sits exactly there
+        // and would otherwise render a second, overlapping waypoint/popup.
+        breadcrumbPoints(segment).slice(1).forEach((p) => {
           const timeStr = formatTimeOnly(p.createdAt);
           const speedStr = p.speed !== null && p.speed > 0 ? ` • ${(p.speed * 3.6).toFixed(0)} km/j` : "";
-          ptMarker.bindTooltip(`${escapeHtml(userLabel)}: ${timeStr}${speedStr}`, {
-            direction: "top",
-            offset: [0, -4],
-          });
-        }
+          const label = `${userLabel}: ${timeStr}${speedStr}`;
+          const crumb = L.circleMarker([p.latitude, p.longitude], {
+            pane: "historyPane",
+            radius: 4.5,
+            color,
+            fillColor: color,
+            fillOpacity: 0.9,
+            weight: 2,
+            opacity: 0.95,
+            interactive: true,
+          }).addTo(layer);
+
+          crumb.getElement()?.setAttribute("aria-label", label);
+          // Same popup shell as the stop/avatar popups on this map.
+          crumb.bindPopup(
+            `<div style="min-width:180px;font-family:system-ui,-apple-system,sans-serif;padding:2px;">` +
+              `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:6px;">` +
+                `<span style="font-size:11px;font-weight:700;color:${color};text-transform:uppercase;">${escapeHtml(userLabel)}</span>` +
+                `<span style="font-size:10px;font-weight:600;color:var(--muted-foreground,#64748b);background:${color}15;padding:1px 6px;border-radius:999px;">Waypoint</span>` +
+              `</div>` +
+              `<div style="font-size:11px;color:var(--muted-foreground,#64748b);">` +
+                `${inlineIcon(CLOCK_PATH, 12)} ${escapeHtml(timeStr)}${escapeHtml(speedStr)}` +
+              `</div>` +
+            `</div>`,
+            { autoPan: true, closeButton: true, offset: [0, -10] },
+          );
+        });
       });
+
+      // "Mulai" anchor: where this person's recorded trail begins.
+      const firstPoint = segments[0]?.[0];
+      if (firstPoint) {
+        L.marker([firstPoint.latitude, firstPoint.longitude], {
+          icon: L.divIcon({
+            className: "",
+            html: `<div style="display:flex;align-items:center;gap:3px;border-radius:999px;background:var(--card,#fff);border:1px solid ${color};color:${color};font:600 9px/1 system-ui,sans-serif;padding:2px 5px;box-shadow:0 1px 3px rgba(0,0,0,.2);white-space:nowrap;">${inlineIcon(NAV_PATH, 8, color, true)} Mulai</div>`,
+            iconSize: [0, 0],
+            iconAnchor: [12, 10],
+          }),
+          interactive: false,
+          keyboard: false,
+          zIndexOffset: 250,
+        }).addTo(layer);
+      }
 
       // A stationary GPS trace is sub-pixel when the map fits two people 8km
       // apart. Mark every visited place with a PIXEL-radius circle so a history
@@ -795,12 +920,14 @@ export default function PartnerMap({
       // stays for past stops; the live avatar covers the current one.
       userStops.forEach((stop) => {
         L.circleMarker([stop.latitude, stop.longitude], {
+          pane: "historyPane",
           radius: stop.isCurrent ? 42 : 22,
           color,
           weight: stop.isCurrent ? 2 : 1.5,
           fillColor: color,
-          fillOpacity: stop.isCurrent ? 0.06 : 0.12,
+          fillOpacity: stop.isCurrent ? 0.06 : 0.1,
           dashArray: stop.isCurrent ? "5 5" : undefined,
+          interactive: false,
         })
           .addTo(layer)
           .bindTooltip(
@@ -811,15 +938,21 @@ export default function PartnerMap({
           );
       });
 
-      // Render Visited Stop Markers: ONLY past stops!
-      // The current stop is represented by the live avatar marker to avoid overlap and click blocking.
-      const pastStops = userStops.filter((s) => !s.isCurrent);
-      pastStops.forEach((stop, idx) => {
-        const stopIcon = createStopIcon(idx, color, `${userLabel} - Tempat #${idx + 1}`);
+      // Numbered pins use the SAME ordinal as the card list (index in the full
+      // stop array, current included), so "#2" is one place in both places.
+      userStops.forEach((stop, index) => {
+        if (stop.isCurrent) return;
+
+        const stopIcon = createStopIcon(index, color, `${userLabel} - ${stopOrdinalLabel(index)}`);
         const marker = L.marker([stop.latitude, stop.longitude], {
           icon: stopIcon,
           zIndexOffset: 300,
+          title: `${userLabel} - ${stopOrdinalLabel(index)}`,
         }).addTo(layer);
+
+        // Leaflet stamps role=button/tabindex on markers; give the real pin an
+        // accessible name instead of an anonymous tab stop.
+        marker.getElement()?.setAttribute("aria-label", `${userLabel}, ${stopOrdinalLabel(index)}`);
 
         stopMarkersRef.current.set(stop.id, marker);
 
@@ -834,7 +967,7 @@ export default function PartnerMap({
           <div style="min-width:180px;font-family:system-ui,-apple-system,sans-serif;padding:2px;">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:6px;">
               <span style="font-size:11px;font-weight:700;color:${color};text-transform:uppercase;">
-                Tempat Kunjungan #${idx + 1}
+                ${stopOrdinalLabel(index)}
               </span>
               <span style="font-size:11px;font-weight:600;color:var(--foreground,#111827);background:${color}15;padding:1px 6px;border-radius:999px;">
                 ${durationStr}
@@ -844,7 +977,7 @@ export default function PartnerMap({
               ${escapeHtml(displayAddr)}
             </div>
             <div style="font-size:11px;color:var(--muted-foreground,#64748b);">
-              ${inlineIcon(CLOCK_PATH, 12)} ${timeLabel}
+              ${inlineIcon(CLOCK_PATH, 12)} ${escapeHtml(timeLabel)}
             </div>
             <div style="font-size:10px;color:var(--muted-foreground,#94a3b8);margin-top:2px;">
               ${escapeHtml(userLabel)} · ${stop.pointCount} titik pantau
@@ -859,12 +992,8 @@ export default function PartnerMap({
       });
     }
 
-    if (filterUser === "all" || filterUser === "self") {
-      renderUserTrail(selfHistory, userSelfStops, "#3b82f6", "Kamu", hLayer);
-    }
-    if (filterUser === "all" || filterUser === "partner") {
-      renderUserTrail(partnerHistory, userPartnerStops, "#F43F5E", partner?.label ?? "Pasangan", hLayer);
-    }
+    renderUserTrail(view.self, HISTORY_USER_COLORS.self, "Kamu", hLayer);
+    renderUserTrail(view.partner, HISTORY_USER_COLORS.partner, partner?.label ?? "Pasangan", hLayer);
 
     applyStopHighlight();
 
@@ -877,11 +1006,11 @@ export default function PartnerMap({
     if (markerLatLngs.length > 0) {
       markerLatLngs.forEach((ll) => bounds.extend(ll));
     }
-    if (!historyFittedRef.current) {
+    if (!historyFittedRef.current && !userMovedRef.current) {
       map.fitBounds(bounds, { padding: [80, 80], maxZoom: 16, animate: !prefersReducedMotion() });
       historyFittedRef.current = true;
     }
-  }, [history, showHistory, selfId, selfKey, partnerKey, partner?.label, filterUser, snapToRoads, stops, applyStopHighlight]);
+  }, [view, showHistory, selfKey, partnerKey, partner?.label, snapToRoads, applyStopHighlight]);
 
   // Update markers (animated)
   useEffect(() => {
@@ -931,8 +1060,8 @@ export default function PartnerMap({
 
       // Check if user is currently stopped at a place
       const currentStop = p.isSelf
-        ? (stops?.self.find((s) => s.isCurrent) ?? null)
-        : (stops?.partner.find((s) => s.isCurrent) ?? null);
+        ? (view?.self.stops.find((s) => s.isCurrent) ?? null)
+        : (view?.partner.stops.find((s) => s.isCurrent) ?? null);
 
       // Main avatar marker with high z-index and explicit click handler
       const marker = L.marker(latlng, {
@@ -1003,6 +1132,7 @@ export default function PartnerMap({
       // White casing keeps the blue road line readable over busy tiles.
       if (hasRoadRoute) {
         L.polyline(lineLatLngs, {
+          pane: "routePane",
           color: "#ffffff",
           weight: 8,
           opacity: 0.75,
@@ -1013,6 +1143,7 @@ export default function PartnerMap({
       }
       const routeColor = hasRoadRoute ? ROAD_ROUTE_COLOR : STRAIGHT_ROUTE_COLOR;
       lineRef.current = L.polyline(lineLatLngs, {
+        pane: "routePane",
         color: routeColor,
         weight: hasRoadRoute ? 4 : 3,
         dashArray: hasRoadRoute ? undefined : "12 12",
@@ -1057,7 +1188,7 @@ export default function PartnerMap({
       // No pins, show default view (once)
       map.setView([-6.2, 106.816], 14, { animate: !prefersReducedMotion() });
     }
-  }, [self, partner, stops, route]);
+  }, [self, partner, view, route]);
 
   const toggleFullscreen = useCallback(() => {
     const el = containerRef.current;
@@ -1119,7 +1250,7 @@ export default function PartnerMap({
         aria-label="Peta lokasi pasangan"
         className="h-full w-full min-h-[280px] sm:min-h-[420px]"
         style={{
-          background: "#eef2f7",
+          background: "var(--background, #eef2f7)",
         }}
       />
       <ul className="sr-only">
@@ -1142,10 +1273,40 @@ export default function PartnerMap({
         </div>
       )}
 
+      {/* Partner colors: dashed = history, solid = live route. */}
+      {showHistory && view && (view.self.segments.length > 0 || view.partner.segments.length > 0) && (
+        <div className="pointer-events-none absolute left-3 top-12 z-[1001] space-y-1 rounded-lg bg-background/85 px-2.5 py-2 text-[10px] text-muted-foreground shadow-sm backdrop-blur-sm">
+          <span className="flex items-center gap-1.5">
+            <span className="h-0 w-5 border-t-[3px] border-dashed" style={{ borderColor: HISTORY_USER_COLORS.self }} aria-hidden="true" />
+            Kamu
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-0 w-5 border-t-[3px] border-dashed" style={{ borderColor: HISTORY_USER_COLORS.partner }} aria-hidden="true" />
+            {partner?.label ?? "Pasangan"}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span
+              className="h-0 w-5 border-t-2"
+              style={{
+                borderColor: shouldUseRoadRoute(route) ? ROAD_ROUTE_COLOR : STRAIGHT_ROUTE_COLOR,
+              }}
+              aria-hidden="true"
+            />
+            Rute
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="flex h-4 w-4 items-center justify-center rounded-full border border-white bg-slate-900 text-[9px] font-bold text-white shadow-sm" aria-hidden="true">
+              2
+            </span>
+            Kunjungan
+          </span>
+        </div>
+      )}
+
       {/* Bottom info bar. right-16 clears the 44px Leaflet control column
-          (.leaflet-bar a is forced to 44px + 10px corner margin); bottom-10
-          clears the scale control at bottom-left. */}
-      <div className="absolute bottom-12 left-1.5 right-12 z-[1001] sm:bottom-10 sm:left-2 sm:right-16">
+          (.leaflet-bar a is forced to 44px + 10px corner margin); bottom-8
+          clears the scale control at bottom-left on every breakpoint. */}
+      <div className="absolute bottom-8 left-1.5 right-12 z-[1001] sm:bottom-8 sm:left-2 sm:right-16">
         <div className="mx-auto flex w-fit max-w-[calc(100%-0.5rem)] flex-wrap items-center justify-center gap-x-2 gap-y-0.5 rounded-full bg-background/95 px-3 py-1.5 text-center text-[10px] shadow-md backdrop-blur-sm sm:px-4 sm:text-xs text-muted-foreground">
           {self?.point && (
             <>

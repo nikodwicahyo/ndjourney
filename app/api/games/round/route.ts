@@ -110,7 +110,7 @@ export async function POST(request: Request) {
             title: "Skor baru",
             body: `${session!.user.name || "Pasangan"} bermain game dan mencetak skor ${round.correct}/${round.totalQuestions} di ${GAME_LABELS[gameType] ?? gameType}`,
             href: "/dashboard/games",
-            level: "bell",
+            level: "both",
           });
         }
       }

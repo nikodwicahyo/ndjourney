@@ -156,5 +156,7 @@ export const rateLimitConfigs = {
   write: { maxRequests: 300, windowSeconds: 3600, keyPrefix: "write" },
   auth: { maxRequests: 10, windowSeconds: 900, keyPrefix: "auth" },
   score: { maxRequests: 200, windowSeconds: 3600, keyPrefix: "score" },
-  location: { maxRequests: 600, windowSeconds: 3600, keyPrefix: "location" },
+  // 5 s sampling while moving is 720 fixes/hour; the old 600/h cap rejected
+  // live tracking mid-trip. Batch flushes count as one request.
+  location: { maxRequests: 1800, windowSeconds: 3600, keyPrefix: "location" },
 } as const;

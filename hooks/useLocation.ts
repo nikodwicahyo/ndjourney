@@ -74,7 +74,10 @@ export function useLocationSettings() {
       const json = await res.json();
       return json.data as LocationState;
     },
-    staleTime: 10_000,
+    // Zero stale time: QueryProvider refetches on window focus/visibility, so
+    // returning to the PWA always pulls fresh data even if a Pusher event was
+    // missed. The 15s poll below is the in-foreground fallback.
+    staleTime: 0,
     refetchInterval: POLL_INTERVAL_MS,
     // no background-tab polling — Pusher LOCATION covers live updates.
     refetchIntervalInBackground: false,
@@ -117,7 +120,9 @@ export function useLocationHistory(
         newestAt: json.newestAt ?? null,
       };
     },
-    staleTime: 30_000,
+    // Same focus-refetch rule as the live query: opening the app again must
+    // not show a trail from before it was backgrounded.
+    staleTime: 0,
     refetchInterval: 60_000,
     // history barely moves — never poll it from background tabs.
     refetchIntervalInBackground: false,
@@ -143,6 +148,15 @@ export function useRoadRoute(from: LatLng | null, to: LatLng | null, enabled: bo
 export function usePlaceNames(stops: VisitedStop[]) {
   const [names, setNames] = useState<Record<string, string | null>>({});
   const fetchedRef = useRef<Set<string>>(new Set());
+  const stopsRef = useRef(stops);
+
+  // A 60 s history refresh creates a new array with the same stops; keying on
+  // the ids avoids aborting an in-flight geocode on every poll.
+  const stopsKey = stops.map((s) => s.id).join("|");
+
+  useEffect(() => {
+    stopsRef.current = stops;
+  }, [stops]);
 
   useEffect(() => {
     let cancelled = false;
@@ -151,7 +165,7 @@ export function usePlaceNames(stops: VisitedStop[]) {
 
     const pump = async (): Promise<void> => {
       if (cancelled) return;
-      const pending = stops.filter((s) => !fetchedRef.current.has(s.id));
+      const pending = stopsRef.current.filter((s) => !fetchedRef.current.has(s.id));
       if (pending.length === 0) return;
       const next = pending[0];
       const name = await reverseGeocodeName(next.latitude, next.longitude, {
@@ -171,7 +185,7 @@ export function usePlaceNames(stops: VisitedStop[]) {
       controller.abort();
       if (timer) clearTimeout(timer);
     };
-  }, [stops]);
+  }, [stopsKey]);
 
   return names;
 }
@@ -289,16 +303,22 @@ export function useFloatingHearts(coupleId: string | undefined) {
   return { heart, clearHeart: () => setHeart(null) };
 }
 
-export function useShareLocation(enabled: boolean) {
+export function useShareLocation(enabled: boolean | null, userId?: string | null) {
   const qc = useQueryClient();
 
   useBackgroundLocationCleanup();
 
+  // Only an explicit `true` starts and only an explicit `false` stops. An
+  // unknown share state must not tear down a watcher that is already running.
   useEffect(() => {
-    initBackgroundLocation(enabled, qc);
-    // cleanup on unmount / enabled flip so a stale watch can't survive.
-    return () => initBackgroundLocation(false, qc);
-  }, [enabled, qc]);
+    if (!userId) return;
+    if (enabled === true) initBackgroundLocation(true, qc, userId);
+    else if (enabled === false) initBackgroundLocation(false, qc, userId);
+  }, [enabled, userId, qc]);
+
+  useEffect(() => {
+    return () => initBackgroundLocation(false, qc, userId ?? null);
+  }, [qc, userId]);
 
   const status = useBackgroundLocationStatus();
 

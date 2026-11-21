@@ -5,19 +5,20 @@ const PARTNER = "cjld2cjxh0000qz8n0p3q4w5e2";
 const COUPLE = "couple-1";
 
 const txMock = vi.hoisted(() => ({
-  userLocationHistory: { findFirst: vi.fn(async () => null), create: vi.fn(async () => ({})), findMany: vi.fn(async () => []), deleteMany: vi.fn(async () => ({})) },
-  userLocation: { findUnique: vi.fn(async (): Promise<{ updatedAt: Date } | null> => null), upsert: vi.fn(async () => ({})), deleteMany: vi.fn(async () => ({ count: 1 })) },
+  $executeRaw: vi.fn(async () => 0),
+  userLocationHistory: { findFirst: vi.fn(async () => null), create: vi.fn(async () => ({})), createMany: vi.fn(async () => ({ count: 0 })), findMany: vi.fn(async () => []), deleteMany: vi.fn(async () => ({})) },
+  userLocation: { findUnique: vi.fn(async (): Promise<{ latitude: number; longitude: number; accuracy: number | null; recordedAt: Date } | null> => null), upsert: vi.fn(async (_args: unknown) => ({})), deleteMany: vi.fn(async () => ({ count: 1 })) },
   locationShare: { findUnique: vi.fn(async () => ({ isSharing: true })), upsert: vi.fn(async () => ({})) },
 }));
 const prismaMock = vi.hoisted(() => ({
   $queryRaw: vi.fn(),
-  $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn({ userLocationHistory: txMock.userLocationHistory, userLocation: txMock.userLocation, locationShare: txMock.locationShare })),
+  $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn({ $executeRaw: txMock.$executeRaw, userLocationHistory: txMock.userLocationHistory, userLocation: txMock.userLocation, locationShare: txMock.locationShare })),
   coupleMember: { findUnique: vi.fn(), findFirst: vi.fn() },
   locationShare: { findUnique: vi.fn(), findMany: vi.fn(async () => []), upsert: vi.fn() },
-  userLocation: { findUnique: vi.fn(), upsert: vi.fn(), delete: vi.fn(async () => ({})) },
-  userLocationHistory: { findMany: vi.fn() },
+  userLocation: { findUnique: vi.fn(), upsert: vi.fn(), delete: vi.fn(async () => ({})), deleteMany: vi.fn(async () => ({ count: 1 })) },
+  userLocationHistory: { findMany: vi.fn(), deleteMany: vi.fn(async () => ({ count: 0 })) },
   letter: { count: vi.fn(async () => 0), findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn(async () => ({ count: 1 })) },
-  activityEvent: { findMany: vi.fn(async () => []) },
+  activityEvent: { findMany: vi.fn(async () => []), deleteMany: vi.fn(async () => ({ count: 0 })) },
 }));
 
 vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
@@ -49,6 +50,7 @@ vi.mock("@/lib/cloudinary", () => ({
 const loc = await import("@/app/api/location/route");
 const share = await import("@/app/api/location/share/route");
 const history = await import("@/app/api/location/history/route");
+const batch = await import("@/app/api/location/batch/route");
 const heart = await import("@/app/api/location/heart/route");
 const stats = await import("@/app/api/dashboard/stats/route");
 const activity = await import("@/app/api/dashboard/activity/route");
@@ -60,7 +62,7 @@ function allow(userId: string = ME) {
   vi.mocked(auth).mockResolvedValue({ user: { id: userId, name: "A", image: null } } as never);
   vi.mocked(withRateLimit).mockResolvedValue({ allowed: true, remaining: 99, session: { user: { id: userId } } } as never);
 }
-const point = { latitude: -6.2, longitude: 106.8, accuracy: 10, heading: 90, speed: 0, altitude: null, updatedAt: new Date(), deviceType: "mobile" };
+const point = { latitude: -6.2, longitude: 106.8, accuracy: 10, heading: 90, speed: 0, altitude: null, recordedAt: new Date(), updatedAt: new Date(), deviceType: "mobile" };
 
 describe("location API contracts", () => {
   beforeEach(() => {
@@ -135,7 +137,9 @@ describe("location API contracts", () => {
     const { notifyLocationReonline } = await import("@/lib/activity");
     prismaMock.locationShare.findUnique.mockResolvedValue({ isSharing: true });
     const stale = new Date(Date.now() - 120_000);
-    txMock.userLocation.findUnique.mockResolvedValueOnce({ updatedAt: stale });
+    txMock.userLocation.findUnique.mockResolvedValueOnce({
+      latitude: -6.2, longitude: 106.8, accuracy: 10, recordedAt: stale,
+    });
 
     const res = await loc.POST(new Request("http://localhost/api/location", {
       method: "POST",
@@ -149,7 +153,9 @@ describe("location API contracts", () => {
   it("LOC-06b: a fresh previous fix stays silent", async () => {
     const { notifyLocationReonline } = await import("@/lib/activity");
     prismaMock.locationShare.findUnique.mockResolvedValue({ isSharing: true });
-    txMock.userLocation.findUnique.mockResolvedValueOnce({ updatedAt: new Date() });
+    txMock.userLocation.findUnique.mockResolvedValueOnce({
+      latitude: -6.2, longitude: 106.8, accuracy: 10, recordedAt: new Date(),
+    });
 
     const res = await loc.POST(new Request("http://localhost/api/location", {
       method: "POST",
@@ -158,6 +164,64 @@ describe("location API contracts", () => {
 
     expect(res.status).toBe(200);
     expect(notifyLocationReonline).not.toHaveBeenCalled();
+  });
+
+  it("LOC batch: replays fixes in device order, caps at 100, ignores stale fixes", async () => {
+    prismaMock.locationShare.findUnique.mockResolvedValue({ isSharing: true });
+    txMock.userLocation.findUnique.mockResolvedValue(null);
+    txMock.userLocationHistory.findFirst.mockResolvedValue(null);
+
+    const older = {
+      ...point,
+      latitude: -6.21,
+      longitude: 106.81,
+      recordedAt: new Date(Date.now() - 60_000).toISOString(),
+    };
+    const newer = {
+      ...point,
+      latitude: -6.22,
+      longitude: 106.82,
+      recordedAt: new Date().toISOString(),
+    };
+
+    const res = await batch.POST(new Request("http://localhost/api/location/batch", {
+      method: "POST",
+      body: JSON.stringify({ fixes: [newer, older] }),
+    }));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ data: { ok: true, applied: true } });
+
+    // One current-row write, using the NEWEST fix (input order is not trusted).
+    expect(txMock.userLocation.upsert).toHaveBeenCalledTimes(1);
+    const upsertArgs = txMock.userLocation.upsert.mock.calls[0][0] as unknown as {
+      update: { latitude: number };
+    };
+    expect(upsertArgs.update.latitude).toBe(-6.22);
+    expect(txMock.userLocationHistory.createMany).toHaveBeenCalledTimes(1);
+
+    const tooMany = {
+      fixes: Array.from({ length: 101 }, () => ({ latitude: -6.2, longitude: 106.8, deviceType: "mobile" })),
+    };
+    expect((await batch.POST(new Request("http://localhost/api/location/batch", {
+      method: "POST",
+      body: JSON.stringify(tooMany),
+    }))).status).toBe(400);
+
+    // A stale replay must never roll the live marker backwards.
+    txMock.userLocation.upsert.mockClear();
+    txMock.userLocation.findUnique.mockResolvedValue({
+      latitude: -6.3,
+      longitude: 106.9,
+      accuracy: 10,
+      recordedAt: new Date(),
+    });
+    const staleRes = await batch.POST(new Request("http://localhost/api/location/batch", {
+      method: "POST",
+      body: JSON.stringify({ fixes: [older] }),
+    }));
+    expect(staleRes.status).toBe(200);
+    expect(await staleRes.json()).toMatchObject({ data: { applied: false } });
+    expect(txMock.userLocation.upsert).not.toHaveBeenCalled();
   });
 
   it("LOC retention: a new ping keeps old history instead of wiping older days", async () => {
@@ -232,9 +296,36 @@ describe("location API contracts", () => {
     expect(prismaMock.userLocationHistory.findMany).not.toHaveBeenCalled();
   });
 
+  it("LOC consent: partner history needs an explicit share=true row", async () => {
+    prismaMock.coupleMember.findFirst.mockResolvedValue({ userId: PARTNER });
+    // Partner has no share row at all — that is not consent, even if old rows exist.
+    prismaMock.locationShare.findMany.mockResolvedValueOnce([
+      { userId: ME, isSharing: true },
+    ] as never);
+
+    await history.GET();
+
+    expect(prismaMock.userLocationHistory.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ userId: { in: [ME] } }) }),
+    );
+  });
+
+  it("LOC erasure: DELETE removes trail, current row and location activity", async () => {
+    const res = await history.DELETE(new Request("http://localhost/api/location/history", {
+      method: "DELETE",
+    }));
+
+    expect(res.status).toBe(200);
+    expect(prismaMock.userLocationHistory.deleteMany).toHaveBeenCalledWith({ where: { userId: ME } });
+    expect(prismaMock.userLocation.deleteMany).toHaveBeenCalledWith({ where: { userId: ME } });
+    expect(prismaMock.activityEvent.deleteMany).toHaveBeenCalledWith({
+      where: { actorId: ME, type: "location" },
+    });
+  });
+
   it("LOC history: range filters by createdAt and flags a capped result set", async () => {
     prismaMock.coupleMember.findFirst.mockResolvedValue({ userId: PARTNER });
-    const rows = Array.from({ length: 2000 }, (_, i) => ({
+    const rows = Array.from({ length: 2001 }, (_, i) => ({
       userId: ME,
       createdAt: new Date(Date.now() - i * 60_000),
     }));
@@ -250,7 +341,7 @@ describe("location API contracts", () => {
       where: { createdAt?: { gte: Date } };
       take: number;
     };
-    expect(query.take).toBe(2000);
+    expect(query.take).toBe(2001);
     expect(query.where.createdAt?.gte).toBeInstanceOf(Date);
 
     prismaMock.userLocationHistory.findMany.mockResolvedValueOnce([
@@ -287,7 +378,7 @@ describe("location API contracts", () => {
     const gated = await history.GET();
     expect(gated.status).toBe(200);
     expect(prismaMock.userLocationHistory.findMany).toHaveBeenLastCalledWith(
-      expect.objectContaining({ where: { userId: { in: [ME] } } }),
+      expect.objectContaining({ where: expect.objectContaining({ userId: { in: [ME] } }) }),
     );
     const heartRes = await heart.POST(new Request("http://localhost/api/location/heart", { method: "POST", body: JSON.stringify({}) }));
     expect(heartRes.status).toBe(200);

@@ -9,11 +9,21 @@ export const updateLocationSchema = z.object({
   accuracy: z.number().min(0).max(100000).nullish(),
   heading: z.number().min(0).max(360).nullish(),
   speed: z.number().min(0).max(1000).nullish(),
-  altitude: z.number().nullish(),
+  altitude: z.number().min(-100000).max(100000).nullish(),
   deviceType: z.enum(DEVICE_TYPES),
+  // Device clock time of the fix. Optional so older clients keep working.
+  recordedAt: z.string().datetime({ offset: true }).nullish(),
 });
 
 export type UpdateLocationInput = z.infer<typeof updateLocationSchema>;
+
+export const MAX_BATCH_FIXES = 100;
+
+export const batchLocationSchema = z.object({
+  fixes: z.array(updateLocationSchema).min(1).max(MAX_BATCH_FIXES),
+});
+
+export type BatchLocationInput = z.infer<typeof batchLocationSchema>;
 
 export const updateShareSchema = z.object({
   isSharing: z.boolean(),

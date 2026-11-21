@@ -299,6 +299,24 @@ describe("location-history utility", () => {
       expect(res).toEqual([[-6.25, 106.85], [-6.26, 106.86]]);
     });
 
+    it("propagates caller cancellation instead of hanging", async () => {
+      const controller = new AbortController();
+      vi.spyOn(globalThis, "fetch").mockImplementation((_url, init) => new Promise((_resolve, reject) => {
+        (init as RequestInit).signal?.addEventListener("abort", () => {
+          reject(new DOMException("aborted", "AbortError"));
+        });
+      }));
+
+      const promise = fetchRoadSnappedRoute(
+        [{ lat: -6.25, lng: 106.85 }, { lat: -6.26, lng: 106.86 }],
+        { signal: controller.signal, timeoutMs: 1000 },
+      );
+      controller.abort();
+
+      // Must settle promptly via fetchRoadRoute's fallback, not wait for timeout.
+      await expect(promise).resolves.toEqual([[-6.25, 106.85], [-6.26, 106.86]]);
+    });
+
     it("sends intermediate waypoints as via points, not just first-to-last", async () => {
       const fetchMock = vi.fn(async (_url: string) => ({
         ok: true,

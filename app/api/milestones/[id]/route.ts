@@ -334,7 +334,7 @@ export async function PUT(
         title: "Milestone diperbarui",
         body: `${session.user.name || "Pasangan"} memperbarui "${updated.title}"`,
         href: `/dashboard/timeline?milestone=${id}`,
-        level: "bell",
+        level: "both",
       });
     }
 
@@ -417,7 +417,7 @@ export async function DELETE(
         title: "Milestone dihapus",
         body: `${rateCheck.session.user.name || "Pasangan"} menghapus "${existingMilestone.title}"`,
         href: `/dashboard/timeline?milestone=${id}`,
-        level: "bell",
+        level: "both",
       });
     }
 

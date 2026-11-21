@@ -5,6 +5,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement, type ReactNode } from "react";
 import { initBackgroundLocation } from "@/hooks/useBackgroundLocation";
 
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({ data: { user: { id: "user-1" } }, status: "authenticated" }),
+}));
+
 const geo = vi.hoisted(() => ({
   getCurrentPosition: vi.fn(),
   watchPosition: vi.fn(() => 1),

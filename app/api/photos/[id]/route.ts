@@ -235,7 +235,7 @@ export async function PUT(
         title: photo.isVideo ? "Video diperbarui" : "Foto diperbarui",
         body: `${rateCheck.session.user.name || "Pasangan"} memperbarui ${photo.isVideo ? "video" : "foto"}`,
         href: `/dashboard/gallery?photo=${id}`,
-        level: "bell",
+        level: "both",
         meta: { thumbnailUrl: photo.thumbnailUrl ?? photo.url },
       });
     }
@@ -307,7 +307,7 @@ export async function DELETE(
         // The target no longer exists — a `?photo=` link would 404 and the
         // deep link would silently do nothing. Land on the gallery instead.
         href: "/dashboard/gallery",
-        level: "bell",
+        level: "both",
       });
     }
 

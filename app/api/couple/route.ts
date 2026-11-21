@@ -303,7 +303,7 @@ export async function PUT(request: Request) {
         title: "Pengaturan diperbarui",
         body: `${rateCheck.session.user.name || "Pasangan"} memperbarui ${formatIndonesianList(changed)}`,
         href: "/dashboard/settings",
-        level: "bell",
+        level: "both",
       });
     }
 

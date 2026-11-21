@@ -12,6 +12,8 @@ type GeoCb = {
   error: PositionErrorCallback;
 };
 
+const USER = "user-1";
+
 const TIMEOUT_ERR = {
   code: 3,
   message: "timeout",
@@ -22,10 +24,10 @@ const TIMEOUT_ERR = {
 
 const DENIED_ERR = { ...TIMEOUT_ERR, code: 1 } as unknown as GeolocationPositionError;
 
-function position(accuracy = 10): GeolocationPosition {
+function position(accuracy = 10, latitude = -6.2): GeolocationPosition {
   return {
     coords: {
-      latitude: -6.2,
+      latitude,
       longitude: 106.8,
       accuracy,
       heading: null,
@@ -49,14 +51,24 @@ const geoMock = vi.hoisted(() => ({
 
 const qc = { invalidateQueries: vi.fn() } as never;
 
+const outbox = vi.hoisted(() => ({
+  enqueueFix: vi.fn(async () => true),
+  peekFixes: vi.fn(async () => []),
+  removeFixes: vi.fn(async () => true),
+  clearUser: vi.fn(async () => {}),
+  purgeOtherUsers: vi.fn(async () => {}),
+}));
+
+vi.mock("@/lib/location-outbox", () => outbox);
+
 function fireTimeout() {
   const cb = geoMock.gets.shift();
   cb?.error(TIMEOUT_ERR);
 }
 
-// Each GPS_PING_INTERVAL elapses → a ping was queued → fail it.
+// Watchdog ticks every 15 s; with no fix since start it re-requests the GPS.
 async function advanceAndFailPing() {
-  await act(async () => { await vi.advanceTimersByTimeAsync(12_000); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(15_000); });
   act(() => fireTimeout());
 }
 
@@ -97,7 +109,7 @@ describe("background location GPS failure escalation", () => {
 
   it("escalates recovering → gps-error after 3 consecutive GPS timeouts", async () => {
     const { result } = subscribe();
-    act(() => initBackgroundLocation(true, qc));
+    act(() => initBackgroundLocation(true, qc, USER));
     expect(result.current).toBe("locating");
 
     act(() => fireTimeout()); // initial fix attempt
@@ -112,19 +124,21 @@ describe("background location GPS failure escalation", () => {
 
   it("a live fix clears gps-error back to sharing", async () => {
     const { result } = subscribe();
-    act(() => initBackgroundLocation(true, qc));
+    act(() => initBackgroundLocation(true, qc, USER));
     act(() => fireTimeout());
     await advanceAndFailPing();
     await advanceAndFailPing();
     expect(result.current).toBe("gps-error");
 
-    act(() => geoMock.watch?.success(position(10)));
+    await act(async () => {
+      geoMock.watch?.success(position(10));
+    });
     expect(result.current).toBe("sharing");
   });
 
   it("retrySharing resets the streak and acquires immediately", async () => {
     const { result } = subscribe();
-    act(() => initBackgroundLocation(true, qc));
+    act(() => initBackgroundLocation(true, qc, USER));
     act(() => fireTimeout());
     await advanceAndFailPing();
     await advanceAndFailPing();
@@ -142,43 +156,36 @@ describe("background location GPS failure escalation", () => {
 
   it("permission denial stays denied (never escalates)", async () => {
     const { result } = subscribe();
-    act(() => initBackgroundLocation(true, qc));
+    act(() => initBackgroundLocation(true, qc, USER));
     act(() => geoMock.gets.shift()?.error(DENIED_ERR));
     expect(result.current).toBe("denied");
     await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
     expect(result.current).toBe("denied");
   });
 
-  it("forces an immediate GPS ping when the tab becomes visible or the network returns", async () => {
-    act(() => initBackgroundLocation(true, qc));
+  it("acquires a fix immediately when the tab becomes visible or the network returns", async () => {
+    act(() => initBackgroundLocation(true, qc, USER));
     geoMock.gets.shift(); // initial fix attempt, not under test
-
-    // Establish a previous fix so the accuracy gate would normally drop a
-    // worse one — a wake-up must post regardless.
-    act(() => geoMock.watch?.success(position(10)));
-    await act(async () => {});
-    const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
-    fetchMock.mockClear();
 
     const before = geoMock.getCurrentPosition.mock.calls.length;
     act(() => {
       document.dispatchEvent(new Event("visibilitychange"));
     });
     expect(geoMock.getCurrentPosition.mock.calls.length).toBe(before + 1);
-    act(() => geoMock.gets.shift()?.success(position(50)));
+
+    const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
+    act(() => geoMock.gets.shift()?.success(position(10)));
     await act(async () => {});
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/location",
       expect.objectContaining({ method: "POST" }),
     );
 
-    fetchMock.mockClear();
+    const beforeOnline = geoMock.getCurrentPosition.mock.calls.length;
     act(() => {
       window.dispatchEvent(new Event("online"));
     });
-    act(() => geoMock.gets.shift()?.success(position(50)));
-    await act(async () => {});
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(geoMock.getCurrentPosition.mock.calls.length).toBe(beforeOnline + 1);
 
     // Listeners die with the watch: a stopped tracker must not ping.
     act(() => initBackgroundLocation(false, qc));
@@ -187,5 +194,100 @@ describe("background location GPS failure escalation", () => {
       document.dispatchEvent(new Event("visibilitychange"));
     });
     expect(geoMock.getCurrentPosition.mock.calls.length).toBe(stopped);
+  });
+
+  it("queues live fixes while a POST is in flight instead of dropping them", async () => {
+    let finishPost: ((response: Response) => void) | null = null;
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((resolve) => {
+      finishPost = resolve;
+    })));
+
+    act(() => initBackgroundLocation(true, qc, USER));
+    act(() => geoMock.watch?.success(position(10)));
+    await act(async () => {});
+    expect(finishPost).not.toBeNull();
+
+    // 10 m away: shouldPost is true, but the first POST has not returned yet.
+    act(() => geoMock.watch?.success(position(10, -6.2001)));
+    await act(async () => {});
+    expect(outbox.enqueueFix).toHaveBeenCalledWith(USER, expect.objectContaining({
+      latitude: -6.2001,
+      longitude: 106.8,
+    }));
+
+    await act(async () => {
+      finishPost?.({ ok: true, status: 200 } as Response);
+    });
+  });
+
+  it("a 403 clears the outbox, stops the watcher and settles idle", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => ({
+      ok: url === "/api/location/batch",
+      status: url === "/api/location/batch" ? 200 : 403,
+    } as Response)));
+    const { result } = subscribe();
+
+    act(() => initBackgroundLocation(true, qc, USER));
+    act(() => geoMock.watch?.success(position(10)));
+    await act(async () => {});
+    expect(fetch).toHaveBeenCalled();
+    await act(async () => {});
+
+    expect(outbox.clearUser).toHaveBeenCalledWith(USER);
+    expect(geoMock.clearWatch).toHaveBeenCalled();
+    expect(result.current).toBe("idle");
+  });
+
+  it("a late 403 from a previous user cannot stop the new user's watcher", async () => {
+    let finishOldPost: ((response: Response) => void) | null = null;
+    vi.stubGlobal("fetch", vi.fn((url: string) => {
+      if (url === "/api/location" && !finishOldPost) {
+        return new Promise<Response>((resolve) => { finishOldPost = resolve; });
+      }
+      return { ok: true, status: 200 } as Response;
+    }));
+    const { result } = subscribe();
+
+    act(() => initBackgroundLocation(true, qc, "user-a"));
+    act(() => geoMock.watch?.success(position(10)));
+    await act(async () => {});
+    expect(finishOldPost).not.toBeNull();
+
+    act(() => initBackgroundLocation(false, qc, "user-a"));
+    act(() => initBackgroundLocation(true, qc, "user-b"));
+    const stopsBefore = geoMock.clearWatch.mock.calls.length;
+    outbox.clearUser.mockClear();
+
+    await act(async () => {
+      finishOldPost?.({ ok: false, status: 403 } as Response);
+    });
+
+    expect(geoMock.clearWatch.mock.calls.length).toBe(stopsBefore);
+    expect(outbox.clearUser).not.toHaveBeenCalled();
+    expect(result.current).not.toBe("idle");
+  });
+
+  it("requests a wake lock while sharing and releases it on stop", async () => {
+    const sentinel = {
+      released: false,
+      release: vi.fn(async () => {}),
+      addEventListener: vi.fn(),
+    };
+    const wakeLock = { request: vi.fn(async () => sentinel) };
+    Object.defineProperty(navigator, "wakeLock", {
+      value: wakeLock,
+      configurable: true,
+      writable: true,
+    });
+
+    act(() => initBackgroundLocation(true, qc, USER));
+    await act(async () => {});
+    expect(wakeLock.request).toHaveBeenCalledWith("screen");
+
+    act(() => initBackgroundLocation(false, qc));
+    expect(sentinel.release).toHaveBeenCalled();
+
+    // @ts-expect-error - test cleanup of a browser-only capability
+    delete navigator.wakeLock;
   });
 });

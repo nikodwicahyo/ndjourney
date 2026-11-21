@@ -65,7 +65,7 @@ export async function PUT(
         // Album is not a photo — a `?photo=<albumId>` link resolves to a 404
         // and silently opens nothing. Land on the gallery instead.
         href: "/dashboard/gallery",
-        level: "bell",
+        level: "both",
       });
     }
 
@@ -134,7 +134,7 @@ export async function DELETE(
         // Album is not a photo — a `?photo=<albumId>` link resolves to a 404
         // and silently opens nothing. Land on the gallery instead.
         href: "/dashboard/gallery",
-        level: "bell",
+        level: "both",
       });
     }
 

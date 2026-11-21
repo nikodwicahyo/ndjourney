@@ -106,7 +106,7 @@ export async function POST(request: Request) {
       title: "Bank soal games",
       body: `${rateCheck.session.user.name || "Pasangan"} menambahkan bank soal games`,
       href: `/dashboard/games?question=${question.id}`,
-      level: "bell",
+      level: "both",
     });
 
     return NextResponse.json({ data: question }, { status: 201 });

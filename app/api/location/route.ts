@@ -6,32 +6,40 @@ import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { getUserCoupleId } from "@/lib/couple";
 import { triggerCoupleEvent } from "@/lib/pusher-server";
 import { detectDeviceType } from "@/lib/device";
-import { MEET_THRESHOLD_METERS, LOCATION_STALE_AFTER_SECONDS, haversineMeters } from "@/lib/geo";
+import { MEET_THRESHOLD_METERS, LOCATION_STALE_AFTER_SECONDS } from "@/lib/geo";
 import { notifyLocationReonline } from "@/lib/activity";
+import {
+  writeLocationFixes,
+  toFixInput,
+  isReonlineMoment,
+} from "@/lib/location-write";
 
 export const dynamic = "force-dynamic";
 
 class SharingDisabledError extends Error {}
 
-export type LocationPayload = {
+type LocationPayload = {
   lat: number;
   lng: number;
   accuracy: number | null;
   heading: number | null;
   speed: number | null;
   altitude: number | null;
+  /** Device time of the fix (kept under the old field name for clients). */
   updatedAt: string;
 } | null;
 
-function toLocationPayload(row: {
+type LocationRow = {
   latitude: number;
   longitude: number;
   accuracy: number | null;
   heading: number | null;
   speed: number | null;
   altitude: number | null;
-  updatedAt: Date;
-} | null): LocationPayload {
+  recordedAt: Date;
+};
+
+function toLocationPayload(row: LocationRow | null): LocationPayload {
   if (!row) return null;
   return {
     lat: row.latitude,
@@ -40,7 +48,7 @@ function toLocationPayload(row: {
     heading: row.heading,
     speed: row.speed,
     altitude: row.altitude,
-    updatedAt: row.updatedAt.toISOString(),
+    updatedAt: row.recordedAt.toISOString(),
   };
 }
 
@@ -83,7 +91,7 @@ export async function GET() {
           heading: true,
           speed: true,
           altitude: true,
-          updatedAt: true,
+          recordedAt: true,
           deviceType: true,
         },
       }),
@@ -112,18 +120,20 @@ export async function GET() {
           heading: true,
           speed: true,
           altitude: true,
-          updatedAt: true,
+          recordedAt: true,
           deviceType: true,
         },
       }),
     ]);
 
     const now = Date.now();
+    // Age comes from the device timestamp: a row advanced by a late retry is
+    // not evidence that the GPS is live.
     const selfAge = selfLocation
-      ? Math.round((now - selfLocation.updatedAt.getTime()) / 1000)
+      ? Math.round((now - selfLocation.recordedAt.getTime()) / 1000)
       : null;
     const partnerAge = partnerLocation
-      ? Math.round((now - partnerLocation.updatedAt.getTime()) / 1000)
+      ? Math.round((now - partnerLocation.recordedAt.getTime()) / 1000)
       : null;
     // Read-side gate: a surviving row must never be disclosed after opt-out.
     const partnerSharing = partnerShare?.isSharing === true;
@@ -204,13 +214,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const { latitude, longitude, accuracy, heading, speed, altitude, deviceType } = parsed.data;
-
     const now = new Date();
+    const fix = toFixInput(parsed.data, now);
 
-    // P-11: current position + history in ONE transaction — a history-trim rollback
-    // used to leave the current row advanced past the trail.
-    const { previousUpdatedAt } = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       // Re-check inside the write transaction so an opt-out that committed
       // after the fast pre-check above aborts this write. The GET read gate
       // remains authoritative if a row survives an overlapping commit.
@@ -220,112 +227,24 @@ export async function POST(request: Request) {
       });
       if (!currentShare?.isSharing) throw new SharingDisabledError();
 
-      // The previous fix's age is the only honest "was GPS offline?" signal:
-      // the location card calls the same 60 s gap "Offline". Read inside the
-      // write transaction so the value matches the row being advanced.
-      const existing = await tx.userLocation.findUnique({
-        where: { userId },
-        select: { updatedAt: true },
-      });
-      const previousUpdatedAt = existing?.updatedAt ?? null;
-
-      // Upsert current location
-      await tx.userLocation.upsert({
-        where: { userId },
-        create: {
-          userId,
-          coupleId,
-          latitude,
-          longitude,
-          accuracy: accuracy ?? null,
-          heading: heading ?? null,
-          speed: speed ?? null,
-          altitude: altitude ?? null,
-          deviceType,
-        },
-        update: {
-          latitude,
-          longitude,
-          accuracy: accuracy ?? null,
-          heading: heading ?? null,
-          speed: speed ?? null,
-          altitude: altitude ?? null,
-          deviceType,
-        },
-      });
-
-      // Write to location history (throttled):
-      // If user moved >= 15 meters, record after 30 seconds.
-      // If stationary (< 15 meters), record every 5 minutes to confirm dwell without database spamming.
-      const lastHistory = await tx.userLocationHistory.findFirst({
-        where: { userId },
-        orderBy: { createdAt: "desc" },
-        select: { createdAt: true, latitude: true, longitude: true },
-      });
-
-      if (lastHistory) {
-        const elapsedMs = now.getTime() - lastHistory.createdAt.getTime();
-        const movedMeters = haversineMeters(
-          { latitude, longitude },
-          { latitude: lastHistory.latitude, longitude: lastHistory.longitude },
-        );
-        if (movedMeters < 15 && elapsedMs < 300000) {
-          return { previousUpdatedAt };
-        }
-        if (movedMeters >= 15 && elapsedMs < 30000) {
-          return { previousUpdatedAt };
-        }
-      }
-
-      await tx.userLocationHistory.create({
-        data: {
-          userId,
-          coupleId,
-          latitude,
-          longitude,
-          accuracy: accuracy ?? null,
-          heading: heading ?? null,
-          speed: speed ?? null,
-          altitude: altitude ?? null,
-          deviceType,
-        },
-      });
-
-      // No time-based pruning: the All filter must really reach every stored fix.
-      // Only a count cap keeps the table bounded; users can erase their own
-      // trail explicitly via DELETE /api/location/history.
-      const maxPoints = 2000;
-      const oldestAllowed = await tx.userLocationHistory.findMany({
-        where: { userId },
-        orderBy: { createdAt: "desc" },
-        skip: maxPoints,
-        take: 1,
-        select: { createdAt: true },
-      });
-      if (oldestAllowed.length > 0) {
-        await tx.userLocationHistory.deleteMany({
-          where: { userId, createdAt: { lte: oldestAllowed[0].createdAt } },
-        });
-      }
-
-      return { previousUpdatedAt };
+      return writeLocationFixes(tx, { userId, coupleId, fixes: [fix] });
     });
 
-    triggerCoupleEvent(coupleId, "LOCATION");
+    if (result.applied) {
+      // Await before returning: serverless freezes the invocation after the
+      // response, so a fire-and-forget Pusher call can be dropped entirely.
+      await triggerCoupleEvent(coupleId, "LOCATION");
+    }
 
-    // A normal 8–30 s ping stays silent. Only a fix that ended a real offline
-    // gap is a "partner is back online" moment worth the bell + push. Gated
-    // here so the cooldown query runs only on a recovery, not every ping.
     if (
-      previousUpdatedAt === null ||
-      now.getTime() - previousUpdatedAt.getTime() >=
-        LOCATION_STALE_AFTER_SECONDS * 1000
+      result.applied &&
+      isReonlineMoment(result.previousRecordedAt, result.lastRecordedAt, now)
     ) {
       await notifyLocationReonline(
         coupleId,
         userId,
         rateCheck.session.user.name ?? null,
-        previousUpdatedAt,
+        result.previousRecordedAt,
       );
     }
 

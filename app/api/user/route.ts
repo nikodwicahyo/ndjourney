@@ -98,7 +98,7 @@ export async function PUT(request: Request) {
         title: "Profil diperbarui",
         body: `${updated.name || session.user.name || "Pasangan"} memperbarui ${formatIndonesianList(changed)}`,
         href: "/dashboard/profile",
-        level: "bell",
+        level: "both",
       });
     }
 

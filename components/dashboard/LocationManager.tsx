@@ -2,7 +2,7 @@
 
 import "leaflet/dist/leaflet.css";
 import dynamic from "next/dynamic";
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, useEffect, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
 import {
   AlertTriangle,
@@ -28,10 +28,9 @@ import {
 import {
   formatDurationId,
   formatStopTimeLabel,
-  detectStopPoints,
-  hasTrackMovement,
   type VisitedStop,
 } from "@/lib/location-history";
+import { buildHistoryView, stopOrdinalLabel } from "@/lib/history-view";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query-keys";
 import {
@@ -42,6 +41,7 @@ import {
 import {
   retrySharing,
   useBackgroundLocationStatus,
+  useBackgroundLocationWakeLock,
   type ShareStatus,
 } from "@/hooks/useBackgroundLocation";
 import LocationToggle from "@/components/location/LocationToggle";
@@ -75,31 +75,33 @@ const PartnerMap = dynamic(() => import("@/components/location/PartnerMap").catc
 
 function StatusIndicator({ status }: { status: ShareStatus }) {
   const qc = useQueryClient();
+  // Outline-chip shell; each state supplies its own border/tint via text color.
+  const chip = "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs";
   switch (status) {
     case "sharing":
       return (
-        <span className="flex items-center gap-1.5 text-xs text-emerald-500">
+        <span className={`${chip} border-emerald-500/40 bg-emerald-500/5 text-emerald-500`}>
           <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" aria-hidden="true" />
           GPS Aktif
         </span>
       );
     case "locating":
       return (
-        <span className="flex items-center gap-1.5 text-xs text-amber-500">
+        <span className={`${chip} border-amber-500/40 bg-amber-500/5 text-amber-500`}>
           <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" aria-hidden="true" />
           Mencari GPS…
         </span>
       );
     case "recovering":
       return (
-        <span className="flex items-center gap-1.5 text-xs text-amber-500">
+        <span className={`${chip} border-amber-500/40 bg-amber-500/5 text-amber-500`}>
           <AlertTriangle className="h-3 w-3" />
           Memulihkan koneksi…
         </span>
       );
     case "gps-error":
       return (
-        <span className="flex items-center gap-1.5 text-xs text-destructive">
+        <span className={`${chip} border-destructive/40 bg-destructive/5 text-destructive`}>
           <AlertTriangle className="h-3 w-3" />
           GPS tidak merespons.
           <button
@@ -113,14 +115,21 @@ function StatusIndicator({ status }: { status: ShareStatus }) {
       );
     case "denied":
       return (
-        <span className="flex items-center gap-1.5 text-xs text-destructive">
+        <span className={`${chip} border-destructive/40 bg-destructive/5 text-destructive`}>
           <AlertTriangle className="h-3 w-3" />
           Izin GPS ditolak
+          <button
+            type="button"
+            onClick={() => retrySharing(qc)}
+            className="inline-flex min-h-[44px] items-center font-medium underline underline-offset-2 hover:text-foreground"
+          >
+            Coba lagi
+          </button>
         </span>
       );
     case "unsupported":
       return (
-        <span className="flex items-center gap-1.5 text-xs text-destructive">
+        <span className={`${chip} border-destructive/40 bg-destructive/5 text-destructive`}>
           <AlertTriangle className="h-3 w-3" />
           GPS tidak didukung
         </span>
@@ -146,7 +155,7 @@ function FilterRow<K extends string>({
 }) {
   return (
     <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
-      <span className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
+      <span className="flex items-center gap-1 text-[13px] font-medium text-muted-foreground">
         {icon}
         {label}
       </span>
@@ -231,7 +240,7 @@ function StopGroup({
                 </span>
                 <span className="min-w-0 space-y-0.5">
                   <span className="block truncate font-medium text-foreground">
-                    {stop.isCurrent ? "Lokasi Saat Ini" : `Kunjungan #${i + 1}`}
+                    {stop.isCurrent ? "Lokasi Saat Ini" : stopOrdinalLabel(i)}
                   </span>
                   <span className="block truncate text-[10px] text-muted-foreground" title={timeLabel}>
                     {timeLabel}
@@ -269,7 +278,12 @@ export default function LocationManager() {
   const [selectedStop, setSelectedStop] = useState<VisitedStop | null>(null);
   const [showHistory, setShowHistory] = useState(false);
 
-  const { data: historyResult, isLoading: isHistoryLoading } = useLocationHistory(
+  const {
+    data: historyResult,
+    isLoading: isHistoryLoading,
+    isError: isHistoryError,
+    refetch: refetchHistory,
+  } = useLocationHistory(
     historyRange,
     { enabled: showHistory },
   );
@@ -278,18 +292,12 @@ export default function LocationManager() {
 
   const selfId = session?.user?.id;
 
-  // Purely memoized stops: prevents any setState re-render cycle
-  const detectedStops: { self: VisitedStop[]; partner: VisitedStop[] } = useMemo(() => {
-    if (!historyData || historyData.length === 0 || !selfId) {
-      return { self: [], partner: [] };
-    }
-    const selfHistory = historyData.filter((h) => h.userId === selfId);
-    const partnerHistory = historyData.filter((h) => h.userId !== selfId);
-    return {
-      self: detectStopPoints(selfHistory),
-      partner: detectStopPoints(partnerHistory),
-    };
-  }, [historyData, selfId]);
+  // One shared view model: the map and the card render the same segments and
+  // the same stop ordinals, so they cannot drift apart.
+  const historyView = useMemo(
+    () => buildHistoryView(historyData, { selfId, filterUser }),
+    [historyData, selfId, filterUser],
+  );
 
   const qc = useQueryClient();
 
@@ -303,11 +311,16 @@ export default function LocationManager() {
   // The global tracker (LocationPresenceTracker) owns the watcher now; this
   // component only subscribes to its status.
   const shareStatus = useBackgroundLocationStatus();
+  const wakeStatus = useBackgroundLocationWakeLock();
 
-  // Update previous distance ref after render
-  if (distance !== null && distance !== previousDistance) {
-    setPreviousDistance(distance);
-  }
+  // Advance the trend baseline only after the badge has been visible. Setting
+  // state during render made every commit carry distance === previousDistance,
+  // so "Semakin dekat/jauh" could never appear.
+  useEffect(() => {
+    if (distance === null) return;
+    const timer = setTimeout(() => setPreviousDistance(distance), 3_000);
+    return () => clearTimeout(timer);
+  }, [distance]);
 
   const selfPin = useMemo(() => {
     const s = data?.self;
@@ -349,37 +362,20 @@ export default function LocationManager() {
   const mapRoute = snapToRoads ? cardRoute : null;
 
   const allStops = useMemo(
-    () => [...detectedStops.self, ...detectedStops.partner],
-    [detectedStops],
+    () => [...(historyView?.self.stops ?? []), ...(historyView?.partner.stops ?? [])],
+    [historyView],
   );
   const stopAddresses = usePlaceNames(allStops);
 
-  // Record count follows the same filter as the drawn trail, so the legend
-  // never claims more points than the map actually shows.
-  const visibleHistory = useMemo(
-    () =>
-      selfId
-        ? historyData.filter((h) =>
-            filterUser === "all"
-              ? true
-              : filterUser === "self"
-                ? h.userId === selfId
-                : h.userId !== selfId,
-          )
-        : [],
-    [historyData, filterUser, selfId],
-  );
-  const historyHasMovement = hasTrackMovement(visibleHistory);
-
-  // The stop list follows the same "Tampilkan" filter as the map trail.
+  const historyHasMovement = historyView?.summary.movement ?? false;
   const visibleStops = useMemo(
     () => ({
-      self: filterUser === "partner" ? [] : detectedStops.self,
-      partner: filterUser === "self" ? [] : detectedStops.partner,
+      self: historyView?.self.stops ?? [],
+      partner: historyView?.partner.stops ?? [],
     }),
-    [detectedStops, filterUser],
+    [historyView],
   );
-  const visibleStopCount = visibleStops.self.length + visibleStops.partner.length;
+  const visibleStopCount = historyView?.summary.stopCount ?? 0;
   const hasVisibleStops = visibleStopCount > 0;
 
   if (sessionStatus === "unauthenticated") {
@@ -458,6 +454,27 @@ export default function LocationManager() {
         </div>
       ) : null}
 
+      {/* Screen-on contract: the browser can only keep sampling while the
+          document is alive, so tell the user plainly instead of failing silently. */}
+      {self.isSharing && wakeStatus !== "idle" && (
+        <div
+          className={`flex items-start gap-2 rounded-2xl border p-3 text-xs ${
+            wakeStatus === "active"
+              ? "border-emerald-500/25 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300"
+              : "border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-300"
+          }`}
+          role="status"
+        >
+          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          <span>
+            {wakeStatus === "active" && "Pastikan layar tetap menyala selama berbagi lokasi agar GPS terus berjalan."}
+            {wakeStatus === "hidden" && "Aplikasi di latar belakang - GPS bisa tertunda sampai layar kembali menyala."}
+            {wakeStatus === "unsupported" && "Browser ini belum mendukung wake lock. Biarkan layar tetap menyala; GPS bisa berhenti saat layar mati."}
+            {wakeStatus === "denied" && "Izin wake lock ditolak. Biarkan layar tetap menyala agar GPS tidak berhenti."}
+          </span>
+        </div>
+      )}
+
       <MeetBanner show={meeting && bothSharing} distance={distance} />
 
       {/* Main grid */}
@@ -467,11 +484,9 @@ export default function LocationManager() {
             <PartnerMap
               self={selfPin}
               partner={partnerPin}
-              history={historyData}
+              view={historyView}
               showHistory={showHistory}
               selectedStop={selectedStop}
-              stops={detectedStops}
-              filterUser={filterUser}
               snapToRoads={snapToRoads}
               route={mapRoute}
               stopAddresses={stopAddresses}
@@ -538,9 +553,22 @@ export default function LocationManager() {
                 {showHistory && (
                   <section className="overflow-hidden rounded-2xl border border-border bg-card/90 shadow-sm backdrop-blur-sm">
                     <div className="space-y-3 p-3 sm:p-4">
+                      {isHistoryError && (
+                        <div role="alert" className="flex items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/5 p-2.5 text-[11px] text-destructive">
+                          <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                          <span className="flex-1">Riwayat lokasi gagal dimuat. Data yang tampil mungkin tidak lengkap.</span>
+                          <button
+                            type="button"
+                            onClick={() => void refetchHistory()}
+                            className="min-h-7 rounded-md px-2 font-medium underline underline-offset-2"
+                          >
+                            Coba Lagi
+                          </button>
+                        </div>
+                      )}
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                         <FilterRow
-                          label="Durasi"
+                          label="Durasi:"
                           icon={<Calendar className="h-3 w-3" />}
                           options={HISTORY_RANGES}
                           value={historyRange}
@@ -552,7 +580,8 @@ export default function LocationManager() {
                           }}
                         />
                         <FilterRow
-                          label="Tampilkan"
+                          label="Tampilkan:"
+                          icon={<Eye className="h-3 w-3" />}
                           options={[
                             { key: "all", label: "Semua" },
                             { key: "partner", label: partner.name },
@@ -565,19 +594,21 @@ export default function LocationManager() {
 
                       <div className="rounded-xl bg-muted/40 p-2.5 text-[11px] text-muted-foreground">
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-                          <span className="flex items-center gap-1.5">
+                          <span className="flex items-center gap-1.5 text-[13px]">
                             <span className="h-2 w-2 rounded-full bg-blue-500" aria-hidden="true" />
                             Kamu · {visibleStops.self.length}x singgah
                           </span>
-                          <span className="flex items-center gap-1.5">
+                          <span className="flex items-center gap-1.5 text-[13px]">
                             <span className="h-2 w-2 rounded-full bg-rose-500" aria-hidden="true" />
                             {partner.name} · {visibleStops.partner.length}x singgah
                           </span>
                         </div>
                         <p className="mt-1.5 leading-relaxed">
-                          {isHistoryLoading
-                            ? "Memuat tempat singgah…"
-                            : visibleStopCount > 0
+                          {isHistoryError
+                            ? "Riwayat tidak tersedia — coba muat ulang."
+                            : isHistoryLoading
+                              ? "Memuat tempat singgah…"
+                              : visibleStopCount > 0
                               ? `${historyHasMovement ? "jejak perjalanan dan titik singgah sudah terlihat di peta" : "lokasi tidak banyak berubah, jadi ditandai lingkaran di peta"} · ketuk titik untuk detail`
                               : `Belum ada tempat singgah pada rentang ${historyRangeLabel(historyRange)}`}
                         </p>
@@ -619,9 +650,11 @@ export default function LocationManager() {
                         </div>
                       ) : (
                         <p className="rounded-xl border border-dashed border-border/70 p-3 text-center text-[11px] text-muted-foreground" role="status">
-                          {isHistoryLoading
-                            ? "Mencari tempat singgah…"
-                            : "Belum ada tempat singgah pada rentang ini."}
+                          {isHistoryError
+                            ? "Riwayat gagal dimuat."
+                            : isHistoryLoading
+                              ? "Mencari tempat singgah…"
+                              : "Belum ada tempat singgah pada rentang ini."}
                         </p>
                       )}
                     </div>

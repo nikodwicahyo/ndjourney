@@ -29,6 +29,7 @@ import {
   formatDurationId,
   formatStopTimeLabel,
   formatTimeOnly,
+  projectPointToPolyline,
   type VisitedStop,
 } from "@/lib/location-history";
 import { stopOrdinalLabel, type HistoryView } from "@/lib/history-view";
@@ -541,6 +542,7 @@ export default function PartnerMap({
         `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>`,
         "Pusatkan ke lokasi saya",
         () => {
+          userMovedRef.current = false;
           const reduceAnim = prefersReducedMotion();
           const currentSelf = selfRef.current;
           if (currentSelf?.point) {
@@ -569,6 +571,7 @@ export default function PartnerMap({
 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:-5px;"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>`,
         "Pusatkan ke pasangan",
         () => {
+          userMovedRef.current = false;
           const reduceAnim = prefersReducedMotion();
           if (selfRef.current?.point && partnerRef.current?.point) {
             map.fitBounds(
@@ -833,34 +836,7 @@ export default function PartnerMap({
           lineJoin: "round",
         }).addTo(layer);
 
-        // Snap each segment separately: a gap is a gap, never a fake straight
-        // line across it. Cached per segment; stale responses are token-gated.
-        if (snapToRoads && segment.length >= 2) {
-          const key = segmentCacheKey(segment);
-          const cached = historySnapCache.get(key);
-          if (cached) {
-            casing.setLatLngs(cached);
-            polyline.setLatLngs(cached);
-          } else {
-            fetchRoadSnappedRoute(
-              segment.map((p) => ({ lat: p.latitude, lng: p.longitude })),
-            ).then((roadCoords) => {
-              if (historyDrawRef.current !== drawToken) return;
-              if (!mapRef.current || !hLayer.hasLayer(polyline)) return;
-              if (roadCoords && roadCoords.length >= 2) {
-                if (historySnapCache.size >= HISTORY_SNAP_CACHE_MAX) {
-                  const oldest = historySnapCache.keys().next().value;
-                  if (oldest) historySnapCache.delete(oldest);
-                }
-                historySnapCache.set(key, roadCoords);
-                // Both layers must move together; updating only the core left
-                // the dark casing on the raw straight coordinates.
-                casing.setLatLngs(roadCoords);
-                polyline.setLatLngs(roadCoords);
-              }
-            });
-          }
-        }
+        const crumbs: Array<{ marker: L.CircleMarker; origLat: number; origLng: number }> = [];
 
         // Sparse breadcrumbs, not a dot per fix. Each one is clickable and
         // opens a popup with the recorded time and speed.
@@ -881,6 +857,8 @@ export default function PartnerMap({
             interactive: true,
           }).addTo(layer);
 
+          crumbs.push({ marker: crumb, origLat: p.latitude, origLng: p.longitude });
+
           crumb.getElement()?.setAttribute("aria-label", label);
           // Same popup shell as the stop/avatar popups on this map.
           crumb.bindPopup(
@@ -896,6 +874,44 @@ export default function PartnerMap({
             { autoPan: true, closeButton: true, offset: [0, -10] },
           );
         });
+
+        const snapBreadcrumbsToRoad = (roadCoords: Array<[number, number]>) => {
+          crumbs.forEach(({ marker, origLat, origLng }) => {
+            const snapped = projectPointToPolyline([origLat, origLng], roadCoords);
+            marker.setLatLng(snapped);
+          });
+        };
+
+        // Snap each segment separately: a gap is a gap, never a fake straight
+        // line across it. Cached per segment; stale responses are token-gated.
+        if (snapToRoads && segment.length >= 2) {
+          const key = segmentCacheKey(segment);
+          const cached = historySnapCache.get(key);
+          if (cached) {
+            casing.setLatLngs(cached);
+            polyline.setLatLngs(cached);
+            snapBreadcrumbsToRoad(cached);
+          } else {
+            fetchRoadSnappedRoute(
+              segment.map((p) => ({ lat: p.latitude, lng: p.longitude })),
+            ).then((roadCoords) => {
+              if (historyDrawRef.current !== drawToken) return;
+              if (!mapRef.current || !hLayer.hasLayer(polyline)) return;
+              if (roadCoords && roadCoords.length >= 2) {
+                if (historySnapCache.size >= HISTORY_SNAP_CACHE_MAX) {
+                  const oldest = historySnapCache.keys().next().value;
+                  if (oldest) historySnapCache.delete(oldest);
+                }
+                historySnapCache.set(key, roadCoords);
+                // Both layers must move together; updating only the core left
+                // the dark casing on the raw straight coordinates.
+                casing.setLatLngs(roadCoords);
+                polyline.setLatLngs(roadCoords);
+                snapBreadcrumbsToRoad(roadCoords);
+              }
+            });
+          }
+        }
       });
 
       // "Mulai" anchor: where this person's recorded trail begins.
@@ -1176,6 +1192,13 @@ export default function PartnerMap({
       if (!markersFittedRef.current) {
         map.fitBounds(L.latLngBounds(latlngs), { padding: [80, 80], maxZoom: 16, animate: !prefersReducedMotion() });
         markersFittedRef.current = true;
+      } else if (!userMovedRef.current) {
+        // Auto-follow: smoothly keep moving partner/self in view
+        const bounds = map.getBounds();
+        const needsRefit = latlngs.some((ll) => !bounds.pad(-0.1).contains(ll as L.LatLngExpression));
+        if (needsRefit) {
+          map.fitBounds(L.latLngBounds(latlngs), { padding: [80, 80], maxZoom: 16, animate: !prefersReducedMotion() });
+        }
       }
     } else if (pins.length === 1) {
       if (!markersFittedRef.current) {
@@ -1183,6 +1206,13 @@ export default function PartnerMap({
           animate: !prefersReducedMotion(),
         });
         markersFittedRef.current = true;
+      } else if (!userMovedRef.current) {
+        // Auto-follow single moving pin
+        const bounds = map.getBounds();
+        const pinPos: [number, number] = [pins[0].point.lat, pins[0].point.lng];
+        if (!bounds.pad(-0.15).contains(pinPos)) {
+          map.panTo(pinPos, { animate: !prefersReducedMotion(), duration: 0.8 });
+        }
       }
     } else if (!markersFittedRef.current) {
       // No pins, show default view (once)

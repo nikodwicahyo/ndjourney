@@ -20,6 +20,7 @@ import {
   purgeOtherUsers,
   removeFixes,
 } from "@/lib/location-outbox";
+import type { LocationState } from "./useLocation";
 
 export type ShareStatus =
   | "idle"
@@ -34,14 +35,14 @@ export type WakeLockStatus = "idle" | "active" | "hidden" | "unsupported" | "den
 
 type QueryClient = ReturnType<typeof useQueryClient>;
 
-const GPS_WATCH_TIMEOUT_MS = 30_000;
-const GPS_FIX_TIMEOUT_MS = 20_000;
+const GPS_WATCH_TIMEOUT_MS = 15_000;
+const GPS_FIX_TIMEOUT_MS = 10_000;
 const WATCHDOG_INTERVAL_MS = 15_000;
-const WATCHDOG_STALE_MS = 30_000;
+const WATCHDOG_STALE_MS = 25_000;
 const FLUSH_RETRY_MS = 15_000;
 const FLUSH_BATCH_SIZE = 100;
 const GPS_ERROR_THRESHOLD = 3;
-const INVALIDATE_THROTTLE_MS = 10_000;
+const INVALIDATE_THROTTLE_MS = 1_500;
 const HEALTHY_FIX_WINDOW_MS = 30_000;
 const CLOCK_REGRESSION_TOLERANCE_MS = 5_000;
 
@@ -104,7 +105,17 @@ function noteGpsSuccess() {
   globalGpsFailCount = 0;
 }
 
-function noteGpsError() {
+function noteGpsError(err?: GeolocationPositionError) {
+  if (err?.code === 2) {
+    globalGpsFailCount = GPS_ERROR_THRESHOLD;
+    setStatus("gps-error");
+    return;
+  }
+  if (err?.code === 1) {
+    stopSampling(true);
+    setStatus("denied");
+    return;
+  }
   globalGpsFailCount++;
   setStatus(globalGpsFailCount >= GPS_ERROR_THRESHOLD ? "gps-error" : "recovering");
 }
@@ -343,6 +354,31 @@ function handlePosition(
   globalLastFix = fix;
   globalLastFixAt = Date.now();
 
+  // Optimistically update React Query's location state so the user's own avatar
+  // follows immediately without waiting for HTTP POST round-trip.
+  if (typeof qc?.getQueryData === "function" && typeof qc?.setQueryData === "function") {
+    const prevData = qc.getQueryData<LocationState>(queryKeys.location.all);
+    if (prevData?.self) {
+      qc.setQueryData<LocationState>(queryKeys.location.all, {
+        ...prevData,
+        self: {
+          ...prevData.self,
+          location: {
+            lat: fix.latitude,
+            lng: fix.longitude,
+            accuracy: fix.accuracy,
+            heading: fix.heading,
+            speed: fix.speed,
+            altitude: fix.altitude,
+            updatedAt: new Date(fix.recordedAt).toISOString(),
+          },
+          locationAgeSeconds: 0,
+          isStale: false,
+        },
+      });
+    }
+  }
+
   // A fix alone proves the sensor works, not that the server heard us. Stay
   // "locating"/"recovering" until a POST succeeds — unless a recent successful
   // post is still inside the staleness window, in which case we never lied.
@@ -367,12 +403,7 @@ function pingGps(qc: QueryClient, userId: string, epoch = globalEpoch) {
     (pos) => handlePosition(pos, qc, userId, epoch),
     (err) => {
       if (!isCurrent(epoch)) return;
-      if (err.code === err.PERMISSION_DENIED) {
-        stopSampling(true);
-        setStatus("denied");
-        return;
-      }
-      noteGpsError();
+      noteGpsError(err);
     },
     { enableHighAccuracy: true, maximumAge: 0, timeout: GPS_FIX_TIMEOUT_MS },
   );
@@ -450,12 +481,7 @@ function startSampling(qc: QueryClient, userId: string) {
     (pos) => handlePosition(pos, qc, userId, epoch),
     (err) => {
       if (!isCurrent(epoch)) return;
-      if (err.code === err.PERMISSION_DENIED) {
-        stopSampling(true);
-        setStatus("denied");
-        return;
-      }
-      noteGpsError();
+      noteGpsError(err);
     },
     {
       enableHighAccuracy: true,

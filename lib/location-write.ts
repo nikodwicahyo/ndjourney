@@ -9,9 +9,9 @@ import { MAX_HISTORY_ACCURACY_METERS } from "./location";
  */
 
 export const HISTORY_MAX_POINTS = 2_000;
-const HISTORY_MIN_MOVE_METERS = 15;
-const HISTORY_MOVING_INTERVAL_MS = 30_000;
-const HISTORY_STATIONARY_INTERVAL_MS = 5 * 60_000;
+const HISTORY_MIN_MOVE_METERS = 10;
+const HISTORY_MOVING_INTERVAL_MS = 8_000;
+const HISTORY_STATIONARY_INTERVAL_MS = 60_000;
 
 // A fix far worse than the current one is GPS noise (a cold start in a tunnel),
 // not a real move. It may still be the newest, but it must not replace a good

@@ -23,6 +23,7 @@ const TIMEOUT_ERR = {
 } as unknown as GeolocationPositionError;
 
 const DENIED_ERR = { ...TIMEOUT_ERR, code: 1 } as unknown as GeolocationPositionError;
+const UNAVAILABLE_ERR = { ...TIMEOUT_ERR, code: 2 } as unknown as GeolocationPositionError;
 
 function position(accuracy = 10, latitude = -6.2): GeolocationPosition {
   return {
@@ -161,6 +162,13 @@ describe("background location GPS failure escalation", () => {
     expect(result.current).toBe("denied");
     await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
     expect(result.current).toBe("denied");
+  });
+
+  it("position unavailable (GPS turned off) triggers gps-error immediately", async () => {
+    const { result } = subscribe();
+    act(() => initBackgroundLocation(true, qc, USER));
+    act(() => geoMock.gets.shift()?.error(UNAVAILABLE_ERR));
+    expect(result.current).toBe("gps-error");
   });
 
   it("acquires a fix immediately when the tab becomes visible or the network returns", async () => {

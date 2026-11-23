@@ -5,7 +5,7 @@ export const MEET_THRESHOLD_METERS = 100;
  * re-online notification uses the same threshold, so the bell can never claim
  * "online" while the location card says "Offline".
  */
-export const LOCATION_STALE_AFTER_SECONDS = 60;
+export const LOCATION_STALE_AFTER_SECONDS = 25;
 
 export const WALKING_SPEED_MS = 1.4;
 export const CYCLING_SPEED_MS = 8.3;

@@ -7,6 +7,7 @@ import {
   downsampleWaypoints,
   fetchRoadSnappedRoute,
   hasTrackMovement,
+  projectPointToPolyline,
 } from "@/lib/location-history";
 import type { LocationHistoryPoint } from "@/hooks/useLocation";
 
@@ -48,9 +49,9 @@ describe("location-history utility", () => {
   });
 
   describe("formatTimeOnly", () => {
-    it("formats ISO string to HH:mm", () => {
-      const res = formatTimeOnly("2026-11-20T08:30:00Z");
-      expect(res).toMatch(/\d{2}[:.]\d{2}/);
+    it("formats ISO string to the canonical Jakarta HH:mm", () => {
+      expect(formatTimeOnly("2026-11-20T08:30:00Z")).toBe("15:30");
+      expect(formatTimeOnly("2026-11-11T17:00:00Z")).toBe("00:00");
     });
 
     it("handles invalid string gracefully", () => {
@@ -69,8 +70,8 @@ describe("location-history utility", () => {
       expect(formatStopTimeLabel(stop())).toBe("00:30 - 00:54 · 13/11/2026");
     });
 
-    it("uses the real last-ping time for the current stop too", () => {
-      expect(formatStopTimeLabel(stop(true))).toBe("00:30 - 00:54 · 13/11/2026");
+    it("renders 'time - Sekarang · date' for the active current stop", () => {
+      expect(formatStopTimeLabel(stop(true))).toBe("00:30 - Sekarang · 13/11/2026");
     });
   });
 
@@ -342,6 +343,32 @@ describe("location-history utility", () => {
       const pts = [{ lat: -6.2, lng: 106.81 }, { lat: -6.21, lng: 106.82 }];
       const res = await fetchRoadSnappedRoute(pts);
       expect(res).toEqual([[-6.2, 106.81], [-6.205, 106.815], [-6.21, 106.82]]);
+    });
+  });
+
+  describe("projectPointToPolyline", () => {
+    it("snaps a nearby point orthogonally to the road segment", () => {
+      // Road runs along latitude -6.20000 from lng 106.80000 to 106.81000
+      const polyline: Array<[number, number]> = [
+        [-6.2, 106.8],
+        [-6.2, 106.81],
+      ];
+      // Jittered GPS point 10 meters north of the midpoint
+      const jitteredPoint: [number, number] = [-6.19991, 106.805];
+      const snapped = projectPointToPolyline(jitteredPoint, polyline, 50);
+      expect(snapped[0]).toBeCloseTo(-6.2, 5);
+      expect(snapped[1]).toBeCloseTo(106.805, 5);
+    });
+
+    it("leaves a point untouched if it is far off-road (> maxDistanceMeters)", () => {
+      const polyline: Array<[number, number]> = [
+        [-6.2, 106.8],
+        [-6.2, 106.81],
+      ];
+      // Point 500m away
+      const farPoint: [number, number] = [-6.205, 106.805];
+      const result = projectPointToPolyline(farPoint, polyline, 60);
+      expect(result).toEqual(farPoint);
     });
   });
 });

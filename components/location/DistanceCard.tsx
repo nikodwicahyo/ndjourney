@@ -136,6 +136,24 @@ export default function DistanceCard({
   const activeMode = travelMode ?? localMode;
   const setActiveMode = onTravelModeChange ?? setLocalMode;
 
+  // Real-time second ticker so location age and live/offline status update smoothly
+  const [nowMs, setNowMs] = useState<number | null>(null);
+  useEffect(() => {
+    const timer = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const liveSelfAge = self.location?.updatedAt && nowMs !== null
+    ? Math.max(0, Math.round((nowMs - new Date(self.location.updatedAt).getTime()) / 1000))
+    : self.locationAgeSeconds;
+  const livePartnerAge = partner.location?.updatedAt && nowMs !== null
+    ? Math.max(0, Math.round((nowMs - new Date(partner.location.updatedAt).getTime()) / 1000))
+    : partner.locationAgeSeconds;
+
+  const selfLive = self.isSharing && liveSelfAge !== null && liveSelfAge <= 25;
+  const partnerLive = partner.isSharing && livePartnerAge !== null && livePartnerAge <= 25;
+  const bothLive = selfLive && partnerLive;
+
   // Only a real OSRM route may drive the number and ETA. A failed/fallback
   // proxy response is never shown as a road distance or turned into an ETA.
   const activeRoute = shouldUseRoadRoute(roadRoute);
@@ -177,10 +195,6 @@ export default function DistanceCard({
   const selfInitial = (self.name ?? "K").charAt(0).toUpperCase();
   const partnerInitial = (partner.name ?? "P").charAt(0).toUpperCase();
 
-  const selfLive = self.isSharing && !self.isStale;
-  const partnerLive = partner.isSharing && !partner.isStale;
-  const bothLive = selfLive && partnerLive;
-
   return (
     <Card className="relative overflow-hidden border-primary/10">
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-pink-500/[0.03] via-transparent to-blue-500/[0.03]" />
@@ -217,7 +231,7 @@ export default function DistanceCard({
             isSharing={self.isSharing}
             statusText={selfLive ? "Live" : self.isSharing ? "Offline" : "Off"}
             deviceType={self.deviceType}
-            ageSeconds={self.locationAgeSeconds}
+            ageSeconds={liveSelfAge}
             accuracy={self.location?.accuracy ?? null}
           />
           <div className="relative flex flex-col items-center px-2">
@@ -275,7 +289,7 @@ export default function DistanceCard({
             isSharing={partner.isSharing}
             statusText={partnerLive ? "Live" : partner.isSharing ? "Offline" : "Off"}
             deviceType={partner.deviceType}
-            ageSeconds={partner.locationAgeSeconds}
+            ageSeconds={livePartnerAge}
             accuracy={partner.location?.accuracy ?? null}
           />
         </div>

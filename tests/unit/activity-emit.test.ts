@@ -270,7 +270,7 @@ describe("notifyLocationReonline", () => {
   });
 
   it("skips a ping whose previous fix is still fresh", async () => {
-    await notifyLocationReonline("c1", "a1", "Niko", new Date(NOW.getTime() - 30_000));
+    await notifyLocationReonline("c1", "a1", "Niko", new Date(NOW.getTime() - 10_000));
 
     expect(prisma.activityEvent.findFirst).not.toHaveBeenCalled();
     expect(prisma.activityEvent.create).not.toHaveBeenCalled();

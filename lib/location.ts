@@ -14,7 +14,7 @@ export type LocationFix = {
 
 export type PostedFix = LocationFix & { postedAt: number };
 
-export const MOVING_POST_MS = 5_000;
+export const MOVING_POST_MS = 3_000;
 export const STATIONARY_POST_MS = 30_000;
 export const MIN_MOVE_METERS = 5;
 export const ACCURACY_IMPROVEMENT_RATIO = 0.8;

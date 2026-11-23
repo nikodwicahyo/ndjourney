@@ -1,6 +1,5 @@
 "use client";
 
-import "leaflet/dist/leaflet.css";
 import dynamic from "next/dynamic";
 import { useMemo, useState, useEffect, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
@@ -292,11 +291,47 @@ export default function LocationManager() {
 
   const selfId = session?.user?.id;
 
+  const liveSelfPoint = useMemo(() => {
+    const s = data?.self;
+    if (!s?.location || !s.userId) return null;
+    return {
+      userId: s.userId,
+      latitude: s.location.lat,
+      longitude: s.location.lng,
+      accuracy: s.location.accuracy,
+      heading: s.location.heading,
+      speed: s.location.speed,
+      createdAt: s.location.updatedAt,
+      deviceType: s.deviceType,
+    };
+  }, [data?.self]);
+
+  const livePartnerPoint = useMemo(() => {
+    const p = data?.partner;
+    if (!p?.location || !p.userId || !p.isSharing) return null;
+    return {
+      userId: p.userId,
+      latitude: p.location.lat,
+      longitude: p.location.lng,
+      accuracy: p.location.accuracy,
+      heading: p.location.heading,
+      speed: p.location.speed,
+      createdAt: p.location.updatedAt,
+      deviceType: p.deviceType ?? "phone",
+    };
+  }, [data?.partner]);
+
   // One shared view model: the map and the card render the same segments and
-  // the same stop ordinals, so they cannot drift apart.
+  // the same stop ordinals, seamlessly merged with live location points.
   const historyView = useMemo(
-    () => buildHistoryView(historyData, { selfId, filterUser }),
-    [historyData, selfId, filterUser],
+    () =>
+      buildHistoryView(historyData, {
+        selfId,
+        filterUser,
+        liveSelfPoint,
+        livePartnerPoint,
+      }),
+    [historyData, selfId, filterUser, liveSelfPoint, livePartnerPoint],
   );
 
   const qc = useQueryClient();

@@ -47,12 +47,9 @@ export function formatTimeOnly(iso: string): string {
   try {
     const d = new Date(iso);
     if (isNaN(d.getTime())) return "—";
-    return d.toLocaleTimeString("id-ID", {
-      timeZone: "Asia/Jakarta",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
+    // Canonical Jakarta HH:mm via the shared helper — toLocaleTimeString with
+    // the id-ID locale renders "15.30", which is NOT the format we standardize on.
+    return formatJakartaTime(d);
   } catch {
     return "—";
   }
@@ -61,8 +58,10 @@ export function formatTimeOnly(iso: string): string {
 /** One canonical "time range . date" label, shared by the stop list and map popup. */
 export function formatStopTimeLabel(stop: VisitedStop): string {
   // Always the real first/last ping: that is exactly the span `durationMinutes`
-  // is computed from. "sekarang" would disagree with it for stale fixes.
-  const time = `${formatJakartaTime(stop.arrivedAt)} - ${formatJakartaTime(stop.departedAt)}`;
+  // is computed from. For the active stop, show "Sekarang" to reflect real-time presence.
+  const time = stop.isCurrent
+    ? `${formatJakartaTime(stop.arrivedAt)} - Sekarang`
+    : `${formatJakartaTime(stop.arrivedAt)} - ${formatJakartaTime(stop.departedAt)}`;
   const date = formatInJakarta(stop.arrivedAt, {
     day: "2-digit",
     month: "2-digit",
@@ -299,4 +298,62 @@ export async function fetchRoadSnappedRoute(
     if (timer) clearTimeout(timer);
     options.signal?.removeEventListener("abort", onAbort);
   }
+}
+
+/**
+ * Project a raw GPS point onto the closest point on a polyline (road geometry).
+ * Clamps within a reasonable distance (e.g. 60m) so genuine off-road positions
+ * are not artificially warped far away.
+ */
+export function projectPointToPolyline(
+  point: [number, number],
+  polyline: Array<[number, number]>,
+  maxDistanceMeters = 60,
+): [number, number] {
+  if (!polyline || polyline.length === 0) return point;
+  if (polyline.length === 1) return polyline[0];
+
+  const pLat = point[0];
+  const pLng = point[1];
+  let minDistance = Infinity;
+  let bestPoint: [number, number] = point;
+
+  for (let i = 0; i < polyline.length - 1; i++) {
+    const aLat = polyline[i][0];
+    const aLng = polyline[i][1];
+    const bLat = polyline[i + 1][0];
+    const bLng = polyline[i + 1][1];
+
+    const meanLatRad = ((aLat + bLat) / 2) * (Math.PI / 180);
+    const cosMeanLat = Math.cos(meanLatRad);
+
+    const dx = (bLng - aLng) * cosMeanLat * 111320;
+    const dy = (bLat - aLat) * 111320;
+    const px = (pLng - aLng) * cosMeanLat * 111320;
+    const py = (pLat - aLat) * 111320;
+
+    const lenSq = dx * dx + dy * dy;
+    let t = 0;
+    if (lenSq > 0.001) {
+      t = Math.max(0, Math.min(1, (px * dx + py * dy) / lenSq));
+    }
+
+    const projLat = aLat + t * (bLat - aLat);
+    const projLng = aLng + t * (bLng - aLng);
+
+    const distMeters = haversineMeters(
+      { latitude: pLat, longitude: pLng },
+      { latitude: projLat, longitude: projLng },
+    );
+
+    if (distMeters < minDistance) {
+      minDistance = distMeters;
+      bestPoint = [projLat, projLng];
+    }
+  }
+
+  if (minDistance <= maxDistanceMeters) {
+    return bestPoint;
+  }
+  return point;
 }

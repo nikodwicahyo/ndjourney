@@ -128,14 +128,26 @@ function buildUser(userId: string | null, raw: LocationHistoryPoint[]): HistoryU
 
 export function buildHistoryView(
   history: LocationHistoryPoint[],
-  options: { selfId?: string | null; filterUser?: HistoryFilter } = {},
+  options: {
+    selfId?: string | null;
+    filterUser?: HistoryFilter;
+    liveSelfPoint?: LocationHistoryPoint | null;
+    livePartnerPoint?: LocationHistoryPoint | null;
+  } = {},
 ): HistoryView | null {
-  const { selfId, filterUser = "all" } = options;
+  const { selfId, filterUser = "all", liveSelfPoint, livePartnerPoint } = options;
   if (!selfId) return null;
 
-  const selfRaw = history.filter((p) => p.userId === selfId);
-  const partnerId = history.find((p) => p.userId !== selfId)?.userId ?? null;
-  const partnerRaw = partnerId ? history.filter((p) => p.userId === partnerId) : [];
+  let selfRaw = history.filter((p) => p.userId === selfId);
+  if (liveSelfPoint && (!selfRaw.length || timeOf(liveSelfPoint) >= timeOf(selfRaw[0]))) {
+    selfRaw = [...selfRaw, liveSelfPoint];
+  }
+
+  const partnerId = history.find((p) => p.userId !== selfId)?.userId ?? livePartnerPoint?.userId ?? null;
+  let partnerRaw = partnerId ? history.filter((p) => p.userId === partnerId) : [];
+  if (livePartnerPoint && (!partnerRaw.length || timeOf(livePartnerPoint) >= timeOf(partnerRaw[0]))) {
+    partnerRaw = [...partnerRaw, livePartnerPoint];
+  }
 
   const self = buildUser(selfId, filterUser === "partner" ? [] : selfRaw);
   const partner = buildUser(partnerId, filterUser === "self" ? [] : partnerRaw);

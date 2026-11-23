@@ -152,19 +152,6 @@ function LocationWidgetContent() {
           <span className="font-heading text-xl font-bold tabular-nums text-foreground">
             {roadRoute ? formatDistance(roadRoute.distanceMeters) : "—"}
           </span>
-          {bothSharing && (
-            selfLive && partnerLive ? (
-              <span className="flex items-center gap-1 text-xs text-emerald-500">
-                <span className="h-1 w-1 animate-pulse rounded-full bg-emerald-500" aria-hidden="true" />
-                live
-              </span>
-            ) : (
-              <span className="flex items-center gap-1 text-xs text-amber-500">
-                <span className="h-1 w-1 rounded-full bg-amber-500" aria-hidden="true" />
-                offline
-              </span>
-            )
-          )}
         </div>
 
         {/* Partner avatar */}

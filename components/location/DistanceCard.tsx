@@ -268,17 +268,6 @@ export default function DistanceCard({
                   <TrendingUp className="h-3 w-3" aria-hidden="true" />Semakin jauh
                 </span>
               )}
-              {bothSharing && (bothLive ? (
-                <span className="flex items-center gap-1 text-xs text-emerald-500">
-                  <span className="h-1 w-1 rounded-full bg-emerald-500 animate-pulse" aria-hidden="true" />
-                  live
-                </span>
-              ) : (
-                <span className="flex items-center gap-1 text-xs text-amber-500">
-                  <span className="h-1 w-1 rounded-full bg-amber-500" aria-hidden="true" />
-                  offline
-                </span>
-              ))}
             </div>
           </div>
           <PersonAvatar

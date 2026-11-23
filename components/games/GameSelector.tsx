@@ -49,7 +49,7 @@ const gameTypes: {
   {
     type: "MEMORY_BLOCK_BLAST",
     label: "Block Blast",
-    description: "Seret blok foto untuk menyusun dan menguungkap foto!",
+    description: "Seret blok foto untuk menyusun dan mengungkap foto!",
     icon: Blocks,
     color: "#EC4899",
   },

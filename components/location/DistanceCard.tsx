@@ -209,8 +209,8 @@ export default function DistanceCard({
                 {activeRoute
                   ? formatDistanceCategory(activeRoute.distanceMeters)
                   : routeLoading
-                    ? "Memuat rute jalan…"
-                    : "Rute jalan tidak tersedia"}
+                    ? "Memuat jarak…"
+                    : "Jarak tidak tersedia"}
               </p>
             ) : (
               <p className="text-xs text-muted-foreground">

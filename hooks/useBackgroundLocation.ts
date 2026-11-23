@@ -45,6 +45,7 @@ const GPS_ERROR_THRESHOLD = 3;
 const INVALIDATE_THROTTLE_MS = 1_500;
 const HEALTHY_FIX_WINDOW_MS = 30_000;
 const CLOCK_REGRESSION_TOLERANCE_MS = 5_000;
+const AUTO_RETRY_INTERVAL_MS = 10_000;
 
 let globalWatchId: number | null = null;
 let globalUserId: string | null = null;
@@ -58,6 +59,15 @@ let globalWatchdog: ReturnType<typeof setInterval> | null = null;
 let globalFlushTimer: ReturnType<typeof setTimeout> | null = null;
 let globalWakeLock: WakeLockSentinelLike | null = null;
 let globalWakeHandlers: { visibility: () => void; online: () => void } | null = null;
+type GeoPermissionLike = {
+  state: string;
+  addEventListener?: (type: string, listener: EventListener) => void;
+  removeEventListener?: (type: string, listener: EventListener) => void;
+};
+let globalQc: QueryClient | null = null;
+let globalAutoRetry: { timer: ReturnType<typeof setInterval> } | null = null;
+let globalPermTarget: GeoPermissionLike | null = null;
+let globalPermHandler: ((event: Event) => void) | null = null;
 
 // An epoch is the identity of a watch session. Every async callback carries
 // the epoch it was started in; after logout/user switch its results are dropped
@@ -92,6 +102,14 @@ function isCurrent(epoch: number): boolean {
 function setStatus(status: ShareStatus) {
   if (globalStatus === status) return;
   globalStatus = status;
+  // While the sensor/permission is unhappy (denied / error streak) keep an
+  // auto-retry armed so a GPS off → on cycle recovers without a manual button.
+  // Disarmed again as soon as we land in a live-ish status or stop sampling.
+  if (status === "denied" || status === "gps-error") {
+    armAutoRetry();
+  } else {
+    disarmAutoRetry();
+  }
   statusListeners.forEach((fn) => fn());
 }
 
@@ -458,6 +476,41 @@ function releaseWakeLock() {
   void lock.release().catch(() => {});
 }
 
+function armPermissionRetry(qc: QueryClient, epoch: number) {
+  if (typeof navigator === "undefined") return;
+  const nav = navigator as unknown as {
+    permissions?: {
+      query?: (desc: { name: string }) => Promise<GeoPermissionLike>;
+    };
+  };
+  if (!nav.permissions?.query) return;
+  void nav.permissions
+    .query({ name: "geolocation" })
+    .then((perm) => {
+      if (!isCurrent(epoch)) return;
+      globalPermTarget = perm;
+      globalPermHandler = () => {
+        if (!isCurrent(epoch)) return;
+        if (
+          perm.state === "granted" &&
+          (globalStatus === "denied" || globalStatus === "gps-error")
+        ) {
+          retryNow(qc);
+        }
+      };
+      perm.addEventListener?.("change", globalPermHandler);
+    })
+    .catch(() => {});
+}
+
+function disarmPermissionRetry() {
+  if (globalPermTarget && globalPermHandler) {
+    globalPermTarget.removeEventListener?.("change", globalPermHandler);
+  }
+  globalPermTarget = null;
+  globalPermHandler = null;
+}
+
 function startSampling(qc: QueryClient, userId: string) {
   if (typeof navigator === "undefined" || !navigator.geolocation) {
     setStatus("unsupported");
@@ -466,6 +519,7 @@ function startSampling(qc: QueryClient, userId: string) {
 
   const epoch = globalEpoch;
   globalAbort = new AbortController();
+  armPermissionRetry(qc, epoch);
   setStatus("locating");
   globalLastFix = null;
   globalLastFixAt = 0;
@@ -559,6 +613,8 @@ function stopSampling(keepIdentity = false) {
   globalLastPosted = null;
   globalGpsFailCount = 0;
   if (!keepIdentity) globalUserId = null;
+  disarmAutoRetry();
+  disarmPermissionRetry();
   setStatus("idle");
 }
 
@@ -582,11 +638,29 @@ export function initBackgroundLocation(
   if (globalWatchId !== null || globalUserId) stopSampling();
 
   globalUserId = userId;
+  globalQc = qc;
   startSampling(qc, userId);
 }
 
-/** Impatient retry for "GPS tidak merespons" / "Izin GPS ditolak". */
-export function retrySharing(qc: QueryClient) {
+function armAutoRetry() {
+  if (globalAutoRetry) return;
+  globalAutoRetry = {
+    timer: setInterval(() => {
+      if (!isCurrent(globalEpoch)) { disarmAutoRetry(); return; }
+      if (globalStatus !== "denied" && globalStatus !== "gps-error") { disarmAutoRetry(); return; }
+      if (globalQc) retryNow(globalQc);
+    }, AUTO_RETRY_INTERVAL_MS),
+  };
+}
+
+function disarmAutoRetry() {
+  if (globalAutoRetry) {
+    clearInterval(globalAutoRetry.timer);
+    globalAutoRetry = null;
+  }
+}
+
+function retryNow(qc: QueryClient) {
   if (!globalUserId) return;
   globalGpsFailCount = 0;
   if (globalWatchId === null) {
@@ -596,6 +670,11 @@ export function retrySharing(qc: QueryClient) {
   setStatus("locating");
   pingGps(qc, globalUserId);
   void flushOutbox(qc, globalUserId, globalEpoch);
+}
+
+/** Impatient retry for "GPS tidak merespons" / "Izin GPS ditolak". */
+export function retrySharing(qc: QueryClient) {
+  retryNow(qc);
 }
 
 function subscribeStatus(listener: () => void) {

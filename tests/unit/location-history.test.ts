@@ -70,8 +70,8 @@ describe("location-history utility", () => {
       expect(formatStopTimeLabel(stop())).toBe("00:30 - 00:54 · 13/11/2026");
     });
 
-    it("renders 'time - Sekarang · date' for the active current stop", () => {
-      expect(formatStopTimeLabel(stop(true))).toBe("00:30 - Sekarang · 13/11/2026");
+    it("renders the real arrived - last-known span for the current stop", () => {
+      expect(formatStopTimeLabel(stop(true))).toBe("00:30 - 00:54 · 13/11/2026");
     });
   });
 

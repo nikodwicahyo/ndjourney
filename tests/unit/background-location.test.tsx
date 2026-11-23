@@ -155,13 +155,70 @@ describe("background location GPS failure escalation", () => {
     expect(result.current).toBe("recovering");
   });
 
-  it("permission denial stays denied (never escalates)", async () => {
+  it("auto-retries via the watchdog when gps-error is set, without the manual button", async () => {
+    const { result } = subscribe();
+    act(() => initBackgroundLocation(true, qc, USER));
+    act(() => fireTimeout());
+    await advanceAndFailPing();
+    await advanceAndFailPing();
+    expect(result.current).toBe("gps-error");
+
+    const callsBefore = geoMock.getCurrentPosition.mock.calls.length;
+    await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+    expect(result.current).toBe("locating");
+    expect(geoMock.getCurrentPosition.mock.calls.length).toBe(callsBefore + 1);
+  });
+
+  it("auto-retries after a permission denial instead of waiting for the manual retry", async () => {
     const { result } = subscribe();
     act(() => initBackgroundLocation(true, qc, USER));
     act(() => geoMock.gets.shift()?.error(DENIED_ERR));
     expect(result.current).toBe("denied");
-    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+    expect(result.current).toBe("locating");
+  });
+
+  it("retries immediately when the geolocation permission becomes granted", async () => {
+    const permListeners = new Set<(e: Event) => void>();
+    const makePerm = (state: string) => ({
+      state,
+      addEventListener: (_t: string, l: (e: Event) => void) => { permListeners.add(l); },
+      removeEventListener: (_t: string, l: (e: Event) => void) => { permListeners.delete(l); },
+    });
+    Object.defineProperty(navigator, "permissions", {
+      value: { query: vi.fn(async () => makePerm("granted")) },
+      configurable: true,
+      writable: true,
+    });
+
+    const { result } = subscribe();
+    act(() => initBackgroundLocation(true, qc, USER));
+    act(() => fireTimeout());
+    await advanceAndFailPing();
+    await advanceAndFailPing();
+    expect(result.current).toBe("gps-error");
+    await act(async () => {}); // flush the permissions query promise → arm listener
+    expect(permListeners.size).toBe(1);
+
+    Object.defineProperty(navigator, "permissions", {
+      value: { query: vi.fn(async () => makePerm("granted")) },
+      configurable: true,
+      writable: true,
+    });
+    act(() => { permListeners.forEach((l) => l(new Event("change"))); });
+
+    // Immediate retry on permission grant — no timer advance needed.
+    expect(result.current).toBe("locating");
+  });
+
+  it("permission denial never escalates and auto-retries instead of hanging", async () => {
+    const { result } = subscribe();
+    act(() => initBackgroundLocation(true, qc, USER));
+    act(() => geoMock.gets.shift()?.error(DENIED_ERR));
     expect(result.current).toBe("denied");
+    await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+    expect(result.current).toBe("locating");
   });
 
   it("position unavailable (GPS turned off) triggers gps-error immediately", async () => {

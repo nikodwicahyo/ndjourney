@@ -57,11 +57,9 @@ export function formatTimeOnly(iso: string): string {
 
 /** One canonical "time range . date" label, shared by the stop list and map popup. */
 export function formatStopTimeLabel(stop: VisitedStop): string {
-  // Always the real first/last ping: that is exactly the span `durationMinutes`
-  // is computed from. For the active stop, show "Sekarang" to reflect real-time presence.
-  const time = stop.isCurrent
-    ? `${formatJakartaTime(stop.arrivedAt)} - Sekarang`
-    : `${formatJakartaTime(stop.arrivedAt)} - ${formatJakartaTime(stop.departedAt)}`;
+  // Real span only: arrived → last known ping. No "Sekarang" — the GPS may be
+  // off, and a wall-clock "now" would be a lie.
+  const time = `${formatJakartaTime(stop.arrivedAt)} - ${formatJakartaTime(stop.departedAt)}`;
   const date = formatInJakarta(stop.arrivedAt, {
     day: "2-digit",
     month: "2-digit",

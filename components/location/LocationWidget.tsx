@@ -106,8 +106,8 @@ function LocationWidgetContent() {
           : roadRoute
             ? formatDistanceCategory(roadRoute.distanceMeters)
             : routeQuery.isLoading
-              ? "Memuat rute jalan…"
-              : "Rute jalan tidak tersedia"}
+              ? "Memuat jarak…"
+              : "Jarak tidak tersedia"}
       </p>
 
       {/* Person avatars row */}

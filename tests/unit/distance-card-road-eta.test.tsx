@@ -73,11 +73,11 @@ describe("DistanceCard road-only ETA", () => {
       />,
     );
     expect(screen.queryByText("Satu kota")).toBeNull();
-    expect(screen.getByText("Rute jalan tidak tersedia")).toBeTruthy();
+    expect(screen.getByText("Jarak tidak tersedia")).toBeTruthy();
   });
 
   it("shows a loading hint while the road route is pending", () => {
     render(<DistanceCard state={state} distance={8200} roadRoute={null} routeLoading />);
-    expect(screen.getByText("Memuat rute jalan…")).toBeTruthy();
+    expect(screen.getByText("Memuat jarak…")).toBeTruthy();
   });
 });

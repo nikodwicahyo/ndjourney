@@ -580,7 +580,7 @@ export default function LocationManager() {
 
                 {snapToRoads && bothSharing && !mapRoute && !routeQuery.isLoading && (
                   <p className="text-[11px] text-amber-600 dark:text-amber-400" role="status">
-                    Rute jalan belum tersedia di peta — menampilkan garis lurus sementara.
+                    Rute jalan belum tersedia di peta - menampilkan garis lurus sementara.
                   </p>
                 )}
 

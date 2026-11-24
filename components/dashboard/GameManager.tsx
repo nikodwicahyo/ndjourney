@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { Button, Skeleton } from "@/components/ui";
 import { Plus, Loader2, X, Shuffle, Brain, Cherry, Sparkles, Pencil, Trash2, ChevronDown, ChevronUp, Grid3x3, Blocks, Trophy, Gamepad2, Star } from "lucide-react";
 import { toast } from "sonner";
-import { cn, FILTER_CHIP_CLASSES } from "@/lib/utils";
+import { cn, FILTER_CHIP_CLASSES, GAME_QUESTION_MAX_LIMIT, GAME_QUESTION_PAGE_SIZE } from "@/lib/utils";
 import { showDeleteConfirm } from "@/lib/swal";
 import { startMutationToast, settleMutationToast } from "@/lib/mutation-feedback";
 import { formatInJakarta } from "@/lib/date";
@@ -33,6 +33,21 @@ type Question = {
   createdAt: string;
 };
 
+/** Dashboard CRUD listing — the answer key rides along (couple-gated server-side). */
+async function fetchAdminQuestions(
+  type: GameType,
+  limit: number,
+  sort: "asc" | "desc",
+): Promise<Question[]> {
+  const res = await fetch(
+    `/api/games/questions?type=${type}&limit=${limit}&sort=${sort}&includeAnswer=1`,
+    { cache: "no-cache" },
+  );
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.error || "Gagal memuat pertanyaan");
+  return (json.data ?? []) as Question[];
+}
+
 export default function GameManager() {
   const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState<GameType>("WOULD_YOU_RATHER");
@@ -47,51 +62,95 @@ export default function GameManager() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
   const [fieldError, setFieldError] = useState<{ field: "question" | "options" | "category"; message: string } | null>(null);
+  // Games whose "Tampilkan semua" has been used. Per tab, so each game
+  // keeps its own expanded state while the user hops between tabs.
+  const [expandedTypes, setExpandedTypes] = useState<Set<GameType>>(() => new Set());
   const searchParams = useSearchParams();
   const questionParam = searchParams.get("question");
 
-  const { data: allQuestions, isLoading } = useQuery({
-    queryKey: ["games", "questions", "all", sortOrder] as const,
+  // Per-type active totals: tab chips + "is there more than the first page?".
+  const { data: countByType } = useQuery({
+    queryKey: queryKeys.games.questionCounts,
     queryFn: async () => {
-      const res = await fetch(`/api/games/questions?limit=2000&sort=${sortOrder}&includeAnswer=1`, {
-        cache: "no-cache",
-      });
-      const json = await res.json();
-      return json.data as Question[];
+      const res = await fetch("/api/games/questions/counts", { cache: "no-cache" });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || "Gagal memuat jumlah pertanyaan");
+      return (json.data ?? {}) as Record<string, number>;
     },
     staleTime: 30_000,
   });
 
-  // Deep link from push/notification or recent activity ("?question=<id>") →
-  // expand that exact question (and open its game tab).
+  // Deep link from push/notification or recent activity ("?question=<id>").
+  // Resolved by id so it still opens when the row sits outside the first page.
   const [prevQuestionParam, setPrevQuestionParam] = useState<string | null>(null);
   const [deepLinkedQuestionId, setDeepLinkedQuestionId] = useState<string | null>(null);
 
-  const deepLinkedQuestion = deepLinkedQuestionId
-    ? (allQuestions?.find((q) => q.id === deepLinkedQuestionId) ?? null)
-    : null;
-
   if (questionParam !== prevQuestionParam) {
     setPrevQuestionParam(questionParam);
-    setDeepLinkedQuestionId(questionParam && allQuestions?.some((q) => q.id === questionParam) ? questionParam : null);
+    setDeepLinkedQuestionId(questionParam ?? null);
   }
+
+  const { data: deepLinkedQuestion } = useQuery({
+    queryKey: queryKeys.games.adminQuestionById(deepLinkedQuestionId ?? ""),
+    queryFn: async () => {
+      const res = await fetch(`/api/games/questions/${deepLinkedQuestionId}`, { cache: "no-cache" });
+      if (res.status === 404) return null;
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || "Gagal memuat pertanyaan");
+      return (json.data ?? null) as Question | null;
+    },
+    enabled: !!deepLinkedQuestionId,
+    staleTime: 30_000,
+  });
 
   const effectiveTab: GameType = deepLinkedQuestion?.type ?? activeTab;
   const effectiveExpandedId = deepLinkedQuestion?.id ?? expandedId;
+  const isExpanded = expandedTypes.has(effectiveTab);
 
-  const questions = useMemo(
-    () => allQuestions?.filter((q) => q.type === effectiveTab) ?? [],
-    [allQuestions, effectiveTab],
-  );
+  // Two fixed keys instead of a changing limit: the first page keeps painting
+  // while the one-shot "show all" request is in flight, and switching tabs
+  // never shows another tab's rows under the wrong header.
+  const {
+    data: pageQuestions,
+    isLoading: isLoadingPage,
+    isError: isPageError,
+    refetch: refetchPage,
+  } = useQuery({
+    queryKey: queryKeys.games.adminQuestions(effectiveTab, sortOrder, GAME_QUESTION_PAGE_SIZE),
+    queryFn: () => fetchAdminQuestions(effectiveTab, GAME_QUESTION_PAGE_SIZE, sortOrder),
+    staleTime: 30_000,
+  });
 
-  const countByType = useMemo(() => {
-    const counts: Record<string, number> = {};
-    if (!allQuestions) return counts;
-    for (const q of allQuestions) {
-      counts[q.type] = (counts[q.type] || 0) + 1;
-    }
-    return counts;
-  }, [allQuestions]);
+  const {
+    data: allQuestions,
+    isError: isAllError,
+    refetch: refetchAll,
+  } = useQuery({
+    queryKey: queryKeys.games.adminQuestions(effectiveTab, sortOrder, GAME_QUESTION_MAX_LIMIT),
+    queryFn: () => fetchAdminQuestions(effectiveTab, GAME_QUESTION_MAX_LIMIT, sortOrder),
+    enabled: isExpanded,
+    staleTime: 30_000,
+  });
+
+  const listRows = isExpanded ? (allQuestions ?? pageQuestions ?? []) : (pageQuestions ?? []);
+
+  // A deep-linked row outside the loaded page is pinned above it, and drops out
+  // of the pin once the real page contains it.
+  const displayQuestions =
+    deepLinkedQuestion && !listRows.some((q) => q.id === deepLinkedQuestion.id)
+      ? [deepLinkedQuestion, ...listRows]
+      : listRows;
+
+  const knownTotal = countByType?.[effectiveTab];
+  const canShowMore =
+    !isExpanded &&
+    (knownTotal != null
+      ? knownTotal > listRows.length
+      : listRows.length >= GAME_QUESTION_PAGE_SIZE);
+  // While the "show all" request is unresolved the button stays put (spinning)
+  // instead of vanishing; an error flips it back into a retry button.
+  const isExpanding = isExpanded && allQuestions == null && !isAllError;
+  const showMoreButton = canShowMore || isExpanding || (isExpanded && isAllError);
 
   const createQuestion = useMutation({
     mutationFn: async (data: {
@@ -354,7 +413,7 @@ export default function GameManager() {
             <span className="text-xs sm:text-sm">{label}</span>
             {!isArcade && (
             <span className="shrink-0 rounded-full bg-muted-foreground/10 px-1.5 text-xs tabular-nums">
-              {countByType[value] ?? 0}
+              {countByType?.[value] ?? 0}
             </span>
             )}
           </button>
@@ -589,7 +648,7 @@ export default function GameManager() {
                 className="w-full gap-2"
               >
                 {(editingId ? editQuestion.isPending : createQuestion.isPending) ? (
-                  <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <Plus className="h-4 w-4" />
                 )}
@@ -619,110 +678,167 @@ export default function GameManager() {
             ))}
           </div>
         </div>
-      ) : isLoading ? (
+      ) : isLoadingPage && displayQuestions.length === 0 ? (
         <div className="space-y-2">
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-14 w-full rounded-xl" />
           ))}
         </div>
-      ) : !questions || questions.length === 0 ? (
+      ) : isPageError && displayQuestions.length === 0 ? (
+        <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+          <p className="text-sm text-muted-foreground">Gagal memuat pertanyaan.</p>
+          <Button type="button" variant="outline" size="sm" onClick={() => void refetchPage()}>
+            Coba lagi
+          </Button>
+        </div>
+      ) : displayQuestions.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
           <p className="text-sm text-muted-foreground">
             Belum ada pertanyaan untuk tipe ini
           </p>
         </div>
       ) : (
-        <div className="w-full max-w-full space-y-2">
-          {questions.map((q) => (
-            <div
-              key={q.id}
-              className="w-full max-w-full overflow-hidden rounded-xl border border-border bg-card transition-colors"
-            >
+        <div className="space-y-3">
+          <div id="game-question-list" className="w-full max-w-full space-y-2">
+            {displayQuestions.map((q) => (
               <div
-                role="button"
-                tabIndex={0}
-                aria-expanded={effectiveExpandedId === q.id}
-                onClick={() => {
-                  setDeepLinkedQuestionId(null);
-                  setExpandedId(effectiveExpandedId === q.id ? null : q.id);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
+                key={q.id}
+                className="w-full max-w-full overflow-hidden rounded-xl border border-border bg-card transition-colors"
+              >
+                <div
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={effectiveExpandedId === q.id}
+                  onClick={() => {
                     setDeepLinkedQuestionId(null);
                     setExpandedId(effectiveExpandedId === q.id ? null : q.id);
-                  }
-                }}
-                className="grid w-full cursor-pointer grid-cols-[1fr_auto] items-center gap-2 px-3 py-2.5 text-left sm:gap-3 sm:px-4 sm:py-3"
-              >
-                <div className="min-w-0 overflow-hidden">
-                  <p className="truncate text-sm font-medium">
-                    {q.question}
-                  </p>
-                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                    {q.category ?? "Tanpa kategori"} · {formatInJakarta(q.createdAt, { dateStyle: "medium" })}
-                  </p>
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setDeepLinkedQuestionId(null);
+                      setExpandedId(effectiveExpandedId === q.id ? null : q.id);
+                    }
+                  }}
+                  className="grid w-full cursor-pointer grid-cols-[1fr_auto] items-center gap-2 px-3 py-2.5 text-left sm:gap-3 sm:px-4 sm:py-3"
+                >
+                  <div className="min-w-0 overflow-hidden">
+                    <p className="truncate text-sm font-medium">
+                      {q.question}
+                    </p>
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                      {q.category ?? "Tanpa kategori"} · {formatInJakarta(q.createdAt, { dateStyle: "medium" })}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-0.5 sm:gap-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        startEditing(q);
+                      }}
+                      disabled={deleteQuestion.isPending || createQuestion.isPending || editQuestion.isPending}
+                      className="rounded-full p-2.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:pointer-events-none disabled:opacity-50"
+                      aria-label="Edit pertanyaan"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteQuestion(q);
+                      }}
+                      disabled={deleteQuestion.isPending}
+                      className="rounded-full p-2.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-50"
+                      aria-label="Hapus pertanyaan"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                    {effectiveExpandedId === q.id ? (
+                      <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-0.5 sm:gap-1">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      startEditing(q);
-                    }}
-                    disabled={deleteQuestion.isPending || createQuestion.isPending || editQuestion.isPending}
-                    className="rounded-full p-2.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:pointer-events-none disabled:opacity-50"
-                    aria-label="Edit pertanyaan"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteQuestion(q);
-                    }}
-                    disabled={deleteQuestion.isPending}
-                    className="rounded-full p-2.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-50"
-                    aria-label="Hapus pertanyaan"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                  {effectiveExpandedId === q.id ? (
-                    <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                  )}
-                </div>
-              </div>
 
-              {effectiveExpandedId === q.id && (
-                <div className="border-t border-border px-3 py-2.5 space-y-1.5 sm:px-4 sm:py-3">
-                  {q.optionA && (
-                    <p className="truncate text-xs text-muted-foreground">
-                      <span className="font-medium text-foreground">A:</span> {q.optionA}
-                    </p>
-                  )}
-                  {q.optionB && (
-                    <p className="truncate text-xs text-muted-foreground">
-                      <span className="font-medium text-foreground">B:</span> {q.optionB}
-                    </p>
-                  )}
-                  {q.answer && q.type === "WOULD_YOU_RATHER" && (
-                    <p className="truncate text-xs text-muted-foreground">
-                      <span className="font-medium text-foreground">Jawaban:</span>{" "}
-                      {q.answer === "A" ? q.optionA : q.answer === "B" ? q.optionB : q.answer}
-                      {q.answer === "A" && " (Opsi A)"}
-                      {q.answer === "B" && " (Opsi B)"}
-                    </p>
-                  )}
-                  {q.answer && q.type !== "WOULD_YOU_RATHER" && (
-                    <p className="truncate text-xs text-muted-foreground">
-                      <span className="font-medium text-foreground">Jawaban:</span> {q.answer}
-                    </p>
-                  )}
-                </div>
+                {effectiveExpandedId === q.id && (
+                  <div className="border-t border-border px-3 py-2.5 space-y-1.5 sm:px-4 sm:py-3">
+                    {q.optionA && (
+                      <p className="truncate text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground">A:</span> {q.optionA}
+                      </p>
+                    )}
+                    {q.optionB && (
+                      <p className="truncate text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground">B:</span> {q.optionB}
+                      </p>
+                    )}
+                    {q.answer && q.type === "WOULD_YOU_RATHER" && (
+                      <p className="truncate text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground">Jawaban:</span>{" "}
+                        {q.answer === "A" ? q.optionA : q.answer === "B" ? q.optionB : q.answer}
+                        {q.answer === "A" && " (Opsi A)"}
+                        {q.answer === "B" && " (Opsi B)"}
+                      </p>
+                    )}
+                    {q.answer && q.type !== "WOULD_YOU_RATHER" && (
+                      <p className="truncate text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground">Jawaban:</span> {q.answer}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {showMoreButton && (
+            <div className="flex flex-col items-center gap-1.5 pt-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (isExpanded && isAllError) {
+                    void refetchAll();
+                    return;
+                  }
+                  setExpandedTypes((prev) => {
+                    if (prev.has(effectiveTab)) return prev;
+                    const next = new Set(prev);
+                    next.add(effectiveTab);
+                    return next;
+                  });
+                }}
+                disabled={isExpanding}
+                aria-expanded={isExpanded}
+                aria-controls="game-question-list"
+                aria-busy={isExpanding}
+              >
+                {isExpanding ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                    Memuat...
+                  </>
+                ) : isExpanded && isAllError ? (
+                  "Coba lagi"
+                ) : (
+                  "Tampilkan semua"
+                )}
+              </Button>
+              {knownTotal != null && knownTotal > listRows.length && (
+                <span className="text-xs tabular-nums text-muted-foreground">
+                  {listRows.length} dari {knownTotal}
+                </span>
               )}
             </div>
-          ))}
+          )}
+
+          {isExpanded && knownTotal != null && knownTotal > listRows.length && (
+            <p className="text-center text-xs tabular-nums text-muted-foreground">
+              Menampilkan {listRows.length} dari {knownTotal}
+            </p>
+          )}
         </div>
       )}
     </div>

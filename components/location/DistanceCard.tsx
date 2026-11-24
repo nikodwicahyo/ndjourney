@@ -376,7 +376,7 @@ export default function DistanceCard({
             {self.location?.accuracy && (
               <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground border-t border-pink-500/10 pt-2">
                 <Crosshair className="h-3 w-3" aria-hidden="true" />
-                <span>Akurasi: {accuracyLabel(self.location.accuracy)} (±{Math.round(self.location.accuracy)}m)</span>
+                <span>Akurasi GPS kamu: {accuracyLabel(self.location.accuracy)} (±{Math.round(self.location.accuracy)}m)</span>
                 {partner.location?.accuracy && partner.location.accuracy !== self.location.accuracy && (
                   <span className="text-muted-foreground"></span>
                 )}

@@ -104,7 +104,7 @@ export default function LoginForm() {
         disabled={googleLoading || !mounted}
       >
         {googleLoading ? (
-          <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+          <Loader2 className="h-4 w-4 animate-spin" />
         ) : (
           <svg className="h-4 w-4" viewBox="0 0 24 24">
             <path
@@ -196,7 +196,7 @@ export default function LoginForm() {
         >
           {loading ? (
             <>
-              <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+              <Loader2 className="h-4 w-4 animate-spin" />
               Memproses...
             </>
           ) : (

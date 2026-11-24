@@ -1,5 +1,5 @@
 const CACHE_NAME = "ndjourney-v14";
-const API_CACHE_NAME = "ndjourney-api-v14";
+const API_CACHE_NAME = "ndjourney-api-v15";
 const IMAGE_CACHE_NAME = "ndjourney-images-v14";
 
 const PRECACHE_URLS = [
@@ -117,9 +117,18 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // SEC: the dashboard listing carries the answer key (`includeAnswer=1`) and
+  // the single-question deep-link read under this path resolves to the same
+  // data — never persist either on-device. Exact-path match also keeps the
+  // per-type counts (and the deep-link read) out of the offline API cache.
+  const isAnswerBearingQuestionRead =
+    url.pathname === "/api/games/questions" &&
+    url.searchParams.get("includeAnswer") === "1";
+
   if (
     url.origin === location.origin &&
-    PUBLIC_API_PATHS.some((p) => url.pathname === p || url.pathname.startsWith(p + "/"))
+    !isAnswerBearingQuestionRead &&
+    PUBLIC_API_PATHS.some((p) => url.pathname === p)
   ) {
     event.respondWith(staleWhileRevalidate(request));
     return;

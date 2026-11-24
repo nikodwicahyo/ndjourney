@@ -161,7 +161,7 @@ export default function LoveMeter({
     },
     {
       Icon: Sparkles,
-      label: "Wish list Tercapai",
+      label: "Wishlist Tercapai",
       current: wishDone,
       max: Math.max(wishTotal, 1),
       pct: Math.round(wishProgress * 100),
@@ -282,7 +282,7 @@ export default function LoveMeter({
         <div className="rounded-xl bg-muted/40 px-3 py-2.5 text-center transition-colors hover:bg-muted/60 sm:px-4 sm:py-3">
           <span className="flex items-center justify-center text-sm sm:text-base"><Sparkles className="h-4 w-4 text-primary" /></span>
           <p className="mt-1 text-sm font-bold text-foreground sm:text-base">{wishDone}</p>
-          <p className="text-xs text-muted-foreground sm:text-sm">Wish List Tercapai</p>
+          <p className="text-xs text-muted-foreground sm:text-sm">Wishlist Tercapai</p>
         </div>
       </div>
 

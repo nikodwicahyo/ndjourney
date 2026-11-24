@@ -19,7 +19,7 @@ export default function LocationToggle({
     return (
       <div className="flex items-center gap-2">
         <span className="text-xs text-muted-foreground">
-          Hentikan berbagi?
+          Hentikan berbagi lokasi?
         </span>
         <Button
           type="button"
@@ -67,7 +67,7 @@ export default function LocationToggle({
       ) : (
         <MapPin className="mr-2 h-4 w-4" />
       )}
-      {isSharing ? "Hentikan Berbagi" : "Mulai Berbagi Lokasi"}
+      {isSharing ? "Hentikan Berbagi Lokasi" : "Mulai Berbagi Lokasi"}
     </Button>
   );
 }

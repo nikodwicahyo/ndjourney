@@ -31,6 +31,12 @@ export const queryKeys = {
     all: ["games"] as const,
     questions: (type: string, count?: number, exclude?: string[], cycle?: string, round?: number) =>
       ["games", "questions", type, count ?? "all", exclude?.join(",") ?? "all", cycle ?? "normal", round ?? 0] as const,
+    /** Dashboard CRUD list — first page or the one-shot "show all" fetch. */
+    adminQuestions: (type: string, sort: string, limit: number) =>
+      ["games", "admin-questions", type, sort, limit] as const,
+    adminQuestionById: (id: string) => ["games", "admin-question", id] as const,
+    /** Per-type active totals (tab chips + "is there more?" check). */
+    questionCounts: ["games", "question-counts"] as const,
     leaderboard: (type?: string | null) => ["games", "leaderboard", type ?? "all"] as const,
     // Prefix for invalidations; every tab key starts with these two elements.
     leaderboardPrefix: ["games", "leaderboard"] as const,

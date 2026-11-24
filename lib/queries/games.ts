@@ -114,13 +114,55 @@ export async function listGameQuestions(opts: {
   const questions = await prisma.gameQuestion.findMany({
     where,
     take: limit,
-    orderBy: { createdAt: sort === "asc" ? "asc" : "desc" },
+    // Secondary id key keeps equal timestamps in a deterministic order, so a
+    // refetch after add/edit/delete never reshuffles rows the user is reading.
+    orderBy: [{ createdAt: sort === "asc" ? "asc" : "desc" }, { id: sort === "asc" ? "asc" : "desc" }],
     select: questionSelect,
   });
 
   const response = toJsonSafe<{ data: GameQuestionRow[] }>({ data: questions });
   await setCached(cacheK, response, QUESTION_CACHE_TTL);
   return response;
+}
+
+/**
+ * Per-type active question counts — the dashboard tab chips and the
+ * "is there more than one page?" check. Aggregate only, no question text, so
+ * it is safe for the public listing surface. Cached under the same `games:*`
+ * namespace every question mutation already invalidates.
+ */
+export async function getGameQuestionCounts(): Promise<Record<string, number>> {
+  const cacheK = cacheKey("games", "question-counts");
+  const cached = await getCached<Record<string, number>>(cacheK);
+  if (cached) return cached;
+
+  const rows = await prisma.gameQuestion.groupBy({
+    by: ["type"],
+    where: { isArchived: false },
+    _count: { _all: true },
+  });
+
+  const counts: Record<string, number> = {};
+  for (const row of rows) counts[String(row.type)] = row._count._all;
+
+  await setCached(cacheK, counts, QUESTION_CACHE_TTL);
+  return counts;
+}
+
+/**
+ * Single question lookup for `?question=<id>` dashboard deep links. The answer
+ * key is selected only when `includeAnswer` is set — the route gates that on
+ * couple membership, exactly like the listing.
+ */
+export async function getGameQuestionById(
+  id: string,
+  includeAnswer: boolean,
+): Promise<GameQuestionRow | null> {
+  const question = await prisma.gameQuestion.findFirst({
+    where: { id, isArchived: false },
+    select: includeAnswer ? fullQuestionSelect : baseQuestionSelect,
+  });
+  return question ? toJsonSafe<GameQuestionRow>(question) : null;
 }
 
 /** Types that record completed quiz rounds in `GameRound`. */

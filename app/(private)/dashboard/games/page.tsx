@@ -4,16 +4,18 @@ import GameManager from "@/components/dashboard/GameManager";
 import LeaderBoard from "@/components/dashboard/LeaderBoard";
 import PageTransition from "@/components/PageTransition";
 import { Skeleton } from "@/components/ui";
-import { listGameQuestions, getGameLeaderboard } from "@/lib/queries/games";
+import { listGameQuestions, getGameLeaderboard, getGameQuestionCounts } from "@/lib/queries/games";
+import { GAME_QUESTION_PAGE_SIZE } from "@/lib/utils";
 import { prefetchServerQueries } from "@/lib/server-prefetch";
 import { queryKeys } from "@/lib/query-keys";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Games" };
 
-// GameManager's initial query key (default sort desc) — hydration only
-// matches on an identical key.
-const QUESTIONS_ADMIN_KEY = ["games", "questions", "all", "desc"] as const;
+// GameManager's initial query key (default tab + sort + first page) — hydration
+// only matches on an identical key.
+const INITIAL_TAB = "WOULD_YOU_RATHER" as const;
+const INITIAL_SORT = "desc" as const;
 
 export default async function GamesManagerPage() {
   // Seed react-query server-side so questions/leaderboard paint with the
@@ -21,9 +23,20 @@ export default async function GamesManagerPage() {
   const state = await prefetchServerQueries([
     async (qc) => {
       await qc.prefetchQuery({
-        queryKey: QUESTIONS_ADMIN_KEY,
-        // Same effective params the API serves: the route clamps limit to 200.
-        queryFn: async () => (await listGameQuestions({ sort: "desc", limit: 200, includeAnswer: true })).data,
+        queryKey: queryKeys.games.adminQuestions(INITIAL_TAB, INITIAL_SORT, GAME_QUESTION_PAGE_SIZE),
+        queryFn: async () => (await listGameQuestions({
+          type: INITIAL_TAB,
+          sort: INITIAL_SORT,
+          limit: GAME_QUESTION_PAGE_SIZE,
+          includeAnswer: true,
+        })).data,
+      });
+    },
+    async (qc) => {
+      // Tab chips + "is there more?" — one aggregate query for every game type.
+      await qc.prefetchQuery({
+        queryKey: queryKeys.games.questionCounts,
+        queryFn: getGameQuestionCounts,
       });
     },
     async (qc) => {

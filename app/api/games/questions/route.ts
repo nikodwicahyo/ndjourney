@@ -4,6 +4,7 @@ import { createQuestionSchema } from "@/lib/validations/game";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { invalidateCache } from "@/lib/redis";
 import { listGameQuestions } from "@/lib/queries/games";
+import { GAME_QUESTION_MAX_LIMIT } from "@/lib/utils";
 import { auth } from "@/lib/auth";
 import { getUserCoupleId } from "@/lib/couple";
 import { emitActivity } from "@/lib/activity";
@@ -15,7 +16,9 @@ export async function GET(request: Request) {
     const category = searchParams.get("category");
     const random = searchParams.get("random");
     const sort = searchParams.get("sort") || "desc";
-    const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "200", 10) || 200, 1), 200);
+    // Clamp AFTER the answer-key gate below: the dashboard's one-shot
+    // "show all" fetch needs a higher ceiling than the public listing.
+    const requestedLimit = parseInt(searchParams.get("limit") || "200", 10) || 200;
     const allowedTypes = new Set(["WOULD_YOU_RATHER", "TRIVIA", "SPIN_THE_WHEEL", "TRUTH_OR_DARE"]);
     if (type && !allowedTypes.has(type)) {
       return NextResponse.json({ error: "Tipe pertanyaan tidak valid" }, { status: 400 });
@@ -37,6 +40,13 @@ export async function GET(request: Request) {
     // unscoped callers get the public shape; grading happens server-side.
     const includeAnswer =
       wantsAnswers && !!session?.user?.id && !!(await getUserCoupleId(session.user.id));
+
+    // Authorized CRUD callers (dashboard) may ask for the whole bank in one
+    // request; everyone else keeps the public ceiling.
+    const limit = Math.min(
+      Math.max(requestedLimit, 1),
+      includeAnswer ? GAME_QUESTION_MAX_LIMIT : 200,
+    );
 
     const response = await listGameQuestions({
       type,

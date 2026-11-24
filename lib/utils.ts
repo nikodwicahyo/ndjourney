@@ -47,6 +47,23 @@ export const FILTER_SEGMENT_CLASSES =
  */
 export const PHOTO_PAGE_SIZE = 40;
 
+/**
+ * Dashboard games: questions shown per game tab before the user asks for the
+ * rest. Shared by the RSC prefetch, the client query key and the API default
+ * so all three agree on what "the first page" means.
+ */
+export const GAME_QUESTION_PAGE_SIZE = 10;
+
+/**
+ * Upper bound for the dashboard's one-shot "Tampilkan semua" request
+ * (and the API clamp for an authorized CRUD caller). One fetch per expand
+ * keeps the interaction instant and avoids paging state.
+ *
+ * ponytail: 2000-row ceiling on a curated couple question bank. Switch to
+ * cursor pagination if a bank ever gets close to it.
+ */
+export const GAME_QUESTION_MAX_LIMIT = 2000;
+
 export function formatDate(date: Date | string): string {
   return formatInJakarta(date, {
     day: "numeric",

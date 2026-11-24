@@ -251,7 +251,7 @@ export default function LeaderBoard() {
                     : `${entry.accuracy ?? 0}%`}
                 </p>
                 <p className="text-[10px] text-muted-foreground">
-                  {isAll || isArcade ? "total skor" : "akurasi"}
+                  {isAll || isArcade ? "Total Skor" : "Akurasi"}
                 </p>
               </div>
             </div>

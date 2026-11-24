@@ -3,8 +3,46 @@ import { NextResponse } from "next/server";
 import { updateQuestionSchema } from "@/lib/validations/game";
 import { withRateLimit, rateLimitConfigs } from "@/lib/rate-limit";
 import { invalidateCache } from "@/lib/redis";
+import { getGameQuestionById } from "@/lib/queries/games";
+import { auth } from "@/lib/auth";
 import { getUserCoupleId } from "@/lib/couple";
 import { emitActivity } from "@/lib/activity";
+
+/**
+ * Single-question read for dashboard deep links (`?question=<id>`). Keeps
+ * working when the row sits outside the first page of the tab list. The
+ * answer key follows the same couple-membership gate as the listing.
+ */
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { id } = await params;
+    const session = await auth();
+    const includeAnswer =
+      !!session?.user?.id && !!(await getUserCoupleId(session.user.id));
+
+    const question = await getGameQuestionById(id, includeAnswer);
+    if (!question) {
+      return NextResponse.json(
+        { error: "Pertanyaan tidak ditemukan" },
+        { status: 404 },
+      );
+    }
+
+    return NextResponse.json(
+      { data: question },
+      { headers: { "Cache-Control": "private, no-cache" } },
+    );
+  } catch (error) {
+    console.error("Error fetching question:", error);
+    return NextResponse.json(
+      { error: "Terjadi kesalahan pada server. Coba lagi nanti." },
+      { status: 500 },
+    );
+  }
+}
 
 export async function PUT(
   request: Request,

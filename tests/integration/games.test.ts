@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { GAME_QUESTION_MAX_LIMIT } from "@/lib/utils";
 
 const ME = "cjld2cjxh0000qz8n0p3q4w5e1";
 const COUPLE = "couple-1";
@@ -8,7 +9,7 @@ const ROUND_ID = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
 
 const prismaMock = vi.hoisted(() => ({
   $queryRaw: vi.fn(),
-  gameQuestion: { findMany: vi.fn(), findUnique: vi.fn(), count: vi.fn(async () => 0), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+  gameQuestion: { findMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), count: vi.fn(async () => 0), groupBy: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
   gameScore: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), count: vi.fn() },
   gameArcadeScore: { create: vi.fn() },
   gameRound: { create: vi.fn(), findUnique: vi.fn() },
@@ -36,6 +37,7 @@ vi.mock("@/lib/batch", () => ({
 }));
 
 const questions = await import("@/app/api/games/questions/route");
+const questionCounts = await import("@/app/api/games/questions/counts/route");
 const questionById = await import("@/app/api/games/questions/[id]/route");
 const score = await import("@/app/api/games/score/route");
 const leaderboard = await import("@/app/api/games/leaderboard/route");
@@ -61,6 +63,52 @@ describe("games questions API", () => {
     prismaMock.gameQuestion.findMany.mockResolvedValue([{ id: QID }]);
     const res = await questions.GET(new Request("http://localhost/api/games/questions?type=TRIVIA"));
     expect(res.status).toBe(200);
+  });
+
+  it("GAM: dashboard may fetch the whole bank, public callers stay capped", async () => {
+    prismaMock.gameQuestion.findMany.mockResolvedValue([]);
+
+    await questions.GET(new Request("http://localhost/api/games/questions?type=TRIVIA&limit=2000&includeAnswer=1"));
+    let take = prismaMock.gameQuestion.findMany.mock.calls.at(-1)?.[0]?.take;
+    expect(take).toBe(GAME_QUESTION_MAX_LIMIT);
+
+    vi.mocked(auth).mockResolvedValue(null as never);
+    await questions.GET(new Request("http://localhost/api/games/questions?type=TRIVIA&limit=2000"));
+    take = prismaMock.gameQuestion.findMany.mock.calls.at(-1)?.[0]?.take;
+    expect(take).toBe(200);
+  });
+
+  it("GAM: counts route returns per-type active totals", async () => {
+    prismaMock.gameQuestion.groupBy.mockResolvedValue([
+      { type: "TRIVIA", _count: { _all: 12 } },
+      { type: "WOULD_YOU_RATHER", _count: { _all: 7 } },
+    ]);
+
+    const res = await questionCounts.GET();
+    expect(res.status).toBe(200);
+    expect((await res.json()).data).toEqual({ TRIVIA: 12, WOULD_YOU_RATHER: 7 });
+    expect(prismaMock.gameQuestion.groupBy).toHaveBeenCalledWith(
+      expect.objectContaining({ by: ["type"], where: { isArchived: false } }),
+    );
+  });
+
+  it("GAM: questions/[id] GET resolves a deep link, answer only for a couple member", async () => {
+    prismaMock.gameQuestion.findFirst.mockResolvedValue({ id: QID, type: "TRIVIA", question: "Q?", answer: "A" });
+    const url = `http://localhost/api/games/questions/${QID}`;
+    const params = { params: Promise.resolve({ id: QID }) };
+
+    const res = await questionById.GET(new Request(url), params);
+    expect(res.status).toBe(200);
+    expect((await res.json()).data.id).toBe(QID);
+    expect(prismaMock.gameQuestion.findFirst.mock.calls.at(-1)?.[0]?.select?.answer).toBe(true);
+
+    vi.mocked(auth).mockResolvedValue(null as never);
+    await questionById.GET(new Request(url), params);
+    expect(prismaMock.gameQuestion.findFirst.mock.calls.at(-1)?.[0]?.select?.answer).toBeUndefined();
+
+    prismaMock.gameQuestion.findFirst.mockResolvedValue(null);
+    const missing = await questionById.GET(new Request(url), params);
+    expect(missing.status).toBe(404);
   });
 
   it("MR-12: GET random prefetches bounded rows (no full-bank load)", async () => {

@@ -228,6 +228,24 @@ describe("background location GPS failure escalation", () => {
     expect(result.current).toBe("gps-error");
   });
 
+  // The reported bug: with the device GPS off, Android Chrome can stop
+  // delivering fixes without firing an error, so the chip stayed on "GPS
+  // aktif" while the card (fix age) already showed "Offline".
+  it("demotes GPS aktif when fixes stop, and restores it on the next fix", async () => {
+    const { result } = subscribe();
+    act(() => initBackgroundLocation(true, qc, USER));
+    act(() => geoMock.watch?.success(position(10)));
+    await act(async () => {});
+    expect(result.current).toBe("sharing");
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(26_000); });
+    expect(result.current).toBe("stale");
+
+    // GPS back on: a fix is proof the sensor works again, no POST wait.
+    await act(async () => { geoMock.watch?.success(position(10)); });
+    expect(result.current).toBe("sharing");
+  });
+
   it("acquires a fix immediately when the tab becomes visible or the network returns", async () => {
     act(() => initBackgroundLocation(true, qc, USER));
     geoMock.gets.shift(); // initial fix attempt, not under test

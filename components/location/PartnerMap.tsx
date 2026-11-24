@@ -29,11 +29,22 @@ import {
   formatDurationId,
   formatStopTimeLabel,
   formatTimeOnly,
+  headingOnPolyline,
   projectPointToPolyline,
+  waypointBearing,
   type VisitedStop,
 } from "@/lib/location-history";
 import { stopOrdinalLabel, type HistoryView } from "@/lib/history-view";
-import { HISTORY_TRAIL_STYLE, HISTORY_USER_COLORS, MAP_PANES } from "@/lib/map-panes";
+import {
+  HISTORY_TRAIL_STYLE,
+  HISTORY_USER_COLORS,
+  MAP_PANES,
+  NAV_PATH,
+  WAYPOINT_ARROW_SIZE,
+  nextCameraAction,
+  waypointArrowSvg,
+  type CameraOwner,
+} from "@/lib/map-panes";
 
 type Pin = {
   id: string;
@@ -43,6 +54,22 @@ type Pin = {
   image: string | null;
   deviceType?: string | null;
 };
+
+type AnimatableMap = L.Map & {
+  _animatingZoom?: boolean;
+  _onZoomTransitionEnd?: () => void;
+};
+
+/**
+ * Leaflet silently drops a new view while a zoom transition is still in
+ * flight (`_tryAnimatedZoom` bails) and then snaps the map back to the old
+ * target when that transition ends. Finish the stale one so the newest intent
+ * — ours or the user's — wins.
+ */
+function finishZoomAnimation(map: L.Map) {
+  const m = map as AnimatableMap;
+  if (m._animatingZoom) m._onZoomTransitionEnd?.();
+}
 
 const TILE_URL =
   "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
@@ -63,21 +90,9 @@ function segmentCacheKey(segment: LocationHistoryPoint[]): string {
   return waypoints.map((p) => `${p.lat.toFixed(4)},${p.lng.toFixed(4)}`).join("|");
 }
 
-/** Stable enough that a 60 s refresh or a 15 s poll does not re-fit the map,
- *  but changes when the user switches filter/range. */
-function historySignature(view: HistoryView | null): string {
-  if (!view) return "";
-  const stops = [...view.self.stops, ...view.partner.stops].map((s) => s.id).join(",");
-  const starts = [...view.self.segments, ...view.partner.segments]
-    .filter((s) => s.length > 0)
-    .map((s) => `${s[0].latitude.toFixed(4)},${s[0].longitude.toFixed(4)}`)
-    .join(",");
-  return `${stops}#${starts}`;
-}
-
 /**
- * Sparse breadcrumbs instead of a dot per fix: one dot per 5 min or 100 m,
- * capped at 24. The line already shows the path; 2,000 dots hide it.
+ * Sparse breadcrumbs instead of an arrow per fix: one per 5 min or 100 m,
+ * capped at 24. The line already shows the path; 2,000 arrows hide it.
  */
 function breadcrumbPoints(points: LocationHistoryPoint[]): LocationHistoryPoint[] {
   const picked: LocationHistoryPoint[] = [];
@@ -112,9 +127,6 @@ const CLOCK_PATH =
   '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>';
 const SPEED_PATH =
   '<path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/>';
-// Points straight up (north) so rotate(bearing) is geometrically accurate.
-const NAV_PATH = '<path d="M12 2 19 21 12 17 5 21Z"/>';
-
 function inlineIcon(path: string, size: number, color = "currentColor", filled = false): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="${filled ? color : "none"}" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:inline-block;vertical-align:-2px;flex:none;">${path}</svg>`;
 }
@@ -194,6 +206,22 @@ function createBearingArrow(heading: number, isSelf: boolean): L.DivIcon {
     html: `<div style="pointer-events:none;width:14px;height:14px;transform:rotate(${heading}deg);opacity:0.8;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.4));">${inlineIcon(NAV_PATH, 14, color, isSelf)}</div>`,
     iconSize: [14, 14],
     iconAnchor: [7, 14],
+  });
+}
+
+/**
+ * History waypoint: arrow points along the recorded direction of travel.
+ * Filled with the person's trail color and outlined with the trail's dark
+ * casing so it reads the same as the dashed line underneath it.
+ */
+function createWaypointArrow(heading: number, color: string): L.DivIcon {
+  const size = WAYPOINT_ARROW_SIZE;
+  return L.divIcon({
+    className: "",
+    html: waypointArrowSvg(heading, color, size),
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -size / 2],
   });
 }
 
@@ -297,6 +325,7 @@ export default function PartnerMap({
   snapToRoads = true,
   route = null,
   stopAddresses,
+  historyFilterKey = "",
   selfId: selfIdProp,
 }: {
   self: Pin | null;
@@ -310,6 +339,9 @@ export default function PartnerMap({
    * follows the same toggle: road km when snapped, straight km otherwise. */
   route?: RoadRoute | null;
   stopAddresses?: Record<string, string | null>;
+  /** Identifies the chosen history range/filter. Only a change here may
+   * re-frame the camera; data refreshes must never move it. */
+  historyFilterKey?: string;
   /** Passed explicitly so history rendering doesn't depend on session timing. */
   selfId?: string;
 }) {
@@ -342,9 +374,65 @@ export default function PartnerMap({
   partnerRef.current = partner;
 
   const historyFittedRef = useRef(false);
-  const historySignatureRef = useRef("");
-  const userMovedRef = useRef(false);
+  const historyFitKeyRef = useRef("");
   const markersFittedRef = useRef(false);
+  // Who owns the camera. "auto" until the user takes it (drag, zoom, a center
+  // button, picking a stop). While "auto" the map may frame the pins/trail as
+  // data arrives; once "user" nothing but an explicit history filter change
+  // may move it.
+  const cameraOwnerRef = useRef<CameraOwner>("auto");
+  // Leaflet fires `zoomstart` for programmatic zooms too, so our own moves are
+  // flagged: a fit must never look like a gesture that hands over the camera.
+  const programmaticRef = useRef(false);
+
+  const runCameraMove = useCallback((fn: (map: L.Map) => void) => {
+    const map = mapRef.current;
+    if (!map) return;
+    finishZoomAnimation(map);
+    programmaticRef.current = true;
+    try {
+      fn(map);
+    } finally {
+      programmaticRef.current = false;
+    }
+  }, []);
+
+  /** Pan to a single point without changing zoom (follow-one-pin mode). */
+  const followPin = useCallback(
+    (point: LocationPoint) => {
+      runCameraMove((map) =>
+        map.panTo([point.lat, point.lng], {
+          animate: !prefersReducedMotion(),
+          duration: 0.8,
+        }),
+      );
+    },
+    [runCameraMove],
+  );
+
+  /** Frame whatever pins exist. Returns false when there is nothing to frame. */
+  const framePins = useCallback(
+    (animate: boolean): boolean => {
+      const pins = [selfRef.current, partnerRef.current].filter(
+        (p): p is Pin => !!p?.point,
+      );
+      if (pins.length === 0) return false;
+      runCameraMove((map) => {
+        if (pins.length === 2) {
+          map.fitBounds(
+            L.latLngBounds(
+              pins.map((p) => [p.point.lat, p.point.lng] as L.LatLngTuple),
+            ),
+            { padding: [80, 80], maxZoom: 16, animate },
+          );
+        } else {
+          map.setView([pins[0].point.lat, pins[0].point.lng], 16, { animate });
+        }
+      });
+      return true;
+    },
+    [runCameraMove],
+  );
 
   const [addressCache, setAddressCache] = useState<
     Record<string, string | null>
@@ -381,7 +469,7 @@ export default function PartnerMap({
     }
 
     const center =
-      self?.point ?? partner?.point ?? { lat: -6.2, lng: 106.816 };
+      selfRef.current?.point ?? partnerRef.current?.point ?? { lat: -6.2, lng: 106.816 };
 
     // Strict-mode remount can leave a stale Leaflet id on the container
     const stale = container as HTMLDivElement & { _leaflet_id?: number };
@@ -441,14 +529,21 @@ export default function PartnerMap({
       markerLayerRef.current = L.layerGroup().addTo(map);
       headingLayerRef.current = L.layerGroup().addTo(map);
       // Explicit stacking: live road line (420), dashed history trail (430),
-      // avatars/stop pins (600). The dashed trail is drawn ON TOP with aligned
-      // dash casing so it stays visible where it follows the road; the gaps in
-      // the dash still let the solid live route read through underneath.
+      // waypoint arrows (440), avatars/stop pins (600). Arrows sit in their own
+      // pane so Leaflet's SVG z-index cannot bury them near the top edge.
       map.createPane("routePane").style.zIndex = String(MAP_PANES.route);
       map.createPane("historyPane").style.zIndex = String(MAP_PANES.history);
-      // A deliberate pan/zoom wins over auto-fit until the history view itself
-      // changes (filter/range), so a refreshing trail cannot steal the camera.
-      map.on("dragstart zoomstart", () => { userMovedRef.current = true; });
+      map.createPane("waypointPane").style.zIndex = String(MAP_PANES.waypoint);
+      // Only a real gesture takes the camera. Programmatic fitBounds/flyTo
+      // also fire `zoomstart`; treating those as gestures is what let data
+      // updates fight the view the user had just chosen.
+      map.on("dragstart zoomstart", () => {
+        if (programmaticRef.current) return;
+        cameraOwnerRef.current = "user";
+        // Grabbing the map mid-animation must win now, not when the old zoom
+        // ends (that is the "it jumps back and ignores me" freeze).
+        finishZoomAnimation(map);
+      });
     } catch (err) {
       console.error("[PartnerMap] layerGroup failed:", err);
       return;
@@ -542,21 +637,28 @@ export default function PartnerMap({
         `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>`,
         "Pusatkan ke lokasi saya",
         () => {
-          userMovedRef.current = false;
+          // Follow me: stay centered on my own pin as fixes arrive, but never
+          // refit to both (that is what used to undo this button seconds later).
+          cameraOwnerRef.current = "self";
           const reduceAnim = prefersReducedMotion();
           const currentSelf = selfRef.current;
           if (currentSelf?.point) {
-            map.flyTo([currentSelf.point.lat, currentSelf.point.lng], 17, {
-              duration: reduceAnim ? 0 : 1.2,
-              easeLinearity: 0.3,
-            });
+            const { lat, lng } = currentSelf.point;
+            runCameraMove((map) =>
+              map.flyTo([lat, lng], 17, {
+                duration: reduceAnim ? 0 : 1.2,
+                easeLinearity: 0.3,
+              }),
+            );
           } else if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
               (pos) => {
-                map.flyTo([pos.coords.latitude, pos.coords.longitude], 17, {
-                  duration: reduceAnim ? 0 : 1.2,
-                  easeLinearity: 0.3,
-                });
+                runCameraMove((map) =>
+                  map.flyTo([pos.coords.latitude, pos.coords.longitude], 17, {
+                    duration: reduceAnim ? 0 : 1.2,
+                    easeLinearity: 0.3,
+                  }),
+                );
               },
               () => {},
               { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 },
@@ -571,20 +673,31 @@ export default function PartnerMap({
 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:-5px;"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>`,
         "Pusatkan ke pasangan",
         () => {
-          userMovedRef.current = false;
+          // "Show us both" is exactly what auto framing means, so it re-arms it
+          // (a later drag still takes the camera back).
+          cameraOwnerRef.current = "auto";
           const reduceAnim = prefersReducedMotion();
-          if (selfRef.current?.point && partnerRef.current?.point) {
-            map.fitBounds(
-              L.latLngBounds([
-                [selfRef.current.point.lat, selfRef.current.point.lng],
-                [partnerRef.current.point.lat, partnerRef.current.point.lng],
-              ]),
-              { padding: [80, 80], maxZoom: 16, animate: !reduceAnim, duration: reduceAnim ? 0 : 1.2 },
+          const selfPoint = selfRef.current?.point;
+          const partnerPoint = partnerRef.current?.point;
+          const duration = reduceAnim ? 0 : 1.2;
+          if (selfPoint && partnerPoint) {
+            runCameraMove((map) =>
+              map.fitBounds(
+                L.latLngBounds([
+                  [selfPoint.lat, selfPoint.lng],
+                  [partnerPoint.lat, partnerPoint.lng],
+                ]),
+                { padding: [80, 80], maxZoom: 16, animate: !reduceAnim, duration },
+              ),
             );
-          } else if (selfRef.current?.point) {
-            map.flyTo([selfRef.current.point.lat, selfRef.current.point.lng], 16, { duration: reduceAnim ? 0 : 1.2 });
-          } else if (partnerRef.current?.point) {
-            map.flyTo([partnerRef.current.point.lat, partnerRef.current.point.lng], 16, { duration: reduceAnim ? 0 : 1.2 });
+          } else if (selfPoint) {
+            runCameraMove((map) =>
+              map.flyTo([selfPoint.lat, selfPoint.lng], 16, { duration }),
+            );
+          } else if (partnerPoint) {
+            runCameraMove((map) =>
+              map.flyTo([partnerPoint.lat, partnerPoint.lng], 16, { duration }),
+            );
           }
         },
       ),
@@ -627,23 +740,13 @@ export default function PartnerMap({
     tryInvalidate();
     map.whenReady(() => tryInvalidate());
 
-    // First visit frames both people. The later marker/history effects guard
-    // on markersFittedRef, so this one fit owns the initial view and presence
-    // polls can't shift it afterwards.
+    // First visit frames both people. A later data update must not re-fit
+    // (the marker effect owns auto framing), and the user's own choice wins.
     map.whenReady(() => {
       if (mapRef.current !== map) return;
-      const points = [self?.point, partner?.point]
-        .filter((p): p is LocationPoint => !!p)
-        .map((p) => [p.lat, p.lng] as L.LatLngExpression);
-      if (points.length === 2) {
-        map.invalidateSize();
-        map.fitBounds(L.latLngBounds(points), {
-          padding: [80, 80],
-          maxZoom: 16,
-          animate: false,
-        });
-        markersFittedRef.current = true;
-      }
+      if (cameraOwnerRef.current !== "auto" || markersFittedRef.current) return;
+      map.invalidateSize();
+      if (framePins(false)) markersFittedRef.current = true;
     });
 
     const ro = new ResizeObserver(() => {
@@ -689,17 +792,21 @@ export default function PartnerMap({
       historyLayerRef.current = null;
       headingLayerRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [framePins, runCameraMove]);
 
   // Fly to selected stop when requested
   useEffect(() => {
     if (!selectedStop || !mapRef.current) return;
+    // Picking a stop is an explicit camera choice; a presence poll must not
+    // pull the map back to the two live pins.
+    cameraOwnerRef.current = "user";
     const reduceAnim = prefersReducedMotion();
-    mapRef.current.flyTo([selectedStop.latitude, selectedStop.longitude], 17, {
-      duration: reduceAnim ? 0 : 1.0,
-      easeLinearity: 0.3,
-    });
+    runCameraMove((map) =>
+      map.flyTo([selectedStop.latitude, selectedStop.longitude], 17, {
+        duration: reduceAnim ? 0 : 1.0,
+        easeLinearity: 0.3,
+      }),
+    );
 
     if (selectedStop.isCurrent) {
       // Focus on the live avatar marker and open its popup
@@ -719,7 +826,7 @@ export default function PartnerMap({
         }, reduceAnim ? 50 : 600);
       }
     }
-  }, [selectedStop, selfId]);
+  }, [selectedStop, selfId, runCameraMove]);
 
   // Highlight the stop chosen from the list. Stable callback so re-selecting
   // never rebuilds the history layer.
@@ -756,14 +863,14 @@ export default function PartnerMap({
     hLayer.clearLayers();
     stopMarkersRef.current.clear();
 
-    // Re-fit only when the trail actually changes. A 60 s refresh with the
-    // same stops/segments, or a live pin moving 11 m, must not snap the camera
-    // back and close the user's selected stop popup.
-    const signature = historySignature(view);
-    if (signature !== historySignatureRef.current) {
-      historySignatureRef.current = signature;
+    // Only an explicit range/filter change re-frames the trail. Data arriving
+    // (a new stop, the 60 s refresh, a live fix) must never move the camera:
+    // that heuristic also reset the camera owner, so seconds after the user
+    // centered on themselves the next fix snapped the map back to both pins.
+    if (historyFilterKey !== historyFitKeyRef.current) {
+      historyFitKeyRef.current = historyFilterKey;
       historyFittedRef.current = false;
-      userMovedRef.current = false;
+      cameraOwnerRef.current = "auto";
     }
 
     const pins = [selfRef.current, partnerRef.current].filter(Boolean) as Pin[];
@@ -773,18 +880,8 @@ export default function PartnerMap({
 
     const fitMarkerBounds = () => {
       if (markersFittedRef.current) return;
-      const reduceAnim = prefersReducedMotion();
-      if (pins.length === 2) {
-        map.fitBounds(L.latLngBounds(markerLatLngs), {
-          padding: [80, 80],
-          maxZoom: 16,
-          animate: !reduceAnim,
-        });
-        markersFittedRef.current = true;
-      } else if (pins.length === 1) {
-        map.setView(markerLatLngs[0], 16, { animate: !reduceAnim });
-        markersFittedRef.current = true;
-      }
+      if (cameraOwnerRef.current !== "auto") return;
+      if (framePins(!prefersReducedMotion())) markersFittedRef.current = true;
     };
 
     if (!showHistory || !view) {
@@ -811,7 +908,7 @@ export default function PartnerMap({
         allTrailLatLngs.push(...latlngs);
 
         // A single high-contrast dash style is used in BOTH route modes: dark
-        // casing + white core. Mode only changes the solid live route below it.
+        // casing + partner-colored core. Mode only changes the live route.
         const casing = L.polyline(latlngs, {
           pane: "historyPane",
           color: HISTORY_TRAIL_STYLE.casing,
@@ -836,28 +933,37 @@ export default function PartnerMap({
           lineJoin: "round",
         }).addTo(layer);
 
-        const crumbs: Array<{ marker: L.CircleMarker; origLat: number; origLng: number }> = [];
+        const crumbs: Array<{
+          marker: L.Marker;
+          origLat: number;
+          origLng: number;
+          heading: number;
+          label: string;
+        }> = [];
 
-        // Sparse breadcrumbs, not a dot per fix. Each one is clickable and
-        // opens a popup with the recorded time and speed.
+        // Sparse direction arrows, not an arrow per fix. Each one is clickable
+        // and opens a popup with the recorded time and speed.
         // Skip the first point: the "Mulai" marker already sits exactly there
         // and would otherwise render a second, overlapping waypoint/popup.
         breadcrumbPoints(segment).slice(1).forEach((p) => {
           const timeStr = formatTimeOnly(p.createdAt);
           const speedStr = p.speed !== null && p.speed > 0 ? ` • ${(p.speed * 3.6).toFixed(0)} km/j` : "";
           const label = `${userLabel}: ${timeStr}${speedStr}`;
-          const crumb = L.circleMarker([p.latitude, p.longitude], {
-            pane: "historyPane",
-            radius: 4.5,
-            color,
-            fillColor: color,
-            fillOpacity: 0.9,
-            weight: 2,
-            opacity: 0.95,
-            interactive: true,
+          // Recorded device heading covers a fully stationary trail, where no
+          // direction can be derived from movement between fixes.
+          const heading = waypointBearing(segment, segment.indexOf(p)) ?? p.heading ?? 0;
+          const crumb = L.marker([p.latitude, p.longitude], {
+            pane: "waypointPane",
+            icon: createWaypointArrow(heading, color),
           }).addTo(layer);
 
-          crumbs.push({ marker: crumb, origLat: p.latitude, origLng: p.longitude });
+          crumbs.push({
+            marker: crumb,
+            origLat: p.latitude,
+            origLng: p.longitude,
+            heading,
+            label,
+          });
 
           crumb.getElement()?.setAttribute("aria-label", label);
           // Same popup shell as the stop/avatar popups on this map.
@@ -876,9 +982,17 @@ export default function PartnerMap({
         });
 
         const snapBreadcrumbsToRoad = (roadCoords: Array<[number, number]>) => {
-          crumbs.forEach(({ marker, origLat, origLng }) => {
+          crumbs.forEach(({ marker, origLat, origLng, heading, label }) => {
             const snapped = projectPointToPolyline([origLat, origLng], roadCoords);
             marker.setLatLng(snapped);
+            // Snap direction to the road as well: an arrow that keeps its raw
+            // GPS bearing would point off the line after the position snapped.
+            const roadHeading = headingOnPolyline(roadCoords, snapped);
+            if (roadHeading !== null && roadHeading !== heading) {
+              marker.setIcon(createWaypointArrow(roadHeading, color));
+              // setIcon replaces the DOM node, so restore the accessible name.
+              marker.getElement()?.setAttribute("aria-label", label);
+            }
           });
         };
 
@@ -897,7 +1011,10 @@ export default function PartnerMap({
             ).then((roadCoords) => {
               if (historyDrawRef.current !== drawToken) return;
               if (!mapRef.current || !hLayer.hasLayer(polyline)) return;
-              if (roadCoords && roadCoords.length >= 2) {
+              // null = no real OSRM geometry. Leave the recorded GPS line
+              // alone; replacing it with downsampled straight points is what
+              // drew a new dashed line across the road.
+              if (roadCoords) {
                 if (historySnapCache.size >= HISTORY_SNAP_CACHE_MAX) {
                   const oldest = historySnapCache.keys().next().value;
                   if (oldest) historySnapCache.delete(oldest);
@@ -1022,11 +1139,32 @@ export default function PartnerMap({
     if (markerLatLngs.length > 0) {
       markerLatLngs.forEach((ll) => bounds.extend(ll));
     }
-    if (!historyFittedRef.current && !userMovedRef.current) {
-      map.fitBounds(bounds, { padding: [80, 80], maxZoom: 16, animate: !prefersReducedMotion() });
+    if (!historyFittedRef.current && cameraOwnerRef.current === "auto") {
+      runCameraMove((m) =>
+        m.fitBounds(bounds, {
+          padding: [80, 80],
+          maxZoom: 16,
+          animate: !prefersReducedMotion(),
+        }),
+      );
       historyFittedRef.current = true;
+      // The trail fit already includes both pins; don't let the marker effect
+      // queue a second animation in the same tick (Leaflet drops the second
+      // one and then snaps back to the first target when it completes).
+      markersFittedRef.current = true;
     }
-  }, [view, showHistory, selfKey, partnerKey, partner?.label, snapToRoads, applyStopHighlight]);
+  }, [
+    view,
+    showHistory,
+    selfKey,
+    partnerKey,
+    partner?.label,
+    snapToRoads,
+    applyStopHighlight,
+    historyFilterKey,
+    framePins,
+    runCameraMove,
+  ]);
 
   // Update markers (animated)
   useEffect(() => {
@@ -1188,37 +1326,42 @@ export default function PartnerMap({
         interactive: false,
         keyboard: false,
       }).addTo(markerLayer);
-
-      if (!markersFittedRef.current) {
-        map.fitBounds(L.latLngBounds(latlngs), { padding: [80, 80], maxZoom: 16, animate: !prefersReducedMotion() });
-        markersFittedRef.current = true;
-      } else if (!userMovedRef.current) {
-        // Auto-follow: smoothly keep moving partner/self in view
-        const bounds = map.getBounds();
-        const needsRefit = latlngs.some((ll) => !bounds.pad(-0.1).contains(ll as L.LatLngExpression));
-        if (needsRefit) {
-          map.fitBounds(L.latLngBounds(latlngs), { padding: [80, 80], maxZoom: 16, animate: !prefersReducedMotion() });
-        }
-      }
-    } else if (pins.length === 1) {
-      if (!markersFittedRef.current) {
-        map.setView([pins[0].point.lat, pins[0].point.lng], 16, {
-          animate: !prefersReducedMotion(),
-        });
-        markersFittedRef.current = true;
-      } else if (!userMovedRef.current) {
-        // Auto-follow single moving pin
-        const bounds = map.getBounds();
-        const pinPos: [number, number] = [pins[0].point.lat, pins[0].point.lng];
-        if (!bounds.pad(-0.15).contains(pinPos)) {
-          map.panTo(pinPos, { animate: !prefersReducedMotion(), duration: 0.8 });
-        }
-      }
-    } else if (!markersFittedRef.current) {
-      // No pins, show default view (once)
-      map.setView([-6.2, 106.816], 14, { animate: !prefersReducedMotion() });
     }
-  }, [self, partner, view, route]);
+
+    const owner = cameraOwnerRef.current;
+    const inView =
+      owner === "self"
+        ? !!selfRef.current?.point &&
+          map
+            .getBounds()
+            .pad(-0.25)
+            .contains([
+              selfRef.current.point.lat,
+              selfRef.current.point.lng,
+            ])
+        : latlngs.every((ll) =>
+            map
+              .getBounds()
+              .pad(pins.length === 2 ? -0.1 : -0.15)
+              .contains(ll),
+          );
+    const action = nextCameraAction({
+      owner,
+      pinCount: pins.length,
+      fitted: markersFittedRef.current,
+      inView,
+    });
+    if (action === "fit-pins") {
+      if (framePins(!prefersReducedMotion())) markersFittedRef.current = true;
+    } else if (action === "follow-pin") {
+      const target = owner === "self" ? selfRef.current?.point : pins[0].point;
+      if (target) followPin(target);
+    } else if (action === "default") {
+      runCameraMove((m) =>
+        m.setView([-6.2, 106.816], 14, { animate: !prefersReducedMotion() }),
+      );
+    }
+  }, [self, partner, view, route, framePins, followPin, runCameraMove]);
 
   const toggleFullscreen = useCallback(() => {
     const el = containerRef.current;
@@ -1341,7 +1484,11 @@ export default function PartnerMap({
           {self?.point && (
             <>
               <span className="flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                <span
+                  className="h-2 w-2 rounded-full"
+                  style={{ backgroundColor: HISTORY_USER_COLORS.self }}
+                  aria-hidden="true"
+                />
                 {self.label}
               </span>
               {selfAddress && (

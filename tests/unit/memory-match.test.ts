@@ -43,7 +43,7 @@ describe("selectMemoryMatchImages", () => {
   });
 });
 
-// GallerySlideshow is public: only public media, capped at 50
+// GallerySlideshow is public: only public media, capped at 20
 describe("selectSlideshowMedia", () => {
   const pub = (id: string, extra = {}) => ({ id, url: `https://x/${id}.jpg`, isVideo: false, isPublic: true, ...extra });
   const priv = { id: "p0", url: "https://x/p0.jpg", isVideo: false, isPublic: false };
@@ -58,8 +58,8 @@ describe("selectSlideshowMedia", () => {
     expect(selectSlideshowMedia([legacy, priv])).toEqual([legacy]);
   });
 
-  it("caps at 50", () => {
+  it("caps at 20", () => {
     const many = Array.from({ length: 60 }, (_, i) => pub(`p${i}`));
-    expect(selectSlideshowMedia(many)).toHaveLength(50);
+    expect(selectSlideshowMedia(many)).toHaveLength(20);
   });
 });

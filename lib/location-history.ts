@@ -1,6 +1,6 @@
-import { haversineMeters } from "./geo";
+import { bearing, haversineMeters } from "./geo";
 import { formatInJakarta, formatJakartaTime, getJakartaDateOnly } from "./date";
-import { fetchRoadRoute } from "./routing";
+import { fetchRoadRoute, shouldUseRoadRoute } from "./routing";
 import type { LocationHistoryPoint } from "@/hooks/useLocation";
 
 export type VisitedStop = {
@@ -264,17 +264,18 @@ export function downsampleWaypoints(
 }
 
 /**
- * Road-snapped geometry for a history trail. Goes through our own API proxy;
- * returns the straight (downsampled) points on any failure.
+ * Road-snapped geometry for a history trail. Goes through our own API proxy.
+ * Returns null when OSRM is unavailable: callers must keep the recorded GPS
+ * line rather than replace it with a synthetic straight "road" line.
  */
 export async function fetchRoadSnappedRoute(
   points: Array<{ lat: number; lng: number }>,
   options: { signal?: AbortSignal; timeoutMs?: number } = {},
-): Promise<Array<[number, number]>> {
-  if (points.length < 2) return points.map((p) => [p.lat, p.lng]);
+): Promise<Array<[number, number]> | null> {
+  if (points.length < 2) return null;
 
   const waypoints = downsampleWaypoints(points);
-  if (waypoints.length < 2) return points.map((p) => [p.lat, p.lng]);
+  if (waypoints.length < 2) return null;
 
   // Combine the caller's cancellation with a hard timeout. The declared
   // timeoutMs used to be a no-op, so a hung OSRM call blocked the trail.
@@ -290,8 +291,8 @@ export async function fetchRoadSnappedRoute(
       signal: controller.signal,
       via: waypoints.slice(1, -1),
     });
-    if (route.geometry && route.geometry.length >= 2) return route.geometry;
-    return waypoints.map((p) => [p.lat, p.lng]);
+    const road = shouldUseRoadRoute(route);
+    return road?.geometry ?? null;
   } finally {
     if (timer) clearTimeout(timer);
     options.signal?.removeEventListener("abort", onAbort);
@@ -354,4 +355,62 @@ export function projectPointToPolyline(
     return bestPoint;
   }
   return point;
+}
+
+/**
+ * Direction of travel at `index` of a chronological segment. Scans back to
+ * the closest fix at least `minMeters` away so GPS jitter cannot spin a
+ * waypoint arrow; falls forward when there is no earlier movement.
+ * ponytail: linear scan per crumb (≤24), upgrade with prefix distances if a
+ * segment ever has enough points for that to matter.
+ */
+export function waypointBearing(
+  points: ReadonlyArray<{ latitude: number; longitude: number }>,
+  index: number,
+  minMeters = 8,
+): number | null {
+  if (index < 0 || index >= points.length) return null;
+  const here = points[index];
+  if (![here.latitude, here.longitude].every(Number.isFinite)) return null;
+
+  for (let i = index - 1; i >= 0; i--) {
+    const a = points[i];
+    if (![a.latitude, a.longitude].every(Number.isFinite)) continue;
+    if (haversineMeters(a, here) >= minMeters) return bearing(a, here);
+  }
+  for (let i = index + 1; i < points.length; i++) {
+    const b = points[i];
+    if (![b.latitude, b.longitude].every(Number.isFinite)) continue;
+    if (haversineMeters(here, b) >= minMeters) return bearing(here, b);
+  }
+  return null;
+}
+
+/** Tangent direction of a road polyline at the vertex nearest `point`. */
+export function headingOnPolyline(
+  polyline: ReadonlyArray<readonly [number, number]>,
+  point: readonly [number, number],
+): number | null {
+  if (polyline.length < 2) return null;
+
+  let nearest = 0;
+  let minDistance = Infinity;
+  for (let i = 0; i < polyline.length; i++) {
+    const d = haversineMeters(
+      { latitude: polyline[i][0], longitude: polyline[i][1] },
+      { latitude: point[0], longitude: point[1] },
+    );
+    if (d < minDistance) {
+      minDistance = d;
+      nearest = i;
+    }
+  }
+
+  const from = polyline[Math.max(0, nearest - 1)];
+  const to = polyline[Math.min(polyline.length - 1, nearest + 1)];
+  if (from === to || ![...from, ...to].every(Number.isFinite)) return null;
+  return bearing(
+    { latitude: from[0], longitude: from[1] },
+    { latitude: to[0], longitude: to[1] },
+  );
 }

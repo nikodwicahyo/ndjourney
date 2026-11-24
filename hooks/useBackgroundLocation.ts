@@ -4,6 +4,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query-keys";
 import { detectDeviceType } from "@/lib/device";
+import { LOCATION_STALE_AFTER_SECONDS } from "@/lib/geo";
 import {
   deriveMotion,
   isOutlier,
@@ -26,6 +27,7 @@ export type ShareStatus =
   | "idle"
   | "locating"
   | "sharing"
+  | "stale"
   | "denied"
   | "unsupported"
   | "recovering"
@@ -38,7 +40,10 @@ type QueryClient = ReturnType<typeof useQueryClient>;
 const GPS_WATCH_TIMEOUT_MS = 15_000;
 const GPS_FIX_TIMEOUT_MS = 10_000;
 const WATCHDOG_INTERVAL_MS = 15_000;
-const WATCHDOG_STALE_MS = 25_000;
+// Same threshold the location card and the API use for "Offline": a fix older
+// than this means the sensor is not delivering, whatever the callbacks say.
+const WATCHDOG_STALE_MS = LOCATION_STALE_AFTER_SECONDS * 1000;
+const FRESHNESS_TICK_MS = 1_000;
 const FLUSH_RETRY_MS = 15_000;
 const FLUSH_BATCH_SIZE = 100;
 const GPS_ERROR_THRESHOLD = 3;
@@ -56,6 +61,7 @@ let globalLastFixAt = 0;
 let globalLastPosted: PostedFix | null = null;
 let globalGpsFailCount = 0;
 let globalWatchdog: ReturnType<typeof setInterval> | null = null;
+let globalFreshness: ReturnType<typeof setInterval> | null = null;
 let globalFlushTimer: ReturnType<typeof setTimeout> | null = null;
 let globalWakeLock: WakeLockSentinelLike | null = null;
 let globalWakeHandlers: { visibility: () => void; online: () => void } | null = null;
@@ -400,7 +406,11 @@ function handlePosition(
   // A fix alone proves the sensor works, not that the server heard us. Stay
   // "locating"/"recovering" until a POST succeeds — unless a recent successful
   // post is still inside the staleness window, in which case we never lied.
-  if (
+  // "stale" only ever meant the fixes had stopped, so the first one back is
+  // enough to call the GPS active again (no POST round-trip).
+  if (globalStatus === "stale") {
+    setStatus("sharing");
+  } else if (
     globalLastPosted &&
     Date.now() - globalLastPosted.postedAt < 60_000 &&
     globalStatus !== "sharing"
@@ -552,6 +562,17 @@ function startSampling(qc: QueryClient, userId: string) {
     pingGps(qc, userId, epoch);
   }, WATCHDOG_INTERVAL_MS);
 
+  // Turning the device GPS off usually stops fixes without firing an error, so
+  // the "GPS aktif" chip used to stay green until a timeout streak added up
+  // while the card (fix age) already said "Offline". Derive the same truth from
+  // fix age and demote as soon as the card would.
+  globalFreshness = setInterval(() => {
+    if (!isCurrent(epoch)) return;
+    if (globalStatus !== "sharing") return;
+    if (Date.now() - globalLastFixAt <= WATCHDOG_STALE_MS) return;
+    setStatus("stale");
+  }, FRESHNESS_TICK_MS);
+
   requestWakeLock(epoch);
 
   const visibility = () => {
@@ -593,6 +614,10 @@ function stopSampling(keepIdentity = false) {
   if (globalWatchdog) {
     clearInterval(globalWatchdog);
     globalWatchdog = null;
+  }
+  if (globalFreshness) {
+    clearInterval(globalFreshness);
+    globalFreshness = null;
   }
   if (globalFlushTimer) {
     clearTimeout(globalFlushTimer);

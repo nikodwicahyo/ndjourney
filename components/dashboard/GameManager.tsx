@@ -794,6 +794,11 @@ export default function GameManager() {
 
           {showMoreButton && (
             <div className="flex flex-col items-center gap-1.5 pt-1">
+              {knownTotal != null && knownTotal > listRows.length && (
+                <span className="text-xs tabular-nums text-muted-foreground">
+                  Menampilkan {listRows.length} dari {knownTotal} pertanyaan
+                </span>
+              )}
               <Button
                 type="button"
                 variant="outline"
@@ -826,18 +831,7 @@ export default function GameManager() {
                   "Tampilkan semua"
                 )}
               </Button>
-              {knownTotal != null && knownTotal > listRows.length && (
-                <span className="text-xs tabular-nums text-muted-foreground">
-                  {listRows.length} dari {knownTotal}
-                </span>
-              )}
             </div>
-          )}
-
-          {isExpanded && knownTotal != null && knownTotal > listRows.length && (
-            <p className="text-center text-xs tabular-nums text-muted-foreground">
-              Menampilkan {listRows.length} dari {knownTotal}
-            </p>
           )}
         </div>
       )}

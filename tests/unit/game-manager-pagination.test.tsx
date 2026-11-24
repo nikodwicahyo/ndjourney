@@ -67,7 +67,7 @@ describe("GameManager question pagination", () => {
     await screen.findByText("Pertanyaan 1?");
     expect(rowCount()).toBe(GAME_QUESTION_PAGE_SIZE);
     expect(screen.queryByText("Pertanyaan 11?")).toBeNull();
-    expect(screen.getByText(`${GAME_QUESTION_PAGE_SIZE} dari ${BANK.length}`)).toBeTruthy();
+    expect(screen.getByText(`Menampilkan ${GAME_QUESTION_PAGE_SIZE} dari ${BANK.length} pertanyaan`)).toBeTruthy();
 
     const button = screen.getByRole("button", { name: "Tampilkan semua" });
     fireEvent.click(button);

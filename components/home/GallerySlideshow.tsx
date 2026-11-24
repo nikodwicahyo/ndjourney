@@ -28,7 +28,7 @@ type GallerySlideshowProps = {
 
 type MediaState = "loading" | "loaded" | "error";
 
-const MAX_PHOTOS = 50;
+const MAX_PHOTOS = 20;
 
 // next/image loader reusing the existing Cloudinary transforms (q_auto,
 // f_auto, per-width) — same bytes as the former manual srcSet, no Vercel
@@ -334,12 +334,12 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
           <span className="shrink-0 text-xs font-medium text-muted-foreground">
             {currentIndex + 1} / {length}
           </span>
-          <div ref={dotsRef} className="scrollbar-hide flex min-w-0 flex-1 snap-x snap-proximity items-center justify-start gap-0.5 overflow-x-auto scroll-px-6 px-1">
+          <div ref={dotsRef} className="scrollbar-hide flex min-w-0 flex-1 snap-x snap-proximity items-center gap-1 overflow-x-auto scroll-px-1 px-1">
             {displayPhotos.map((_, i) => (
               <button
                 key={i}
                 onClick={() => goTo(i)}
-                className="flex min-h-[24px] min-w-[24px] shrink-0 snap-center items-center justify-center px-1"
+                className="flex h-6 min-w-[24px] flex-1 snap-center items-center justify-center"
                 aria-label={`Ke slide ${i + 1}`}
                 aria-current={i === currentIndex}
               >
@@ -348,7 +348,7 @@ export default function GallerySlideshow({ photos }: GallerySlideshowProps) {
                   className={cn(
                     "rounded-full transition-all duration-300",
                     i === currentIndex
-                      ? "h-2 w-5 bg-primary"
+                      ? "h-2 w-4 bg-primary"
                       : "h-1.5 w-1.5 bg-muted-foreground/30 hover:bg-muted-foreground/50",
                   )}
                 />

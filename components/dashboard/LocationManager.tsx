@@ -84,6 +84,13 @@ function StatusIndicator({ status }: { status: ShareStatus }) {
           GPS Aktif
         </span>
       );
+    case "stale":
+      return (
+        <span className={`${chip} border-amber-500/40 bg-amber-500/5 text-amber-500`}>
+          <span className="h-2 w-2 rounded-full bg-amber-500" aria-hidden="true" />
+          GPS tidak aktif
+        </span>
+      );
     case "locating":
       return (
         <span className={`${chip} border-amber-500/40 bg-amber-500/5 text-amber-500`}>
@@ -525,6 +532,7 @@ export default function LocationManager() {
               snapToRoads={snapToRoads}
               route={mapRoute}
               stopAddresses={stopAddresses}
+              historyFilterKey={`${historyRange}:${filterUser}`}
               selfId={session?.user?.id}
             />
             {!self.isSharing && !partner.isSharing && (

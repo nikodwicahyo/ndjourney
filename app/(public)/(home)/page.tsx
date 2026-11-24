@@ -97,7 +97,7 @@ async function getGallerySummary() {
         WHERE "isMilestoneOnly" = false AND "isPublic" = true
           AND ("albumId" IS NULL OR "albumId" IN (SELECT "id" FROM "Album" WHERE "isPublic" = true))
         ORDER BY RANDOM()
-        LIMIT 50
+        LIMIT 20
       `,
     ]);
 

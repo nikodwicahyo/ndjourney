@@ -7,7 +7,9 @@ import {
   downsampleWaypoints,
   fetchRoadSnappedRoute,
   hasTrackMovement,
+  headingOnPolyline,
   projectPointToPolyline,
+  waypointBearing,
 } from "@/lib/location-history";
 import type { LocationHistoryPoint } from "@/hooks/useLocation";
 
@@ -293,11 +295,30 @@ describe("location-history utility", () => {
   });
 
   describe("fetchRoadSnappedRoute", () => {
-    it("falls back to waypoints on fetch error", async () => {
+    it("returns null on fetch error so the recorded trail is kept", async () => {
       vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(new Error("Network fail"));
       const pts = [{ lat: -6.25, lng: 106.85 }, { lat: -6.26, lng: 106.86 }];
       const res = await fetchRoadSnappedRoute(pts, { timeoutMs: 1000 });
-      expect(res).toEqual([[-6.25, 106.85], [-6.26, 106.86]]);
+      expect(res).toBeNull();
+    });
+
+    it("never presents a fallback payload as road geometry", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: {
+            distanceMeters: 1000,
+            durationSeconds: 120,
+            geometry: [[-6.25, 106.85], [-6.26, 106.86]],
+            source: "fallback",
+          },
+        }),
+      } as Response);
+      const res = await fetchRoadSnappedRoute([
+        { lat: -6.25, lng: 106.85 },
+        { lat: -6.26, lng: 106.86 },
+      ]);
+      expect(res).toBeNull();
     });
 
     it("propagates caller cancellation instead of hanging", async () => {
@@ -314,8 +335,8 @@ describe("location-history utility", () => {
       );
       controller.abort();
 
-      // Must settle promptly via fetchRoadRoute's fallback, not wait for timeout.
-      await expect(promise).resolves.toEqual([[-6.25, 106.85], [-6.26, 106.86]]);
+      // Must settle promptly, not wait for the timeout.
+      await expect(promise).resolves.toBeNull();
     });
 
     it("sends intermediate waypoints as via points, not just first-to-last", async () => {
@@ -333,11 +354,11 @@ describe("location-history utility", () => {
       expect(String(fetchMock.mock.calls[0][0])).toContain("-8.01");
     });
 
-    it("maps the proxy payload to Leaflet coordinates", async () => {
+    it("maps a real OSRM payload to Leaflet coordinates", async () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          data: { distanceMeters: 1234, durationSeconds: 60, geometry: [[-6.2, 106.81], [-6.205, 106.815], [-6.21, 106.82]] },
+          data: { distanceMeters: 1234, durationSeconds: 60, source: "osrm", geometry: [[-6.2, 106.81], [-6.205, 106.815], [-6.21, 106.82]] },
         }),
       } as Response);
       const pts = [{ lat: -6.2, lng: 106.81 }, { lat: -6.21, lng: 106.82 }];
@@ -369,6 +390,46 @@ describe("location-history utility", () => {
       const farPoint: [number, number] = [-6.205, 106.805];
       const result = projectPointToPolyline(farPoint, polyline, 60);
       expect(result).toEqual(farPoint);
+    });
+  });
+
+  describe("waypointBearing", () => {
+    const pt = (latitude: number, longitude: number) => ({ latitude, longitude });
+
+    it("points along the direction of travel", () => {
+      const path = [pt(-6.2, 106.8), pt(-6.2, 106.81), pt(-6.2, 106.82)];
+      expect(waypointBearing(path, 1)).toBeCloseTo(90, 0);
+      expect(waypointBearing(path, 2)).toBeCloseTo(90, 0);
+    });
+
+    it("ignores sub-8m GPS jitter instead of pointing at noise", () => {
+      const path = [
+        pt(-6.2, 106.79),
+        pt(-6.2, 106.8),
+        pt(-6.2, 106.80001),
+        pt(-6.2, 106.80002),
+      ];
+      expect(waypointBearing(path, 3)).toBeCloseTo(90, 0);
+    });
+
+    it("returns null when there is no direction at all", () => {
+      expect(waypointBearing([], 0)).toBeNull();
+      expect(waypointBearing([pt(-6.2, 106.8), pt(-6.2, 106.8)], 1)).toBeNull();
+    });
+  });
+
+  describe("headingOnPolyline", () => {
+    it("follows the road direction after snapping", () => {
+      expect(
+        headingOnPolyline([[-6.2, 106.8], [-6.19, 106.8]], [-6.195, 106.8]),
+      ).toBeCloseTo(0, 0);
+      expect(
+        headingOnPolyline([[-6.2, 106.8], [-6.2, 106.81]], [-6.2, 106.805]),
+      ).toBeCloseTo(90, 0);
+    });
+
+    it("returns null when there is no road segment", () => {
+      expect(headingOnPolyline([[-6.2, 106.8]], [-6.2, 106.8])).toBeNull();
     });
   });
 });

@@ -17,7 +17,7 @@ export default async function NewLetterPage() {
     <PageTransition>
       <div className="mx-auto w-full max-w-3xl">
         <div className="mb-8">
-          <h1 className="flex items-center gap-2 font-heading text-3xl"><PenLine className="h-7 w-7 text-primary" aria-hidden="true" /> Tulis Surat</h1>
+          <h1 className="flex items-center gap-2 font-heading text-xl sm:text-2xl lg:text-3xl break-words"><PenLine className="h-6 w-6 shrink-0 text-primary" aria-hidden="true" /> Tulis Surat</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Ungkapkan isi hatimu untuk pasangan
           </p>

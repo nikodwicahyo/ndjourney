@@ -337,7 +337,7 @@ export default function NewLetterForm({
         <LetterEditor
           content={content}
           onChange={handleContentChange}
-          placeholder="Mulai dengan “Hai sayang…” — lalu ceritakan apa yang ingin kamu sampaikan."
+          placeholder="Mulai dengan “Hai sayang…” - lalu ceritakan apa yang ingin kamu sampaikan."
           ariaLabel="Isi surat"
           describedBy={showContentError ? "letter-content-error" : undefined}
         />

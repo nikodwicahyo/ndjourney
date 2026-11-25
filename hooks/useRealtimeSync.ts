@@ -69,6 +69,9 @@ export function useRealtimeSync(coupleId: string | undefined) {
           queryClient.invalidateQueries({ queryKey: queryKeys.games.leaderboardPrefix, refetchType: 'all' });
           // Arcade endpoint still backs the admin stats panel.
           queryClient.invalidateQueries({ queryKey: queryKeys.games.arcadeLeaderboardPrefix, refetchType: 'all' });
+          // A hide/restore in the partner's tab must refresh the dashboard's
+          // "Pemain tersembunyi" panel as well (no-op on the public board).
+          queryClient.invalidateQueries({ queryKey: queryKeys.games.hiddenPlayers, refetchType: 'all' });
           break;
         case 'GAMES_QUESTIONS':
           // Literal prefix (not queryKeys.games.questions()) — the factory

@@ -83,7 +83,7 @@ export default function WishlistManager() {
                 <span className="font-heading text-lg font-semibold text-primary">{doneCount}</span>
                 {" "}dari{" "}
                 <span className="font-heading text-lg font-semibold">{totalCount}</span>
-                {" "}wish tercapai!
+                {" "}wishlist tercapai!
               </p>
             </div>
             <span className="text-xs text-muted-foreground">{progress}%</span>
@@ -100,7 +100,7 @@ export default function WishlistManager() {
       )}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap gap-1.5">
+        <div className="scrollbar-hide flex min-w-0 snap-x snap-proximity gap-1.5 overflow-x-auto pb-1">
           {CATEGORIES.map((cat) => (
             <button
               key={cat.value}
@@ -109,7 +109,7 @@ export default function WishlistManager() {
               aria-pressed={filter === cat.value}
               className={cn(
                 FILTER_CHIP_CLASSES,
-                "border",
+                "border snap-start",
                 filter === cat.value
                   ? "border-primary bg-primary/10 text-primary shadow-sm"
                   : "border-border text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground",

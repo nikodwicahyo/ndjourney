@@ -88,6 +88,25 @@ describe("useRealtimeSync (notifications invalidation)", () => {
     }
   });
 
+  it("refreshes every leaderboard tab and the moderation list on GAMES_LEADERBOARD", async () => {
+    bound.handler = undefined;
+    const { invalidate, unmount } = setup();
+    try {
+      await waitFor(() => expect(bound.handler).toBeDefined());
+      act(() => {
+        bound.handler!({ scope: "GAMES_LEADERBOARD", action: "REFRESH" });
+      });
+
+      const keys = invalidatedKeys(invalidate);
+      expect(keys).toContainEqual(queryKeys.games.leaderboardPrefix);
+      expect(keys).toContainEqual(queryKeys.games.arcadeLeaderboardPrefix);
+      // A hide/restore in the partner's tab must update the dashboard panel too.
+      expect(keys).toContainEqual(queryKeys.games.hiddenPlayers);
+    } finally {
+      unmount();
+    }
+  });
+
   it("does not touch notifications when the payload carries no activity", async () => {
     bound.handler = undefined;
     const { invalidate, unmount } = setup();

@@ -94,6 +94,7 @@ const couple = await import("@/app/api/couple/route");
 const user = await import("@/app/api/user/route");
 const gamesQuestions = await import("@/app/api/games/questions/route");
 const gameQuestionById = await import("@/app/api/games/questions/[id]/route");
+const gameLeaderboardHidden = await import("@/app/api/games/leaderboard/hidden/route");
 const uploadDirect = await import("@/app/api/upload/route");
 const uploadSign = await import("@/app/api/upload/sign/route");
 const uploadServer = await import("@/app/api/upload/server/route");
@@ -156,6 +157,10 @@ const cases: Array<[string, () => Promise<Response>]> = [
   ["POST /api/games/questions", () => gamesQuestions.POST(req("/api/games/questions", "POST"))],
   ["PUT /api/games/questions/[id]", () => gameQuestionById.PUT(req("/api/games/questions/q1", "PUT"), params("q1"))],
   ["DELETE /api/games/questions/[id]", () => gameQuestionById.DELETE(req("/api/games/questions/q1", "DELETE"), params("q1"))],
+
+  ["GET /api/games/leaderboard/hidden", () => gameLeaderboardHidden.GET()],
+  ["POST /api/games/leaderboard/hidden", () => gameLeaderboardHidden.POST(req("/api/games/leaderboard/hidden", "POST"))],
+  ["DELETE /api/games/leaderboard/hidden", () => gameLeaderboardHidden.DELETE(req("/api/games/leaderboard/hidden", "DELETE"))],
 
   ["POST /api/upload", () => uploadDirect.POST(req("/api/upload", "POST"))],
   ["POST /api/upload/sign", () => uploadSign.POST(req("/api/upload/sign", "POST"))],

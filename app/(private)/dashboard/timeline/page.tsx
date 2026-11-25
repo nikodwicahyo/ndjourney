@@ -10,6 +10,7 @@ import { prefetchServerQueries } from "@/lib/server-prefetch";
 // Keys from the shared module — "use client" hook exports are reference
 // proxies in RSC, not callable values.
 import { queryKeys } from "@/lib/query-keys";
+import { CalendarDays } from "lucide-react";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Timeline" };
@@ -32,9 +33,12 @@ export default async function TimelineManagerPage() {
       <PageTransition>
         <div>
           <div className="mb-8">
-            <h1 className="font-heading text-xl sm:text-2xl lg:text-3xl break-words">Kelola Timeline</h1>
+            <h1 className="flex items-center gap-2 font-heading text-xl sm:text-2xl lg:text-3xl break-words">
+              <CalendarDays className="h-6 w-6 shrink-0 text-primary" aria-hidden="true" />
+              Kelola Timeline
+            </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Tambah, edit, dan hapus milestone
+              Tambah dan kelola milestone
             </p>
           </div>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { Button, Skeleton } from "@/components/ui";
@@ -67,6 +67,7 @@ export default function GameManager() {
   const [expandedTypes, setExpandedTypes] = useState<Set<GameType>>(() => new Set());
   const searchParams = useSearchParams();
   const questionParam = searchParams.get("question");
+  const tabsRef = useRef<HTMLDivElement>(null);
 
   // Per-type active totals: tab chips + "is there more than the first page?".
   const { data: countByType } = useQuery({
@@ -353,6 +354,13 @@ export default function GameManager() {
     return () => document.removeEventListener("keydown", handleEscape);
   }, [open, cancelEdit]);
 
+  // Keep the selected game chip visible in the horizontal scroller (also on deep links).
+  useEffect(() => {
+    tabsRef.current
+      ?.querySelector<HTMLButtonElement>('[data-active="true"]')
+      ?.scrollIntoView?.({ block: "nearest", inline: "center" });
+  }, [effectiveTab]);
+
   const isWYR = type === "WOULD_YOU_RATHER";
   const isTOD = type === "TRUTH_OR_DARE";
   const isSpin = type === "SPIN_THE_WHEEL";
@@ -393,36 +401,40 @@ export default function GameManager() {
 
   return (
     <div className="w-full max-w-full space-y-6 overflow-hidden">
-      <div className="flex flex-wrap gap-1.5">
-        {GAME_TYPES.map(({ value, label, icon: Icon, isArcade }) => (
-          <button
-            key={value}
-            onClick={() => {
-              setDeepLinkedQuestionId(null);
-              setActiveTab(value);
-            }}
-            className={cn(
-              FILTER_CHIP_CLASSES,
-              "border",
-              effectiveTab === value
-                ? "border-primary bg-card text-primary shadow-sm"
-                : "border-border bg-card text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground",
-            )}
-          >
-            <Icon className="h-3.5 w-3.5 shrink-0" />
-            <span className="text-xs sm:text-sm">{label}</span>
-            {!isArcade && (
-            <span className="shrink-0 rounded-full bg-muted-foreground/10 px-1.5 text-xs tabular-nums">
-              {countByType?.[value] ?? 0}
-            </span>
-            )}
-          </button>
-        ))}
+      <div className="space-y-2">
+        <h2 className="font-heading text-lg font-semibold">Jenis Games</h2>
+        <div ref={tabsRef} className="scrollbar-hide flex snap-x snap-proximity gap-1.5 overflow-x-auto pb-1">
+          {GAME_TYPES.map(({ value, label, icon: Icon, isArcade }) => (
+            <button
+              key={value}
+              data-active={effectiveTab === value || undefined}
+              onClick={() => {
+                setDeepLinkedQuestionId(null);
+                setActiveTab(value);
+              }}
+              className={cn(
+                FILTER_CHIP_CLASSES,
+                "border snap-start",
+                effectiveTab === value
+                  ? "border-primary bg-card text-primary shadow-sm"
+                  : "border-border bg-card text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground",
+              )}
+            >
+              <Icon className="h-3.5 w-3.5 shrink-0" />
+              <span className="text-xs sm:text-sm">{label}</span>
+              {!isArcade && (
+              <span className="shrink-0 rounded-full bg-muted-foreground/10 px-1.5 text-xs tabular-nums">
+                {countByType?.[value] ?? 0}
+              </span>
+              )}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="font-medium">
-          {isArcadeTab ? `Statistik ${arcadeLabel}` : `Pertanyaan ${activeGameType?.label}`}
+          {isArcadeTab ? `Statistik game ${arcadeLabel}` : `Pertanyaan game ${activeGameType?.label}`}
         </h2>
         {!isArcadeTab && (
         <div className="flex flex-row items-center gap-2">
@@ -446,10 +458,10 @@ export default function GameManager() {
 
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm max-sm:items-end"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
           onClick={(e) => { if (e.target === e.currentTarget) cancelEdit(); }}
         >
-          <div className="mx-4 max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-xl sm:p-6 max-sm:max-w-full max-sm:rounded-b-none">
+          <div className="mx-4 max-h-[85dvh] w-full max-w-lg overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-xl sm:p-6 max-sm:max-w-full">
             <div className="mb-4 flex items-center justify-between border-b border-border pb-4">
               <h2 className="font-heading text-base font-semibold sm:text-lg">{isEditing ? "Edit Pertanyaan" : "Pertanyaan Baru"}</h2>
               <button
@@ -670,7 +682,7 @@ export default function GameManager() {
                 <card.icon className="h-5 w-5 text-pink-500" />
                 <p className="text-2xl font-bold">
                   {card.label === "Average Score" || card.label === "High Score"
-                    ? (card.value as number).toLocaleString()
+                    ? (card.value as number).toLocaleString("id-ID")
                     : card.value}
                 </p>
                 <p className="text-xs text-muted-foreground">{card.label}</p>

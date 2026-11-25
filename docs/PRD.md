@@ -702,6 +702,9 @@ POST   /api/games/round          # Catat 1 babak kuis selesai (yang dihitung lea
 POST   /api/games/arcade-score   # Simpan skor arcade (1 baris per permainan selesai)
 GET    /api/games/leaderboard    # Leaderboard semua/per-game (query: type)
 GET    /api/games/arcade-leaderboard # Statistik arcade (query: type)
+GET    /api/games/leaderboard/hidden    # Pemain yang disembunyikan (moderasi, member couple)
+POST   /api/games/leaderboard/hidden    # Sembunyikan pemain dari semua tab leaderboard
+DELETE /api/games/leaderboard/hidden    # Pulihkan pemain (idempoten)
 ```
 
 ### 8.7 Daily Notes

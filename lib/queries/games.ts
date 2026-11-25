@@ -216,25 +216,56 @@ type ArcadeAggRow = {
   avgScore: bigint;
 };
 
+/**
+ * Excludes players a couple member hid from every board tab.
+ *
+ * Runs inside SQL, before `ORDER BY ... LIMIT 50`: filtering the returned page
+ * instead would let hidden rows consume ranking slots and silently shorten the
+ * board. The correlated subquery matches `HiddenLeaderboardPlayer.playerKey`,
+ * which uses the same `user:` / `guest:` format as
+ * `lib/games/leaderboard-key.ts` — keep both in sync.
+ *
+ * Guests are keyed by lowercased, trimmed name, so casing or stray whitespace
+ * cannot be used to reappear. (Two genuinely different guests sharing a name
+ * are already one group in the aggregate, so they hide together.)
+ */
+function notHidden(table: "GameRound" | "GameArcadeScore"): string {
+  // Plain string, not a nested Prisma.sql fragment: under Next's bundler the
+  // nested Sql class identity can differ and Prisma binds it as a parameter
+  // (22P02), which made every leaderboard query fail. `$1` values below stay
+  // parameterized; `table` is a literal union, never caller input.
+  return `NOT EXISTS (
+    SELECT 1 FROM "HiddenLeaderboardPlayer" h
+    WHERE h."playerKey" = 'user:' || "${table}"."userId"
+       OR (
+         "${table}"."userId" IS NULL
+         AND h."playerKey" = 'guest:' || lower(btrim("${table}"."playerName"))
+       )
+  )`;
+}
+
 function qaAggregates(type: (typeof QA_GAME_TYPES)[number] | null) {
   if (type) {
-    return prisma.$queryRaw<QaAggRow[]>`
-      SELECT
+    return prisma.$queryRawUnsafe<QaAggRow[]>(
+      `SELECT
         "userId",
         "playerName",
-        ${type}::text AS "gameType",
+        $1::text AS "gameType",
         COUNT(*)::bigint AS "plays",
         COALESCE(SUM("correct"), 0)::bigint AS "correct",
         COALESCE(SUM("totalQuestions"), 0)::bigint AS "answered"
       FROM "GameRound"
-      WHERE "gameType" = ${type}::"GameType"
+      WHERE "gameType" = $2::"GameType"
+        AND ${notHidden("GameRound")}
       GROUP BY COALESCE("userId", '__guest__:' || "playerName"), "userId", "playerName"
       ORDER BY "correct" DESC
-      LIMIT 50
-    `;
+      LIMIT 50`,
+      type,
+      type,
+    );
   }
-  return prisma.$queryRaw<QaAggRow[]>`
-    SELECT
+  return prisma.$queryRawUnsafe<QaAggRow[]>(
+    `SELECT
       "userId",
       "playerName",
       "gameType"::text AS "gameType",
@@ -242,30 +273,34 @@ function qaAggregates(type: (typeof QA_GAME_TYPES)[number] | null) {
       COALESCE(SUM("correct"), 0)::bigint AS "correct",
       COALESCE(SUM("totalQuestions"), 0)::bigint AS "answered"
     FROM "GameRound"
-    GROUP BY COALESCE("userId", '__guest__:' || "playerName"), "userId", "playerName", "gameType"
-  `;
+    WHERE ${notHidden("GameRound")}
+    GROUP BY COALESCE("userId", '__guest__:' || "playerName"), "userId", "playerName", "gameType"`,
+  );
 }
 
 function arcadeAggregates(type: (typeof ARCADE_GAME_TYPES)[number] | null) {
   if (type) {
-    return prisma.$queryRaw<ArcadeAggRow[]>`
-      SELECT
+    return prisma.$queryRawUnsafe<ArcadeAggRow[]>(
+      `SELECT
         "userId",
         "playerName",
-        ${type}::text AS "gameType",
+        $1::text AS "gameType",
         COUNT(*)::bigint AS "plays",
         COALESCE(SUM("score"), 0)::bigint AS "totalScore",
         COALESCE(MAX("score"), 0)::bigint AS "bestScore",
         COALESCE(AVG("score"), 0)::bigint AS "avgScore"
       FROM "GameArcadeScore"
-      WHERE "gameType" = ${type}::"GameType"
+      WHERE "gameType" = $2::"GameType"
+        AND ${notHidden("GameArcadeScore")}
       GROUP BY COALESCE("userId", '__guest__:' || "playerName"), "userId", "playerName"
       ORDER BY "totalScore" DESC
-      LIMIT 50
-    `;
+      LIMIT 50`,
+      type,
+      type,
+    );
   }
-  return prisma.$queryRaw<ArcadeAggRow[]>`
-    SELECT
+  return prisma.$queryRawUnsafe<ArcadeAggRow[]>(
+    `SELECT
       "userId",
       "playerName",
       "gameType"::text AS "gameType",
@@ -274,8 +309,9 @@ function arcadeAggregates(type: (typeof ARCADE_GAME_TYPES)[number] | null) {
       COALESCE(MAX("score"), 0)::bigint AS "bestScore",
       COALESCE(AVG("score"), 0)::bigint AS "avgScore"
     FROM "GameArcadeScore"
-    GROUP BY COALESCE("userId", '__guest__:' || "playerName"), "userId", "playerName", "gameType"
-  `;
+    WHERE ${notHidden("GameArcadeScore")}
+    GROUP BY COALESCE("userId", '__guest__:' || "playerName"), "userId", "playerName", "gameType"`,
+  );
 }
 
 function accuracyOf(correct: number, answered: number): number {

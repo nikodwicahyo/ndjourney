@@ -40,6 +40,8 @@ export const queryKeys = {
     leaderboard: (type?: string | null) => ["games", "leaderboard", type ?? "all"] as const,
     // Prefix for invalidations; every tab key starts with these two elements.
     leaderboardPrefix: ["games", "leaderboard"] as const,
+    /** Moderation list (dashboard only). */
+    hiddenPlayers: ["games", "hidden-players"] as const,
     arcadeLeaderboard: (type?: string) => ["games", "arcade-leaderboard", type] as const,
     // Prefix used for invalidations. NOTE: do NOT use arcadeLeaderboard()
     // here — when called without an argument it returns a key ending in

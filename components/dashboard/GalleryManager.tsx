@@ -589,7 +589,7 @@ export default function GalleryManager() {
             <ImagePlus className="h-5 w-5" style={{ color: "#10B981" }} aria-hidden="true" />
           </div>
           <div className="min-w-0">
-            <h2 className="font-heading text-sm sm:text-base font-semibold truncate">Upload Foto & Video</h2>
+            <h2 className="font-heading text-lg font-semibold truncate">Upload Foto & Video</h2>
             <p className="text-xs text-muted-foreground truncate">Drag & drop atau klik untuk memilih</p>
           </div>
         </div>
@@ -790,7 +790,7 @@ export default function GalleryManager() {
 
       <section className={cn(selectedIds.size > 0 && "pb-28 sm:pb-24 lg:pb-20")}>
         <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="font-heading text-sm sm:text-base font-semibold">Gallery ({data?.pages[0]?.total ?? photos.length})</h2>
+          <h2 className="font-heading text-lg font-semibold">Gallery ({data?.pages[0]?.total ?? photos.length})</h2>
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             <div className={FILTER_GROUP_CLASSES}>
               {MEDIA_TABS.map(({ key, label, icon: Icon }) => (
@@ -1031,11 +1031,11 @@ export default function GalleryManager() {
 
       {showMoveModal && (
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 max-sm:items-end"
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
           onClick={() => { setShowMoveModal(false); setMoveAlbumId(""); }}
         >
           <div
-            className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl max-sm:max-w-full max-sm:rounded-b-none"
+            className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-xl max-sm:max-w-full"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between border-b border-border pb-4">

@@ -106,7 +106,7 @@ export default function PublicWishList() {
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-1.5">
+        <div className="scrollbar-hide flex w-full min-w-0 snap-x snap-proximity gap-1.5 overflow-x-auto pb-1 sm:w-auto">
           {CATEGORIES.map((cat) => {
             const count =
               cat.value === ""
@@ -117,7 +117,7 @@ export default function PublicWishList() {
                 key={cat.value}
                 onClick={() => setFilter(cat.value)}
                 className={cn(
-                  "inline-flex h-10 items-center justify-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-all",
+                  "inline-flex h-10 shrink-0 snap-start items-center justify-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-all",
                   filter === cat.value
                     ? "border-primary bg-primary/10 text-primary shadow-sm"
                     : "border-border text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground",

@@ -175,6 +175,18 @@ export default memo(function PhotoCard({
         </div>
       )}
 
+      {/* Read-only surfaces (public gallery) mark favorites without offering the
+          toggle — the whole card still opens the lightbox. */}
+      {!selectable && photo.isFavorite && !onFavoriteToggle && (
+        <span
+          role="img"
+          aria-label="Difavoritkan"
+          className="absolute top-3 right-3 z-10 rounded-full bg-primary/25 p-2.5 text-primary backdrop-blur-sm"
+        >
+          <Heart className="h-4 w-4 fill-primary" aria-hidden="true" />
+        </span>
+      )}
+
       <div
         className={cn(
           "absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/40 via-transparent to-transparent p-4 opacity-0 transition-opacity duration-300",

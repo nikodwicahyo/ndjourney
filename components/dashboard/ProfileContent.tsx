@@ -325,8 +325,8 @@ export default function ProfileContent({ user, partner, couple }: ProfileContent
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 max-sm:items-end">
-          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl max-h-[90vh] overflow-y-auto max-sm:max-w-full max-sm:rounded-b-none">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl max-h-[90dvh] overflow-y-auto max-sm:max-w-full">
             <div className="mb-4 flex items-center justify-between border-b border-border pb-4">
               <h2 className="font-heading text-lg font-semibold">
                 Edit Profil

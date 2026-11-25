@@ -5,6 +5,7 @@ import PageTransition from "@/components/PageTransition";
 import { Skeleton } from "@/components/ui";
 import { cn, GALLERY_GRID_CLASSES, GALLERY_TILE_CLASSES, PHOTO_PAGE_SIZE } from "@/lib/utils";
 import ScrollToTopButton from "@/components/ui/ScrollToTopButton";
+import { Images } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { getUserCoupleId } from "@/lib/couple";
 import { listPhotos } from "@/lib/queries/photos";
@@ -59,9 +60,12 @@ export default async function GalleryManagerPage() {
       <PageTransition>
         <div>
           <div className="mb-6">
-            <h1 className="font-heading text-xl sm:text-2xl lg:text-3xl break-words">Kelola Gallery</h1>
+            <h1 className="flex items-center gap-2 font-heading text-xl sm:text-2xl lg:text-3xl break-words">
+              <Images className="h-6 w-6 shrink-0 text-primary" aria-hidden="true" />
+              Kelola Gallery
+            </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Upload dan kelola media, dan album
+              Upload dan kelola media serta atur album
             </p>
           </div>
 

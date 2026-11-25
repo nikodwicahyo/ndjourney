@@ -13,12 +13,12 @@ export default function PublicLettersPage() {
     <PageTransition>
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="flex items-center gap-2 font-heading text-xl sm:text-2xl lg:text-3xl break-words"><Mail className="h-6 w-6 text-primary" /> Love Letters</h1>
+          <h1 className="flex items-center gap-2 font-heading text-xl sm:text-2xl lg:text-3xl break-words"><Mail className="h-6 w-6 shrink-0 text-primary" aria-hidden="true" /> Love Letters</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Surat cinta untuk pasanganmu
+            Surat cinta kita
           </p>
         </div>
-        <ManagePageButton href="/dashboard/letters" label="Tulis Surat" />
+        <ManagePageButton href="/dashboard/letters/new" label="Tulis Surat" />
       </div>
 
       <PublicLetterInbox />

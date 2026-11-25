@@ -213,7 +213,7 @@ types/                # Shared TypeScript types
 >
 > Both upstreams are called only from `/api/route` and `/api/geocode/reverse`, which cache results and cap traffic at 1 req/s. OpenStreetMap attribution is shown on the map. Sources: [OSRM demo policy](https://github.com/Project-OSRM/osrm-backend/wiki/Demo-server), [Nominatim usage policy](https://operations.osmfoundation.org/policies/nominatim/).
 
-See [SETUP.md](./SETUP.md) for detailed setup instructions for each service.
+See [SETUP.md](./docs/SETUP.md) for detailed setup instructions for each service.
 
 ---
 

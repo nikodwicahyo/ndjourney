@@ -10,7 +10,7 @@ export default function WishlistPage() {
     <>
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="flex items-center gap-2 font-heading text-xl sm:text-2xl lg:text-3xl break-words"><Target className="h-6 w-6 text-primary" /> Wish List</h1>
+          <h1 className="flex items-center gap-2 font-heading text-xl sm:text-2xl lg:text-3xl break-words"><Target className="h-6 w-6 shrink-0 text-primary" aria-hidden="true" /> Wish List</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Impian dan keinginan yang ingin diwujudkan bersama
           </p>

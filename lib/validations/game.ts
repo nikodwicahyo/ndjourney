@@ -90,6 +90,24 @@ export const submitGameRoundSchema = z.object({
   playerName: z.string().min(1).max(100).optional(),
 });
 
+/**
+ * Hide a leaderboard player. The row exposes either an account id or a guest
+ * display name — never both — so exactly one identity is required. The display
+ * label is derived server-side; the client cannot set it.
+ */
+export const hideLeaderboardPlayerSchema = z
+  .object({
+    userId: z.string().min(1).max(64).optional(),
+    playerName: z.string().min(1).max(100).optional(),
+  })
+  .refine((v) => !!v.userId !== !!v.playerName, {
+    message: "Sertakan userId atau playerName (salah satu)",
+  });
+
+export const unhideLeaderboardPlayerSchema = z.object({
+  playerKey: z.string().min(1).max(128),
+});
+
 /** Server-side ceiling per arcade game (score is client-reported). */
 export const ARCADE_MAX_SCORE: Record<SubmitArcadeScoreInput["gameType"], number> = {
   SLIDING_PUZZLE: 100_000,

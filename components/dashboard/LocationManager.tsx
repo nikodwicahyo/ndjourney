@@ -466,9 +466,12 @@ export default function LocationManager() {
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="font-heading text-lg font-semibold">Lokasi Pasangan</h2>
-          <p className="text-sm text-muted-foreground">
-            Berbagi lokasi secara live, privat, dan hanya untuk berdua.
+          <h1 className="flex items-center gap-2 font-heading text-xl sm:text-2xl lg:text-3xl break-words">
+            <MapPin className="h-6 w-6 shrink-0 text-primary" aria-hidden="true" />
+            Lokasi Pasangan
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Berbagi lokasi secara live dan privat hanya untuk berdua
           </p>
         </div>
         <div className="flex items-center gap-2">

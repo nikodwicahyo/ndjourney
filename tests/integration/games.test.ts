@@ -9,10 +9,25 @@ const ROUND_ID = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
 
 const prismaMock = vi.hoisted(() => ({
   $queryRaw: vi.fn(),
+  $queryRawUnsafe: vi.fn(),
   gameQuestion: { findMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), count: vi.fn(async () => 0), groupBy: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
   gameScore: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), count: vi.fn() },
   gameArcadeScore: { create: vi.fn() },
   gameRound: { create: vi.fn(), findUnique: vi.fn() },
+  hiddenLeaderboardPlayer: {
+    findMany: vi.fn(
+      async (): Promise<{ playerKey: string; label: string; hiddenAt: Date }[]> => [],
+    ),
+    upsert: vi.fn(
+      async (): Promise<{ playerKey: string; label: string; hiddenAt: Date }> => ({
+        playerKey: "",
+        label: "",
+        hiddenAt: new Date(0),
+      }),
+    ),
+    deleteMany: vi.fn(async () => ({ count: 0 })),
+  },
+  user: { findUnique: vi.fn(async (): Promise<{ name: string | null } | null> => null) },
 }));
 
 vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
@@ -44,6 +59,7 @@ const leaderboard = await import("@/app/api/games/leaderboard/route");
 const arcadeScore = await import("@/app/api/games/arcade-score/route");
 const arcadeBoard = await import("@/app/api/games/arcade-leaderboard/route");
 const round = await import("@/app/api/games/round/route");
+const hiddenPlayers = await import("@/app/api/games/leaderboard/hidden/route");
 const { auth } = await import("@/lib/auth");
 const { withRateLimit, withAnonymousRateLimit } = await import("@/lib/rate-limit");
 
@@ -256,7 +272,7 @@ describe("games scores + leaderboards", () => {
 
   it("GAM-03: 2x main means 2 completed rounds, not 2 answered questions", async () => {
     // Merged "Semua" tab: QA aggregate first, arcade aggregate second.
-    prismaMock.$queryRaw
+    prismaMock.$queryRawUnsafe
       .mockResolvedValueOnce([
         { userId: ME, gameType: "WOULD_YOU_RATHER", plays: BigInt(2), correct: BigInt(1), answered: BigInt(20) },
       ])
@@ -280,7 +296,7 @@ describe("games scores + leaderboards", () => {
   });
 
   it("GAM-03b: per-game tab reports that game's plays and score", async () => {
-    prismaMock.$queryRaw.mockResolvedValueOnce([
+    prismaMock.$queryRawUnsafe.mockResolvedValueOnce([
       { userId: ME, gameType: "TRIVIA", plays: BigInt(4), correct: BigInt(30), answered: BigInt(40) },
     ]);
     const res = await leaderboard.GET(new Request("http://localhost/api/games/leaderboard?type=TRIVIA") as unknown as Parameters<typeof leaderboard.GET>[0]);
@@ -293,7 +309,15 @@ describe("games scores + leaderboards", () => {
       totalScore: 30000,
     });
     // Only the round ledger is queried for a quiz tab — never GameScore.
-    expect(prismaMock.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(prismaMock.$queryRawUnsafe).toHaveBeenCalledTimes(1);
+
+    // Regression: the hide-player filter must be part of the SQL string, not a
+    // bound nested Sql object (Prisma 22P02 → API 500 → false "Belum ada skor").
+    const [sql, ...params] = prismaMock.$queryRawUnsafe.mock.calls[0];
+    expect(sql).toContain('FROM "GameRound"');
+    expect(sql).toContain('NOT EXISTS');
+    expect(sql).toContain('"HiddenLeaderboardPlayer"');
+    expect(params.every((p) => typeof p === "string")).toBe(true);
   });
 
   it("GAM-05: completed round derives its score server-side and is idempotent", async () => {
@@ -365,10 +389,105 @@ describe("games scores + leaderboards", () => {
     }));
     expect(impossible?.status).toBe(400);
 
-    prismaMock.$queryRaw.mockResolvedValue([]);
+    prismaMock.$queryRawUnsafe.mockResolvedValue([]);
     const board = await arcadeBoard.GET(new Request("http://localhost/api/games/arcade-leaderboard?type=MEMORY_BLOCK_BLAST") as unknown as Parameters<typeof arcadeBoard.GET>[0]);
     expect(board?.status).toBe(200);
     const missing = await arcadeBoard.GET(new Request("http://localhost/api/games/arcade-leaderboard") as unknown as Parameters<typeof arcadeBoard.GET>[0]);
     expect(missing?.status).toBe(400);
+  });
+});
+
+describe("leaderboard moderation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    allowAuthed();
+  });
+
+  it("MOD-01: hidden list is couple-member only and returns the stored keys", async () => {
+    vi.mocked(auth).mockResolvedValue(null as never);
+    expect((await hiddenPlayers.GET()).status).toBe(401);
+
+    allowAuthed();
+    const { getUserCoupleId } = await import("@/lib/couple");
+    vi.mocked(getUserCoupleId).mockResolvedValueOnce(null);
+    expect((await hiddenPlayers.GET()).status).toBe(403);
+
+    prismaMock.hiddenLeaderboardPlayer.findMany.mockResolvedValue([
+      { playerKey: "guest:budi", label: "Budi", hiddenAt: new Date("2026-11-25T00:00:00Z") },
+    ]);
+    const ok = await hiddenPlayers.GET();
+    expect(ok.status).toBe(200);
+    expect((await ok.json()).data[0]).toMatchObject({ playerKey: "guest:budi", label: "Budi" });
+  });
+
+  it("MOD-02: hiding a guest normalizes the key and drops every board cache", async () => {
+    prismaMock.hiddenLeaderboardPlayer.upsert.mockResolvedValue({
+      playerKey: "guest:budi", label: "Budi", hiddenAt: new Date(),
+    });
+
+    const res = await hiddenPlayers.POST(new Request("http://localhost/api/games/leaderboard/hidden", {
+      method: "POST", body: JSON.stringify({ playerName: "  Budi " }),
+    }));
+
+    expect(res.status).toBe(200);
+    expect(prismaMock.hiddenLeaderboardPlayer.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { playerKey: "guest:budi" },
+        create: expect.objectContaining({ playerKey: "guest:budi", label: "Budi", hiddenBy: ME }),
+      }),
+    );
+    // Guests have no account to look up.
+    expect(prismaMock.user.findUnique).not.toHaveBeenCalled();
+    const { invalidateCache } = await import("@/lib/redis");
+    expect(invalidateCache).toHaveBeenCalledWith("games:*");
+    // Partners' open dashboards must drop their cached board immediately.
+    const { triggerCoupleEvent } = await import("@/lib/pusher-server");
+    expect(triggerCoupleEvent).toHaveBeenCalledWith(COUPLE, "GAMES_LEADERBOARD");
+  });
+
+  it("MOD-03: hiding an account derives the label server-side, never from the client", async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ name: "  Budi  " });
+    prismaMock.hiddenLeaderboardPlayer.upsert.mockResolvedValue({
+      playerKey: `user:${ME}`, label: "Budi", hiddenAt: new Date(),
+    });
+
+    const res = await hiddenPlayers.POST(new Request("http://localhost/api/games/leaderboard/hidden", {
+      method: "POST", body: JSON.stringify({ userId: ME, label: "Nama Palsu" }),
+    }));
+
+    expect(res.status).toBe(200);
+    expect(prismaMock.hiddenLeaderboardPlayer.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { playerKey: `user:${ME}` },
+        create: expect.objectContaining({ label: "Budi" }),
+      }),
+    );
+  });
+
+  it("MOD-04: exactly one identity is required; restore is idempotent", async () => {
+    const url = "http://localhost/api/games/leaderboard/hidden";
+    const both = await hiddenPlayers.POST(new Request(url, {
+      method: "POST", body: JSON.stringify({ userId: ME, playerName: "Budi" }),
+    }));
+    expect(both.status).toBe(400);
+
+    const neither = await hiddenPlayers.POST(new Request(url, {
+      method: "POST", body: JSON.stringify({}),
+    }));
+    expect(neither.status).toBe(400);
+
+    prismaMock.hiddenLeaderboardPlayer.deleteMany.mockResolvedValue({ count: 0 });
+    const restore = await hiddenPlayers.DELETE(new Request(url, {
+      method: "DELETE", body: JSON.stringify({ playerKey: "guest:budi" }),
+    }));
+    expect(restore.status).toBe(200);
+    expect(await restore.json()).toEqual({ removed: 0 });
+    expect(prismaMock.hiddenLeaderboardPlayer.deleteMany).toHaveBeenCalledWith({
+      where: { playerKey: "guest:budi" },
+    });
+    // Rejected writes push nothing; the successful restore pushes once.
+    const { triggerCoupleEvent } = await import("@/lib/pusher-server");
+    expect(triggerCoupleEvent).toHaveBeenCalledTimes(1);
+    expect(triggerCoupleEvent).toHaveBeenCalledWith(COUPLE, "GAMES_LEADERBOARD");
   });
 });

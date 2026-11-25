@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Skeleton, Avatar, AvatarImage, AvatarFallback } from "@/components/ui";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Skeleton, Avatar, AvatarImage, AvatarFallback, Button } from "@/components/ui";
 import { motion } from "framer-motion";
-import { Trophy, Medal, Target, Gamepad2, Star, Brain } from "lucide-react";
+import { Trophy, Medal, Target, Gamepad2, Star, Brain, Eye, EyeOff } from "lucide-react";
+import { toast } from "sonner";
 import { queryKeys } from "@/lib/query-keys";
+import { showDeleteConfirm } from "@/lib/swal";
 
 type GameBreakdown = {
   type: string;
@@ -53,12 +55,58 @@ const GAME_META: Record<string, { label: string; type: "qa" | "arcade" }> = {
 
 const GAME_ORDER = Object.keys(GAME_META);
 
+// Explicit locale: bare toLocaleString() differs between the server (en-ID)
+// and en-US browsers, which breaks hydration on prefetched leaderboards.
+const formatScore = (value: number) => value.toLocaleString("id-ID");
+
 async function fetchLeaderboard(type: string | null): Promise<LeaderEntry[]> {
   const params = type ? `?type=${type}` : "";
   const res = await fetch(`/api/games/leaderboard${params}`);
-  if (!res.ok) return [];
+  // A failed request is NOT an empty board — never let it render "Belum ada skor".
+  if (!res.ok) throw new Error("Gagal memuat leaderboard");
   const json = await res.json();
   return Array.isArray(json?.data) ? (json.data as LeaderEntry[]) : [];
+}
+
+type HiddenPlayer = {
+  /** `user:<id>` or `guest:<lowercased name>`. */
+  playerKey: string;
+  label: string;
+  hiddenAt: string;
+};
+
+async function fetchHiddenPlayers(): Promise<HiddenPlayer[]> {
+  const res = await fetch("/api/games/leaderboard/hidden");
+  if (!res.ok) return [];
+  const json = await res.json();
+  return Array.isArray(json?.data) ? (json.data as HiddenPlayer[]) : [];
+}
+
+/**
+ * Hiding is moderation, not deletion: the ledger rows stay untouched and the
+ * aggregate just stops listing the player, so it is reversible. The account id
+ * wins over a display name, so a signed-in player stays hidden whatever name
+ * they typed.
+ */
+async function hidePlayer(entry: LeaderEntry): Promise<void> {
+  const identity = entry.user?.id
+    ? { userId: entry.user.id }
+    : { playerName: entry.playerName };
+  const res = await fetch("/api/games/leaderboard/hidden", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(identity),
+  });
+  if (!res.ok) throw new Error("Gagal menyembunyikan pemain");
+}
+
+async function unhidePlayer(playerKey: string): Promise<void> {
+  const res = await fetch("/api/games/leaderboard/hidden", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ playerKey }),
+  });
+  if (!res.ok) throw new Error("Gagal memulihkan pemain");
 }
 
 function playerName(entry: LeaderEntry): string {
@@ -102,7 +150,7 @@ function BreakdownCard({ game }: { game: GameBreakdown }) {
         ) : (
           <>
             <span className="font-medium text-foreground/80">
-              {game.score.toLocaleString()}
+              {formatScore(game.score)}
             </span>{" "}
             skor
           </>
@@ -134,7 +182,43 @@ function GameTabs({ value, onChange }: { value: string | null; onChange: (value:
   );
 }
 
-export default function LeaderBoard() {
+function HiddenPlayersPanel({
+  hidden,
+  restoring,
+  onRestore,
+}: {
+  hidden: HiddenPlayer[];
+  restoring: boolean;
+  onRestore: (player: HiddenPlayer) => void;
+}) {
+  return (
+    <details className="rounded-2xl border border-border bg-card px-4 py-3">
+      <summary className="cursor-pointer text-sm font-medium">
+        Pemain tersembunyi ({hidden.length})
+      </summary>
+      <ul className="mt-3 space-y-2">
+        {hidden.map((player) => (
+          <li key={player.playerKey} className="flex items-center justify-between gap-3">
+            <span className="min-w-0 truncate text-sm">{player.label}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              disabled={restoring}
+              onClick={() => onRestore(player)}
+              aria-label={`Pulihkan ${player.label} ke leaderboard`}
+            >
+              <Eye />
+              Pulihkan
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+export default function LeaderBoard({ canModerate = false }: { canModerate?: boolean }) {
   const [gameType, setGameType] = useState<string | null>(null);
   const activeTab = GAME_TABS.find((t) => t.value === gameType) ?? GAME_TABS[0];
   const isArcade = activeTab.type === "arcade";
@@ -142,11 +226,58 @@ export default function LeaderBoard() {
 
   // One server-aggregated source for every tab: the SQL layer knows the real
   // play counts, so the client never merges or recomputes them.
-  const { data = [], isLoading } = useQuery({
+  const { data = [], isLoading, isError, refetch } = useQuery({
     queryKey: queryKeys.games.leaderboard(gameType),
     queryFn: () => fetchLeaderboard(gameType),
     staleTime: 30_000,
   });
+
+  // Moderation data is only fetched where the UI can act on it. The public
+  // board renders no controls at all; the API enforces authz regardless.
+  const { data: hidden = [] } = useQuery({
+    queryKey: queryKeys.games.hiddenPlayers,
+    queryFn: fetchHiddenPlayers,
+    enabled: canModerate,
+    staleTime: 30_000,
+  });
+
+  const queryClient = useQueryClient();
+
+  const refreshBoards = () => {
+    // Hidden players change every tab, including the arcade stats panel.
+    queryClient.invalidateQueries({ queryKey: queryKeys.games.leaderboardPrefix });
+    queryClient.invalidateQueries({ queryKey: queryKeys.games.arcadeLeaderboardPrefix });
+    queryClient.invalidateQueries({ queryKey: queryKeys.games.hiddenPlayers });
+  };
+
+  const hideMutation = useMutation({
+    mutationFn: hidePlayer,
+    onSuccess: (_result, entry) => {
+      toast.success(`${playerName(entry)} disembunyikan dari leaderboard`);
+      refreshBoards();
+    },
+    onError: () => toast.error("Gagal menyembunyikan pemain"),
+  });
+
+  const unhideMutation = useMutation({
+    mutationFn: unhidePlayer,
+    onSuccess: () => {
+      toast.success("Pemain dipulihkan ke leaderboard");
+      refreshBoards();
+    },
+    onError: () => toast.error("Gagal memulihkan pemain"),
+  });
+
+  async function confirmHide(entry: LeaderEntry) {
+    const name = playerName(entry);
+    const confirmed = await showDeleteConfirm({
+      title: "Sembunyikan pemain?",
+      text: `${name} tidak akan muncul di leaderboard semua game. Skor dan riwayat tetap tersimpan dan bisa dipulihkan kapan saja.`,
+      confirmText: "Ya, sembunyikan",
+      cancelText: "Batal",
+    });
+    if (confirmed) hideMutation.mutate(entry);
+  }
 
   if (isLoading) {
     return (
@@ -158,31 +289,48 @@ export default function LeaderBoard() {
     );
   }
 
-  if (data.length === 0) {
-    return (
-      <div className="space-y-3">
-        <GameTabs value={gameType} onChange={setGameType} />
-        <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
-          <Gamepad2 className="h-10 w-10 text-muted-foreground" />
-          <div>
-            <p className="font-medium">Belum ada skor</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {isAll
-                ? "Mainkan games untuk melihat leaderboard"
-                : "Mainkan game ini untuk melihat leaderboard"}
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-3 overflow-hidden">
       <GameTabs value={gameType} onChange={setGameType} />
 
+      {canModerate && hidden.length > 0 && (
+        <HiddenPlayersPanel
+          hidden={hidden}
+          restoring={unhideMutation.isPending}
+          onRestore={(player) => unhideMutation.mutate(player.playerKey)}
+        />
+      )}
+
+      {isError ? (
+        <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
+          <Gamepad2 className="h-10 w-10 text-muted-foreground" />
+          <div>
+            <p className="font-medium">Leaderboard belum bisa dimuat</p>
+            <p className="mt-1 text-sm text-muted-foreground">Coba lagi setelah beberapa saat.</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => void refetch()}>
+            Coba lagi
+          </Button>
+        </div>
+      ) : (
+        data.length === 0 && (
+          <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
+            <Gamepad2 className="h-10 w-10 text-muted-foreground" />
+            <div>
+              <p className="font-medium">Belum ada skor</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {isAll
+                  ? "Mainkan games untuk melihat leaderboard"
+                  : "Mainkan game ini untuk melihat leaderboard"}
+              </p>
+            </div>
+          </div>
+        )
+      )}
+
       {data.map((entry, i) => {
         const isFirst = i === 0;
+        const hideable = !!entry.user?.id || !!entry.playerName;
         const games = [...(entry.games ?? [])].sort(
           (a, b) => GAME_ORDER.indexOf(a.type) - GAME_ORDER.indexOf(b.type),
         );
@@ -226,11 +374,11 @@ export default function LeaderBoard() {
                   {!isAll && isArcade && (
                     <span className="inline-flex items-center gap-1">
                       <Star className="h-3 w-3 text-yellow-500" />
-                      {entry.totalScore.toLocaleString()} total
+                      {formatScore(entry.totalScore)} total
                     </span>
                   )}
                   {!isAll && isArcade && (
-                    <span>Best: {(entry.bestScore ?? 0).toLocaleString()} poin</span>
+                    <span>Best: {formatScore(entry.bestScore ?? 0)} poin</span>
                   )}
                   {!isAll && !isArcade && (
                     <span className="inline-flex items-center gap-1">
@@ -247,7 +395,7 @@ export default function LeaderBoard() {
               <div className="shrink-0 text-right">
                 <p className={`text-base font-bold sm:text-lg ${isFirst ? "text-yellow-600 dark:text-yellow-400" : "text-foreground"}`}>
                   {isAll || isArcade
-                    ? entry.totalScore.toLocaleString()
+                    ? formatScore(entry.totalScore)
                     : `${entry.accuracy ?? 0}%`}
                 </p>
                 <p className="text-[10px] text-muted-foreground">
@@ -261,6 +409,24 @@ export default function LeaderBoard() {
                 {games.map((game) => (
                   <BreakdownCard key={game.type} game={game} />
                 ))}
+              </div>
+            )}
+
+            {canModerate && hideable && (
+              // Footer action after all card content: full-width on phones,
+              // right-aligned once the card has room.
+              <div className="mt-3 flex border-t border-border/60 pt-3 sm:justify-end">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-center text-muted-foreground hover:text-destructive sm:w-auto"
+                  disabled={hideMutation.isPending}
+                  onClick={() => confirmHide(entry)}
+                  aria-label={`Sembunyikan ${playerName(entry)} dari leaderboard`}
+                >
+                  <EyeOff />
+                  Sembunyikan pemain
+                </Button>
               </div>
             )}
           </motion.div>

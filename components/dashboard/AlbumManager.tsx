@@ -180,7 +180,7 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
           >
             <FolderOpen className="h-5 w-5" style={{ color: "#F59E0B" }} aria-hidden="true" />
           </div>
-          <h2 className="font-heading text-sm sm:text-base font-semibold">Album</h2>
+          <h2 className="font-heading text-lg font-semibold">Album</h2>
           {albumCount > 0 && (
             <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/10 px-1.5 text-xs font-medium text-primary">
               {albumCount}

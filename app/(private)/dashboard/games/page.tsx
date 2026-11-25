@@ -5,9 +5,12 @@ import LeaderBoard from "@/components/dashboard/LeaderBoard";
 import PageTransition from "@/components/PageTransition";
 import { Skeleton } from "@/components/ui";
 import { listGameQuestions, getGameLeaderboard, getGameQuestionCounts } from "@/lib/queries/games";
+import { auth } from "@/lib/auth";
+import { getUserCoupleId } from "@/lib/couple";
 import { GAME_QUESTION_PAGE_SIZE } from "@/lib/utils";
 import { prefetchServerQueries } from "@/lib/server-prefetch";
 import { queryKeys } from "@/lib/query-keys";
+import { Gamepad2 } from "lucide-react";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Games" };
@@ -18,6 +21,12 @@ const INITIAL_TAB = "WOULD_YOU_RATHER" as const;
 const INITIAL_SORT = "desc" as const;
 
 export default async function GamesManagerPage() {
+  // Leaderboard moderation is a couple-member action (the API re-checks it on
+  // every write). Only the dashboard asks for the controls; the public board
+  // renders them for nobody.
+  const session = await auth();
+  const canModerate = !!session?.user?.id && !!(await getUserCoupleId(session.user.id));
+
   // Seed react-query server-side so questions/leaderboard paint with the
   // first HTML instead of waiting for the client fetch waterfall.
   const state = await prefetchServerQueries([
@@ -55,9 +64,12 @@ export default async function GamesManagerPage() {
         <div className="w-full max-w-full space-y-8">
           <div>
             <div className="mb-8">
-              <h1 className="font-heading text-xl sm:text-2xl lg:text-3xl break-words">Kelola Games</h1>
+              <h1 className="flex items-center gap-2 font-heading text-xl sm:text-2xl lg:text-3xl break-words">
+                <Gamepad2 className="h-6 w-6 shrink-0 text-primary" aria-hidden="true" />
+                Kelola Games
+              </h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                Atur pertanyaan dan lihat leaderboard
+                Tambah dan kelola pertanyaan games serta atur leaderboard
               </p>
             </div>
 
@@ -79,7 +91,7 @@ export default async function GamesManagerPage() {
                 </div>
               }
             >
-              <LeaderBoard />
+              <LeaderBoard canModerate={canModerate} />
             </Suspense>
           </div>
         </div>

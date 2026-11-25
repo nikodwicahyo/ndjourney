@@ -394,6 +394,21 @@ model GameRound {
   @@index([gameType, playedAt])
 }
 
+/// Leaderboard moderation: a player a couple member hid from every board tab.
+/// Rows only filter the aggregates in `lib/queries/games.ts` — `GameRound` and
+/// `GameArcadeScore` stay append-only, so hiding never loses history and is
+/// fully reversible.
+/// `playerKey` is `user:<userId>` or `guest:<lowercased display name>`.
+model HiddenLeaderboardPlayer {
+  id        String   @id @default(cuid())
+  playerKey String   @unique
+  /// Display name at hide time, so the moderation list stays readable.
+  label     String
+  /// Account that hid the player (plain id: moderation is not relational data).
+  hiddenBy  String?
+  hiddenAt  DateTime @default(now())
+}
+
 model LocationShare {
   id        String   @id @default(cuid())
   userId    String   @unique

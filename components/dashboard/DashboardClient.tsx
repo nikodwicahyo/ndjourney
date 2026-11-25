@@ -15,7 +15,8 @@ export default function DashboardClient() {
   return (
     <div className="space-y-8 w-full max-w-full overflow-hidden">
       <div>
-        <h1 className="font-heading text-xl sm:text-2xl lg:text-3xl break-words">
+        <h1 className="flex items-center gap-2 font-heading text-xl sm:text-2xl lg:text-3xl break-words">
+          <Heart className="h-6 w-6 shrink-0 text-primary" aria-hidden="true" />
           Halo, {session?.user?.name || "Pasangan"}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">

@@ -21,7 +21,7 @@
 - Offline hard navigation to each of the six non-home public routes must show the offline screen, not a stale shell.
 - Offline `/` must keep the cached home shell and must not show the offline screen.
 - A previously installed `ndjourney-v14` cache must be deleted on activate, not left serving stale pages.
-- `/location` and `/dashboard/*` must keep their existing offline fallback behaviour.
+- `/dashboard`, `/dashboard/gallery` and `/location` must keep their existing offline fallback.
 - No app error boundary or `ada yang salah` text may appear in any offline case.
 
 ---
@@ -34,29 +34,29 @@
 
 **Interfaces:** none shared.
 
-- [ ] **Step 1: Write the failing E2E test**
+- [x] **Step 1: Write the failing E2E test**
 
-Replace the single-route assertion in `tests/e2e/pwa-offline.spec.ts` with an assertion loop over `/gallery`, `/timeline`, `/games`, `/notes`, `/letters`, `/wishlist`: after `context.setOffline(true)` and `page.reload()`, expect `Kamu sedang offline` and zero occurrences of `ada yang salah`. Keep the manifest, SW-controller wait, and existing timeout helpers. Add a home case: visit `/` online, wait for the SW controller, go offline, reload, expect the home shell and no offline text.
+Replace the single-route assertion in `tests/e2e/pwa-offline.spec.ts` with an assertion loop over `/gallery`, `/timeline`, `/games`, `/notes`, `/letters`, `/wishlist`: after `context.setOffline(true)` and `page.reload()`, expect the offline page's own heading and zero occurrences of `ada yang salah`. Add a home case (cached shell + hero, no offline text), a private-route loop (`/dashboard`, `/dashboard/gallery`, `/location`), and a case that seeds `ndjourney-v14` and proves activation removes it. Register `/sw.js` directly in tests; skip Firefox because its offline emulation does not fail service-worker fetches.
 
-- [ ] **Step 2: Run the focused test to verify it fails**
+- [x] **Step 2: Run the focused test to verify it fails**
 
-Run: `npx playwright test tests/e2e/pwa-offline.spec.ts --project=chromium`
-Expected: FAIL on the first non-home public route — cached page content is present and `Kamu sedang offline` is absent.
+Run: `npx playwright test tests/e2e/pwa-offline.spec.ts --project=chromium --workers=1`
+Expected: FAIL on the first non-home public route — cached page content is present and the offline heading is absent.
 
-- [ ] **Step 3: Implement the service-worker policy**
+- [x] **Step 3: Implement the service-worker policy**
 
 In `public/sw.js`: rename `PUBLIC_PAGE_PATHS` to `CACHEABLE_PAGE_PATHS` and leave only `/` in it; update the SEC comment that claims all public pages are persisted; bump `CACHE_NAME` from `ndjourney-v14` to `ndjourney-v15`. Leave `PRECACHE_URLS`, API caching, image caching, and private-route handling untouched.
 
-- [ ] **Step 4: Run the focused test to verify it passes**
+- [x] **Step 4: Run the focused test to verify it passes**
 
-Run: `npx playwright test tests/e2e/pwa-offline.spec.ts --project=chromium`
-Expected: PASS — all six routes show the offline screen offline, `/` shows the cached shell.
+Run: `npx playwright test tests/e2e/pwa-offline.spec.ts --workers=1`
+Expected: PASS on chromium and mobile (4 tests each), Firefox skipped, setup passing.
 
-- [ ] **Step 5: Run static checks**
+- [x] **Step 5: Run static checks**
 
-Run: `npm run typecheck` and `npm run lint`
-Expected: both PASS.
+Run: `npm run typecheck`, `npm run lint`, and `npm run test:unit`
+Expected: all PASS.
 
-- [ ] **Step 6: Commit only this plan's files**
+- [x] **Step 6: Commit only this plan's files**
 
-Stage `public/sw.js`, `tests/e2e/pwa-offline.spec.ts`, and the two design/plan docs. Do not stage unrelated dirty files.
+Stage `public/sw.js`, `tests/e2e/pwa-offline.spec.ts`, and the two design/plan docs. Do not stage unrelated dirty files (`public/offline.html` has pre-existing local edits).

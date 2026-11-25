@@ -6,7 +6,8 @@ Offline navigation to the six non-home public pages must show the same `/offline
 ## Goals
 - Cacheable page set in the service worker contains only `/`.
 - Existing installs purge stale page shells through a `CACHE_NAME` bump; `activate` already removes old caches.
-- E2E proves the offline screen on `/gallery`, `/timeline`, `/games`, `/notes`, `/letters`, `/wishlist`, and a cached home shell on `/`.
+- E2E proves the offline screen on `/gallery`, `/timeline`, `/games`, `/notes`, `/letters`, `/wishlist`, private routes (`/dashboard`, `/dashboard/gallery`, `/location`), and a cached home shell on `/`.
+- E2E seeds an `ndjourney-v14` cache and proves activation removes it.
 
 ## Non-goals
 - No client-side navigation guard (Approach B), no new dependencies, no change to private-route caching or offline data persistence.
@@ -21,4 +22,6 @@ Offline navigation to the six non-home public pages must show the same `/offline
 ## Decisions
 - `PUBLIC_PAGE_PATHS` becomes a cacheable-only set with `/` as its single member; rename to `CACHEABLE_PAGE_PATHS` so the name matches the rule.
 - `CACHE_NAME` moves from `ndjourney-v14` to `ndjourney-v15` so stale shells are deleted on activate.
-- The test asserts outcome text, not cache internals: offline page copy for the six routes, home shell for `/`, and no app error boundary anywhere.
+- The test asserts the offline page's own heading, not generic h1/img selectors: offline copy for non-home routes, home hero for `/`, and no app error boundary anywhere.
+- The worker is registered directly in tests (same `/sw.js` script) because app registration is idle-deferred and dev-server compilation can starve it; `clients.claim()` controls the open page without a reload.
+- Firefox is skipped in this spec: Playwright's Firefox offline emulation does not fail service-worker fetches, so it would exercise the browser HTTP cache instead of the SW fallback. Chromium and mobile cover the navigation path.

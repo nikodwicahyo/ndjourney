@@ -30,7 +30,7 @@
 ### Task 1: Service-worker offline fallback for non-home public pages
 
 **Files:**
-- Modify: `public/sw.js:1-3`, `public/sw.js:27-43`, `public/sw.js:197-218`
+- Modify: `public/sw.js`
 - Test: `tests/e2e/pwa-offline.spec.ts`
 
 **Interfaces:** none shared.

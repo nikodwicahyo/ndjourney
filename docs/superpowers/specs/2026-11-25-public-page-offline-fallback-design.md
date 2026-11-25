@@ -11,7 +11,7 @@ Offline navigation to the six non-home public pages must show the same `/offline
 - No API response is persisted by the worker; the personalized `/api/games/questions` stale-while-revalidate cache is removed.
 
 ## Non-goals
-- No client-side navigation guard (Approach B), no new dependencies, no change to private-route caching or offline data persistence.
+- No client-side navigation guard (Approach B), no new dependencies, no change to private-route caching or durable client stores. API responses are network-only.
 - No change to sign-out's deliberate cache wipe.
 
 ## Constraints

@@ -115,11 +115,16 @@ test("personalized game questions are never persisted by the worker", async ({ p
   // Exercise the app's own fetch, not page.evaluate (which Playwright sends
   // outside the service-worker client in Chromium).
   await page.goto("/games");
-  // The session probe can be inconclusive in dev; the guest path still makes
-  // the same /api/games/questions request the worker must not persist.
-  await page.getByRole("textbox", { name: "Nama kamu..." }).fill("Offline Test");
-  await page.getByRole("button", { name: "Mulai Main" }).click();
-  await page.getByRole("button", { name: /Love Quiz/i }).click();
+  // CI has a real session (no guest form); dev can have an inconclusive probe.
+  // Wait for either entry point, then use whichever one is actually present.
+  const guestName = page.getByRole("textbox", { name: "Nama kamu..." });
+  const loveQuiz = page.getByRole("button", { name: /Love Quiz/i });
+  await guestName.or(loveQuiz).first().waitFor({ state: "visible", timeout: t(20000) });
+  if (await guestName.isVisible()) {
+    await guestName.fill("Offline Test");
+    await page.getByRole("button", { name: "Mulai Main" }).click();
+  }
+  await loveQuiz.click();
   await page.waitForResponse(
     (response) => response.url().includes("/api/games/questions") && response.status() === 200,
     { timeout: t(20000) },
@@ -129,8 +134,14 @@ test("personalized game questions are never persisted by the worker", async ({ p
     .poll(
       async () =>
         page.evaluate(async () => {
-          const cache = await caches.open("ndjourney-api-v15");
-          return (await cache.keys()).map((request) => new URL(request.url).pathname);
+          const paths: string[] = [];
+          for (const name of await caches.keys()) {
+            const cache = await caches.open(name);
+            for (const request of await cache.keys()) {
+              paths.push(new URL(request.url).pathname);
+            }
+          }
+          return paths;
         }),
       { timeout: ASSERTION_BUDGET },
     )
@@ -139,14 +150,19 @@ test("personalized game questions are never persisted by the worker", async ({ p
 
 test("old page-shell cache is purged when the worker activates", async ({ page, context }) => {
   test.setTimeout(SW_WAIT_BUDGET + 3 * ASSERTION_BUDGET + t(30000));
-  // Block the app's deferred registration until a stale v14 cache exists.
+  // Block the app's deferred registration until stale page + API caches exist.
   await context.route("**/sw.js", (route) => route.abort());
   await page.goto("/");
   await page.evaluate(async () => {
-    const cache = await caches.open("ndjourney-v14");
-    await cache.put(
+    const pages = await caches.open("ndjourney-v14");
+    await pages.put(
       "/gallery",
       new Response("stale public shell", { headers: { "Content-Type": "text/html" } }),
+    );
+    const api = await caches.open("ndjourney-api-v15");
+    await api.put(
+      "/api/games/questions?stale=1",
+      new Response('{"data":[]}', { headers: { "Content-Type": "application/json" } }),
     );
   });
   await context.unroute("**/sw.js");
@@ -156,6 +172,9 @@ test("old page-shell cache is purged when the worker activates", async ({ page, 
   await expect
     .poll(async () => page.evaluate(() => caches.keys()), { timeout: ASSERTION_BUDGET })
     .not.toContain("ndjourney-v14");
+  await expect
+    .poll(async () => page.evaluate(() => caches.keys()), { timeout: ASSERTION_BUDGET })
+    .not.toContain("ndjourney-api-v15");
 
   await context.setOffline(true);
   await page.goto("/gallery").catch(() => {});

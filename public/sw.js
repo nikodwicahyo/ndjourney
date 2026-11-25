@@ -1,5 +1,4 @@
 const CACHE_NAME = "ndjourney-v15";
-const API_CACHE_NAME = "ndjourney-api-v15";
 const IMAGE_CACHE_NAME = "ndjourney-images-v14";
 
 const PRECACHE_URLS = [
@@ -24,11 +23,9 @@ const CLOUDINARY_RE = /res\.cloudinary\.com/;
 const IMAGE_EXT = /\.(png|jpg|jpeg|gif|svg|webp|avif|ico)$/i;
 const TILE_CDN_RE = /(^|\.)basemaps\.cartocdn\.com$|(^|\.)tile\.openstreetmap\.org$|^tiles\.openfreemap\.org$/i;
 
-const PUBLIC_API_PATHS = [
-  // SEC: /api/couple carries PII (birth dates) — never persist on-device.
-  // Pages fall back to networkFirst (memory-only) + /offline.html when offline.
-  "/api/games/questions",
-];
+// SEC: no API responses are persisted. Personalized reads (e.g. game question
+// batches that exclude a user's answers) carry user state and send
+// Cache-Control: private, no-cache; the worker must not override that.
 
 // SEC: only the static home shell is persisted. Other public pages, private
 // routes, and /letters/<id> must fall back to /offline.html while offline —
@@ -57,12 +54,7 @@ self.addEventListener("activate", (event) => {
       .then((names) =>
         Promise.all(
           names
-            .filter(
-              (name) =>
-                name !== CACHE_NAME &&
-                name !== API_CACHE_NAME &&
-                name !== IMAGE_CACHE_NAME,
-            )
+            .filter((name) => name !== CACHE_NAME && name !== IMAGE_CACHE_NAME)
             .map((name) => caches.delete(name)),
         ),
       )
@@ -110,22 +102,8 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // SEC: the dashboard listing carries the answer key (`includeAnswer=1`) and
-  // the single-question deep-link read under this path resolves to the same
-  // data — never persist either on-device. Exact-path match also keeps the
-  // per-type counts (and the deep-link read) out of the offline API cache.
-  const isAnswerBearingQuestionRead =
-    url.pathname === "/api/games/questions" &&
-    url.searchParams.get("includeAnswer") === "1";
-
-  if (
-    url.origin === location.origin &&
-    !isAnswerBearingQuestionRead &&
-    PUBLIC_API_PATHS.some((p) => url.pathname === p)
-  ) {
-    event.respondWith(staleWhileRevalidate(request));
-    return;
-  }
+  // SEC: every API read falls through to networkFirst, which never persists
+  // responses. Personalized batches and answer-key reads must stay network-only.
 
   if (
     url.origin === location.origin &&
@@ -168,23 +146,6 @@ async function cacheFirst(request, cacheName = CACHE_NAME, maxItems = 0) {
     }
     return new Response("", { status: 408, statusText: "Offline" });
   }
-}
-
-async function staleWhileRevalidate(request) {
-  const cache = await caches.open(API_CACHE_NAME);
-  const cached = await cache.match(request);
-
-  const fetchPromise = fetch(request)
-    .then((response) => {
-      if (response.ok && response.type === "basic") {
-        const clone = response.clone();
-        cache.put(request, clone);
-      }
-      return response;
-    })
-    .catch(() => cached);
-
-  return cached || fetchPromise;
 }
 
 async function networkFirst(request) {

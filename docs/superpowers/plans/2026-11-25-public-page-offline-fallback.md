@@ -12,7 +12,7 @@
 
 ## Global Constraints
 - No new dependencies.
-- Never cache private/authenticated HTML or JSON.
+- Never cache private/authenticated HTML or JSON; no API response is persisted by the worker.
 - `CACHE_NAME` must become `ndjourney-v15`.
 - `/offline.html` stays in `PRECACHE_URLS`.
 - Only stage files owned by this plan; the working tree has unrelated user edits.
@@ -23,6 +23,7 @@
 - A previously installed `ndjourney-v14` cache must be deleted on activate, not left serving stale pages.
 - `/dashboard`, `/dashboard/gallery` and `/location` must keep their existing offline fallback.
 - No app error boundary or `ada yang salah` text may appear in any offline case.
+- An app-initiated `/api/games/questions` fetch must not create an `ndjourney-api-v15` cache entry.
 
 ---
 
@@ -45,12 +46,12 @@ Expected: FAIL on the first non-home public route — cached page content is pre
 
 - [x] **Step 3: Implement the service-worker policy**
 
-In `public/sw.js`: rename `PUBLIC_PAGE_PATHS` to `CACHEABLE_PAGE_PATHS` and leave only `/` in it; update the SEC comment that claims all public pages are persisted; bump `CACHE_NAME` from `ndjourney-v14` to `ndjourney-v15`. Leave `PRECACHE_URLS`, API caching, image caching, and private-route handling untouched.
+In `public/sw.js`: rename `PUBLIC_PAGE_PATHS` to `CACHEABLE_PAGE_PATHS` and leave only `/` in it; update the SEC comment that claims all public pages are persisted; bump `CACHE_NAME` from `ndjourney-v14` to `ndjourney-v15`. Delete `PUBLIC_API_PATHS`, `API_CACHE_NAME` and `staleWhileRevalidate()` so `/api/games/questions` is network-only, and narrow the activate keep-list to page + image caches so an old API cache is purged. Leave `PRECACHE_URLS`, image caching, and private-route handling untouched.
 
 - [x] **Step 4: Run the focused test to verify it passes**
 
 Run: `npx playwright test tests/e2e/pwa-offline.spec.ts --workers=1`
-Expected: PASS on chromium and mobile (4 tests each), Firefox skipped, setup passing.
+Expected: PASS on chromium and mobile (5 tests each), Firefox skipped, setup passing.
 
 - [x] **Step 5: Run static checks**
 

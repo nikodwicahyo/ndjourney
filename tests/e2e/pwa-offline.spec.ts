@@ -68,7 +68,6 @@ test("non-home public pages show the offline screen when offline", async ({ page
 
     await context.setOffline(true);
     await page.reload().catch(() => {});
-    await expect(page.locator("body")).not.toBeEmpty();
     await expect(offlineHeading(page)).toHaveCount(1);
     await expectOfflinePage(page);
     await context.setOffline(false);
@@ -83,7 +82,6 @@ test("home still serves its cached shell when offline", async ({ page, context }
 
   await context.setOffline(true);
   await page.reload().catch(() => {});
-  await expect(page.locator("body")).not.toBeEmpty();
   await expect(offlineHeading(page)).toHaveCount(0);
   await expect(page.getByText(ERROR_COPY)).toHaveCount(0);
   await expect(page.locator("header").first()).toBeVisible();
@@ -108,6 +106,35 @@ test("private routes keep the offline screen fallback", async ({ page, context }
     await expectOfflinePage(page);
     await context.setOffline(false);
   }
+});
+
+test("personalized game questions are never persisted by the worker", async ({ page }) => {
+  test.setTimeout(SW_WAIT_BUDGET + t(20000) + 2 * ASSERTION_BUDGET);
+  await waitForServiceWorker(page);
+
+  // Exercise the app's own fetch, not page.evaluate (which Playwright sends
+  // outside the service-worker client in Chromium).
+  await page.goto("/games");
+  // The session probe can be inconclusive in dev; the guest path still makes
+  // the same /api/games/questions request the worker must not persist.
+  await page.getByRole("textbox", { name: "Nama kamu..." }).fill("Offline Test");
+  await page.getByRole("button", { name: "Mulai Main" }).click();
+  await page.getByRole("button", { name: /Love Quiz/i }).click();
+  await page.waitForResponse(
+    (response) => response.url().includes("/api/games/questions") && response.status() === 200,
+    { timeout: t(20000) },
+  );
+
+  await expect
+    .poll(
+      async () =>
+        page.evaluate(async () => {
+          const cache = await caches.open("ndjourney-api-v15");
+          return (await cache.keys()).map((request) => new URL(request.url).pathname);
+        }),
+      { timeout: ASSERTION_BUDGET },
+    )
+    .not.toContain("/api/games/questions");
 });
 
 test("old page-shell cache is purged when the worker activates", async ({ page, context }) => {

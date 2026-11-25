@@ -1,4 +1,4 @@
-const CACHE_NAME = "ndjourney-v14";
+const CACHE_NAME = "ndjourney-v15";
 const API_CACHE_NAME = "ndjourney-api-v15";
 const IMAGE_CACHE_NAME = "ndjourney-images-v14";
 
@@ -30,17 +30,10 @@ const PUBLIC_API_PATHS = [
   "/api/games/questions",
 ];
 
-// SEC: only unauthenticated page shells are persisted. Private routes and
-// /letters/<id> must not be readable from disk after logout/offline.
-const PUBLIC_PAGE_PATHS = new Set([
-  "/",
-  "/gallery",
-  "/timeline",
-  "/letters",
-  "/games",
-  "/notes",
-  "/wishlist",
-]);
+// SEC: only the static home shell is persisted. Other public pages, private
+// routes, and /letters/<id> must fall back to /offline.html while offline —
+// never replay a stale page from disk.
+const CACHEABLE_PAGE_PATHS = new Set(["/"]);
 
 const MAX_IMAGE_CACHE = 100;
 
@@ -198,10 +191,11 @@ async function networkFirst(request) {
   try {
     const response = await fetch(request);
     // SEC: never persist authed API JSON or private page HTML on-device.
-    // Only allowlisted public API/page paths are written to disk.
+    // Only the home shell is written to disk; every other page falls back
+    // to /offline.html when the network is unavailable.
     const reqUrl = new URL(request.url);
-    const isPublicPage = reqUrl.origin === location.origin && PUBLIC_PAGE_PATHS.has(reqUrl.pathname);
-    if (response.ok && response.type === "basic" && isPublicPage) {
+    const isCacheablePage = reqUrl.origin === location.origin && CACHEABLE_PAGE_PATHS.has(reqUrl.pathname);
+    if (response.ok && response.type === "basic" && isCacheablePage) {
       const clone = response.clone();
       const cache = await caches.open(CACHE_NAME);
       cache.put(request, clone);

@@ -4,6 +4,7 @@ import {
   formatDurationId,
   formatStopTimeLabel,
   formatTimeOnly,
+  formatWaypointTimeLabel,
   downsampleWaypoints,
   fetchRoadSnappedRoute,
   hasTrackMovement,
@@ -58,6 +59,16 @@ describe("location-history utility", () => {
 
     it("handles invalid string gracefully", () => {
       expect(formatTimeOnly("invalid")).toBe("—");
+    });
+  });
+
+  describe("formatWaypointTimeLabel", () => {
+    it("appends the Jakarta date after the time", () => {
+      expect(formatWaypointTimeLabel("2026-11-20T08:30:00Z")).toBe("15:30 · 20/11/2026");
+    });
+
+    it("handles invalid string gracefully", () => {
+      expect(formatWaypointTimeLabel("invalid")).toBe("—");
     });
   });
 

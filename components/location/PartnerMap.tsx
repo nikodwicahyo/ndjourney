@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useSession } from "next-auth/react";
-import { Heart, MapPin, Ruler } from "lucide-react";
+import { MapPin, Ruler } from "lucide-react";
 import {
   formatDistance,
   haversineMeters,
@@ -28,7 +28,7 @@ import {
   fetchRoadSnappedRoute,
   formatDurationId,
   formatStopTimeLabel,
-  formatTimeOnly,
+  formatWaypointTimeLabel,
   headingOnPolyline,
   projectPointToPolyline,
   waypointBearing,
@@ -953,7 +953,7 @@ export default function PartnerMap({
         // Skip the first point: the "Mulai" marker already sits exactly there
         // and would otherwise render a second, overlapping waypoint/popup.
         breadcrumbPoints(segment).slice(1).forEach((p) => {
-          const timeStr = formatTimeOnly(p.createdAt);
+          const timeStr = formatWaypointTimeLabel(p.createdAt);
           const speedStr = p.speed !== null && p.speed > 0 ? ` • ${(p.speed * 3.6).toFixed(0)} km/j` : "";
           const label = `${userLabel}: ${timeStr}${speedStr}`;
           // Recorded device heading covers a fully stationary trail, where no
@@ -1509,7 +1509,12 @@ export default function PartnerMap({
             <>
               <span className="text-muted-foreground/40">·</span>
               <span className="flex items-center gap-1">
-                <Heart className="h-3 w-3" aria-hidden="true" /> {partner.label}
+                <span
+                  className="h-2 w-2 rounded-full"
+                  style={{ backgroundColor: HISTORY_USER_COLORS.partner }}
+                  aria-hidden="true"
+                />
+                {partner.label}
               </span>
               {partnerAddress && (
                 <span className="hidden sm:inline text-muted-foreground/60 truncate max-w-[120px]">

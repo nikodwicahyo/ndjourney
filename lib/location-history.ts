@@ -55,6 +55,18 @@ export function formatTimeOnly(iso: string): string {
   }
 }
 
+/** Waypoint popup stamp: Jakarta `HH:mm · dd/MM/yyyy`. */
+export function formatWaypointTimeLabel(iso: string): string {
+  const time = formatTimeOnly(iso);
+  if (time === "—") return time;
+  const date = formatInJakarta(iso, {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+  return `${time} · ${date}`;
+}
+
 /** One canonical "time range . date" label, shared by the stop list and map popup. */
 export function formatStopTimeLabel(stop: VisitedStop): string {
   // Real span only: arrived → last known ping. No "Sekarang" — the GPS may be

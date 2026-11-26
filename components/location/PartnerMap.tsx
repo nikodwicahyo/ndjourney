@@ -509,7 +509,9 @@ export default function PartnerMap({
         // One above the map max: detectRetina subtracts 1 on hi-dpi screens.
         maxZoom: MAP_ZOOM_LIMITS.tileMax,
         minZoom: MAP_ZOOM_LIMITS.min,
-        maxNativeZoom: MAP_ZOOM_LIMITS.tileNativeMax,
+        maxNativeZoom: L.Browser.retina
+          ? MAP_ZOOM_LIMITS.tileNativeMaxRetina
+          : MAP_ZOOM_LIMITS.tileNativeMax,
         subdomains: "abc",
         attribution: TILE_ATTR,
         detectRetina: true,

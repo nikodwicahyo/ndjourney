@@ -18,14 +18,17 @@ describe("map pane stacking", () => {
 
   it("uses a fixed casing/dash in both route modes with partner-colored cores", () => {
     expect(HISTORY_TRAIL_STYLE.casing).toBe("#0f172a");
-    expect(HISTORY_TRAIL_STYLE.dash).toBe("8 16");
+    expect(HISTORY_TRAIL_STYLE.dash).toBe("8 24");
     expect(HISTORY_USER_COLORS.self).toBe("#3b82f6");
     expect(HISTORY_USER_COLORS.partner).toBe("#F43F5E");
   });
 
-  it("leaves a visible gap after the round casing caps close in", () => {
+  it("leaves a clear gap after the round casing caps close in", () => {
     const [, gap] = HISTORY_TRAIL_STYLE.dash.split(" ").map(Number);
-    expect(gap - HISTORY_TRAIL_STYLE.casingWeight).toBeGreaterThan(0);
+    // A gap no wider than the casing reads as a solid line at map scale.
+    expect(gap - HISTORY_TRAIL_STYLE.casingWeight).toBeGreaterThanOrEqual(
+      HISTORY_TRAIL_STYLE.casingWeight,
+    );
   });
 
   it("allows zooming past native tiles so the scale can reach 5 m", () => {
@@ -34,6 +37,14 @@ describe("map pane stacking", () => {
     expect(MAP_ZOOM_LIMITS.min).toBe(2);
     // detectRetina subtracts one from the tile layer's maxZoom internally.
     expect(MAP_ZOOM_LIMITS.tileMax).toBe(MAP_ZOOM_LIMITS.max + 1);
+  });
+
+  it("keeps retina tile URLs inside the native OSM range", () => {
+    // detectRetina adds 1 to the URL zoom, so the native cap must drop by 1
+    // or z19+ requests OSM z20 (404) and the map goes blank.
+    expect(MAP_ZOOM_LIMITS.tileNativeMaxRetina).toBe(
+      MAP_ZOOM_LIMITS.tileNativeMax - 1,
+    );
   });
 
   it("sizes the scale bar for the 5 m bucket at max zoom", () => {

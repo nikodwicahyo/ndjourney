@@ -17,9 +17,23 @@ export const MAP_PANES = {
 /** Fixed casing/dash in both route modes; the core dash uses partner colors. */
 export const HISTORY_TRAIL_STYLE = {
   casing: "#0f172a",
-  dash: "6 8",
+  dash: "8 16",
   casingWeight: 8,
   coreWeight: 4,
+} as const;
+
+/**
+ * Leaflet zoom limits. OSM tiles stop at z19; the map overzooms to z21 so the
+ * metric scale can reach 5 m. `tileMax` leaves room for Leaflet's retina
+ * `detectRetina` adjustment, which subtracts one from the tile layer's maxZoom.
+ */
+export const MAP_ZOOM_LIMITS = {
+  min: 2,
+  max: 21,
+  tileMax: 22,
+  tileNativeMax: 19,
+  // ~0.074 m/px at z21 near Jakarta; 72px is the 5m scale bucket in Leaflet.
+  scaleMaxWidth: 72,
 } as const;
 
 /** Partner A (self) and partner B colors, shared by map trail and legend. */

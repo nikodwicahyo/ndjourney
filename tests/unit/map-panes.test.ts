@@ -3,6 +3,7 @@ import {
   HISTORY_TRAIL_STYLE,
   HISTORY_USER_COLORS,
   MAP_PANES,
+  MAP_ZOOM_LIMITS,
   NAV_PATH,
   WAYPOINT_ARROW_SIZE,
   waypointArrowSvg,
@@ -17,9 +18,31 @@ describe("map pane stacking", () => {
 
   it("uses a fixed casing/dash in both route modes with partner-colored cores", () => {
     expect(HISTORY_TRAIL_STYLE.casing).toBe("#0f172a");
-    expect(HISTORY_TRAIL_STYLE.dash).toBe("6 8");
+    expect(HISTORY_TRAIL_STYLE.dash).toBe("8 16");
     expect(HISTORY_USER_COLORS.self).toBe("#3b82f6");
     expect(HISTORY_USER_COLORS.partner).toBe("#F43F5E");
+  });
+
+  it("leaves a visible gap after the round casing caps close in", () => {
+    const [, gap] = HISTORY_TRAIL_STYLE.dash.split(" ").map(Number);
+    expect(gap - HISTORY_TRAIL_STYLE.casingWeight).toBeGreaterThan(0);
+  });
+
+  it("allows zooming past native tiles so the scale can reach 5 m", () => {
+    expect(MAP_ZOOM_LIMITS.max).toBe(21);
+    expect(MAP_ZOOM_LIMITS.tileNativeMax).toBe(19);
+    expect(MAP_ZOOM_LIMITS.min).toBe(2);
+    // detectRetina subtracts one from the tile layer's maxZoom internally.
+    expect(MAP_ZOOM_LIMITS.tileMax).toBe(MAP_ZOOM_LIMITS.max + 1);
+  });
+
+  it("sizes the scale bar for the 5 m bucket at max zoom", () => {
+    const metersPerPixel =
+      (156543.03392 * Math.cos((-6.2 * Math.PI) / 180)) / 2 ** MAP_ZOOM_LIMITS.max;
+    const maxMeters = MAP_ZOOM_LIMITS.scaleMaxWidth * metersPerPixel;
+    // Leaflet rounds metric labels to 1/2/3/5/10, so z21 must land in [5, 10).
+    expect(maxMeters).toBeGreaterThanOrEqual(5);
+    expect(maxMeters).toBeLessThan(10);
   });
 
   it("emits a real path element, not raw path data as SVG text", () => {

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   DAILY_LOVE_TASKS,
+  formatLoveTaskDayLabel,
   formatLoveTaskHistoryDate,
   getDailyLoveTaskForDate,
   getLoveTaskHistory,
@@ -101,6 +102,11 @@ describe("daily love task history", () => {
     const history = getLoveTaskHistory(rows);
     expect(history).toHaveLength(365);
     expect(history[0].date).toBe(rows[rows.length - 1].date);
+  });
+
+  it("labels the card date with weekday, day, month, and year", () => {
+    expect(formatLoveTaskDayLabel("2026-11-27")).toBe("Jum, 27 Nov 2026");
+    expect(formatLoveTaskDayLabel("not-a-day")).toBe("");
   });
 
   it("formats the completion date with a year only when it differs", () => {

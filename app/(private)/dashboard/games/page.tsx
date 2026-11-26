@@ -69,7 +69,7 @@ export default async function GamesManagerPage() {
                 Kelola Games
               </h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                Tambah dan kelola pertanyaan games serta atur leaderboard
+                Kelola games dan atur leaderboard
               </p>
             </div>
 

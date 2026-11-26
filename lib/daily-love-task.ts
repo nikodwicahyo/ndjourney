@@ -509,7 +509,7 @@ export function pickNextLoveTask(
   return pool[index];
 }
 
-/** `Sab, 14 Nov` — Jakarta calendar label for the card header. */
+/** `Sab, 14 Nov 2025` — Jakarta calendar label for the card header. */
 export function formatLoveTaskDayLabel(dayKey: string): string {
   const ms = dayKeyToUtcMs(dayKey);
   if (ms === null) return "";
@@ -517,6 +517,7 @@ export function formatLoveTaskDayLabel(dayKey: string): string {
     weekday: "short",
     day: "numeric",
     month: "short",
+    year: "numeric",
     timeZone: "UTC",
   });
 }

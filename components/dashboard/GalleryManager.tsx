@@ -589,8 +589,8 @@ export default function GalleryManager() {
             <ImagePlus className="h-5 w-5" style={{ color: "#10B981" }} aria-hidden="true" />
           </div>
           <div className="min-w-0">
-            <h2 className="font-heading text-lg font-semibold truncate">Upload Foto & Video</h2>
-            <p className="text-xs text-muted-foreground truncate">Drag & drop atau klik untuk memilih</p>
+            <h2 className="font-heading text-sm font-semibold truncate sm:text-lg">Upload Foto & Video</h2>
+            <p className="text-xs text-muted-foreground truncate">Drag & drop atau klik untuk memilih file</p>
           </div>
         </div>
 

@@ -180,7 +180,7 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
           >
             <FolderOpen className="h-5 w-5" style={{ color: "#F59E0B" }} aria-hidden="true" />
           </div>
-          <h2 className="font-heading text-lg font-semibold">Album</h2>
+          <h2 className="font-heading text-sm font-semibold sm:text-lg">Album</h2>
           {albumCount > 0 && (
             <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/10 px-1.5 text-xs font-medium text-primary">
               {albumCount}
@@ -408,8 +408,8 @@ export default function AlbumManager({ isOpen, onToggle }: Props) {
                             <span
                               className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
                                 album.isPublic
-                                  ? "bg-primary/10 text-primary"
-                                  : "bg-muted text-muted-foreground"
+                                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                  : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
                               }`}
                             >
                               {album.isPublic ? "Publik" : "Privat"}

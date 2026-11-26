@@ -39,6 +39,7 @@ import {
   HISTORY_TRAIL_STYLE,
   HISTORY_USER_COLORS,
   MAP_PANES,
+  MAP_ZOOM_LIMITS,
   NAV_PATH,
   WAYPOINT_ARROW_SIZE,
   nextCameraAction,
@@ -483,6 +484,8 @@ export default function PartnerMap({
       map = L.map(container, {
         center: [center.lat, center.lng],
         zoom: 15,
+        minZoom: MAP_ZOOM_LIMITS.min,
+        maxZoom: MAP_ZOOM_LIMITS.max,
         zoomControl: false,
         attributionControl: true,
         scrollWheelZoom: true,
@@ -503,8 +506,10 @@ export default function PartnerMap({
     let tile: L.TileLayer;
     try {
       tile = L.tileLayer(TILE_URL, {
-        maxZoom: 19,
-        minZoom: 2,
+        // One above the map max: detectRetina subtracts 1 on hi-dpi screens.
+        maxZoom: MAP_ZOOM_LIMITS.tileMax,
+        minZoom: MAP_ZOOM_LIMITS.min,
+        maxNativeZoom: MAP_ZOOM_LIMITS.tileNativeMax,
         subdomains: "abc",
         attribution: TILE_ATTR,
         detectRetina: true,
@@ -554,9 +559,9 @@ export default function PartnerMap({
         position: "bottomleft",
         metric: true,
         imperial: false,
-        // Leaflet rounds the scale label from this width; 120px at the max
-        // zoom (19) rounds up to 30 m. 60px lands in the 10 m bucket.
-        maxWidth: 60,
+        // Leaflet rounds the label from this width. At z21 ~0.074 m/px near
+        // Jakarta, so 72px lands in the 5 m bucket (60px would label 3 m).
+        maxWidth: MAP_ZOOM_LIMITS.scaleMaxWidth,
       })
       .addTo(map);
 
